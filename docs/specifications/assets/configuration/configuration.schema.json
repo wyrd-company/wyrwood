@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wyrwood configuration",
+  "description": "The persisted per-user Wyrwood YAML configuration contract.",
+  "x-relationships": {},
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["upstream", "consumers", "timeouts"],
+  "properties": {
+    "upstream": {
+      "$ref": "#/$defs/absoluteCanonicalPath",
+      "description": "Canonical absolute path of the single upstream SSH-agent socket."
+    },
+    "consumers": {
+      "type": "array",
+      "description": "Consumer endpoints. Names and socket paths are unique; parent-directory isolation is checked semantically.",
+      "items": { "$ref": "#/$defs/consumer" }
+    },
+    "timeouts": {
+      "$ref": "#/$defs/timeouts"
+    }
+  },
+  "$defs": {
+    "absoluteCanonicalPath": {
+      "type": "string",
+      "minLength": 2,
+      "pattern": "^/",
+      "description": "An absolute path in canonical lexical form. Canonicalization is checked semantically."
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$",
+      "description": "Canonical OpenSSH SHA-256 fingerprint: 32 digest bytes encoded as unpadded base64."
+    },
+    "duration": {
+      "type": "string",
+      "pattern": "^(?:[0-9]+(?:\\.[0-9]+)?(?:ns|us|µs|ms|s|m|h))+$",
+      "description": "A positive Go duration string. Operation-specific bounds are checked semantically."
+    },
+    "consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "socket", "fingerprints"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Unique display name without leading or trailing whitespace."
+        },
+        "socket": {
+          "$ref": "#/$defs/absoluteCanonicalPath",
+          "description": "Consumer AF_UNIX socket path inside its dedicated parent directory."
+        },
+        "access-group": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 4294967294,
+          "description": "Optional Linux numeric group identifier granted access to the endpoint."
+        },
+        "fingerprints": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fingerprint" }
+        }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connect", "list", "replay", "sign"],
+      "properties": {
+        "connect": {
+          "$ref": "#/$defs/duration",
+          "description": "Upstream connection deadline, from 100ms through 30s."
+        },
+        "list": {
+          "$ref": "#/$defs/duration",
+          "description": "Identity-list deadline, from 100ms through 30s."
+        },
+        "replay": {
+          "$ref": "#/$defs/duration",
+          "description": "Session-binding replay deadline, from 100ms through 30s."
+        },
+        "sign": {
+          "$ref": "#/$defs/duration",
+          "description": "Signing deadline, from 1s through 10m."
+        }
+      }
+    }
+  }
+}

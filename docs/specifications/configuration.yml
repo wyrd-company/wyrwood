@@ -1,0 +1,41 @@
+$schema: https://refinery.systems/ontology/specification
+relationships: {}
+format: json-schema
+description: >-
+  Wyrwood configuration is one strict YAML document whose machine-readable
+  structure is defined by
+  `assets/configuration/configuration.schema.json`. The document records one
+  canonical absolute upstream SSH-agent socket path, zero or more consumer
+  security principals, and the deadlines applied to upstream operations. Each
+  consumer records a display name, a canonical absolute socket path, an
+  optional Linux numeric group identifier, and an exact allowlist of OpenSSH
+  SHA-256 public-key fingerprints.
+
+  Consumer socket paths are unique and differ from the upstream path. Each
+  consumer socket has a dedicated parent directory. Consumer parent directories
+  are distinct, do not contain one another, and do not contain the upstream
+  socket. Consumer display names are non-empty and unique. Fingerprint values
+  use OpenSSH's canonical `SHA256:` prefix followed by the unpadded base64
+  encoding of exactly 32 digest bytes; each consumer's list contains unique
+  values.
+
+  Timeout values use Go duration syntax. Connect, identity-list, and
+  session-binding replay deadlines are each between 100 milliseconds and 30
+  seconds inclusive. The signing deadline is between 1 second and 10 minutes
+  inclusive. Initial configuration records defaults of 5 seconds for connect,
+  list, and replay and 2 minutes for signing.
+
+  On Linux, the configuration path is
+  `$XDG_CONFIG_HOME/wyrwood/config.yml` when `XDG_CONFIG_HOME` is set and
+  `$HOME/.config/wyrwood/config.yml` when it is unset. Both roots are absolute.
+  Initialization
+  records the current `SSH_AUTH_SOCK` value after full validation, creates the
+  Wyrwood configuration directory with mode `0700`, and publishes a complete
+  file with mode `0600` as one atomic no-replace operation.
+validation-criteria: >-
+  A configuration conforms when it validates against the JSON Schema asset and
+  the Go parser accepts it. The parser enforces YAML field closure, canonical
+  filesystem paths, cross-field uniqueness and directory isolation, canonical
+  fingerprint encoding, Linux group range, duration parsing and bounds, and a
+  single-document input. Filesystem tests verify Linux default-path resolution
+  and initialization's owner-only, atomic, no-replace behavior.
