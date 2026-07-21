@@ -120,7 +120,7 @@ proposed-design:
     timed-out upstream stream is closed and rebuilt on the next request because
     a delayed response would make that stream unsafe to reuse.
   control-interface: >-
-    Wyrwood exposes a versioned request-response control API only through a
+    Wyrwood exposes a versioned request-response control API only through an
     owner-only Unix-domain socket. The Linux transport verifies the peer UID from
     kernel credentials against the daemon UID in addition to filesystem
     permissions. No TCP listener exists. The single wyrwood executable provides
