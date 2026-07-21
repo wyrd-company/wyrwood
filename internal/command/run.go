@@ -1,6 +1,5 @@
 // ---
-// relationships:
-//   implements: per-user-agent-proxy
+// relationships: {}
 // ---
 
 // Package command owns top-level command dispatch for the wyrwood executable.

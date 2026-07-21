@@ -1,6 +1,5 @@
 # ---
-# relationships:
-#   verifies: per-user-agent-proxy
+# relationships: {}
 # ---
 
 version: "3"
@@ -45,6 +44,7 @@ tasks:
   check:
     desc: Run all repository checks
     deps:
+      - build
       - docs:check
       - format:check
       - test

@@ -1,6 +1,5 @@
 # ---
-# relationships:
-#   supports: per-user-agent-proxy
+# relationships: {}
 # ---
 
 /wyrwood

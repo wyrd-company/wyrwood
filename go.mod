@@ -1,6 +1,5 @@
 // ---
-// relationships:
-//   implements: per-user-agent-proxy
+// relationships: {}
 // ---
 
 module github.com/wyrd-company/wyrwood

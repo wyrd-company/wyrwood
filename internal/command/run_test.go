@@ -1,6 +1,5 @@
 // ---
-// relationships:
-//   verifies: per-user-agent-proxy
+// relationships: {}
 // ---
 
 package command
@@ -27,6 +26,82 @@ func TestRunHelp(t *testing.T) {
 	}
 	if stderr.Len() != 0 {
 		t.Fatalf("Run() stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunWithoutArgumentsShowsHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exitCode := Run(nil, &stdout, &stderr)
+
+	if exitCode != 0 {
+		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	}
+	if !strings.Contains(stdout.String(), "Usage:") {
+		t.Fatalf("Run() stdout = %q, want usage help", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Run() stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunVersion(t *testing.T) {
+	t.Parallel()
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
+	exitCode := Run([]string{"version"}, &stdout, &stderr)
+
+	if exitCode != 0 {
+		t.Fatalf("Run() exit code = %d, want 0", exitCode)
+	}
+	if stdout.String() != "wyrwood dev\n" {
+		t.Fatalf("Run() stdout = %q, want version", stdout.String())
+	}
+	if stderr.Len() != 0 {
+		t.Fatalf("Run() stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunRejectsUnimplementedCommands(t *testing.T) {
+	t.Parallel()
+
+	commands := []string{
+		"daemon",
+		"init",
+		"apply",
+		"keys",
+		"status",
+		"events",
+		"tui",
+		"service",
+	}
+
+	for _, name := range commands {
+		name := name
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdout bytes.Buffer
+			var stderr bytes.Buffer
+
+			exitCode := Run([]string{name}, &stdout, &stderr)
+
+			if exitCode != 1 {
+				t.Fatalf("Run() exit code = %d, want 1", exitCode)
+			}
+			if stdout.Len() != 0 {
+				t.Fatalf("Run() stdout = %q, want empty", stdout.String())
+			}
+			wantError := "wyrwood " + name + " is not implemented yet\n"
+			if stderr.String() != wantError {
+				t.Fatalf("Run() stderr = %q, want %q", stderr.String(), wantError)
+			}
+		})
 	}
 }
 

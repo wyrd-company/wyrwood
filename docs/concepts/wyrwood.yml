@@ -28,8 +28,10 @@ properties:
     through an operating-system local, same-user control endpoint.
   non-sensitive-history: >-
     Bounded per-user operational events contain categorical outcomes and
-    timing without signing payloads, signatures, public keys, comments,
-    filesystem paths, destinations, or raw protocol data.
+    timing. Events may retain a selected public-key fingerprint as a stable,
+    correlatable key identifier. They contain no signing payloads, signatures,
+    public-key bytes, agent comments, filesystem paths, destinations, raw client
+    messages, or raw upstream errors.
 features:
   filter-agent-identities: >-
     Lists only upstream identities whose fingerprints appear in the consumer's

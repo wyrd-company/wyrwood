@@ -28,8 +28,11 @@ outcomes:
   - "3":
       importance: 3
       statement: >-
-        Make policy and upstream failures distinguishable without storing
-        signing payloads, signatures, public keys, paths, or destinations.
+        Make policy and upstream failures distinguishable while retaining only
+        the selected key fingerprint as correlatable key identity and never
+        storing signing payloads, signatures, public-key bytes, agent comments,
+        filesystem paths, destinations, raw client messages, or raw upstream
+        errors.
   - "4":
       importance: 4
       statement: >-

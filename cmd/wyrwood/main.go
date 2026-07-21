@@ -1,6 +1,5 @@
 // ---
-// relationships:
-//   implements: per-user-agent-proxy
+// relationships: {}
 // ---
 
 package main

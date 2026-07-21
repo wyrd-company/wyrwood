@@ -1,8 +1,5 @@
 ---
-relationships:
-  describes: wyrwood
-  references:
-    - per-user-agent-proxy
+relationships: {}
 ---
 
 # Wyrwood
@@ -27,7 +24,7 @@ allows socket replacement to remain visible inside a running container.
 ## Project direction
 
 The [concept](docs/concepts/wyrwood.yml) defines the product and the
-[technical design](docs/technical-designs/per-user-agent-proxy.yml) defines its
+[Linux technical design](docs/technical-designs/linux-per-user-agent-proxy.yml) defines its
 architecture and security boundaries.
 
 The repository currently provides the Go command foundation used by the daemon,
