@@ -1,0 +1,12 @@
+$schema: https://refinery.systems/ontology/idea
+relationships: {}
+statements:
+  A: >-
+    Publish a stable SSH-agent endpoint for each container so host agent socket
+    replacement does not require container restart or remounting.
+  B: >-
+    Give each endpoint an explicit key allowlist so mounting a socket grants
+    only the intended signing authority.
+  C: >-
+    Let a user configure, inspect, and diagnose the proxy without retaining
+    signing data or other privileged information.

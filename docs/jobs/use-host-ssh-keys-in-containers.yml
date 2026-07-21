@@ -1,0 +1,37 @@
+$schema: https://refinery.systems/ontology/job-to-be-done
+relationships:
+  articulates: wyrwood
+description: >-
+  When a containerized tool needs SSH authentication, provide it with stable
+  access to only the intended host-managed keys and understand whether that
+  access is functioning.
+job-map:
+  define: Identify the container and the host keys it requires.
+  locate: Locate the SSH-agent compatible upstream endpoint and intended socket directory.
+  prepare: Create a named consumer with an explicit public-key fingerprint allowlist.
+  confirm: Validate the complete configuration and confirm the consumer endpoint is healthy.
+  execute: Mount the endpoint's parent directory and use the socket for SSH authentication.
+  monitor: Inspect consumer activity, policy outcomes, and upstream health without privileged data.
+  modify: Add or remove selected fingerprints and atomically apply the updated configuration.
+  conclude: Retire the consumer, close its connections, and remove its socket file.
+outcomes:
+  - "1":
+      importance: 1
+      statement: >-
+        Keep the mounted agent endpoint reachable when the host agent socket is
+        recreated at its configured path, without restarting the container.
+  - "2":
+      importance: 2
+      statement: >-
+        Prevent a consumer from listing or signing with any key outside its
+        explicit fingerprint allowlist.
+  - "3":
+      importance: 3
+      statement: >-
+        Make policy and upstream failures distinguishable without storing
+        signing payloads, signatures, public keys, paths, or destinations.
+  - "4":
+      importance: 4
+      statement: >-
+        Apply key additions and removals to subsequent requests on existing
+        client connections without restarting the container.

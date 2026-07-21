@@ -1,0 +1,58 @@
+$schema: https://refinery.systems/ontology/concept
+relationships:
+  shapes: stable-filtered-agent-access
+description: >-
+  Wyrwood is a per-user SSH-agent proxy that publishes stable, independently
+  authorized consumer endpoints for containers. It connects to one local
+  SSH-agent compatible application and preserves consumer availability while
+  that upstream socket is recreated at its configured path.
+properties:
+  per-user-daemon: >-
+    One unprivileged daemon belongs to one logged-in operating-system user and
+    uses that user's upstream agent, configuration, runtime endpoints, and
+    operational history.
+  single-upstream: >-
+    Every consumer selects keys from one configured SSH-agent compatible
+    upstream endpoint.
+  consumer-security-principal: >-
+    A consumer endpoint is an authorization boundary whose possession grants
+    every process able to reach it the same explicitly configured key access.
+  explicit-key-policy: >-
+    Each consumer policy names exact public-key fingerprints and never grants
+    newly discovered upstream keys implicitly.
+  user-assigned-endpoint: >-
+    Each consumer has a mutable display name and a user-assigned socket path
+    whose dedicated parent directory is mounted into its container.
+  local-management: >-
+    A command-line interface and terminal user interface manage the daemon
+    through an operating-system local, same-user control endpoint.
+  non-sensitive-history: >-
+    Bounded per-user operational events contain categorical outcomes and
+    timing without signing payloads, signatures, public keys, comments,
+    filesystem paths, destinations, or raw protocol data.
+features:
+  filter-agent-identities: >-
+    Lists only upstream identities whose fingerprints appear in the consumer's
+    explicit allowlist.
+  authorize-signatures: >-
+    Forwards signing requests only when the requested key remains allowed by
+    the current consumer policy.
+  preserve-session-restrictions: >-
+    Accepts and replays OpenSSH session-binding messages on replacement
+    upstream connections so destination restrictions remain enforced.
+  recover-upstream-connections: >-
+    Reconnects when the configured upstream socket is recreated while keeping
+    consumer listeners available.
+  apply-configuration: >-
+    Validates the complete YAML configuration and replaces active runtime
+    configuration atomically.
+  inspect-operation: >-
+    Reports daemon, upstream, and consumer health together with bounded
+    non-sensitive events in interactive and structured forms.
+  manage-user-startup: >-
+    Installs and controls operating-system specific login startup for the
+    unprivileged per-user daemon.
+benefits:
+  - Containers retain a stable SSH_AUTH_SOCK integration across host agent resets.
+  - A socket mount grants access only to deliberately selected keys.
+  - Users can determine whether forwarding works without exposing privileged data.

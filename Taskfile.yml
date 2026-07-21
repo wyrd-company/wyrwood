@@ -1,0 +1,51 @@
+# ---
+# relationships:
+#   verifies: per-user-agent-proxy
+# ---
+
+version: "3"
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  format:
+    desc: Format Go source files
+    cmds:
+      - gofmt -w .
+
+  format:check:
+    desc: Check Go source formatting
+    cmds:
+      - test -z "$(gofmt -l .)"
+
+  test:
+    desc: Run the test suite
+    cmds:
+      - go test ./...
+
+  vet:
+    desc: Run Go static analysis
+    cmds:
+      - go vet ./...
+
+  docs:check:
+    desc: Lint repository artifacts
+    cmds:
+      - rumdl check .
+      - ryl check . --markdown
+
+  build:
+    desc: Build the Wyrwood executable
+    cmds:
+      - go build ./cmd/wyrwood
+
+  check:
+    desc: Run all repository checks
+    deps:
+      - docs:check
+      - format:check
+      - test
+      - vet

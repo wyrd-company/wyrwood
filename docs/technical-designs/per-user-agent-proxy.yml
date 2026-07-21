@@ -1,0 +1,140 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships: {}
+objective: >-
+  Provide stable per-container SSH-agent endpoints that expose only explicitly
+  selected host-managed keys, recover from upstream socket replacement, and
+  remain diagnosable without retaining privileged information.
+background:
+  current-design: >-
+    Container runtimes can mount a host SSH-agent socket into a container, but
+    the mount grants the container every authority exposed by that socket. A
+    file bind mount also pins the mounted socket inode, so deleting and
+    recreating the host socket does not update the endpoint visible inside an
+    already-running container.
+  problems:
+    - A shared upstream socket gives every mounted container the same key access.
+    - Recreated upstream socket files strand running containers on stale inodes.
+    - Agent outages can leave authentication commands blocked without useful diagnosis.
+    - Raw protocol logging can disclose authentication material or destination context.
+design-challenges:
+  authorization-boundary: >-
+    The SSH-agent protocol identifies keys but does not identify containers or
+    processes. Authorization therefore belongs to the consumer endpoint whose
+    filesystem access is controlled by the user and container runtime.
+  connection-state: >-
+    OpenSSH destination restrictions use session-bind messages scoped to one
+    agent connection. Replacing an upstream connection must reconstruct that
+    state before forwarding more requests from the paired downstream client.
+  atomic-policy-change: >-
+    Allowlist edits must affect requests already arriving on open client
+    connections without partially applying a configuration across consumers.
+  bounded-failure: >-
+    Connection recovery must fail quickly while signing must permit an
+    upstream application to wait for human approval. Neither case can block
+    indefinitely or leave a timed-out protocol stream in use.
+  portable-user-lifecycle: >-
+    Login startup and local interprocess communication differ across Linux,
+    macOS, and Windows while the daemon, policy, and protocol behavior remain
+    identical.
+proposed-design:
+  high-level-overview: >-
+    One unprivileged Wyrwood daemon runs for each logged-in operating-system
+    user. It binds one consumer listener per configured container and connects
+    every accepted downstream client to its own connection on one configured
+    upstream SSH-agent endpoint. The consumer socket path is the security
+    principal: its current explicit fingerprint allowlist filters identities
+    and signing on every request. Consumer listeners remain available while
+    the upstream is absent or replaced. The same local control interface
+    serves the scriptable command-line interface and terminal user interface.
+  process-and-ownership: >-
+    Wyrwood reads one configuration file and stores runtime state beneath the
+    platform's per-user application directories. On Unix systems, runtime
+    directories are owner-only and sockets are owner-readable and writable.
+    The daemon restores configured consumer listeners at login without
+    requiring the upstream endpoint to be available. It holds no private keys;
+    private-key operations remain inside the upstream agent.
+  configuration-and-apply: >-
+    The human-readable YAML configuration is the source of truth for the
+    upstream socket path and consumer definitions. Initial configuration uses
+    the process's SSH_AUTH_SOCK value when present, then persists that exact path
+    rather than following later environment changes. A consumer contains a
+    display name, an absolute socket path, and exact SHA-256 public-key
+    fingerprints. Direct file edits do not change runtime state. Apply asks the
+    daemon to read and validate the complete file, including absolute and unique
+    paths, dedicated parent directories, distinct consumers, valid fingerprints,
+    and supported timeout bounds. Validation creates an immutable runtime
+    snapshot before any listener changes. The daemon then reconciles listeners
+    and swaps policy authority atomically; failure preserves the previous
+    snapshot and endpoint set. A different socket path is a different consumer
+    security principal.
+  consumer-endpoints: >-
+    The user assigns each socket path and mounts its dedicated parent directory
+    into exactly the intended container. Wyrwood creates the socket inside that
+    directory. Replacing the socket therefore updates the directory entry
+    visible through the mount instead of relying on a bind-mounted socket
+    inode. Retiring a consumer stops its listener, closes its downstream and
+    paired upstream connections, and removes only its socket file. The daemon
+    never removes the user-selected parent directory.
+  protocol-enforcement: >-
+    Wyrwood implements the SSH-agent framing needed to inspect every request.
+    Identity enumeration returns only keys whose ssh.FingerprintSHA256 value is
+    in the consumer's current allowlist. Signing resolves the requested public
+    key to its fingerprint and consults the current policy immediately before
+    forwarding. Requests to add or remove identities, remove all identities,
+    lock, and unlock are rejected. Extensions are denied by default.
+    session-bind@openssh.com is explicitly supported and forwarded so upstream
+    destination-restriction enforcement remains active. Agent comments are
+    display data and never authorization identity.
+  connection-and-recovery: >-
+    Each accepted downstream connection owns one upstream connection; upstream
+    streams are never shared or pooled. Accepted session-bind messages are kept
+    in memory for the lifetime of that downstream connection. If the upstream
+    stream fails, Wyrwood makes a bounded connection attempt and replays those
+    bindings before forwarding the next request. Failure returns an agent
+    failure while the downstream listener remains available. Connecting,
+    identity listing, and binding replay use short configurable deadlines.
+    Signing uses a separate longer deadline for upstream human approval. Any
+    timed-out upstream stream is closed and rebuilt on the next request because
+    a delayed response would make that stream unsafe to reuse.
+  control-interface: >-
+    Wyrwood exposes a versioned request-response control API only through a
+    same-user local transport: a Unix-domain socket on Linux and macOS and a
+    user-restricted named pipe on Windows. No TCP listener exists. The single
+    wyrwood executable provides daemon, init, apply, keys, status, events, tui,
+    and service subcommands. Init creates the per-user configuration using
+    SSH_AUTH_SOCK as the initial upstream path when present. Keys returns
+    upstream comments as display labels and fingerprints as selection identity.
+    Human-readable output is the terminal default and structured output is
+    available for automation. The terminal interface uses the same API for
+    upstream selection with path browsing or manual entry, consumer editing,
+    key selection, apply, health, and event inspection.
+  runtime-observability: >-
+    Live state records daemon readiness, configured upstream reachability, each
+    consumer listener state, active connection counts, and categorical recent
+    failures. A bounded durable event log stores timestamp, opaque consumer
+    identifier, operation, key fingerprint when relevant, outcome, latency,
+    and categorical error code. Event construction types contain no fields for
+    signing payloads, signatures, public-key bytes, agent comments, filesystem
+    paths, destinations, raw client messages, or raw upstream errors. Owner-only
+    storage survives daemon restart and compacts through an atomic replacement.
+  platform-lifecycle: >-
+    Platform adapters install, remove, start, stop, and inspect login startup
+    without changing daemon behavior. Linux uses a systemd user service, macOS
+    uses a per-user LaunchAgent, and Windows uses a Task Scheduler logon
+    trigger. Platform adapters also supply default configuration, data, and
+    runtime locations together with the local control transport.
+  package-boundaries: >-
+    The Go module separates command dispatch, configuration, agent protocol,
+    policy, connection management, endpoint reconciliation, control transport,
+    events, platform paths, and service integration. Interfaces exist at the
+    operating-system and upstream-agent boundaries. Protocol and policy tests
+    use in-memory connections; lifecycle tests use real Unix sockets and
+    temporary directories.
+  verification: >-
+    Unit tests cover configuration invariants, operation filtering, fingerprint
+    authorization, policy changes on open connections, session-binding replay,
+    deadline handling, event redaction by construction, and atomic endpoint
+    reconciliation. Linux integration tests run a controllable upstream agent,
+    mount or model the consumer parent directory, replace the upstream socket
+    at the same path, and verify that the same consumer endpoint resumes
+    allowed signing while hidden and removed keys remain denied.

@@ -1,0 +1,8 @@
+# ---
+# relationships:
+#   supports: per-user-agent-proxy
+# ---
+
+/wyrwood
+/dist/
+/coverage.out
