@@ -21,16 +21,19 @@ func Initialize() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("initialize configuration: %w", err)
 	}
-	if err := initialize(path, os.LookupEnv); err != nil {
-		return "", err
-	}
-	return path, nil
+	return initializeAt(path, os.LookupEnv, publish)
 }
 
-func initialize(path string, lookupEnv func(string) (string, bool)) error {
+type publisher func(path string, data []byte) (publication, error)
+
+type publication struct {
+	published bool
+}
+
+func initializeAt(path string, lookupEnv func(string) (string, bool), publishConfiguration publisher) (string, error) {
 	upstream, present := lookupEnv("SSH_AUTH_SOCK")
 	if !present || upstream == "" {
-		return fieldError("SSH_AUTH_SOCK", "must name the initial upstream socket")
+		return "", fieldError("SSH_AUTH_SOCK", "must name the initial upstream socket")
 	}
 	configuration := Config{
 		Upstream:  upstream,
@@ -38,17 +41,22 @@ func initialize(path string, lookupEnv func(string) (string, bool)) error {
 		Timeouts:  DefaultTimeouts(),
 	}
 	if err := Validate(configuration); err != nil {
-		return fmt.Errorf("initialize configuration: %w", err)
+		return "", fmt.Errorf("initialize configuration: %w", err)
 	}
 
 	data, err := marshal(configuration)
 	if err != nil {
-		return fmt.Errorf("initialize configuration: %w", err)
+		return "", fmt.Errorf("initialize configuration: %w", err)
 	}
-	if err := publish(path, data); err != nil {
-		return fmt.Errorf("initialize configuration: %w", err)
+	result, err := publishConfiguration(path, data)
+	if err != nil {
+		wrapped := fmt.Errorf("initialize configuration: %w", err)
+		if result.published {
+			return path, &DurabilityError{Path: path, Err: wrapped}
+		}
+		return "", wrapped
 	}
-	return nil
+	return path, nil
 }
 
 func marshal(configuration Config) ([]byte, error) {
@@ -75,54 +83,65 @@ func marshal(configuration Config) ([]byte, error) {
 	})
 }
 
-func publish(path string, data []byte) error {
+type publicationOperations struct {
+	remove        func(string) error
+	syncDirectory func(string) error
+}
+
+func publish(path string, data []byte) (publication, error) {
+	return publishWith(path, data, publicationOperations{
+		remove:        os.Remove,
+		syncDirectory: syncDirectory,
+	})
+}
+
+func publishWith(path string, data []byte, operations publicationOperations) (publication, error) {
 	if !filepath.IsAbs(path) {
-		return fmt.Errorf("configuration path %q is not absolute", path)
+		return publication{}, fmt.Errorf("configuration path %q is not absolute", path)
 	}
 	directory := filepath.Dir(path)
 	if err := os.MkdirAll(directory, 0o700); err != nil {
-		return fmt.Errorf("create configuration directory: %w", err)
+		return publication{}, fmt.Errorf("create configuration directory: %w", err)
 	}
 	if err := os.Chmod(directory, 0o700); err != nil {
-		return fmt.Errorf("set configuration directory permissions: %w", err)
+		return publication{}, fmt.Errorf("set configuration directory permissions: %w", err)
 	}
 
 	temporary, err := os.CreateTemp(directory, ".config-*")
 	if err != nil {
-		return fmt.Errorf("create temporary configuration: %w", err)
+		return publication{}, fmt.Errorf("create temporary configuration: %w", err)
 	}
 	temporaryPath := temporary.Name()
-	defer func() { _ = os.Remove(temporaryPath) }()
+	defer func() { _ = operations.remove(temporaryPath) }()
 
 	if err := temporary.Chmod(0o600); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("set temporary configuration permissions: %w", err)
+		return publication{}, fmt.Errorf("set temporary configuration permissions: %w", err)
 	}
 	if _, err := temporary.Write(data); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("write temporary configuration: %w", err)
+		return publication{}, fmt.Errorf("write temporary configuration: %w", err)
 	}
 	if err := temporary.Sync(); err != nil {
 		_ = temporary.Close()
-		return fmt.Errorf("sync temporary configuration: %w", err)
+		return publication{}, fmt.Errorf("sync temporary configuration: %w", err)
 	}
 	if err := temporary.Close(); err != nil {
-		return fmt.Errorf("close temporary configuration: %w", err)
+		return publication{}, fmt.Errorf("close temporary configuration: %w", err)
 	}
 
 	if err := os.Link(temporaryPath, path); err != nil {
 		if errors.Is(err, os.ErrExist) {
-			return fmt.Errorf("configuration already exists at %s", path)
+			return publication{}, fmt.Errorf("configuration already exists at %s", path)
 		}
-		return fmt.Errorf("publish configuration: %w", err)
+		return publication{}, fmt.Errorf("publish configuration: %w", err)
 	}
-	if err := os.Remove(temporaryPath); err != nil {
-		return fmt.Errorf("remove temporary configuration after publish: %w", err)
+	result := publication{published: true}
+	_ = operations.remove(temporaryPath)
+	if err := operations.syncDirectory(directory); err != nil {
+		return result, err
 	}
-	if err := syncDirectory(directory); err != nil {
-		return err
-	}
-	return nil
+	return result, nil
 }
 
 func syncDirectory(path string) error {

@@ -98,12 +98,14 @@ timeouts:
 		{name: "missing upstream", old: "upstream: /run/upstream/agent.sock\n", replacement: "", want: "upstream"},
 		{name: "non-string name", old: "name: first consumer", replacement: "name: 42", want: "consumers[0].name"},
 		{name: "relative upstream", old: "/run/upstream/agent.sock", replacement: "relative/agent.sock", want: "upstream"},
+		{name: "root upstream", old: "/run/upstream/agent.sock", replacement: "/", want: "must name a socket below the filesystem root"},
 		{name: "unclean upstream", old: "/run/upstream/agent.sock", replacement: "/run/upstream/../agent.sock", want: "canonical lexical form"},
 		{name: "empty consumer name", old: "name: first consumer", replacement: `name: ""`, want: "consumers[0].name"},
 		{name: "trimmed consumer name", old: "name: first consumer", replacement: `name: " first consumer"`, want: "leading or trailing whitespace"},
 		{name: "duplicate consumer name", old: "name: second consumer", replacement: "name: first consumer", want: "duplicates consumers[0].name"},
 		{name: "duplicate upstream socket", old: "/run/consumers/first/agent.sock", replacement: "/run/upstream/agent.sock", want: "duplicates upstream"},
 		{name: "duplicate consumer socket", old: "/run/consumers/second/agent.sock", replacement: "/run/consumers/first/agent.sock", want: "duplicates consumers[0].socket"},
+		{name: "root consumer socket", old: "/run/consumers/first/agent.sock", replacement: "/", want: "must name a socket below the filesystem root"},
 		{name: "root parent", old: "/run/consumers/first/agent.sock", replacement: "/agent.sock", want: "dedicated parent directory"},
 		{name: "shared parent", old: "/run/consumers/second/agent.sock", replacement: "/run/consumers/first/other.sock", want: "parent directory overlaps"},
 		{name: "nested parent", old: "/run/consumers/second/agent.sock", replacement: "/run/consumers/first/nested/agent.sock", want: "parent directory overlaps"},
@@ -138,6 +140,59 @@ timeouts:
 			}
 			if !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Parse() error = %q, want substring %q", err, test.want)
+			}
+		})
+	}
+}
+
+func TestParseAcceptsPositiveGoDurationSpellings(t *testing.T) {
+	t.Parallel()
+
+	spellings := []string{
+		"100ms",
+		"30s",
+		"+5s",
+		".5s",
+		"1.s",
+		"500000µs",
+		"500000μs",
+	}
+	for _, spelling := range spellings {
+		spelling := spelling
+		t.Run(spelling, func(t *testing.T) {
+			t.Parallel()
+			configuration, err := Parse([]byte(testConfigurationWithTimeouts(spelling, "1s", "1s", "1s")))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			want, err := time.ParseDuration(spelling)
+			if err != nil {
+				t.Fatalf("time.ParseDuration(%q) error = %v", spelling, err)
+			}
+			if configuration.Timeouts.Connect != want {
+				t.Fatalf("Parse().Timeouts.Connect = %s, want %s", configuration.Timeouts.Connect, want)
+			}
+		})
+	}
+}
+
+func TestParseAcceptsTimeoutBounds(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		connect, list, replay string
+		sign                  string
+	}{
+		{name: "minimum", connect: "100ms", list: "100ms", replay: "100ms", sign: "1s"},
+		{name: "maximum", connect: "30s", list: "30s", replay: "30s", sign: "10m"},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			if _, err := Parse([]byte(testConfigurationWithTimeouts(test.connect, test.list, test.replay, test.sign))); err != nil {
+				t.Fatalf("Parse() error = %v", err)
 			}
 		})
 	}
@@ -178,4 +233,15 @@ func testFingerprint(value byte) string {
 		digest[index] = value
 	}
 	return "SHA256:" + base64.RawStdEncoding.EncodeToString(digest)
+}
+
+func testConfigurationWithTimeouts(connect, list, replay, sign string) string {
+	return fmt.Sprintf(`upstream: /run/upstream/agent.sock
+consumers: []
+timeouts:
+  connect: %s
+  list: %s
+  replay: %s
+  sign: %s
+`, connect, list, replay, sign)
 }

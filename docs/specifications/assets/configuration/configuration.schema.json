@@ -34,7 +34,7 @@
     },
     "duration": {
       "type": "string",
-      "pattern": "^(?:[0-9]+(?:\\.[0-9]+)?(?:ns|us|µs|ms|s|m|h))+$",
+      "pattern": "^\\+?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|μs|ms|s|m|h))+$",
       "description": "A positive Go duration string. Operation-specific bounds are checked semantically."
     },
     "consumer": {

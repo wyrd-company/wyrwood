@@ -20,7 +20,7 @@ func TestInitializeWritesOwnerOnlyConfiguration(t *testing.T) {
 	path := filepath.Join(root, "configuration", "config.yml")
 	lookup := lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"})
 
-	if err := initialize(path, lookup); err != nil {
+	if _, err := initializeAt(path, lookup, publish); err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
 	assertMode(t, filepath.Dir(path), 0o700)
@@ -65,7 +65,7 @@ func TestInitializeNeverOverwritesExistingPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := initialize(path, lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}))
+	_, err := initializeAt(path, lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}), publish)
 	if err == nil || !strings.Contains(err.Error(), "already exists") {
 		t.Fatalf("Initialize() error = %v, want already-exists error", err)
 	}
@@ -91,7 +91,8 @@ func TestInitializePublishesAtMostOneConcurrentConfiguration(t *testing.T) {
 		go func() {
 			ready.Done()
 			<-start
-			results <- initialize(path, lookup)
+			_, err := initializeAt(path, lookup, publish)
+			results <- err
 		}()
 	}
 	ready.Wait()
@@ -138,7 +139,7 @@ func TestInitializeRejectsMissingOrInvalidEnvironment(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			path := filepath.Join(t.TempDir(), "configuration", "config.yml")
-			err := initialize(path, lookupEnvironment(test.values))
+			_, err := initializeAt(path, lookupEnvironment(test.values), publish)
 			if err == nil || !strings.Contains(err.Error(), test.want) {
 				t.Fatalf("Initialize() error = %v, want %q", err, test.want)
 			}
@@ -152,7 +153,7 @@ func TestInitializeRejectsMissingOrInvalidEnvironment(t *testing.T) {
 func TestInitializeRejectsRelativeDestination(t *testing.T) {
 	t.Parallel()
 
-	err := initialize("relative/config.yml", lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}))
+	_, err := initializeAt("relative/config.yml", lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}), publish)
 	if err == nil || !strings.Contains(err.Error(), "configuration path") {
 		t.Fatalf("Initialize() error = %v, want configuration-path error", err)
 	}
@@ -177,6 +178,108 @@ func TestInitializeUsesSSHAuthSockEnvironment(t *testing.T) {
 	}
 	if configuration.Upstream != "/run/environment/agent.sock" {
 		t.Fatalf("Initialize().Upstream = %q, want environment value", configuration.Upstream)
+	}
+}
+
+func TestPublishIgnoresTemporaryCleanupFailureAfterPublication(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "configuration", "config.yml")
+	cleanupFailure := errors.New("injected temporary cleanup failure")
+	removeCalls := 0
+	createdPath, err := initializeAt(
+		path,
+		lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}),
+		func(path string, data []byte) (publication, error) {
+			return publishWith(path, data, publicationOperations{
+				remove: func(path string) error {
+					removeCalls++
+					if removeCalls == 1 {
+						return cleanupFailure
+					}
+					return os.Remove(path)
+				},
+				syncDirectory: syncDirectory,
+			})
+		},
+	)
+	if err != nil {
+		t.Fatalf("initializeAt() error = %v", err)
+	}
+	if createdPath != path {
+		t.Fatalf("initializeAt() path = %q, want %q", createdPath, path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+	if _, err := Parse(data); err != nil {
+		t.Fatalf("published configuration is invalid: %v", err)
+	}
+	if removeCalls != 2 {
+		t.Fatalf("temporary cleanup calls = %d, want explicit attempt and deferred backstop", removeCalls)
+	}
+}
+
+func TestInitializeReturnsPublishedPathWhenDurabilityIsUncertain(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "configuration", "config.yml")
+	durabilityFailure := errors.New("injected directory sync failure")
+	createdPath, err := initializeAt(
+		path,
+		lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}),
+		func(path string, data []byte) (publication, error) {
+			return publishWith(path, data, publicationOperations{
+				remove: os.Remove,
+				syncDirectory: func(string) error {
+					return durabilityFailure
+				},
+			})
+		},
+	)
+	if createdPath != path {
+		t.Fatalf("initializeAt() path = %q, want published path %q", createdPath, path)
+	}
+	var durabilityErr *DurabilityError
+	if !errors.As(err, &durabilityErr) {
+		t.Fatalf("initializeAt() error = %v, want DurabilityError", err)
+	}
+	if durabilityErr.Path != path {
+		t.Fatalf("DurabilityError.Path = %q, want %q", durabilityErr.Path, path)
+	}
+	if !errors.Is(err, durabilityFailure) {
+		t.Fatalf("initializeAt() error = %v, want wrapped sync failure", err)
+	}
+	if !strings.Contains(err.Error(), "published") || !strings.Contains(err.Error(), "durability is uncertain") {
+		t.Fatalf("initializeAt() error = %q, want explicit publication uncertainty", err)
+	}
+	if _, statErr := os.Stat(path); statErr != nil {
+		t.Fatalf("published configuration Stat() error = %v", statErr)
+	}
+}
+
+func TestInitializeReturnsNoPathForPrePublicationFailure(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "configuration", "config.yml")
+	publicationFailure := errors.New("injected publication failure")
+	createdPath, err := initializeAt(
+		path,
+		lookupEnvironment(map[string]string{"SSH_AUTH_SOCK": "/run/upstream/agent.sock"}),
+		func(string, []byte) (publication, error) {
+			return publication{}, publicationFailure
+		},
+	)
+	if createdPath != "" {
+		t.Fatalf("initializeAt() path = %q, want empty before publication", createdPath)
+	}
+	if !errors.Is(err, publicationFailure) {
+		t.Fatalf("initializeAt() error = %v, want publication failure", err)
+	}
+	var durabilityErr *DurabilityError
+	if errors.As(err, &durabilityErr) {
+		t.Fatalf("initializeAt() error = %v, must not report durability uncertainty", err)
 	}
 }
 

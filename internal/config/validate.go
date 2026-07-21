@@ -97,6 +97,9 @@ func validateSocketPath(field, value string) error {
 	if !filepath.IsAbs(value) {
 		return fieldError(field, "must be an absolute path")
 	}
+	if value == string(filepath.Separator) {
+		return fieldError(field, "must name a socket below the filesystem root")
+	}
 	if filepath.Clean(value) != value {
 		return fieldError(field, "must be in canonical lexical form")
 	}

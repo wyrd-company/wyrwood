@@ -6,6 +6,21 @@ package config
 
 import "fmt"
 
+// DurabilityError reports that initialization published the complete
+// configuration but could not confirm the directory entry's durability.
+type DurabilityError struct {
+	Path string
+	Err  error
+}
+
+func (e *DurabilityError) Error() string {
+	return fmt.Sprintf("configuration was published at %s, but durability is uncertain: %v", e.Path, e.Err)
+}
+
+func (e *DurabilityError) Unwrap() error {
+	return e.Err
+}
+
 // FieldError reports a configuration problem at its durable field location.
 type FieldError struct {
 	Field   string

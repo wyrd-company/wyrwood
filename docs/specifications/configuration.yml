@@ -31,7 +31,9 @@ description: >-
   Initialization
   records the current `SSH_AUTH_SOCK` value after full validation, creates the
   Wyrwood configuration directory with mode `0700`, and publishes a complete
-  file with mode `0600` as one atomic no-replace operation.
+  file with mode `0600` as one atomic no-replace operation. A directory-sync
+  failure after publication returns the resolved configuration path together
+  with an explicit durability-uncertainty error.
 validation-criteria: >-
   A configuration conforms when it validates against the JSON Schema asset and
   the Go parser accepts it. The parser enforces YAML field closure, canonical
