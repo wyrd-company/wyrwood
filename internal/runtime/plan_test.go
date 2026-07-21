@@ -98,6 +98,35 @@ func TestSocketPathChangePlansAdditionAndRetirement(t *testing.T) {
 	}
 }
 
+func TestPrepareRetainsConsumerWhenOnlyFingerprintOrderChanges(t *testing.T) {
+	t.Parallel()
+
+	initial := testConfiguration("alpha")
+	initial.Consumers[0].Fingerprints = []string{testFingerprint(1), testFingerprint(2)}
+	store, err := NewStore(initial)
+	if err != nil {
+		t.Fatalf("NewStore() error = %v", err)
+	}
+
+	next := testConfiguration("alpha")
+	next.Consumers[0].Fingerprints = []string{testFingerprint(2), testFingerprint(1)}
+	prepared, err := store.Prepare(next)
+	if err != nil {
+		t.Fatalf("Store.Prepare() error = %v", err)
+	}
+	plan := prepared.Plan()
+	if got := len(plan.Retained()); got != 1 {
+		t.Fatalf("len(Plan.Retained()) = %d, want 1", got)
+	}
+	if got := len(plan.Updated()); got != 0 {
+		t.Fatalf("len(Plan.Updated()) = %d, want 0", got)
+	}
+	policy := plan.Retained()[0].Policy()
+	if !policy.Allows(testFingerprint(1)) || !policy.Allows(testFingerprint(2)) {
+		t.Fatal("retained policy does not preserve exact allowlist membership")
+	}
+}
+
 func TestPlanOrderingIsDeterministic(t *testing.T) {
 	t.Parallel()
 
