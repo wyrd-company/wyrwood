@@ -13,10 +13,18 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Initialize creates a complete configuration at path using the process's
-// current SSH_AUTH_SOCK value. It never replaces an existing path.
-func Initialize(path string) error {
-	return initialize(path, os.LookupEnv)
+// Initialize creates a complete configuration at the platform-default path
+// using the process's current SSH_AUTH_SOCK value. It never replaces an
+// existing path and returns the created path.
+func Initialize() (string, error) {
+	path, err := DefaultPath()
+	if err != nil {
+		return "", fmt.Errorf("initialize configuration: %w", err)
+	}
+	if err := initialize(path, os.LookupEnv); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func initialize(path string, lookupEnv func(string) (string, bool)) error {

@@ -159,13 +159,19 @@ func TestInitializeRejectsRelativeDestination(t *testing.T) {
 }
 
 func TestInitializeUsesSSHAuthSockEnvironment(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "configuration", "config.yml")
+	configurationRoot := filepath.Join(t.TempDir(), "configuration")
+	t.Setenv("XDG_CONFIG_HOME", configurationRoot)
 	t.Setenv("SSH_AUTH_SOCK", "/run/environment/agent.sock")
 
-	if err := Initialize(path); err != nil {
+	path, err := Initialize()
+	if err != nil {
 		t.Fatalf("Initialize() error = %v", err)
 	}
-	configuration, err := Load(path)
+	wantPath := filepath.Join(configurationRoot, "wyrwood", "config.yml")
+	if path != wantPath {
+		t.Fatalf("Initialize() path = %q, want %q", path, wantPath)
+	}
+	configuration, err := Load(wantPath)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
