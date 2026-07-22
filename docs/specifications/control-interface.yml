@@ -75,11 +75,13 @@ description: >-
   bytes of the canonical absolute socket path and is shared with status and
   events. Put selects an existing consumer by its old identifier; a socket-path
   change returns the new identifier. Successful put and retire responses include
-  the affected `consumer_id`; retire returns the removed identifier. The wire
-  field `access_group` maps exactly to persisted YAML `access-group` in both
-  directions. Wire durations use the same positive Go-duration syntax as YAML,
-  and complete-candidate validation enforces the operation-specific semantic
-  bounds.
+  the affected `consumer_id`; retire returns the removed identifier. Durable
+  operational-event field `consumer-id` maps exactly to wire `consumer_id`; the
+  value projected for one consumer in configuration, status, and events is
+  byte-for-byte identical. The wire field `access_group` maps exactly to persisted
+  YAML `access-group` in both directions. Wire durations use the same positive
+  Go-duration syntax as YAML, and complete-candidate validation enforces the
+  operation-specific semantic bounds.
 
   The daemon validates the complete resulting configuration before publication.
   It deterministically serializes all modeled values in configuration-specification
@@ -116,8 +118,9 @@ validation-criteria: >-
   complete-candidate validation, mutually serialized writers, deterministic
   canonical serialization, oversize rejection, atomic replacement, uncertain
   post-publication durability, bounded keys, status and event projections,
-  identifier parity, access-group and duration round trips, status truncation,
-  restart, and complete shutdown cleanup. The
+  identifier parity including durable `consumer-id` to wire `consumer_id`,
+  access-group and duration round trips, status truncation, restart, and complete
+  shutdown cleanup. The
   Docker milestone gate also proves effective-UID control access and rejection
   of a container-root peer that can traverse the mounted owner-only directory
   but whose kernel peer UID differs from the daemon UID.

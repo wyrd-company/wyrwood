@@ -5,12 +5,16 @@ description: >-
   Wyrwood operational history is a bounded sequence of closed event records whose
   machine-readable structure is defined by
   `assets/operational-events/operational-event.schema.json`. Each event records a
-  RFC 3339 timestamp with a four-digit year, opaque consumer identifier, categorical
+  RFC 3339 timestamp with a four-digit year, consumer identifier, categorical
   operation, optional canonical public-key fingerprint, categorical outcome,
-  non-negative signed 64-bit latency in nanoseconds, and categorical error code. A
-  fingerprint is intentionally correlatable across events. Events contain no signing
-  payloads, signatures, public-key bytes, agent comments, filesystem paths,
-  destinations, raw client messages, or raw upstream errors.
+  non-negative signed 64-bit latency in nanoseconds, and categorical error code.
+  The durable `consumer-id` is the lowercase hexadecimal SHA-256 digest of the
+  UTF-8 bytes of the canonical absolute consumer socket path. It remains stable
+  while the path is unchanged; changing the path creates a new security principal
+  and identifier. Configuration, status, and event projections use that exact same
+  identifier value. A fingerprint is intentionally correlatable across events.
+  Events contain no signing payloads, signatures, public-key bytes, agent comments,
+  filesystem paths, destinations, raw client messages, or raw upstream errors.
 
   The durable file begins with the eight-byte ASCII header `WYREVT01`. Each event is
   encoded as a four-byte big-endian JSON byte length, a four-byte big-endian CRC-32C
@@ -52,7 +56,10 @@ description: >-
 validation-criteria: >-
   A record conforms when it validates against the JSON Schema asset and the Go event
   validator accepts it. Reflection tests verify the event type's exact fields and the
-  absence of open-ended maps, slices, or interfaces. Storage tests verify owner-only
+  absence of open-ended maps, slices, or interfaces. Identifier tests verify the
+  lowercase 64-hex digest, stability for an unchanged canonical socket path, change
+  when a path change creates a new principal, and exact equality across durable events,
+  configuration, status, and event wire projections. Storage tests verify owner-only
   modes, exclusive writing, restart survival, bounded retention, final-frame recovery,
   fatal interior corruption, atomic inode replacement, concurrent access under race
   detection, and query projections. The Linux Docker gate drives signing and

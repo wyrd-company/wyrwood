@@ -21,8 +21,8 @@
     },
     "consumer-id": {
       "type": "string",
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
-      "description": "Opaque consumer identifier with no filesystem semantics."
+      "pattern": "^[a-f0-9]{64}$",
+      "description": "Lowercase hexadecimal SHA-256 digest of the UTF-8 bytes of the canonical absolute consumer socket path. Stable while the path is unchanged; a path change creates a new security principal and identifier."
     },
     "operation": {
       "enum": [
