@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"testing"
+
+	"github.com/wyrd-company/wyrwood/internal/config"
 )
 
 func TestControlSchemaIsClosedAndCarriesImplementationBounds(t *testing.T) {
@@ -51,8 +53,13 @@ func TestControlSchemaIsClosedAndCarriesImplementationBounds(t *testing.T) {
 		t.Fatalf("key maximum = %v", keys["maxItems"])
 	}
 	status := properties["status"].(map[string]any)["properties"].(map[string]any)["consumers"].(map[string]any)
-	if status["maxItems"] != float64(MaximumProjectedPeers) {
+	if status["maxItems"] != float64(MaximumProjectedConsumers) {
 		t.Fatalf("consumer maximum = %v", status["maxItems"])
+	}
+	consumer := definitions["consumer-status"].(map[string]any)
+	name := consumer["properties"].(map[string]any)["name"].(map[string]any)
+	if name["maxLength"] != float64(MaximumConsumerNameCharacters) || MaximumConsumerNameCharacters != config.MaximumConsumerNameCharacters {
+		t.Fatalf("consumer name maximum = %v", name["maxLength"])
 	}
 	eventRequest := variants[1].(map[string]any)["properties"].(map[string]any)["limit"].(map[string]any)
 	if eventRequest["maximum"] != float64(MaximumEventLimit) {

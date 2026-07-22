@@ -15,7 +15,8 @@ description: >-
   Consumer socket paths are unique and differ from the upstream path. Each
   consumer socket has a dedicated parent directory. Consumer parent directories
   are distinct, do not contain one another, and do not contain the upstream
-  socket. Consumer display names are non-empty and unique. Fingerprint values
+  socket. Consumer display names are non-empty, unique, valid UTF-8, and at most
+  256 Unicode characters. Fingerprint values
   use OpenSSH's canonical `SHA256:` prefix followed by the unpadded base64
   encoding of exactly 32 digest bytes; each consumer's list contains unique
   values.

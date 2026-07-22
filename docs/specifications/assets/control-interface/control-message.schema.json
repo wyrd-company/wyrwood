@@ -58,7 +58,7 @@
       "required": ["id", "name", "listener", "active_connections"],
       "properties": {
         "id": { "type": "string", "maxLength": 128 },
-        "name": { "type": "string" },
+        "name": { "type": "string", "maxLength": 256 },
         "listener": { "$ref": "#/$defs/health" },
         "active_connections": { "type": "integer", "minimum": 0 }
       }
@@ -239,7 +239,7 @@
             "upstream": { "$ref": "#/$defs/health" },
             "consumers": {
               "type": "array",
-              "maxItems": 1024,
+              "maxItems": 512,
               "items": { "$ref": "#/$defs/consumer-status" }
             },
             "truncated": { "type": "boolean" }

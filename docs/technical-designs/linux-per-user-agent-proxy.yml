@@ -173,8 +173,9 @@ proposed-design:
     closes accepted clients and unlinks only the socket inode it created. Apply
     always reads the daemon's fixed, 1 MiB-bounded configuration path, so clients
     cannot redirect filesystem access. Keys returns at most 1024 fingerprints and
-    256-byte sanitized comment display labels. Status returns at most 1024
-    path-free categorical consumer projections and events returns at most 1000
+    256-byte sanitized comment display labels. Configured consumer display names
+    are limited to 256 Unicode characters and returned unchanged. Status returns
+    at most 512 path-free categorical consumer projections and events returns at most 1000
     task #9 event records. Failures expose only categorical codes. The single
     wyrwood executable provides
     daemon, init, apply, keys, status, events, tui, and service subcommands. Init

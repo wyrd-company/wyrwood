@@ -10,6 +10,9 @@ import "time"
 const (
 	// MaximumDocumentBytes bounds configuration input before YAML decoding.
 	MaximumDocumentBytes = 1024 * 1024
+	// MaximumConsumerNameCharacters keeps configured display data bounded while
+	// preserving accepted names exactly across management surfaces.
+	MaximumConsumerNameCharacters = 256
 
 	DefaultConnectTimeout = 5 * time.Second
 	DefaultListTimeout    = 5 * time.Second

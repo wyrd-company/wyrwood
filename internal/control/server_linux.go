@@ -10,6 +10,7 @@ package control
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
@@ -151,15 +152,28 @@ func (server *Server) serve(connection *net.UnixConn) {
 	var request Request
 	if err := readJSONFrame(connection, MaximumRequestBytes, &request); err != nil {
 		_ = connection.SetWriteDeadline(time.Now().Add(controlIOTimeout))
-		_ = writeJSONFrame(connection, MaximumResponseBytes, Response{Version: Version, Error: ErrorBadRequest})
+		_ = writeResponse(connection, Response{Version: Version, Error: ErrorBadRequest})
 		return
 	}
 	_ = connection.SetReadDeadline(time.Time{})
 	response := dispatch(server.handler, request)
 	_ = connection.SetWriteDeadline(time.Now().Add(controlIOTimeout))
-	if err := writeJSONFrame(connection, MaximumResponseBytes, response); err != nil {
-		_ = writeJSONFrame(connection, MaximumResponseBytes, Response{Version: Version, Error: ErrorResourceLimit})
+	_ = writeResponse(connection, response)
+}
+
+func writeResponse(writer io.Writer, response Response) error {
+	frame, err := encodeJSONFrame(MaximumResponseBytes, response)
+	if err != nil {
+		code := ErrorInternal
+		if errors.Is(err, errEncodedFrameTooLarge) {
+			code = ErrorResourceLimit
+		}
+		frame, err = encodeJSONFrame(MaximumResponseBytes, Response{Version: Version, Error: code})
+		if err != nil {
+			return err
+		}
 	}
+	return writeEncodedFrame(writer, frame)
 }
 
 // Close stops accepting, closes every connected client, removes only the

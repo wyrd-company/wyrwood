@@ -14,12 +14,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unicode/utf8"
 
@@ -29,6 +29,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/endpoints"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
 )
 
 const defaultEventRetention = 10_000
@@ -64,6 +65,7 @@ func DefaultOptions() (Options, error) {
 
 type Service struct {
 	configPath string
+	uid        uint32
 	manager    *endpoints.Manager
 	events     *events.Store
 	control    *control.Server
@@ -99,7 +101,7 @@ func Open(options Options) (*Service, error) {
 		_ = store.Close()
 		return nil, fmt.Errorf("restore consumer listeners: %w", err)
 	}
-	service := &Service{configPath: options.ConfigPath, manager: manager, events: store}
+	service := &Service{configPath: options.ConfigPath, uid: options.UID, manager: manager, events: store}
 	server, err := control.Listen(options.ControlPath, options.UID, service)
 	if err != nil {
 		_ = manager.Close()
@@ -132,7 +134,7 @@ func (service *Service) Close() error {
 }
 
 func (service *Service) Apply() (control.ApplyResult, control.ErrorCode) {
-	next, err := loadConfiguration(service.configPath, uint32(os.Geteuid()))
+	next, err := loadConfiguration(service.configPath, service.uid)
 	if err != nil {
 		return control.ApplyResult{}, control.ErrorApplyInvalid
 	}
@@ -190,7 +192,7 @@ func (service *Service) Status() (control.StatusResult, control.ErrorCode) {
 		upstreamHealth = control.HealthHealthy
 		_ = connection.Close()
 	}
-	statuses, truncated := service.manager.ConsumerStatuses(control.MaximumProjectedPeers)
+	statuses, truncated := service.manager.ConsumerStatuses(control.MaximumProjectedConsumers)
 	consumers := make([]control.ConsumerStatus, 0, len(statuses))
 	for _, status := range statuses {
 		listener := control.HealthHealthy
@@ -247,27 +249,54 @@ func ensureStateRoot(path string) error {
 }
 
 func loadConfiguration(path string, uid uint32) (config.Config, error) {
-	directoryInfo, err := os.Lstat(filepath.Dir(path))
-	if err != nil {
-		return config.Config{}, errors.New("inspect configuration directory")
-	}
-	fileInfo, err := os.Lstat(path)
-	if err != nil {
-		return config.Config{}, errors.New("inspect configuration file")
-	}
-	if !secureOwnedPath(directoryInfo, uid, 0o700, true) {
-		return config.Config{}, errors.New("configuration directory must be owner-only")
-	}
-	if !secureOwnedPath(fileInfo, uid, 0o600, false) {
-		return config.Config{}, errors.New("configuration file must be owner-only and regular")
-	}
-	return config.Load(path)
+	return loadConfigurationWithHook(path, uid, nil)
 }
 
-func secureOwnedPath(info os.FileInfo, uid uint32, mode os.FileMode, directory bool) bool {
-	status, ok := info.Sys().(*syscall.Stat_t)
-	if !ok || status.Uid != uid || info.Mode().Perm() != mode || info.Mode()&(os.ModeSymlink|os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 {
-		return false
+func loadConfigurationWithHook(path string, uid uint32, afterFileOpen func()) (config.Config, error) {
+	if strings.IndexByte(path, 0) >= 0 || !filepath.IsAbs(path) || filepath.Clean(path) != path || filepath.Dir(path) == string(filepath.Separator) {
+		return config.Config{}, errors.New("configuration path must be canonical, absolute, and use a dedicated directory")
 	}
-	return directory && info.IsDir() || !directory && info.Mode().IsRegular()
+	directoryDescriptor, err := unix.Open(
+		filepath.Dir(path),
+		unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC,
+		0,
+	)
+	if err != nil {
+		return config.Config{}, errors.New("open configuration directory")
+	}
+	defer unix.Close(directoryDescriptor)
+	var directoryStatus unix.Stat_t
+	if err := unix.Fstat(directoryDescriptor, &directoryStatus); err != nil ||
+		directoryStatus.Uid != uid || directoryStatus.Mode&unix.S_IFMT != unix.S_IFDIR || directoryStatus.Mode&0o7777 != 0o700 {
+		return config.Config{}, errors.New("configuration directory must be owner-only")
+	}
+
+	fileDescriptor, err := unix.Openat(
+		directoryDescriptor,
+		filepath.Base(path),
+		unix.O_RDONLY|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC,
+		0,
+	)
+	if err != nil {
+		return config.Config{}, errors.New("open configuration file")
+	}
+	file := os.NewFile(uintptr(fileDescriptor), filepath.Base(path))
+	if file == nil {
+		_ = unix.Close(fileDescriptor)
+		return config.Config{}, errors.New("own configuration file descriptor")
+	}
+	defer file.Close()
+	var fileStatus unix.Stat_t
+	if err := unix.Fstat(fileDescriptor, &fileStatus); err != nil ||
+		fileStatus.Uid != uid || fileStatus.Mode&unix.S_IFMT != unix.S_IFREG || fileStatus.Mode&0o7777 != 0o600 {
+		return config.Config{}, errors.New("configuration file must be owner-only and regular")
+	}
+	if afterFileOpen != nil {
+		afterFileOpen()
+	}
+	data, err := io.ReadAll(io.LimitReader(file, config.MaximumDocumentBytes+1))
+	if err != nil {
+		return config.Config{}, errors.New("read configuration file")
+	}
+	return config.Parse(data)
 }

@@ -45,7 +45,8 @@
         "name": {
           "type": "string",
           "minLength": 1,
-          "description": "Unique display name without leading or trailing whitespace."
+          "maxLength": 256,
+          "description": "Unique display name of at most 256 Unicode characters without leading or trailing whitespace."
         },
         "socket": {
           "$ref": "#/$defs/absoluteCanonicalPath",

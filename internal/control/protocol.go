@@ -8,17 +8,22 @@
 // Package control owns Wyrwood's closed local daemon control protocol.
 package control
 
-import "time"
+import (
+	"time"
+
+	"github.com/wyrd-company/wyrwood/internal/config"
+)
 
 const (
-	Version                = 1
-	MaximumRequestBytes    = 64 * 1024
-	MaximumResponseBytes   = 1024 * 1024
-	MaximumEventLimit      = 1000
-	MaximumProjectedKeys   = 1024
-	MaximumProjectedPeers  = 1024
-	MaximumDisplayBytes    = 256
-	MaximumConcurrentPeers = 64
+	Version                       = 1
+	MaximumRequestBytes           = 64 * 1024
+	MaximumResponseBytes          = 1024 * 1024
+	MaximumEventLimit             = 1000
+	MaximumProjectedKeys          = 1024
+	MaximumProjectedConsumers     = 512
+	MaximumDisplayBytes           = 256
+	MaximumConcurrentPeers        = 64
+	MaximumConsumerNameCharacters = config.MaximumConsumerNameCharacters
 )
 
 type Operation string

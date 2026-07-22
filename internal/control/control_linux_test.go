@@ -8,11 +8,13 @@
 package control
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -64,7 +66,9 @@ func TestUnixControlServerAuthenticatesKernelPeerAndUsesOwnerOnlyModes(t *testin
 func TestUnixControlServerRejectsUnauthorizedPeerBeforeDecoding(t *testing.T) {
 	path := controlPath(t)
 	handler := &testHandler{}
+	credentialChecked := make(chan struct{})
 	server, err := listenWithPeerCredential(path, uint32(os.Geteuid()), handler, func(*net.UnixConn) (uint32, error) {
+		close(credentialChecked)
 		return uint32(os.Geteuid()) + 1, nil
 	})
 	if err != nil {
@@ -77,16 +81,94 @@ func TestUnixControlServerRejectsUnauthorizedPeerBeforeDecoding(t *testing.T) {
 	}
 	defer connection.Close()
 	_ = connection.SetDeadline(time.Now().Add(time.Second))
-	if err := writeJSONFrame(connection, MaximumRequestBytes, Request{Version: Version, Operation: OperationStatus}); err != nil {
-		t.Fatalf("writeJSONFrame(): %v", err)
-	}
-	var response Response
-	if err := readJSONFrame(connection, MaximumResponseBytes, &response); err == nil {
-		t.Fatalf("unauthorized peer received response %#v", response)
+	<-credentialChecked
+	if err := writeJSONFrame(connection, MaximumRequestBytes, Request{Version: Version, Operation: OperationStatus}); err == nil {
+		var response Response
+		if err := readJSONFrame(connection, MaximumResponseBytes, &response); err == nil {
+			t.Fatalf("unauthorized peer received response %#v", response)
+		}
 	}
 	if handler.calls.Load() != 0 {
 		t.Fatalf("unauthorized peer reached handler %d times", handler.calls.Load())
 	}
+}
+
+func TestWriteResponseNeverAppendsFallbackAfterPartialWrite(t *testing.T) {
+	response := Response{
+		Version: Version, OK: true, Error: ErrorNone,
+		Status: &StatusResult{Daemon: HealthHealthy, Upstream: HealthUnavailable, Consumers: []ConsumerStatus{}},
+	}
+	full, err := encodeJSONFrame(MaximumResponseBytes, response)
+	if err != nil {
+		t.Fatalf("encodeJSONFrame(): %v", err)
+	}
+	writer := &failAfterWriter{remaining: 7}
+	if err := writeResponse(writer, response); err == nil {
+		t.Fatal("writeResponse() error = nil")
+	}
+	if !bytes.Equal(writer.Bytes(), full[:7]) {
+		t.Fatalf("partial response = %x, want only primary prefix %x", writer.Bytes(), full[:7])
+	}
+}
+
+func TestWriteResponsePreEncodesResourceLimitWithoutPrimaryBytes(t *testing.T) {
+	response := Response{
+		Version: Version, OK: true, Error: ErrorNone,
+		Status: &StatusResult{
+			Daemon: HealthHealthy, Upstream: HealthHealthy,
+			Consumers: []ConsumerStatus{{ID: "subject", Name: strings.Repeat("x", MaximumResponseBytes), Listener: HealthHealthy}},
+		},
+	}
+	var encoded bytes.Buffer
+	if err := writeResponse(&encoded, response); err != nil {
+		t.Fatalf("writeResponse(): %v", err)
+	}
+	var projected Response
+	if err := readJSONFrame(&encoded, MaximumResponseBytes, &projected); err != nil {
+		t.Fatalf("readJSONFrame(): %v", err)
+	}
+	if projected.OK || projected.Error != ErrorResourceLimit || projected.Status != nil {
+		t.Fatalf("projected response = %#v", projected)
+	}
+}
+
+func TestMaximumStatusProjectionFitsTheResponseFrame(t *testing.T) {
+	consumers := make([]ConsumerStatus, MaximumProjectedConsumers)
+	for index := range consumers {
+		consumers[index] = ConsumerStatus{
+			ID: strings.Repeat("i", 128), Name: strings.Repeat("\u2028", MaximumConsumerNameCharacters),
+			Listener: HealthHealthy,
+		}
+	}
+	response := Response{
+		Version: Version, OK: true, Error: ErrorNone,
+		Status: &StatusResult{Daemon: HealthHealthy, Upstream: HealthHealthy, Consumers: consumers},
+	}
+	frame, err := encodeJSONFrame(MaximumResponseBytes, response)
+	if err != nil {
+		t.Fatalf("maximum status projection does not fit: %v", err)
+	}
+	if len(frame) > MaximumResponseBytes+4 {
+		t.Fatalf("maximum status frame = %d bytes", len(frame))
+	}
+}
+
+type failAfterWriter struct {
+	bytes.Buffer
+	remaining int
+}
+
+func (writer *failAfterWriter) Write(data []byte) (int, error) {
+	if writer.remaining <= 0 {
+		return 0, errors.New("injected write failure")
+	}
+	length := min(writer.remaining, len(data))
+	writer.remaining -= length
+	_, _ = writer.Buffer.Write(data[:length])
+	if length < len(data) {
+		return length, errors.New("injected write failure")
+	}
+	return length, nil
 }
 
 func TestControlProtocolRejectsMalformedOversizedUnknownAndMismatchedRequests(t *testing.T) {

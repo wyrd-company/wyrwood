@@ -16,6 +16,8 @@ import (
 	"io"
 )
 
+var errEncodedFrameTooLarge = errors.New("encoded control frame exceeds the supported bound")
+
 func readJSONFrame(reader io.Reader, maximum uint32, destination any) error {
 	var length uint32
 	if err := binary.Read(reader, binary.BigEndian, &length); err != nil {
@@ -110,20 +112,40 @@ func rejectDuplicateObjectFields(data []byte) error {
 }
 
 func writeJSONFrame(writer io.Writer, maximum uint32, value any) error {
+	frame, err := encodeJSONFrame(maximum, value)
+	if err != nil {
+		return err
+	}
+	return writeEncodedFrame(writer, frame)
+}
+
+func encodeJSONFrame(maximum uint32, value any) ([]byte, error) {
 	data, err := json.Marshal(value)
 	if err != nil {
-		return fmt.Errorf("encode control frame: %w", err)
+		return nil, fmt.Errorf("encode control frame: %w", err)
 	}
 	if len(data) == 0 || len(data) > int(maximum) {
-		return errors.New("encoded control frame exceeds the supported bound")
+		return nil, errEncodedFrameTooLarge
 	}
-	var header [4]byte
-	binary.BigEndian.PutUint32(header[:], uint32(len(data)))
-	if _, err := writer.Write(header[:]); err != nil {
-		return errors.New("write control frame header")
-	}
-	if _, err := writer.Write(data); err != nil {
-		return errors.New("write control frame body")
+	frame := make([]byte, 4+len(data))
+	binary.BigEndian.PutUint32(frame[:4], uint32(len(data)))
+	copy(frame[4:], data)
+	return frame, nil
+}
+
+func writeEncodedFrame(writer io.Writer, frame []byte) error {
+	for len(frame) > 0 {
+		written, err := writer.Write(frame)
+		if written < 0 || written > len(frame) {
+			return errors.New("control frame writer returned an invalid count")
+		}
+		frame = frame[written:]
+		if err != nil {
+			return errors.New("write control frame")
+		}
+		if written == 0 {
+			return io.ErrShortWrite
+		}
 	}
 	return nil
 }

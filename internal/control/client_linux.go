@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net"
 	"time"
+	"unicode/utf8"
 )
 
 const clientOperationTimeout = 65 * time.Second
@@ -124,11 +125,31 @@ func validateResponse(request Request, response Response) error {
 		return fmt.Errorf("daemon returned the wrong operation result")
 	}
 	if response.Keys != nil && len(response.Keys.Keys) > MaximumProjectedKeys ||
-		response.Status != nil && len(response.Status.Consumers) > MaximumProjectedPeers ||
+		response.Status != nil && len(response.Status.Consumers) > MaximumProjectedConsumers ||
 		response.Events != nil && (request.Limit == nil || len(response.Events.Events) > *request.Limit) {
 		return errors.New("daemon response exceeds the operation bound")
 	}
+	if response.Status != nil {
+		if !validHealth(response.Status.Daemon) || !validHealth(response.Status.Upstream) {
+			return errors.New("daemon returned an invalid health category")
+		}
+		for _, consumer := range response.Status.Consumers {
+			if consumer.Name == "" || !utf8.ValidString(consumer.Name) || utf8.RuneCountInString(consumer.Name) > MaximumConsumerNameCharacters ||
+				!validHealth(consumer.Listener) || consumer.ActiveConnections < 0 {
+				return errors.New("daemon returned an invalid consumer status")
+			}
+		}
+	}
 	return nil
+}
+
+func validHealth(health HealthCategory) bool {
+	switch health {
+	case HealthHealthy, HealthDegraded, HealthUnavailable:
+		return true
+	default:
+		return false
+	}
 }
 
 func validErrorCode(code ErrorCode) bool {

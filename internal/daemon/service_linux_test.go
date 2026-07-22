@@ -21,6 +21,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/control"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"golang.org/x/crypto/ssh/agent"
@@ -143,7 +144,8 @@ func TestControlApplyIsAtomicAcrossInvalidPreparationAndSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read applied config: %v", err)
 	}
-	updated := strings.Replace(string(data), "name: first", "name: renamed", 1)
+	displayName := strings.Repeat("界", config.MaximumConsumerNameCharacters)
+	updated := strings.Replace(string(data), "name: first", "name: "+displayName, 1)
 	if err := os.WriteFile(fixture.options.ConfigPath, []byte(updated), 0o600); err != nil {
 		t.Fatalf("write renamed config: %v", err)
 	}
@@ -151,11 +153,11 @@ func TestControlApplyIsAtomicAcrossInvalidPreparationAndSuccess(t *testing.T) {
 		t.Fatalf("policy-only Apply(): %v", err)
 	}
 	status, err = client.Status()
-	foundRenamed := false
+	foundDisplayName := false
 	for _, consumer := range status.Consumers {
-		foundRenamed = foundRenamed || consumer.Name == "renamed"
+		foundDisplayName = foundDisplayName || consumer.Name == displayName
 	}
-	if err != nil || !foundRenamed {
+	if err != nil || !foundDisplayName {
 		t.Fatalf("status did not use active snapshot display data: %#v, %v", status, err)
 	}
 }

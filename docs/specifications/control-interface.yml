@@ -46,8 +46,9 @@ description: >-
   canonical SHA-256 fingerprint used as selection identity and an upstream
   comment sanitized as display data and truncated to 256 UTF-8 bytes. Status
   returns categorical daemon, upstream, and listener health, opaque consumer
-  identifiers, configured display names, bounded connection counts, and at most
-  1024 consumers with an explicit truncation marker. Events returns at most the
+  identifiers, configured display names of at most 256 Unicode characters,
+  bounded connection counts, and at most 512 consumers with an explicit
+  truncation marker. Events returns at most the
   requested number of existing closed operational-event records in durable
   order. It does not add paths, payloads, signatures, public-key bytes, comments,
   destinations, raw client messages, or raw errors to the task #9 event model.

@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Validate checks every cross-field and semantic configuration invariant.
@@ -38,6 +39,9 @@ func Validate(configuration Config) error {
 		path := fmt.Sprintf("consumers[%d]", index)
 		if consumer.Name == "" {
 			return fieldError(path+".name", "must not be empty")
+		}
+		if !utf8.ValidString(consumer.Name) || utf8.RuneCountInString(consumer.Name) > MaximumConsumerNameCharacters {
+			return fieldError(path+".name", fmt.Sprintf("must contain at most %d Unicode characters", MaximumConsumerNameCharacters))
 		}
 		if strings.TrimSpace(consumer.Name) != consumer.Name {
 			return fieldError(path+".name", "must not have leading or trailing whitespace")

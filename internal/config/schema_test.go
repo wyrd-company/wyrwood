@@ -78,6 +78,18 @@ func TestAbsolutePathSchemaExcludesFilesystemRoot(t *testing.T) {
 	}
 }
 
+func TestConsumerNameSchemaMatchesRuntimeUnicodeLimit(t *testing.T) {
+	t.Parallel()
+
+	schema := loadConfigurationSchema(t)
+	definitions := schema["$defs"].(map[string]any)
+	consumer := definitions["consumer"].(map[string]any)
+	name := consumer["properties"].(map[string]any)["name"].(map[string]any)
+	if name["maxLength"] != float64(MaximumConsumerNameCharacters) {
+		t.Fatalf("consumer name maxLength = %v, want %d", name["maxLength"], MaximumConsumerNameCharacters)
+	}
+}
+
 func loadConfigurationSchema(t *testing.T) map[string]any {
 	t.Helper()
 	path := filepath.Join("..", "..", "docs", "specifications", "assets", "configuration", "configuration.schema.json")

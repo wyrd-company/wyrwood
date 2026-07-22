@@ -154,6 +154,43 @@ func TestParseRejectsOversizedDocumentBeforeYAMLDecoding(t *testing.T) {
 	}
 }
 
+func TestParseConsumerNameUnicodeLimit(t *testing.T) {
+	t.Parallel()
+
+	configuration := func(name string) string {
+		return fmt.Sprintf(`upstream: /run/upstream/agent.sock
+consumers:
+  - name: %s
+    socket: /run/consumers/first/agent.sock
+    fingerprints: []
+timeouts:
+  connect: 5s
+  list: 5s
+  replay: 5s
+  sign: 2m
+`, name)
+	}
+	accepted := strings.Repeat("界", MaximumConsumerNameCharacters)
+	parsed, err := Parse([]byte(configuration(accepted)))
+	if err != nil {
+		t.Fatalf("Parse() rejected %d multibyte characters: %v", MaximumConsumerNameCharacters, err)
+	}
+	if parsed.Consumers[0].Name != accepted {
+		t.Fatal("Parse() did not preserve the accepted display name")
+	}
+	_, err = Parse([]byte(configuration(accepted + "界")))
+	if err == nil || !strings.Contains(err.Error(), "at most 256 Unicode characters") {
+		t.Fatalf("Parse() oversized-name error = %v", err)
+	}
+	invalid := Config{
+		Upstream: "/run/upstream/agent.sock", Timeouts: DefaultTimeouts(),
+		Consumers: []Consumer{{Name: string([]byte{0xff}), Socket: "/run/consumers/first/agent.sock"}},
+	}
+	if err := Validate(invalid); err == nil || !strings.Contains(err.Error(), "Unicode characters") {
+		t.Fatalf("Validate() invalid-UTF-8 error = %v", err)
+	}
+}
+
 func TestParseAcceptsPositiveGoDurationSpellings(t *testing.T) {
 	t.Parallel()
 
