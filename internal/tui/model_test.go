@@ -32,21 +32,28 @@ var updateGolden = flag.Bool("update", false, "update golden render files")
 const sampleFingerprint = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 type fakeClient struct {
-	mu                 sync.Mutex
-	configurationPages map[int]ConfigurationPage
-	configurationErr   error
-	keys               Keys
-	keysErr            error
-	status             Status
-	statusErr          error
-	events             Events
-	eventsErr          error
-	calls              []string
-	changeResult       ConfigurationChange
-	changeErr          error
-	applyResult        ApplyResult
-	applyErr           error
-	mutations          []mutationRecord
+	mu                    sync.Mutex
+	configurationPages    map[int]ConfigurationPage
+	configurationErr      error
+	keys                  Keys
+	keysErr               error
+	status                Status
+	statusErr             error
+	events                Events
+	eventsErr             error
+	calls                 []string
+	changeResult          ConfigurationChange
+	changeErr             error
+	applyResult           ApplyResult
+	applyErr              error
+	mutations             []mutationRecord
+	configurationRequests []configurationRequest
+}
+
+type configurationRequest struct {
+	offset   int
+	limit    int
+	revision string
 }
 
 type mutationRecord struct {
@@ -59,14 +66,26 @@ type mutationRecord struct {
 }
 
 func (client *fakeClient) Configuration(ctx context.Context, offset, limit int, revision string) (ConfigurationPage, error) {
-	client.record("configuration")
 	if err := ctx.Err(); err != nil {
 		return ConfigurationPage{}, err
 	}
-	if client.configurationErr != nil {
-		return ConfigurationPage{}, client.configurationErr
+	client.mu.Lock()
+	client.calls = append(client.calls, "configuration")
+	client.configurationRequests = append(client.configurationRequests, configurationRequest{offset: offset, limit: limit, revision: revision})
+	err := client.configurationErr
+	page := client.configurationPages[offset]
+	wantRevision := ""
+	if first, ok := client.configurationPages[0]; ok {
+		wantRevision = first.Revision
 	}
-	return client.configurationPages[offset], nil
+	client.mu.Unlock()
+	if err != nil {
+		return ConfigurationPage{}, err
+	}
+	if offset > 0 && revision != wantRevision {
+		return ConfigurationPage{}, &control.RemoteError{Code: control.ErrorConfigurationConflict}
+	}
+	return page, nil
 }
 
 func (client *fakeClient) Keys(ctx context.Context) (Keys, error) {
@@ -211,6 +230,35 @@ func TestModelLoadsCoherentConfigurationPages(t *testing.T) {
 	model.Update(command())
 	if model.configurationState != loadReady || len(model.consumers) != 2 || model.consumerList.Items() == nil {
 		t.Fatalf("configuration load = state %s, consumers %d", model.configurationState, len(model.consumers))
+	}
+	client.mu.Lock()
+	requests := append([]configurationRequest(nil), client.configurationRequests...)
+	client.mu.Unlock()
+	if len(requests) != 1 || requests[0].offset != 1 || requests[0].revision != client.configurationPages[0].Revision || requests[0].limit != configurationPageSize {
+		t.Fatalf("pagination request = %#v", requests)
+	}
+}
+
+func TestConfigurationPaginationRejectsRevisionDrift(t *testing.T) {
+	client := populatedClient()
+	_, err := client.Configuration(context.Background(), 1, configurationPageSize, strings.Repeat("9", 64))
+	var remote *control.RemoteError
+	if !errors.As(err, &remote) || remote.Code != control.ErrorConfigurationConflict {
+		t.Fatalf("revision drift error = %v", err)
+	}
+}
+
+func TestConfigurationReducerRejectsCrossPageRevisionDrift(t *testing.T) {
+	client := populatedClient()
+	model := NewModel(client, options{Schedule: noSchedule})
+	model.Init()
+	generation := model.generation
+	model.Update(configurationMsg{generation: generation, offset: 0, page: client.configurationPages[0]})
+	page := client.configurationPages[1]
+	page.Revision = strings.Repeat("9", 64)
+	model.Update(configurationMsg{generation: generation, offset: 1, page: page})
+	if model.configurationState != loadUnavailable || len(model.consumers) != 0 {
+		t.Fatalf("cross-page drift = state %s consumers %d", model.configurationState, len(model.consumers))
 	}
 }
 
@@ -420,6 +468,33 @@ func TestNavigationFocusHelpResizeAndCleanExit(t *testing.T) {
 	model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
 	if !model.closed || model.View() != "" {
 		t.Fatal("quit did not close cleanly")
+	}
+}
+
+func TestNarrowViewsExposeEveryPrimaryRouteAction(t *testing.T) {
+	model := readyModel(t, false)
+	model.Update(tea.WindowSizeMsg{Width: 58, Height: 14})
+	tests := []struct {
+		route route
+		want  []string
+	}{
+		{route: routeDashboard, want: []string{"n New", "a Apply", "s Settings", "r Refresh", "? Help", "q Quit"}},
+		{route: routeUpstream, want: []string{"e Edit", "a Apply", "s Settings", "r Retry", "? Help", "q Quit"}},
+		{route: routeConsumer, want: []string{"e Edit", "x Retire", "a Apply", "s Settings", "? Help", "q Quit"}},
+	}
+	for _, test := range tests {
+		model.route = test.route
+		view := model.View()
+		for _, action := range test.want {
+			if !strings.Contains(view, action) {
+				t.Errorf("route %d lacks %q:\n%s", test.route, action, view)
+			}
+		}
+		for _, line := range strings.Split(view, "\n") {
+			if ansi.StringWidth(line) > 58 {
+				t.Errorf("route %d line width %d > 58: %q", test.route, ansi.StringWidth(line), line)
+			}
+		}
 	}
 }
 

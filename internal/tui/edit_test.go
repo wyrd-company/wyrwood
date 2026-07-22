@@ -229,6 +229,24 @@ func TestDirtyCancelAndExitRequireExplicitDiscard(t *testing.T) {
 	}
 }
 
+func TestKeepEditingResetsExternalInterruptConfirmation(t *testing.T) {
+	resets := 0
+	model := readyModel(t, false)
+	model.resetInterrupt = func() { resets++ }
+	model.Update(key("s"))
+	model.editor.inputs[0].SetValue("6s")
+	model.editor.syncDirty()
+	model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	model.Update(key("k"))
+	if resets != 1 || model.modal != modalNone {
+		t.Fatalf("interrupt reset = %d, modal = %d", resets, model.modal)
+	}
+	model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if model.modal != modalExit || model.closed {
+		t.Fatal("later interrupt did not open a fresh confirmation")
+	}
+}
+
 func TestRetireRequiresNamedConfirmationAndUsesBaseRevision(t *testing.T) {
 	client := populatedClient()
 	model := readyModelWithClient(t, client)
@@ -242,6 +260,21 @@ func TestRetireRequiresNamedConfirmationAndUsesBaseRevision(t *testing.T) {
 	runCommand(t, model, command)
 	if len(client.mutations) != 1 || client.mutations[0].operation != "retire-consumer" || client.mutations[0].revision != strings.Repeat("1", 64) {
 		t.Fatalf("retirement mutation = %#v", client.mutations)
+	}
+}
+
+func TestUncertainRetirementProactivelyRefetchesWithoutClaimingOutcome(t *testing.T) {
+	client := populatedClient()
+	client.changeErr = &control.RemoteError{Code: control.ErrorConfigurationDurabilityUncertain}
+	model := readyModelWithClient(t, client)
+	model.focus = focusConsumers
+	model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	model.Update(key("x"))
+	_, retire := model.Update(key("y"))
+	before := model.generation
+	_, refresh := model.Update(retire())
+	if refresh == nil || model.generation != before+1 || !model.noticeSticky || !strings.Contains(model.notice, "COMMIT UNCERTAIN") || strings.Contains(model.notice, "COMMITTED") {
+		t.Fatalf("uncertain retirement = generation %d/%d notice %q refresh %v", before, model.generation, model.notice, refresh)
 	}
 }
 
@@ -346,6 +379,22 @@ func TestUpstreamBrowserIsInjectedAndSelectionIsOnlyAdvisory(t *testing.T) {
 	model.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if model.editor.inputs[0].Value() != "/tmp/example/offered.sock" || !strings.Contains(model.View(), "ADVISORY ONLY") {
 		t.Fatalf("browser selection not copied as advisory value:\n%s", model.View())
+	}
+}
+
+func TestBrowserQuitRoutesThroughDirtyExitConfirmation(t *testing.T) {
+	for _, quit := range []tea.KeyMsg{key("q"), {Type: tea.KeyCtrlC}} {
+		model := readyModel(t, false)
+		model.focus = focusUpstream
+		model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		model.Update(key("e"))
+		model.editor.inputs[0].SetValue("/tmp/example/changed.sock")
+		model.editor.syncDirty()
+		model.browserState = browserViewState{active: true, state: loadReady}
+		model.Update(quit)
+		if model.browserState.active || model.modal != modalExit || model.closed {
+			t.Fatalf("browser quit %q = browser %#v modal %d closed %v", quit.String(), model.browserState, model.modal, model.closed)
+		}
 	}
 }
 
@@ -467,10 +516,101 @@ func TestDurabilityUncertaintyNeverClaimsSaveWasRejectedOrRolledBack(t *testing.
 	model.editor.validate(model)
 	model.editor.focus = model.editor.saveFocus()
 	_, command := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	runCommand(t, model, command)
+	_, verification := model.Update(command())
 	view := model.View()
-	if !strings.Contains(view, "COMMIT UNCERTAIN") || strings.Contains(view, "REJECTED") || strings.Contains(strings.ToLower(view), "rollback") || !model.editor.dirty {
+	if verification == nil || !model.editor.verifying || !strings.Contains(view, "COMMIT UNCERTAIN") || strings.Contains(view, "REJECTED") || strings.Contains(strings.ToLower(view), "rollback") || !model.editor.dirty {
 		t.Fatalf("durability uncertainty misrepresented:\n%s", view)
+	}
+}
+
+func TestDurabilityUncertaintyRefetchClassifiesOnlyExactBaseOrCandidate(t *testing.T) {
+	tests := []struct {
+		name      string
+		revision  func(*Model) string
+		connect   string
+		published bool
+		conflict  bool
+	}{
+		{name: "not-published", revision: func(model *Model) string { return model.editor.baseRevision }, connect: "1s"},
+		{name: "published", revision: func(model *Model) string { revision, _ := model.editor.candidateRevision(model); return revision }, connect: "6s", published: true},
+		{name: "external-same-target", revision: func(*Model) string { return strings.Repeat("9", 64) }, connect: "6s", conflict: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := populatedClient()
+			client.changeErr = &control.RemoteError{Code: control.ErrorConfigurationDurabilityUncertain}
+			model := readyModelWithClient(t, client)
+			model.Update(key("s"))
+			model.editor.inputs[0].SetValue("6s")
+			model.editor.syncDirty()
+			model.editor.validate(model)
+			revision := test.revision(model)
+			model.editor.focus = model.editor.saveFocus()
+			_, save := model.Update(tea.KeyMsg{Type: tea.KeyEnter})
+			_, verification := model.Update(save())
+			if verification == nil || !model.editor.verifying || !model.noticeSticky {
+				t.Fatalf("verification did not start: editor %#v notice %q", model.editor, model.notice)
+			}
+			page0 := client.configurationPages[0]
+			page1 := client.configurationPages[1]
+			page0.Revision, page1.Revision = revision, revision
+			page0.Timeouts.Connect = test.connect
+			generation := model.generation
+			_, next := model.Update(configurationMsg{generation: generation, offset: 0, page: page0})
+			if next == nil {
+				t.Fatal("verification did not request coherent next page")
+			}
+			model.Update(configurationMsg{generation: generation, offset: 1, page: page1})
+			if test.published {
+				if model.editor != nil || model.configuration.Revision != revision || !strings.Contains(model.notice, "VERIFIED PUBLISHED") || model.noticeSticky {
+					t.Fatalf("published verification = editor %#v revision %q notice %q sticky %v", model.editor, model.configuration.Revision, model.notice, model.noticeSticky)
+				}
+				return
+			}
+			if model.editor == nil || !model.editor.dirty || model.editor.inputs[0].Value() != "6s" {
+				t.Fatalf("verification lost candidate: %#v", model.editor)
+			}
+			if test.conflict {
+				if !model.editor.conflict || !model.noticeSticky || !strings.Contains(model.notice, "CONFLICT") {
+					t.Fatalf("external change did not conflict: %#v notice %q", model.editor, model.notice)
+				}
+			} else if model.editor.conflict || model.editor.verifying || model.noticeSticky || !strings.Contains(model.notice, "NOT COMMITTED") {
+				t.Fatalf("base verification misclassified: %#v notice %q", model.editor, model.notice)
+			}
+		})
+	}
+}
+
+func TestCleanEditorAlwaysBuffersACompleteConfigurationReload(t *testing.T) {
+	client := populatedClient()
+	model := readyModelWithClient(t, client)
+	model.Update(key("s"))
+	if model.editor.dirty || model.editor.reloading {
+		t.Fatalf("unexpected initial editor state: %#v", model.editor)
+	}
+	generation := model.generation
+	_, next := model.Update(configurationMsg{generation: generation, offset: 0, page: client.configurationPages[0]})
+	if next == nil || !model.editor.reloading || len(model.editor.reloadConsumers) != 1 {
+		t.Fatalf("page zero was not buffered: %#v", model.editor)
+	}
+	model.Update(configurationMsg{generation: generation, offset: 1, page: client.configurationPages[1]})
+	if model.editor == nil || model.editor.reloading || model.configuration.Upstream == "" || len(model.consumers) != 2 || model.editor.inputs[0].Value() != "1s" {
+		t.Fatalf("coherent reload committed incomplete state: config %#v consumers %d editor %#v", model.configuration, len(model.consumers), model.editor)
+	}
+}
+
+func TestTransientNoticeClearsOnNextNavigationWithoutHidingRevisionState(t *testing.T) {
+	client := populatedClient()
+	client.applyResult = ApplyResult{Revision: strings.Repeat("2", 64), Committed: true}
+	model := readyModelWithClient(t, client)
+	_, apply := model.Update(key("a"))
+	model.Update(apply())
+	if !strings.Contains(model.notice, "APPLIED") {
+		t.Fatalf("apply notice = %q", model.notice)
+	}
+	model.Update(tea.KeyMsg{Type: tea.KeyTab})
+	if model.notice != "" || model.configuration.Revision == "" || model.status.ActiveRevision == model.configuration.Revision {
+		t.Fatalf("navigation notice/revision = %q\n%s", model.notice, model.View())
 	}
 }
 

@@ -50,25 +50,27 @@ type fingerprintChoice struct {
 }
 
 type editorState struct {
-	kind                editKind
-	baseRevision        string
-	returnRoute         route
-	consumerID          *string
-	originalConsumer    Consumer
-	originalValues      []string
-	originalSelected    []string
-	inputs              []textinput.Model
-	focus               int
-	fingerprints        []fingerprintChoice
-	fingerprintIndex    int
-	dirty               bool
-	conflict            bool
-	saving              bool
-	reloading           bool
-	errors              map[string]string
-	failure             string
-	reloadConfiguration ConfigurationPage
-	reloadConsumers     []Consumer
+	kind                 editKind
+	baseRevision         string
+	returnRoute          route
+	consumerID           *string
+	originalConsumer     Consumer
+	originalValues       []string
+	originalSelected     []string
+	inputs               []textinput.Model
+	focus                int
+	fingerprints         []fingerprintChoice
+	fingerprintIndex     int
+	dirty                bool
+	conflict             bool
+	saving               bool
+	reloading            bool
+	verifying            bool
+	verificationRevision string
+	errors               map[string]string
+	failure              string
+	reloadConfiguration  ConfigurationPage
+	reloadConsumers      []Consumer
 }
 
 type mutationMsg struct {
@@ -407,6 +409,12 @@ func valueOrEmpty(value *string) string {
 
 func (model *Model) updateEditorKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	editor := model.editor
+	if editor.verifying {
+		if key.String() == "ctrl+c" || key.String() == "q" {
+			model.modal = modalExit
+		}
+		return model, nil
+	}
 	if editor.reloading {
 		if key.String() == "ctrl+c" || key.String() == "q" {
 			model.close()
@@ -543,7 +551,7 @@ func (model *Model) retireConsumer() tea.Cmd {
 	}
 	model.request++
 	model.mutationInFlight = true
-	model.notice = "RETIRING · durable mutation in progress"
+	model.setNotice("RETIRING · durable mutation in progress", false)
 	request := model.request
 	revision, identifier := model.configuration.Revision, consumer.ID
 	return func() tea.Msg {
@@ -569,15 +577,15 @@ func (model *Model) updateMutation(message mutationMsg) (tea.Model, tea.Cmd) {
 				return model, nil
 			}
 			if remote.Code == control.ErrorConfigurationDurabilityUncertain {
-				model.notice = "SAVE COMMIT UNCERTAIN · CONFIGURATION DURABILITY"
+				model.setNotice("CONFIGURATION COMMIT UNCERTAIN · VERIFYING DURABILITY", true)
 				if model.editor != nil {
 					model.editor.failure = model.notice
 				}
-				return model, nil
+				return model, model.startDurabilityVerification()
 			}
-			model.notice = "SAVE REJECTED · " + strings.ToUpper(string(remote.Code))
+			model.setNotice("SAVE REJECTED · "+strings.ToUpper(string(remote.Code)), false)
 		} else {
-			model.notice = "SAVE DISCONNECTED"
+			model.setNotice("SAVE DISCONNECTED", false)
 		}
 		if model.editor != nil {
 			model.editor.failure = model.notice
@@ -585,7 +593,7 @@ func (model *Model) updateMutation(message mutationMsg) (tea.Model, tea.Cmd) {
 		return model, nil
 	}
 	model.configuration.Revision = message.result.Revision
-	model.notice = "SAVED · UNAPPLIED"
+	model.setNotice("SAVED · UNAPPLIED", false)
 	if message.kind == editConsumer && message.result.ConsumerID != nil {
 		model.selectionID = *message.result.ConsumerID
 	}
@@ -602,7 +610,7 @@ func (model *Model) apply() tea.Cmd {
 		return nil
 	}
 	model.applyInFlight = true
-	model.notice = "APPLYING"
+	model.setNotice("APPLYING", false)
 	model.request++
 	request := model.request
 	return func() tea.Msg {
@@ -619,20 +627,20 @@ func (model *Model) updateApply(message applyMsg) (tea.Model, tea.Cmd) {
 	if message.err != nil {
 		var remote *control.RemoteError
 		if errors.As(message.err, &remote) {
-			model.notice = "APPLY REJECTED · " + strings.ToUpper(string(remote.Code))
+			model.setNotice("APPLY REJECTED · "+strings.ToUpper(string(remote.Code)), false)
 		} else {
-			model.notice = "APPLY DISCONNECTED"
+			model.setNotice("APPLY DISCONNECTED", false)
 		}
 		return model, nil
 	}
 	if !message.result.Committed {
-		model.notice = "APPLY REJECTED"
+		model.setNotice("APPLY REJECTED", false)
 		return model, nil
 	}
 	if message.result.Degraded {
-		model.notice = fmt.Sprintf("COMMITTED DEGRADED · cleanup %d · permissions %d", message.result.PendingCleanup, message.result.PendingPermissions)
+		model.setNotice(fmt.Sprintf("COMMITTED DEGRADED · cleanup %d · permissions %d", message.result.PendingCleanup, message.result.PendingPermissions), false)
 	} else {
-		model.notice = "APPLIED · COMMITTED"
+		model.setNotice("APPLIED · COMMITTED", false)
 	}
 	return model, model.startRefresh(true, true)
 }
@@ -673,6 +681,9 @@ func (model *Model) updateBrowser(message browserMsg) (tea.Model, tea.Cmd) {
 
 func (model *Model) updateBrowserKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch key.String() {
+	case "ctrl+c", "q":
+		model.browserState = browserViewState{}
+		return model.updateEditorKey(tea.KeyMsg{Type: tea.KeyCtrlC})
 	case "esc":
 		model.browserState = browserViewState{}
 	case "up", "k":
@@ -706,7 +717,11 @@ func (model *Model) updateModal(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch key.String() {
 	case "esc", "k":
+		wasExit := model.modal == modalExit
 		model.modal = modalNone
+		if wasExit && model.resetInterrupt != nil {
+			model.resetInterrupt()
+		}
 	case "d":
 		modal := model.modal
 		model.modal = modalNone
@@ -747,7 +762,7 @@ func (model *Model) finishReloadEditor() {
 			}
 			model.editor = nil
 			model.route = routeDashboard
-			model.notice = "RELOAD · CONSUMER NOT FOUND"
+			model.setNotice("RELOAD · CONSUMER NOT FOUND", false)
 		} else {
 			model.openConsumerEditor(nil)
 		}
@@ -765,6 +780,11 @@ func (model *Model) updateReloadConfiguration(message configurationMsg) (tea.Mod
 		editor.reloadConfiguration = message.page
 		editor.reloadConsumers = append([]Consumer(nil), message.page.Consumers...)
 	} else {
+		if message.page.Revision != editor.reloadConfiguration.Revision {
+			editor.reloading = false
+			editor.failure = "UNAVAILABLE · configuration revision changed · candidate preserved"
+			return model, model.settleRefreshOperation(refreshConfiguration)
+		}
 		editor.reloadConsumers = append(editor.reloadConsumers, message.page.Consumers...)
 	}
 	if len(editor.reloadConsumers) > message.page.TotalConsumers {
@@ -785,5 +805,6 @@ func (model *Model) updateReloadConfiguration(message configurationMsg) (tea.Mod
 	model.configurationState = stateFor(nil, len(model.consumers))
 	model.setConsumerItems()
 	model.finishReloadEditor()
+	model.setNotice("", false)
 	return model, model.settleRefreshOperation(refreshConfiguration)
 }

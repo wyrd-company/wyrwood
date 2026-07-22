@@ -210,6 +210,7 @@ func (model *Model) viewNarrow(width int) string {
 			"socket " + model.upstreamSocket(),
 			fmt.Sprintf("keys %s", model.countLabel(model.keysState, len(model.keys.Keys))),
 			model.loadHint(model.eventsState),
+			"e Edit  a Apply  s Settings",
 			"esc Back  r Retry  ? Help",
 			"q Quit",
 		}
@@ -242,6 +243,7 @@ func (model *Model) viewNarrow(width int) string {
 		"configuration " + model.configurationState.String(),
 		selected,
 		model.dashboardBindings(),
+		"n New  a Apply  s Settings",
 		"? Help  q Quit",
 	}
 	return strings.Join(lines, "\n")

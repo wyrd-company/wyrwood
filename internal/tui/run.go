@@ -12,6 +12,7 @@ import (
 	"io"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -37,7 +38,11 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 	_, noColor := os.LookupEnv("NO_COLOR")
 	profile := termenv.NewOutput(output).ColorProfile()
 	colors := !noColor && os.Getenv("TERM") != "dumb" && profile != termenv.Ascii
-	model := NewModel(client, options{Colors: colors, ColorProfile: &profile})
+	var interruptPending atomic.Bool
+	model := NewModel(client, options{
+		Colors: colors, ColorProfile: &profile,
+		ResetInterrupt: func() { interruptPending.Store(false) },
+	})
 	defer model.close()
 	program := tea.NewProgram(
 		model,
@@ -53,23 +58,21 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 		signal.Stop(signals)
 		close(done)
 	}()
-	go forwardSignals(program, signals, done)
+	go forwardSignals(program, signals, done, &interruptPending)
 	_, err := program.Run()
 	return normalizeRunError(err)
 }
 
-func forwardSignals(program *tea.Program, signals <-chan os.Signal, done <-chan struct{}) {
-	interrupted := false
+func forwardSignals(program *tea.Program, signals <-chan os.Signal, done <-chan struct{}, interruptPending *atomic.Bool) {
 	for {
 		select {
 		case <-done:
 			return
 		case <-signals:
-			if interrupted {
+			if !interruptPending.CompareAndSwap(false, true) {
 				program.Kill()
 				return
 			}
-			interrupted = true
 			program.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
 		}
 	}

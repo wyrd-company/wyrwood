@@ -69,10 +69,11 @@ const (
 )
 
 type options struct {
-	Colors       bool
-	ColorProfile *termenv.Profile
-	Schedule     scheduleFunc
-	Browser      SocketBrowser
+	Colors         bool
+	ColorProfile   *termenv.Profile
+	Schedule       scheduleFunc
+	Browser        SocketBrowser
+	ResetInterrupt func()
 }
 
 type consumerItem struct{ consumer Consumer }
@@ -120,6 +121,8 @@ type Model struct {
 	mutationInFlight bool
 	applyInFlight    bool
 	notice           string
+	noticeSticky     bool
+	resetInterrupt   func()
 	selectionID      string
 }
 
@@ -172,6 +175,7 @@ func NewModel(client Client, opts options) *Model {
 		cancel:             cancel,
 		schedule:           opts.Schedule,
 		browser:            opts.Browser,
+		resetInterrupt:     opts.ResetInterrupt,
 		styles:             newPalette(opts.Colors, opts.ColorProfile),
 		width:              referenceWidth,
 		height:             referenceHeight,
@@ -248,6 +252,9 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if !model.mutationInFlight && !model.applyInFlight {
+		model.clearTransientNotice()
+	}
 	if model.modal != modalNone {
 		return model.updateModal(key)
 	}
@@ -339,6 +346,9 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 	if message.generation != model.generation {
 		return model, nil
 	}
+	if model.editor != nil && model.editor.verifying {
+		return model.updateVerificationConfiguration(message)
+	}
 	if model.editor != nil && model.editor.reloading {
 		return model.updateReloadConfiguration(message)
 	}
@@ -366,13 +376,26 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 		model.configurationState = stateFor(nil, len(model.consumers))
 		return model, model.settleRefreshOperation(refreshConfiguration)
 	}
-	if message.offset == 0 && model.editor != nil && !model.editor.dirty && message.page.Revision != model.editor.baseRevision {
+	if model.editor != nil && !model.editor.dirty {
+		// A configuration response received while a clean editor is open must
+		// always be buffered as a complete coherent reload. This defensive path
+		// prevents a future caller from committing a page-zero projection while
+		// the remaining pages are still absent.
 		model.editor.reloading = true
+		model.editor.reloadConfiguration = ConfigurationPage{}
+		model.editor.reloadConsumers = nil
+		return model.updateReloadConfiguration(message)
 	}
 	if message.offset == 0 {
 		model.configuration = message.page
 		model.consumers = append([]Consumer(nil), message.page.Consumers...)
 	} else {
+		if message.page.Revision != model.configuration.Revision {
+			model.configurationState = loadUnavailable
+			model.consumers = nil
+			model.setConsumerItems()
+			return model, model.settleRefreshOperation(refreshConfiguration)
+		}
 		model.consumers = append(model.consumers, message.page.Consumers...)
 	}
 	if len(model.consumers) > message.page.TotalConsumers {

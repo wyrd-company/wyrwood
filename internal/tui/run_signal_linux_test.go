@@ -165,3 +165,67 @@ func TestRunDirtyEditorRequiresSecondExternalInterruptAndRestoresTerminal(t *tes
 		t.Fatalf("dirty interrupt did not restore prior screen: %q", rendered.Bytes())
 	}
 }
+
+func TestRunKeepEditingResetsExternalInterruptLatch(t *testing.T) {
+	controller, terminal, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	defer terminal.Close()
+	if err := pty.Setsize(terminal, &pty.Winsize{Rows: 34, Cols: 118}); err != nil {
+		t.Fatal(err)
+	}
+
+	command := exec.Command(os.Args[0], "-test.run=^TestRunTreatsExternalInterruptAsCleanAndRestoresTerminal$")
+	command.Env = append(os.Environ(), interruptHelperEnvironment+"=1", "TERM=xterm-256color", "NO_COLOR=1")
+	command.Stdin, command.Stdout, command.Stderr = terminal, terminal, terminal
+	if err := command.Start(); err != nil {
+		t.Fatal(err)
+	}
+	waitDone := make(chan error, 1)
+	go func() { waitDone <- command.Wait() }()
+	var rendered bytes.Buffer
+	waitForPTYText(t, controller, &rendered, "DASHBOARD")
+	if _, err := controller.Write([]byte("s")); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "SETTINGS / TIMEOUTS")
+	if _, err := controller.Write([]byte("\x7f\x7f6s")); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "DIRTY")
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "Discard local edits and exit?")
+	if _, err := controller.Write([]byte("k")); err != nil {
+		t.Fatal(err)
+	}
+	// Wait for the modal redraw and synchronous latch reset before sending
+	// a later, independent interrupt.
+	time.Sleep(25 * time.Millisecond)
+	rendered.Reset()
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "Discard local edits and exit?")
+	select {
+	case err := <-waitDone:
+		t.Fatalf("later first interrupt exited after Keep Editing: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	if err := command.Process.Signal(os.Interrupt); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-waitDone:
+		if err != nil {
+			t.Fatalf("later second interrupt was not clean: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		_ = command.Process.Kill()
+		<-waitDone
+		t.Fatal("later second interrupt did not exit")
+	}
+}
