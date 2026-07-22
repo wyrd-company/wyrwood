@@ -83,7 +83,7 @@ type Model struct {
 
 	width  int
 	height int
-	colors bool
+	styles palette
 	route  route
 	focus  focus
 	help   bool
@@ -146,7 +146,7 @@ func NewModel(client Client, opts options) *Model {
 		ctx:                ctx,
 		cancel:             cancel,
 		schedule:           opts.Schedule,
-		colors:             opts.Colors,
+		styles:             newPalette(opts.Colors),
 		width:              referenceWidth,
 		height:             referenceHeight,
 		configurationState: loadLoading,

@@ -69,7 +69,7 @@ func (model *Model) View() string {
 }
 
 func (model *Model) viewDashboard(width, height int) string {
-	styles := newPalette(model.colors)
+	styles := model.styles
 	header := styles.identity.Bold(true).Render("WYRWOOD") + styles.muted.Render("  /  DIAGNOSTICS  /  DASHBOARD")
 	upstreamHeight := 5
 	footerHeight := model.footerHeight()
@@ -94,7 +94,7 @@ func (model *Model) viewDashboard(width, height int) string {
 }
 
 func (model *Model) viewUpstream(width, height int) string {
-	styles := newPalette(model.colors)
+	styles := model.styles
 	header := styles.identity.Bold(true).Render("WYRWOOD") + styles.muted.Render("  /  DIAGNOSTICS  /  UPSTREAM")
 	footerHeight := model.footerHeight()
 	bodyHeight := maximum(5, height-footerHeight-2)
@@ -112,7 +112,7 @@ func (model *Model) viewUpstream(width, height int) string {
 }
 
 func (model *Model) viewNarrow(width int) string {
-	styles := newPalette(model.colors)
+	styles := model.styles
 	if model.route == routeUpstream {
 		lines := []string{
 			styles.identity.Bold(true).Render("UPSTREAM"),
