@@ -6,6 +6,8 @@
 package events
 
 import (
+	"fmt"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -48,6 +50,95 @@ func TestEventHasOnlyNormativeFields(t *testing.T) {
 				t.Errorf("Event field %q contains forbidden concept %q", name, fragment)
 			}
 		}
+	}
+}
+
+func TestTimestampMustRoundTripThroughDurableRepresentation(t *testing.T) {
+	t.Parallel()
+
+	for _, year := range []int{-1, 10_000} {
+		t.Run(fmt.Sprintf("year-%d", year), func(t *testing.T) {
+			event := sampleEvent(1)
+			event.Timestamp = time.Date(year, 1, 2, 3, 4, 5, 6, time.UTC)
+			if err := event.Validate(); err == nil {
+				t.Fatal("Validate() error = nil")
+			}
+			if _, err := encodeFrame(event); err == nil {
+				t.Fatal("encodeFrame() error = nil")
+			}
+			store := openTestStore(t, 4)
+			t.Cleanup(func() { _ = store.Close() })
+			before, err := store.file.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.Append(event); err == nil {
+				t.Fatal("Append() error = nil")
+			}
+			after, err := store.file.Stat()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if before.Size() != after.Size() {
+				t.Errorf("rejected timestamp changed store size from %d to %d", before.Size(), after.Size())
+			}
+		})
+	}
+}
+
+func TestValidTimestampBoundariesSurviveAppendAndRestart(t *testing.T) {
+	for _, year := range []int{0, 9999} {
+		t.Run(fmt.Sprintf("year-%04d", year), func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "state", "events.bin")
+			store, err := Open(path, 4)
+			if err != nil {
+				t.Fatal(err)
+			}
+			event := sampleEvent(1)
+			event.Timestamp = time.Date(year, 1, 2, 3, 4, 5, 6, time.FixedZone("fixture-zone", 3600))
+			if err := store.Append(event); err != nil {
+				t.Fatalf("Append(): %v", err)
+			}
+			normalized, err := normalizeTimestamp(event.Timestamp)
+			if err != nil {
+				t.Fatal(err)
+			}
+			before := store.Recent(1)[0].Timestamp
+			if !reflect.DeepEqual(before, normalized) {
+				t.Errorf("in-memory timestamp = %#v, want normalized %#v", before, normalized)
+			}
+			if err := store.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			reopened, err := Open(path, 4)
+			if err != nil {
+				t.Fatalf("Open(restart): %v", err)
+			}
+			t.Cleanup(func() { _ = reopened.Close() })
+			after := reopened.Recent(1)[0].Timestamp
+			if !reflect.DeepEqual(after, normalized) {
+				t.Errorf("reopened timestamp = %#v, want normalized %#v", after, normalized)
+			}
+		})
+	}
+}
+
+func TestAppendNormalizesTimestampBeforeQuery(t *testing.T) {
+	store := openTestStore(t, 4)
+	t.Cleanup(func() { _ = store.Close() })
+	event := sampleEvent(1)
+	event.Timestamp = time.Now()
+	if err := store.Append(event); err != nil {
+		t.Fatal(err)
+	}
+	want, err := normalizeTimestamp(event.Timestamp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := store.Recent(1)[0].Timestamp
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("query timestamp = %#v, want canonical %#v", got, want)
 	}
 }
 

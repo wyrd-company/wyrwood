@@ -11,7 +11,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"syscall"
 
 	"golang.org/x/sys/unix"
 )
@@ -41,11 +40,12 @@ type Store struct {
 // Open creates or recovers the store at the explicit absolute path. The
 // path's parent directory is dedicated to event storage and is made owner-only.
 func Open(path string, retention int) (*Store, error) {
-	if !filepath.IsAbs(path) || filepath.Clean(path) != path {
-		return nil, errors.New("event store path must be canonical and absolute")
-	}
-	if retention <= 0 || retention > maximumRetention {
-		return nil, fmt.Errorf("retention must be between 1 and %d", maximumRetention)
+	return openWithRemove(path, retention, os.Remove)
+}
+
+func openWithRemove(path string, retention int, remove func(string) error) (*Store, error) {
+	if err := validateStorageInputs(path, retention); err != nil {
+		return nil, err
 	}
 	directory := filepath.Dir(path)
 	if err := ensureOwnerOnlyDirectory(directory); err != nil {
@@ -57,10 +57,14 @@ func Open(path string, retention int) (*Store, error) {
 	}
 	if err := unix.Flock(int(lock.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
 		_ = lock.Close()
-		if errors.Is(err, syscall.EWOULDBLOCK) || errors.Is(err, syscall.EAGAIN) {
+		if errors.Is(err, unix.EWOULDBLOCK) || errors.Is(err, unix.EAGAIN) {
 			return nil, ErrWriterActive
 		}
 		return nil, fmt.Errorf("lock event writer: %w", err)
+	}
+	if err := cleanupStaleReplacements(directory, remove); err != nil {
+		_ = lock.Close()
+		return nil, fmt.Errorf("clean stale event replacements: %w", err)
 	}
 
 	file, err := openOwnerOnlyFile(path, unix.O_RDWR|unix.O_CREAT|unix.O_APPEND)
@@ -115,11 +119,14 @@ func (store *Store) initialize() error {
 // Append durably records one validated event before returning. A failed write
 // closes the store so a later Open can recover the final frame before reuse.
 func (store *Store) Append(event Event) error {
+	event, err := normalizeEvent(event)
+	if err != nil {
+		return err
+	}
 	frame, err := encodeFrame(event)
 	if err != nil {
 		return err
 	}
-	event = cloneEvent(event)
 
 	store.mu.Lock()
 	defer store.mu.Unlock()
@@ -169,7 +176,7 @@ func (store *Store) Close() error {
 
 func (store *Store) replace() error {
 	directory := filepath.Dir(store.path)
-	temporary, err := os.CreateTemp(directory, ".events-*")
+	temporary, err := os.CreateTemp(directory, replacementPrefix+"*")
 	if err != nil {
 		return fmt.Errorf("create replacement: %w", err)
 	}
@@ -244,75 +251,6 @@ func (store *Store) syncFileAndDirectory() error {
 	}
 	if err := syncDirectory(filepath.Dir(store.path)); err != nil {
 		return fmt.Errorf("sync event store directory: %w", err)
-	}
-	return nil
-}
-
-func ensureOwnerOnlyDirectory(path string) error {
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return fmt.Errorf("create event store directory: %w", err)
-	}
-	info, err := os.Lstat(path)
-	if err != nil {
-		return fmt.Errorf("inspect event store directory: %w", err)
-	}
-	if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
-		return errors.New("event store directory must be a real directory")
-	}
-	if err := requireCurrentOwner(info); err != nil {
-		return fmt.Errorf("event store directory: %w", err)
-	}
-	if err := os.Chmod(path, 0o700); err != nil {
-		return fmt.Errorf("secure event store directory: %w", err)
-	}
-	return nil
-}
-
-func openOwnerOnlyFile(path string, flags int) (*os.File, error) {
-	fileDescriptor, err := unix.Open(path, flags|unix.O_CLOEXEC|unix.O_NOFOLLOW, 0o600)
-	if err != nil {
-		return nil, err
-	}
-	file := os.NewFile(uintptr(fileDescriptor), path)
-	info, err := file.Stat()
-	if err != nil {
-		_ = file.Close()
-		return nil, err
-	}
-	if !info.Mode().IsRegular() {
-		_ = file.Close()
-		return nil, errors.New("event store file must be regular")
-	}
-	if err := requireCurrentOwner(info); err != nil {
-		_ = file.Close()
-		return nil, err
-	}
-	if err := file.Chmod(0o600); err != nil {
-		_ = file.Close()
-		return nil, err
-	}
-	return file, nil
-}
-
-func requireCurrentOwner(info os.FileInfo) error {
-	status, ok := info.Sys().(*syscall.Stat_t)
-	if !ok {
-		return errors.New("ownership metadata is unavailable")
-	}
-	if status.Uid != uint32(os.Geteuid()) {
-		return errors.New("path is not owned by the daemon user")
-	}
-	return nil
-}
-
-func syncDirectory(path string) error {
-	directory, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer directory.Close()
-	if err := directory.Sync(); err != nil {
-		return err
 	}
 	return nil
 }

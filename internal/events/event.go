@@ -81,8 +81,8 @@ type Event struct {
 
 // Validate verifies the complete event vocabulary and cross-field invariants.
 func (event Event) Validate() error {
-	if event.Timestamp.IsZero() {
-		return errors.New("timestamp is required")
+	if _, err := normalizeTimestamp(event.Timestamp); err != nil {
+		return err
 	}
 	if len(event.ConsumerID) > maximumConsumerIDBytes || !consumerIDPattern.MatchString(string(event.ConsumerID)) {
 		return fmt.Errorf("consumer identifier is not an opaque identifier")
@@ -112,6 +112,31 @@ func (event Event) Validate() error {
 		return errors.New("non-successful event must use a categorical error code")
 	}
 	return nil
+}
+
+func normalizeEvent(event Event) (Event, error) {
+	if err := event.Validate(); err != nil {
+		return Event{}, err
+	}
+	normalized := cloneEvent(event)
+	var err error
+	normalized.Timestamp, err = normalizeTimestamp(event.Timestamp)
+	if err != nil {
+		return Event{}, err
+	}
+	return normalized, nil
+}
+
+func normalizeTimestamp(timestamp time.Time) (time.Time, error) {
+	if timestamp.IsZero() {
+		return time.Time{}, errors.New("timestamp is required")
+	}
+	representation := timestamp.UTC().Format(time.RFC3339Nano)
+	normalized, err := time.Parse(time.RFC3339Nano, representation)
+	if err != nil || !normalized.Equal(timestamp) || normalized.Format(time.RFC3339Nano) != representation {
+		return time.Time{}, errors.New("timestamp must round-trip through RFC 3339 with a four-digit year")
+	}
+	return normalized, nil
 }
 
 func validOperation(operation Operation) bool {

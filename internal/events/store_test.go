@@ -6,6 +6,7 @@
 package events
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -233,6 +234,155 @@ func TestOpenRejectsInvalidStorageInputs(t *testing.T) {
 				t.Fatal("Open() error = nil")
 			}
 		})
+	}
+}
+
+func TestOpenRejectsRootAdjacentPathsBeforeModeMutation(t *testing.T) {
+	for _, path := range []string{
+		string(filepath.Separator),
+		filepath.Join(string(filepath.Separator), "event-store-test.bin"),
+		filepath.Join(string(filepath.Separator), "tmp", "event-store-test.bin"),
+	} {
+		directory := filepath.Dir(path)
+		before, err := os.Stat(directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Open(path, 4); err == nil {
+			t.Errorf("Open(%q) error = nil", path)
+		}
+		after, err := os.Stat(directory)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if before.Mode() != after.Mode() {
+			t.Errorf("Open(%q) changed %s mode from %v to %v", path, directory, before.Mode(), after.Mode())
+		}
+	}
+}
+
+func TestOpenRejectsNULPathBeforeCreatingDirectory(t *testing.T) {
+	base := t.TempDir()
+	candidateDirectory := filepath.Join(base, "must-not-exist")
+	path := filepath.Join(candidateDirectory, "segment\x00", "events.bin")
+	if _, err := Open(path, 4); err == nil {
+		t.Fatal("Open(NUL path) error = nil")
+	}
+	if _, err := os.Lstat(candidateDirectory); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("invalid path created a directory: %v", err)
+	}
+}
+
+func TestOpenRemovesOnlyStaleOwnedRegularReplacements(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "state")
+	path := filepath.Join(directory, "events.bin")
+	store, err := Open(path, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	stale := filepath.Join(directory, replacementPrefix+"stale")
+	unrelated := filepath.Join(directory, "keep.txt")
+	link := filepath.Join(directory, replacementPrefix+"link")
+	nested := filepath.Join(directory, replacementPrefix+"directory")
+	for _, file := range []string{stale, unrelated} {
+		if err := os.WriteFile(file, []byte("fixture"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Symlink(unrelated, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(nested, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	reopened, err := Open(path, 4)
+	if err != nil {
+		t.Fatalf("Open(restart): %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+	if _, err := os.Lstat(stale); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("stale replacement still exists: %v", err)
+	}
+	for _, preserved := range []string{unrelated, link, nested} {
+		if _, err := os.Lstat(preserved); err != nil {
+			t.Errorf("preserved entry %s: %v", preserved, err)
+		}
+	}
+}
+
+func TestStaleReplacementCleanupFailureLeavesStoreAndOtherEntriesIntact(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "state")
+	path := filepath.Join(directory, "events.bin")
+	store, err := Open(path, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Append(sampleEvent(1)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocked := filepath.Join(directory, replacementPrefix+"blocked")
+	unrelated := filepath.Join(directory, "keep.txt")
+	for _, file := range []string{blocked, unrelated} {
+		if err := os.WriteFile(file, []byte("fixture"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wantErr := errors.New("injected remove failure")
+	failed, err := openWithRemove(path, 4, func(candidate string) error {
+		if candidate == blocked {
+			return wantErr
+		}
+		return os.Remove(candidate)
+	})
+	if failed != nil {
+		_ = failed.Close()
+		t.Fatal("openWithRemove() returned a store after cleanup failure")
+	}
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("openWithRemove() error = %v, want injected failure", err)
+	}
+	for _, preserved := range []string{blocked, unrelated} {
+		if _, err := os.Lstat(preserved); err != nil {
+			t.Errorf("preserved entry %s: %v", preserved, err)
+		}
+	}
+	after, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Error("cleanup failure changed the durable event store")
+	}
+	reopened, err := Open(path, 4)
+	if err != nil {
+		t.Fatalf("Open(after cleanup failure): %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+}
+
+func TestSyncDirectoryRejectsSymlink(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "state")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(t.TempDir(), "state-link")
+	if err := os.Symlink(directory, link); err != nil {
+		t.Fatal(err)
+	}
+	if err := syncDirectory(link); err == nil {
+		t.Fatal("syncDirectory(symlink) error = nil")
 	}
 }
 

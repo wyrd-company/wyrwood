@@ -7,12 +7,16 @@ package events
 
 import (
 	"encoding/json"
+	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOperationalEventSchemaIsClosedAndMatchesDurableRecord(t *testing.T) {
@@ -73,6 +77,11 @@ func TestOperationalEventSchemaIsClosedAndMatchesDurableRecord(t *testing.T) {
 	if got := properties["fingerprint"].(map[string]any)["pattern"]; got != fingerprintPattern.String() {
 		t.Errorf("fingerprint pattern = %v, want %q", got, fingerprintPattern.String())
 	}
+	latency := properties["latency"].(map[string]any)
+	maximum, ok := latency["maximum"].(json.Number)
+	if !ok || maximum.String() != strconv.FormatInt(math.MaxInt64, 10) {
+		t.Errorf("latency maximum = %#v, want exact int64 maximum", latency["maximum"])
+	}
 
 	frame, err := encodeFrame(sampleEvent(1))
 	if err != nil {
@@ -123,6 +132,27 @@ func TestOperationalEventExclusionWordingMatchesAcrossAuthoritativeArtifacts(t *
 	}
 }
 
+func TestLatencyDecoderMatchesExactSchemaBounds(t *testing.T) {
+	t.Parallel()
+
+	payload := func(latency string) []byte {
+		return []byte(fmt.Sprintf(
+			`{"timestamp":"2025-02-03T04:05:06Z","consumer-id":"subject-alpha","operation":"sign","outcome":"succeeded","latency":%s,"error-code":"none"}`,
+			latency,
+		))
+	}
+	event, err := decodeFrame(payload(strconv.FormatInt(math.MaxInt64, 10)))
+	if err != nil {
+		t.Fatalf("decodeFrame(maximum): %v", err)
+	}
+	if event.Latency != time.Duration(math.MaxInt64) {
+		t.Errorf("maximum latency = %v", event.Latency)
+	}
+	if _, err := decodeFrame(payload("9223372036854775808")); err == nil {
+		t.Fatal("decodeFrame(maximum + 1) error = nil")
+	}
+}
+
 func loadOperationalEventSchema(t *testing.T) map[string]any {
 	t.Helper()
 	path := filepath.Join("..", "..", "docs", "specifications", "assets", "operational-events", "operational-event.schema.json")
@@ -131,7 +161,9 @@ func loadOperationalEventSchema(t *testing.T) map[string]any {
 		t.Fatalf("ReadFile(schema): %v", err)
 	}
 	var schema map[string]any
-	if err := json.Unmarshal(data, &schema); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&schema); err != nil {
 		t.Fatalf("operational-event schema is not valid JSON: %v", err)
 	}
 	return schema

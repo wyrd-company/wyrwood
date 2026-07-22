@@ -5,12 +5,12 @@ description: >-
   Wyrwood operational history is a bounded sequence of closed event records whose
   machine-readable structure is defined by
   `assets/operational-events/operational-event.schema.json`. Each event records a
-  timestamp, opaque consumer identifier, categorical operation, optional canonical
-  public-key fingerprint, categorical outcome, non-negative latency in nanoseconds,
-  and categorical error code. A fingerprint is intentionally correlatable across
-  events. Events contain no signing payloads, signatures, public-key bytes, agent
-  comments, filesystem paths, destinations, raw client messages, or raw upstream
-  errors.
+  RFC 3339 timestamp with a four-digit year, opaque consumer identifier, categorical
+  operation, optional canonical public-key fingerprint, categorical outcome,
+  non-negative signed 64-bit latency in nanoseconds, and categorical error code. A
+  fingerprint is intentionally correlatable across events. Events contain no signing
+  payloads, signatures, public-key bytes, agent comments, filesystem paths,
+  destinations, raw client messages, or raw upstream errors.
 
   The durable file begins with the eight-byte ASCII header `WYREVT01`. Each event is
   encoded as a four-byte big-endian JSON byte length, a four-byte big-endian CRC-32C
@@ -21,14 +21,16 @@ description: >-
   frame make the store unreadable rather than discarding subsequent history.
 
   The daemon receives the canonical absolute storage path and a retention limit from
-  1 through 100000 events as explicit inputs. The path's dedicated parent
-  directory has mode `0700`; the event file and stable writer-lock file have mode
-  `0600`; all are owned by the daemon's effective user. The lock admits one daemon
-  writer. Every append is synchronized to durable storage before returning. Crossing
-  the retention limit writes the retained sequence to an owner-only temporary file in
-  the same directory, synchronizes it, atomically renames it over the event file, and
-  synchronizes the directory. The store contains events only and has no configuration
-  authority.
+  1 through 100000 events as explicit inputs. The dedicated parent is neither the
+  filesystem root nor one of its immediate children. The parent directory has mode
+  `0700`; the event file and stable writer-lock file have mode `0600`; all are owned by
+  the daemon's effective user. The lock admits one daemon writer. Startup removes
+  stale owned regular replacement files in the reserved `.events-` namespace while
+  leaving every other entry untouched. Every append is synchronized to durable
+  storage before returning. Crossing the retention limit writes the retained sequence
+  to an owner-only temporary file in the same directory, synchronizes it, atomically
+  renames it over the event file, and synchronizes the directory. The store contains
+  events only and has no configuration authority.
 
   Recent-event queries preserve durable write order. Last-activity projections select
   each consumer's greatest retained timestamp. Overall and per-consumer health use
