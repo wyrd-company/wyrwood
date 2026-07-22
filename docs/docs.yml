@@ -1,0 +1,25 @@
+# ---
+# relationships:
+#   publishes-to: wyrd-foo
+#   references: wyrwood
+# ---
+name: wyrwood
+tagline: Stable, filtered host SSH keys for containers.
+blurb: >-
+  A per-user Linux daemon that gives each container its own stable SSH-agent
+  socket and explicit public-key fingerprint allowlist while private keys stay
+  in the host agent.
+category: Agent Infrastructure
+language: Go
+status: preview
+repo: https://github.com/wyrd-company/wyrwood
+order: 6
+install:
+  - label: APT
+    command: sudo apt install wyrwood
+  - label: RPM
+    command: sudo dnf install wyrwood
+  - label: AUR
+    command: paru -S wyrwood-bin
+assets:
+  - assets/demo.gif

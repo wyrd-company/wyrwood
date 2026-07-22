@@ -53,6 +53,13 @@ tasks:
       - rumdl check .
       - ryl check . --markdown
 
+  docs:demo:
+    desc: Regenerate the public documentation demo
+    deps:
+      - build
+    cmds:
+      - PATH="$PWD:$PATH" vhs docs/demo.tape
+
   build:
     desc: Build the Wyrwood executable
     cmds:
