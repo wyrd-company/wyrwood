@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/control"
+	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
 func TestCommandOutputSchemaIsClosedAndVersioned(t *testing.T) {
@@ -32,10 +33,10 @@ func TestCommandOutputSchemaIsClosedAndVersioned(t *testing.T) {
 		t.Fatalf("schema version = %v", version["const"])
 	}
 	variants := array(t, schema["oneOf"])
-	if len(variants) != 6 {
-		t.Fatalf("schema variants = %d, want 6", len(variants))
+	if len(variants) != 7 {
+		t.Fatalf("schema variants = %d, want 7", len(variants))
 	}
-	commands := []string{"init", "apply", "keys", "status", "events"}
+	commands := []string{"init", "apply", "keys", "status", "events", "service"}
 	for index, command := range commands {
 		variant := object(t, variants[index])
 		variantProperties := object(t, variant["properties"])
@@ -47,12 +48,12 @@ func TestCommandOutputSchemaIsClosedAndVersioned(t *testing.T) {
 			t.Fatalf("schema success variant %s permits an error", command)
 		}
 	}
-	errorVariant := object(t, variants[5])
+	errorVariant := object(t, variants[6])
 	if !reflect.DeepEqual(array(t, object(t, errorVariant["not"])["required"]), []any{"result"}) {
 		t.Fatal("schema error variant permits a result")
 	}
 	definitions := object(t, schema["$defs"])
-	for _, name := range []string{"init-result", "apply-result", "key", "keys-result", "consumer-status", "status-result", "event", "events-result", "error-result"} {
+	for _, name := range []string{"init-result", "apply-result", "key", "keys-result", "consumer-status", "status-result", "event", "events-result", "service-result", "error-result"} {
 		if object(t, definitions[name])["additionalProperties"] != false {
 			t.Fatalf("schema definition %s is not closed", name)
 		}
@@ -86,6 +87,26 @@ func TestCommandSchemaCarriesControlBoundsAndDeadline(t *testing.T) {
 	}
 }
 
+func TestServiceSchemaRejectsContradictoryInstallationState(t *testing.T) {
+	definitions := object(t, loadCommandSchema(t)["$defs"])
+	service := object(t, definitions["service-result"])
+	variants := array(t, service["oneOf"])
+	if len(variants) != 2 {
+		t.Fatalf("service state variants = %d", len(variants))
+	}
+	absent := object(t, object(t, variants[0])["properties"])
+	if object(t, absent["installed"])["const"] != false ||
+		object(t, absent["enabled"])["const"] != false ||
+		object(t, absent["state"])["const"] != "not-installed" {
+		t.Fatal("absent service state is not closed")
+	}
+	installed := object(t, object(t, variants[1])["properties"])
+	if object(t, installed["installed"])["const"] != true ||
+		!reflect.DeepEqual(array(t, object(t, installed["state"])["enum"]), []any{"inactive", "active", "failed"}) {
+		t.Fatal("installed service state is not closed")
+	}
+}
+
 func TestStructuredTypesAndSchemaExposeTheSameFields(t *testing.T) {
 	schema := loadCommandSchema(t)
 	definitions := object(t, schema["$defs"])
@@ -101,6 +122,7 @@ func TestStructuredTypesAndSchemaExposeTheSameFields(t *testing.T) {
 		{definition: "status-result", typeOf: reflect.TypeFor[control.StatusResult]()},
 		{definition: "event", typeOf: reflect.TypeFor[control.Event]()},
 		{definition: "events-result", typeOf: reflect.TypeFor[control.EventsResult]()},
+		{definition: "service-result", typeOf: reflect.TypeFor[userservice.Result]()},
 		{definition: "error-result", typeOf: reflect.TypeFor[errorProjection]()},
 	}
 	for _, test := range tests {
@@ -130,6 +152,7 @@ func TestCommandErrorSchemaContainsEveryEmittedCategory(t *testing.T) {
 		"apply-failed", "apply-invalid", "daemon-failed", "daemon-unavailable",
 		"durability-uncertain", "incompatible-daemon", "initialization-failed",
 		"request-rejected", "resource-limit", "upstream-unavailable", "usage",
+		"service-failed", "service-unavailable",
 	}
 	sort.Strings(want)
 	if !reflect.DeepEqual(actual, want) {

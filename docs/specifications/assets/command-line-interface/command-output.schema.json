@@ -56,10 +56,19 @@
       }
     },
     {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "service" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/service-result" }
+      }
+    },
+    {
       "required": ["error"],
       "not": { "required": ["result"] },
       "properties": {
-        "command": { "enum": ["init", "apply", "keys", "status", "events"] },
+        "command": { "enum": ["init", "apply", "keys", "status", "events", "service"] },
         "ok": { "const": false },
         "error": { "$ref": "#/$defs/error-result" }
       }
@@ -67,7 +76,7 @@
   ],
   "properties": {
     "version": { "const": 1 },
-    "command": { "enum": ["init", "apply", "keys", "status", "events"] },
+    "command": { "enum": ["init", "apply", "keys", "status", "events", "service"] },
     "ok": { "type": "boolean" },
     "result": {
       "oneOf": [
@@ -75,7 +84,8 @@
         { "$ref": "#/$defs/apply-result" },
         { "$ref": "#/$defs/keys-result" },
         { "$ref": "#/$defs/status-result" },
-        { "$ref": "#/$defs/events-result" }
+        { "$ref": "#/$defs/events-result" },
+        { "$ref": "#/$defs/service-result" }
       ]
     },
     "error": { "$ref": "#/$defs/error-result" }
@@ -182,6 +192,32 @@
         }
       }
     },
+    "service-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "installed", "enabled", "state"],
+      "oneOf": [
+        {
+          "properties": {
+            "installed": { "const": false },
+            "enabled": { "const": false },
+            "state": { "const": "not-installed" }
+          }
+        },
+        {
+          "properties": {
+            "installed": { "const": true },
+            "state": { "enum": ["inactive", "active", "failed"] }
+          }
+        }
+      ],
+      "properties": {
+        "action": { "enum": ["install", "remove", "start", "stop", "status"] },
+        "installed": { "type": "boolean" },
+        "enabled": { "type": "boolean" },
+        "state": { "enum": ["not-installed", "inactive", "active", "failed"] }
+      }
+    },
     "error-result": {
       "type": "object",
       "additionalProperties": false,
@@ -191,7 +227,8 @@
           "enum": [
             "usage", "initialization-failed", "durability-uncertain", "daemon-unavailable",
             "apply-invalid", "apply-failed", "upstream-unavailable", "resource-limit",
-            "request-rejected", "incompatible-daemon", "daemon-failed"
+            "request-rejected", "incompatible-daemon", "daemon-failed",
+            "service-unavailable", "service-failed"
           ]
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 256 },

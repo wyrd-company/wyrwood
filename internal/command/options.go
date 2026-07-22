@@ -89,6 +89,9 @@ func requestedOutput(args []string) outputFormat {
 }
 
 func commandHelp(command string) string {
+	if command == "service" {
+		return "Usage: wyrwood service install|remove|start|stop|status [--output human|json]\n"
+	}
 	if command == "events" {
 		return "Usage: wyrwood events [--limit NUMBER] [--output human|json]\n"
 	}

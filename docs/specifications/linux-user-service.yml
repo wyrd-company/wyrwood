@@ -1,0 +1,64 @@
+$schema: https://refinery.systems/ontology/specification
+relationships:
+  implements: linux-per-user-agent-proxy
+  uses: command-line-interface
+format: systemd-user-unit
+description: >-
+  On Linux, `wyrwood service install`, `remove`, `start`, `stop`, and `status`
+  manage `wyrwood.service` in the current user's systemd service manager. The
+  adapter never invokes sudo, a system manager, or a shell. Every systemctl
+  process receives `--user`, `--no-pager`, and `--no-ask-password` as distinct
+  arguments. The unit is installed beneath the platform XDG per-user
+  configuration directory as an owner-only regular file. Directory components
+  are opened relative to pinned descriptors without following symbolic links;
+  the leaf directory must belong to the effective user and must not be writable
+  by group or other users.
+
+  Installation resolves the running Wyrwood executable through symbolic links
+  and records that exact canonical path. systemd does not permit every valid
+  Linux pathname as an ExecStart executable token, so `/usr/bin/env --` performs
+  only an argv-based exec of the recorded path and its `daemon` subcommand; no
+  command text is interpreted by a shell. The ExecStart colon modifier disables
+  dollar-variable expansion, while quotes, backslashes, percent specifiers, and
+  whitespace are escaped for their systemd
+  contexts. NUL, carriage return, line feed, relative, and non-canonical paths
+  are rejected. The unit pins the resolved XDG configuration, data, state, and
+  runtime roots in its environment so daemon startup uses the same platform
+  locations chosen during installation. It uses `UMask=0077`, restarts only
+  after failure with a two-second delay, and stops within fifteen seconds.
+  `WantedBy=default.target` enables startup when the user's login target starts.
+  Daemon startup restores consumer listeners before it contacts the upstream
+  agent, so consumer endpoints exist while that agent is unavailable.
+
+  Unit replacement is atomic and file and directory durability are confirmed.
+  A durable owner-only pending-restart marker containing the SHA-256 digest of
+  the intended unit precedes every changed unit. It requests a restart only when
+  that digest matches the installed bytes, so a pre-replacement failure or a
+  later changed target cannot restart an unchanged daemon. Each
+  install reloads the user manager and enables the absolute unit path. A pending
+  marker additionally triggers `try-restart`, which restarts an already-active
+  daemon but does not start an inactive one; the marker is removed durably only
+  after that succeeds. This makes retries reconcile replacements that committed
+  before a reload, enable, restart, or durability failure without restarting an
+  ordinary identical installation. Remove disables and stops an installed unit
+  before unlinking it, clears a pending marker, and reloads the user manager.
+  An already-absent removal still reloads so a retry can finish a prior unlink
+  whose reload failed. A bounded owner-only advisory lock serializes install,
+  remove, start, and stop across Wyrwood processes so their file and systemd
+  transitions cannot interleave. Status remains a read-only atomic observation.
+
+  Start and stop require an installed unit and confirm the resulting active or
+  inactive state. Status reports only `not-installed`, `inactive`, `active`, or
+  `failed`, together with installed and login-enabled booleans. Every action
+  supports the command-line interface's human and version-1 closed JSON output.
+  Failures are categorical `service-unavailable` or `service-failed` results;
+  process, filesystem, environment, and systemd error text is never projected.
+validation-criteria: >-
+  Tests verify exact unit bytes and local systemd parsing; hostile pathname and
+  environment handling; owner, mode, regular-file, symbolic-link, size, atomic
+  replacement, durability-marker, and idempotence rules; argv order and the
+  absence of privileged flags; login enablement; changed-active safe restart;
+  start, stop, and closed status outcomes; failure-then-retry reconciliation at
+  replacement durability, daemon reload, enable, restart, unlink, and final
+  reload boundaries; unavailable systemctl and user-manager behavior; stable
+  human and JSON output; and categorical non-leaking errors.

@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/control"
+	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
 const (
@@ -79,6 +80,14 @@ var (
 	failureUncommitted = failure{
 		code: "apply-failed", message: "the daemon did not commit the configuration",
 		action: "Inspect 'wyrwood status' and 'wyrwood events' before retrying.", exitCode: exitRequestFailed,
+	}
+	failureServiceUnavailable = failure{
+		code: "service-unavailable", message: "the systemd user manager is unavailable",
+		action: "Use a Linux login session with systemd user services and retry.", exitCode: exitOperational,
+	}
+	failureService = failure{
+		code: "service-failed", message: "the per-user service operation did not complete",
+		action: "Inspect the user unit and systemd user-manager state before retrying.", exitCode: exitOperational,
 	}
 )
 
@@ -157,6 +166,10 @@ func writeHuman(writer io.Writer, command string, result any) error {
 		return writeStatus(writer, result.(control.StatusResult))
 	case "events":
 		return writeEvents(writer, result.(control.EventsResult))
+	case "service":
+		value := result.(userservice.Result)
+		_, err := fmt.Fprintf(writer, "Service %s: installed=%t, enabled=%t, state=%s.\n", value.Action, value.Installed, value.Enabled, value.State)
+		return err
 	default:
 		return errors.New("unknown human output projection")
 	}

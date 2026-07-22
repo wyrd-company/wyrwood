@@ -18,6 +18,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/control"
 	"github.com/wyrd-company/wyrwood/internal/daemon"
+	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
 const help = `Wyrwood provides stable, filtered SSH-agent endpoints for containers.
@@ -33,7 +34,7 @@ Commands:
   status    Inspect daemon and consumer health
   events    Inspect bounded operational events
   tui       Open the terminal user interface (not implemented)
-  service   Manage per-user login startup (not implemented)
+  service   Manage per-user login startup
   version   Print version information
   help      Show this help
 
@@ -55,6 +56,7 @@ type dependencies struct {
 	newClient          func(string) (controlClient, error)
 	runDaemon          func(context.Context, daemon.Options) error
 	defaultDaemon      func() (daemon.Options, error)
+	manageService      func(userservice.Action) (userservice.Result, error)
 }
 
 func defaultDependencies() dependencies {
@@ -66,6 +68,7 @@ func defaultDependencies() dependencies {
 		},
 		runDaemon:     daemon.Run,
 		defaultDaemon: daemon.DefaultOptions,
+		manageService: userservice.Manage,
 	}
 }
 
@@ -100,7 +103,9 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 		return runInit(args[1:], stdout, stderr, deps)
 	case "apply", "keys", "status", "events":
 		return runManagement(args[0], args[1:], stdout, stderr, deps)
-	case "tui", "service":
+	case "service":
+		return runService(args[1:], stdout, stderr, deps)
+	case "tui":
 		_, _ = fmt.Fprintf(stderr, "wyrwood %s is not implemented yet\n", args[0])
 		return exitOperational
 	default:
@@ -108,6 +113,40 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 		_, _ = fmt.Fprintln(stderr, "Run 'wyrwood help' for usage.")
 		return exitUsage
 	}
+}
+
+func runService(args []string, stdout, stderr io.Writer, deps dependencies) int {
+	format := requestedOutput(args)
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		_, _ = io.WriteString(stdout, commandHelp("service"))
+		return exitSuccess
+	}
+	if len(args) == 0 {
+		return writeFailure(stderr, format, "service", failureUsage)
+	}
+	action := userservice.Action(args[0])
+	switch action {
+	case userservice.ActionInstall, userservice.ActionRemove, userservice.ActionStart, userservice.ActionStop, userservice.ActionStatus:
+	default:
+		return writeFailure(stderr, format, "service", failureUsage)
+	}
+	options, parseFailure, showHelp := parseCommandOptions("service", args[1:])
+	if showHelp {
+		_, _ = io.WriteString(stdout, commandHelp("service"))
+		return exitSuccess
+	}
+	if parseFailure != nil {
+		return writeFailure(stderr, options.output, "service", *parseFailure)
+	}
+	result, err := deps.manageService(action)
+	if err != nil {
+		problem := failureService
+		if errors.Is(err, userservice.ErrUnavailable) {
+			problem = failureServiceUnavailable
+		}
+		return writeFailure(stderr, options.output, "service", problem)
+	}
+	return writeSuccess(stdout, stderr, options.output, "service", result)
 }
 
 func runDaemon(_ io.Writer, stderr io.Writer, deps dependencies) int {

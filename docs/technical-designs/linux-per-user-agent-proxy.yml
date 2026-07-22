@@ -202,7 +202,18 @@ proposed-design:
     storage survives daemon restart and compacts through an atomic replacement.
   platform-lifecycle: >-
     The Linux adapter installs, removes, starts, stops, and inspects a systemd
-    user service. It supplies Linux configuration, data, and runtime locations,
+    user service without a shell, sudo, or machine-level unit. An owner-only
+    atomically replaced unit pins the canonical current executable and the
+    resolved XDG configuration, data, state, and runtime locations. Because
+    systemd rejects some valid Linux path characters in the executable token,
+    `/usr/bin/env --` performs the exact argv-based exec of that executable's
+    daemon subcommand. A durable pending-restart marker reconciles replacements
+    across reload, enable, restart, and durability failures; identical settled
+    installations do not restart. The unit is enabled by `default.target`, uses
+    bounded failure restart and stop timing, and restores listeners before
+    upstream access. Removal disables and stops before unlinking and reloads
+    even when retrying an already-unlinked unit. The adapter supplies Linux
+    configuration, data, and runtime locations,
     the Unix control transport, consumer AF_UNIX listeners, ownership and group
     access, and directory-mount semantics. Policy, SSH-agent framing, connection
     recovery, configuration, and event types depend on platform interfaces rather

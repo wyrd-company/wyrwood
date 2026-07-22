@@ -4,8 +4,8 @@ relationships:
   references: configuration
 format: json-schema
 description: >-
-  Wyrwood provides non-interactive `init`, `apply`, `keys`, `status`, and
-  `events` commands. `init` is the only management command that accesses
+  Wyrwood provides non-interactive `init`, `apply`, `keys`, `status`, `events`,
+  and `service` commands. `init` is the only runtime management command that accesses
   configuration storage directly: it atomically creates the default owner-only
   configuration from `SSH_AUTH_SOCK`. Every runtime operation resolves the
   daemon's default per-user control socket and invokes exactly one operation on
@@ -35,15 +35,17 @@ description: >-
   unavailable. Status 5 means apply rejected invalid configuration. Status 6
   means the daemon could not complete a valid operation or did not commit apply.
   Status 7 means the configured upstream agent was unavailable. Health and
-  retained policy-denial events are successful query results, not command
-  failures.
+  retained policy-denial events and an absent service status are successful
+  query results, not command failures. Linux service-manager unavailability or
+  an incomplete service operation uses status 1.
 
   `daemon` continues to delegate directly to the per-user daemon runtime and
-  handles SIGINT and SIGTERM. `tui` and `service` are reserved for their
-  dedicated implementations.
+  handles SIGINT and SIGTERM. `service install|remove|start|stop|status` delegates
+  to the Linux per-user systemd adapter and supports the same human or closed
+  JSON output selection. `tui` remains reserved for its dedicated implementation.
 validation-criteria: >-
   Command tests verify exact human projections and versioned JSON structure for
-  all five commands; categorical stable failures and exit statuses; invalid
+  runtime and service commands; categorical stable failures and exit statuses; invalid
   configuration, unavailable daemon, unavailable upstream, and retained policy
   denial; default and bounded event limits; quoted display data; committed apply
   enforcement; exclusive use of the local control client for runtime commands;

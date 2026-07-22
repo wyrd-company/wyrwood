@@ -21,6 +21,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/control"
 	"github.com/wyrd-company/wyrwood/internal/daemon"
+	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
 const sampleFingerprint = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
@@ -73,6 +74,9 @@ func testDependencies(client controlClient) dependencies {
 		},
 		defaultDaemon: func() (daemon.Options, error) { return daemon.Options{}, nil },
 		runDaemon:     func(context.Context, daemon.Options) error { return nil },
+		manageService: func(action userservice.Action) (userservice.Result, error) {
+			return userservice.Result{Action: action, Installed: true, Enabled: true, State: userservice.StateInactive}, nil
+		},
 	}
 }
 
@@ -358,7 +362,7 @@ func TestLimitIsRejectedByEveryNonEventsManagementCommand(t *testing.T) {
 
 func TestUnknownAndReservedCommandsHaveStableFailures(t *testing.T) {
 	deps := testDependencies(&fakeClient{})
-	for _, command := range []string{"tui", "service"} {
+	for _, command := range []string{"tui"} {
 		exitCode, stdout, stderr := execute(t, []string{command}, deps)
 		if exitCode != exitOperational || stdout != "" || stderr != "wyrwood "+command+" is not implemented yet\n" {
 			t.Fatalf("%s = (%d, %q, %q)", command, exitCode, stdout, stderr)
@@ -367,6 +371,58 @@ func TestUnknownAndReservedCommandsHaveStableFailures(t *testing.T) {
 	exitCode, stdout, stderr := execute(t, []string{"unrecognized"}, deps)
 	if exitCode != exitUsage || stdout != "" || stderr != "unknown command\nRun 'wyrwood help' for usage.\n" {
 		t.Fatalf("unknown = (%d, %q, %q)", exitCode, stdout, stderr)
+	}
+}
+
+func TestServiceActionsHaveStableHumanAndStructuredOutput(t *testing.T) {
+	deps := testDependencies(&fakeClient{})
+	var actions []userservice.Action
+	deps.manageService = func(action userservice.Action) (userservice.Result, error) {
+		actions = append(actions, action)
+		return userservice.Result{Action: action, Installed: action != userservice.ActionRemove, Enabled: action == userservice.ActionInstall, State: userservice.StateInactive}, nil
+	}
+	exitCode, stdout, stderr := execute(t, []string{"service", "install"}, deps)
+	if exitCode != exitSuccess || stdout != "Service install: installed=true, enabled=true, state=inactive.\n" || stderr != "" {
+		t.Fatalf("human service = (%d, %q, %q)", exitCode, stdout, stderr)
+	}
+	exitCode, stdout, stderr = execute(t, []string{"service", "status", "--output=json"}, deps)
+	want := "{\"version\":1,\"command\":\"service\",\"ok\":true,\"result\":{\"action\":\"status\",\"installed\":true,\"enabled\":false,\"state\":\"inactive\"}}\n"
+	if exitCode != exitSuccess || stdout != want || stderr != "" || !reflect.DeepEqual(actions, []userservice.Action{userservice.ActionInstall, userservice.ActionStatus}) {
+		t.Fatalf("structured service = (%d, %q, %q), actions %v", exitCode, stdout, stderr, actions)
+	}
+}
+
+func TestServiceUsageAndFailuresAreCategorical(t *testing.T) {
+	deps := testDependencies(&fakeClient{})
+	for _, args := range [][]string{{"service"}, {"service", "unknown"}, {"service", "start", "--limit", "2"}} {
+		exitCode, stdout, stderr := execute(t, append(args, "--output=json"), deps)
+		if exitCode != exitUsage || stdout != "" || !strings.Contains(stderr, `"code":"usage"`) {
+			t.Fatalf("usage %v = (%d, %q, %q)", args, exitCode, stdout, stderr)
+		}
+	}
+	for _, test := range []struct {
+		err  error
+		code string
+	}{
+		{err: userservice.ErrUnavailable, code: "service-unavailable"},
+		{err: errors.New("private marker"), code: "service-failed"},
+	} {
+		deps.manageService = func(userservice.Action) (userservice.Result, error) { return userservice.Result{}, test.err }
+		exitCode, stdout, stderr := execute(t, []string{"service", "status", "--output=json"}, deps)
+		if exitCode != exitOperational || stdout != "" || strings.Contains(stderr, "private marker") || !strings.Contains(stderr, `"code":"`+test.code+`"`) {
+			t.Fatalf("service failure = (%d, %q, %q)", exitCode, stdout, stderr)
+		}
+	}
+}
+
+func TestServiceHelpDoesNotRunAnOperation(t *testing.T) {
+	deps := testDependencies(&fakeClient{})
+	deps.manageService = func(userservice.Action) (userservice.Result, error) { panic("service operation ran") }
+	for _, args := range [][]string{{"service", "--help"}, {"service", "install", "--help"}} {
+		exitCode, stdout, stderr := execute(t, args, deps)
+		if exitCode != exitSuccess || !strings.Contains(stdout, "service install|remove|start|stop|status") || stderr != "" {
+			t.Fatalf("help %v = (%d, %q, %q)", args, exitCode, stdout, stderr)
+		}
 	}
 }
 

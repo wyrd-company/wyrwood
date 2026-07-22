@@ -28,12 +28,13 @@ allows socket replacement to remain visible inside a running container.
 ## Command-line use
 
 Create the initial owner-only configuration from the current `SSH_AUTH_SOCK`,
-start the per-user daemon, edit the default YAML configuration, and ask that
-daemon to apply it:
+install and start the systemd user service, edit the default YAML configuration,
+and ask that daemon to apply it:
 
 ```console
 wyrwood init
-wyrwood daemon
+wyrwood service install
+wyrwood service start
 wyrwood apply
 ```
 
@@ -50,8 +51,11 @@ wyrwood status --output json
 Human-readable output is the default. `--output json` emits a versioned,
 closed JSON object for automation. Successful output goes to standard output;
 categorical actionable errors go to standard error. Append `--help` to a
-management command to show its specific options. The `tui` and `service`
-commands are reserved for their dedicated implementations.
+management command to show its specific options. Service installation enables
+login startup and safely restarts an already-active daemon only when its unit
+changes. `wyrwood service status --output json` provides the same closed output
+contract for automation. The `tui` command remains reserved for its dedicated
+implementation.
 
 ## Project direction
 
