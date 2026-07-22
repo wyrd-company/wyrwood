@@ -36,9 +36,12 @@ type loadedConfiguration struct {
 }
 
 type configurationDirectory struct {
-	fd   int
-	base string
-	uid  uint32
+	fd     int
+	path   string
+	base   string
+	uid    uint32
+	device uint64
+	inode  uint64
 }
 
 func openConfigurationDirectory(path string, uid uint32) (*configurationDirectory, error) {
@@ -57,7 +60,10 @@ func openConfigurationDirectory(path string, uid uint32) (*configurationDirector
 		_ = unix.Close(fd)
 		return nil, errors.New("configuration directory must be owner-only")
 	}
-	return &configurationDirectory{fd: fd, base: filepath.Base(path), uid: uid}, nil
+	return &configurationDirectory{
+		fd: fd, path: filepath.Dir(path), base: filepath.Base(path), uid: uid,
+		device: uint64(status.Dev), inode: status.Ino,
+	}, nil
 }
 
 func (directory *configurationDirectory) close() { _ = unix.Close(directory.fd) }
@@ -182,6 +188,9 @@ func (directory *configurationDirectory) replace(expectedRevision string, candid
 	if deps.beforeRename != nil {
 		deps.beforeRename()
 	}
+	if err := directory.verifyPathIdentity(); err != nil {
+		return false, err
+	}
 	// Close the ordinary direct-edit window as tightly as the filesystem API
 	// permits by repeating the exact-byte precondition immediately before rename.
 	current, err = directory.read(nil)
@@ -199,6 +208,20 @@ func (directory *configurationDirectory) replace(expectedRevision string, candid
 		return true, errors.New("sync configuration directory")
 	}
 	return true, nil
+}
+
+func (directory *configurationDirectory) verifyPathIdentity() error {
+	fd, err := unix.Open(directory.path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return errors.New("reopen configuration directory")
+	}
+	defer unix.Close(fd)
+	var status unix.Stat_t
+	if err := unix.Fstat(fd, &status); err != nil || uint64(status.Dev) != directory.device || status.Ino != directory.inode ||
+		status.Uid != directory.uid || status.Mode&unix.S_IFMT != unix.S_IFDIR || status.Mode&0o7777 != 0o700 {
+		return errors.New("configuration directory identity changed")
+	}
+	return nil
 }
 
 var errConfigurationConflict = errors.New("configuration revision conflict")

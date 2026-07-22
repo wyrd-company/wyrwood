@@ -231,6 +231,35 @@ func TestConfigurationControlDetectsDirectEditImmediatelyBeforeRename(t *testing
 	}
 }
 
+func TestConfigurationControlRejectsParentDirectoryReplacementBeforeRename(t *testing.T) {
+	fixture := newFixture(t)
+	fixture.writeConfig(filepath.Join(fixture.root, "first", "agent.sock"))
+	service, err := Open(fixture.options)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer service.Close()
+	client, _ := control.NewClient(fixture.options.ControlPath)
+	page, _ := client.Configuration(0, 16, "")
+	directory := filepath.Dir(fixture.options.ConfigPath)
+	moved := directory + "-moved"
+	service.publication.beforeRename = func() {
+		if err := os.Rename(directory, moved); err != nil {
+			t.Errorf("rename configuration directory: %v", err)
+			return
+		}
+		if err := os.Symlink(filepath.Base(moved), directory); err != nil {
+			t.Errorf("replace configuration directory: %v", err)
+		}
+	}
+	if _, err := client.SetUpstream(page.Revision, filepath.Join(fixture.root, "replacement", "agent.sock")); !remoteCode(err, control.ErrorConfigurationFailed) {
+		t.Fatalf("SetUpstream() error = %v", err)
+	}
+	if got := mustRead(t, fixture.options.ConfigPath); configurationRevision(got) != page.Revision {
+		t.Fatal("managed mutation published into a replaced parent directory")
+	}
+}
+
 func TestConfigurationPublicationRejectsOversizeBeforeCreatingTemporaryFile(t *testing.T) {
 	fixture := newFixture(t)
 	fixture.writeConfig(filepath.Join(fixture.root, "first", "agent.sock"))
