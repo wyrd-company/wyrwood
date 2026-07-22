@@ -12,12 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/control"
 	"github.com/wyrd-company/wyrwood/internal/daemon"
+	"github.com/wyrd-company/wyrwood/internal/tui"
 	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
@@ -36,7 +38,7 @@ Commands:
   keys      List identities available from the upstream agent
   status    Inspect daemon and consumer health
   events    Inspect bounded operational events
-  tui       Open the terminal user interface (not implemented)
+  tui       Open the terminal diagnostics interface
   service   Manage per-user login startup
   version   Print version information
   help      Show this help
@@ -65,6 +67,8 @@ type dependencies struct {
 	runDaemon          func(context.Context, daemon.Options) error
 	defaultDaemon      func() (daemon.Options, error)
 	manageService      func(userservice.Action) (userservice.Result, error)
+	newTUIClient       func(string) (tui.Client, error)
+	runTUI             func(tui.Client, io.Writer) error
 }
 
 func defaultDependencies() dependencies {
@@ -77,6 +81,16 @@ func defaultDependencies() dependencies {
 		runDaemon:     daemon.Run,
 		defaultDaemon: daemon.DefaultOptions,
 		manageService: userservice.Manage,
+		newTUIClient: func(path string) (tui.Client, error) {
+			client, err := control.NewClient(path)
+			if err != nil {
+				return nil, err
+			}
+			return tui.NewControlClient(client), nil
+		},
+		runTUI: func(client tui.Client, output io.Writer) error {
+			return tui.Run(os.Stdin, output, client)
+		},
 	}
 }
 
@@ -118,13 +132,37 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 	case "service":
 		return runService(args[1:], stdout, stderr, deps)
 	case "tui":
-		_, _ = fmt.Fprintf(stderr, "wyrwood %s is not implemented yet\n", args[0])
-		return exitOperational
+		return runTUI(args[1:], stdout, stderr, deps)
 	default:
 		_, _ = fmt.Fprintln(stderr, "unknown command")
 		_, _ = fmt.Fprintln(stderr, "Run 'wyrwood help' for usage.")
 		return exitUsage
 	}
+}
+
+func runTUI(args []string, stdout, stderr io.Writer, deps dependencies) int {
+	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
+		_, _ = io.WriteString(stdout, "Usage: wyrwood tui\n")
+		return exitSuccess
+	}
+	if len(args) != 0 {
+		return writeFailure(stderr, outputHuman, "tui", failureUsage)
+	}
+	path, err := deps.defaultControlPath()
+	if err != nil {
+		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
+		return exitOperational
+	}
+	client, err := deps.newTUIClient(path)
+	if err != nil {
+		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
+		return exitOperational
+	}
+	if err := deps.runTUI(client, stdout); err != nil {
+		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
+		return exitOperational
+	}
+	return exitSuccess
 }
 
 func runService(args []string, stdout, stderr io.Writer, deps dependencies) int {

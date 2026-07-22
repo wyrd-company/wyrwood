@@ -1,0 +1,7 @@
+UPSTREAM
+[!] DEGRADED
+socket /tmp/example/source.sock
+keys 2
+READY
+esc Back  r Retry  ? Help
+q Quit

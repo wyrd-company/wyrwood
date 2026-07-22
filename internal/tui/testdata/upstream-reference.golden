@@ -1,0 +1,33 @@
+WYRWOOD  /  DIAGNOSTICS  /  UPSTREAM
+╔═══════════════════════════════════════════╗  ┌─────────────────────────────────────────────────────────────────┐
+║ UPSTREAM CONNECTION [FOCUS]               ║  │ APPROVED EVENTS                                                 │
+║ status  [!] DEGRADED                      ║  │ 04:07:08 [OK] replay           succeeded                        │
+║ socket  /tmp/example/source.sock          ║  │ 04:06:07 [!] upstream-connect failed                            │
+║ keys    2                                 ║  │                                                                 │
+║                                           ║  │                                                                 │
+║ AVAILABLE IDENTITIES                      ║  │                                                                 │
+║ • SHA256:AAAAAAAAAAAA…  sample primary    ║  │                                                                 │
+║ • SHA256:BBBBBBBBBBBB…  sample alternate  ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+║                                           ║  │                                                                 │
+╚═══════════════════════════════════════════╝  └─────────────────────────────────────────────────────────────────┘
+esc Back   r Refresh   ? Help   q Quit

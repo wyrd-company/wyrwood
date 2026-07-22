@@ -1,0 +1,34 @@
+WYRWOOD  /  DIAGNOSTICS  /  DASHBOARD
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ UPSTREAM [FOCUS]                                                                                                 ║
+║ [!] DEGRADED  /tmp/example/source.sock                                                                           ║
+║ available keys 2  ·  configuration READY  ·  [!] UNAPPLIED                                                       ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+┌──────────────────────────────────────────────────────────────────┐  ┌──────────────────────────────────────────┐
+│ CONSUMERS                                                        │  │ SELECTED CONSUMER                        │
+│   NAME                 LISTENER                 CONNECTIONS      │  │ sample alpha                             │
+│ > sample alpha         [OK] HEALTHY             2                │  │ socket /tmp/example/alpha.sock           │
+│   sample beta          [--] STATUS NOT PROJECTED --              │  │ fingerprints 1                           │
+│ [!] STATUS INCOMPLETE — configured consumers remain              │  │ [OK] HEALTHY  ·  2 active connections    │
+│ authoritative                                                    │  │                                          │
+│                                                                  │  │ RECENT APPROVED EVENTS                   │
+│                                                                  │  │ 04:05:06 [OK] sign             succeeded │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+│                                                                  │  │                                          │
+└──────────────────────────────────────────────────────────────────┘  └──────────────────────────────────────────┘
+tab/shift+tab Focus   ↑/↓ Select   enter Open   r Refresh   ? Help   q Quit

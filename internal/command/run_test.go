@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,6 +22,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/control"
 	"github.com/wyrd-company/wyrwood/internal/daemon"
+	"github.com/wyrd-company/wyrwood/internal/tui"
 	"github.com/wyrd-company/wyrwood/internal/userservice"
 )
 
@@ -140,6 +142,13 @@ func testDependencies(client controlClient) dependencies {
 		manageService: func(action userservice.Action) (userservice.Result, error) {
 			return userservice.Result{Action: action, Installed: true, Enabled: true, State: userservice.StateInactive}, nil
 		},
+		newTUIClient: func(path string) (tui.Client, error) {
+			if path != "/tmp/sample/control.sock" {
+				return nil, fmt.Errorf("unexpected control path")
+			}
+			return nil, nil
+		},
+		runTUI: func(tui.Client, io.Writer) error { return nil },
 	}
 }
 
@@ -423,14 +432,45 @@ func TestLimitIsRejectedByEveryNonEventsManagementCommand(t *testing.T) {
 	}
 }
 
-func TestUnknownAndReservedCommandsHaveStableFailures(t *testing.T) {
+func TestTUIUsesTheLocalControlClientAndStableFailures(t *testing.T) {
 	deps := testDependencies(&fakeClient{})
-	for _, command := range []string{"tui"} {
-		exitCode, stdout, stderr := execute(t, []string{command}, deps)
-		if exitCode != exitOperational || stdout != "" || stderr != "wyrwood "+command+" is not implemented yet\n" {
-			t.Fatalf("%s = (%d, %q, %q)", command, exitCode, stdout, stderr)
+	launches := 0
+	deps.runTUI = func(tui.Client, io.Writer) error {
+		launches++
+		return nil
+	}
+	exitCode, stdout, stderr := execute(t, []string{"tui"}, deps)
+	if exitCode != exitSuccess || stdout != "" || stderr != "" || launches != 1 {
+		t.Fatalf("tui = (%d, %q, %q, launches %d)", exitCode, stdout, stderr, launches)
+	}
+
+	for _, fail := range []func(*dependencies){
+		func(deps *dependencies) {
+			deps.defaultControlPath = func() (string, error) { return "", errors.New("private marker") }
+		},
+		func(deps *dependencies) {
+			deps.newTUIClient = func(string) (tui.Client, error) { return nil, errors.New("private marker") }
+		},
+		func(deps *dependencies) {
+			deps.runTUI = func(tui.Client, io.Writer) error { return errors.New("private marker") }
+		},
+	} {
+		failed := testDependencies(&fakeClient{})
+		fail(&failed)
+		exitCode, stdout, stderr = execute(t, []string{"tui"}, failed)
+		if exitCode != exitOperational || stdout != "" || stderr != "wyrwood tui: terminal interface unavailable\n" {
+			t.Fatalf("failed tui = (%d, %q, %q)", exitCode, stdout, stderr)
 		}
 	}
+
+	exitCode, stdout, stderr = execute(t, []string{"tui", "--help"}, deps)
+	if exitCode != exitSuccess || stdout != "Usage: wyrwood tui\n" || stderr != "" {
+		t.Fatalf("tui help = (%d, %q, %q)", exitCode, stdout, stderr)
+	}
+}
+
+func TestUnknownCommandHasStableFailure(t *testing.T) {
+	deps := testDependencies(&fakeClient{})
 	exitCode, stdout, stderr := execute(t, []string{"unrecognized"}, deps)
 	if exitCode != exitUsage || stdout != "" || stderr != "unknown command\nRun 'wyrwood help' for usage.\n" {
 		t.Fatalf("unknown = (%d, %q, %q)", exitCode, stdout, stderr)

@@ -8,6 +8,7 @@
 package control
 
 import (
+	"context"
 	"errors"
 	"net"
 	"time"
@@ -126,13 +127,24 @@ func (client *Client) RetireConsumer(expectedRevision, consumerID string) (Confi
 }
 
 func (client *Client) call(request Request) (Response, error) {
+	return client.callContext(context.Background(), request)
+}
+
+func (client *Client) callContext(ctx context.Context, request Request) (Response, error) {
 	deadline := time.Now().Add(client.timeout)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		deadline = contextDeadline
+	}
 	dialer := net.Dialer{Timeout: client.timeout, Deadline: deadline}
-	connection, err := dialer.Dial("unix", client.path)
+	connection, err := dialer.DialContext(ctx, "unix", client.path)
 	if err != nil {
 		return Response{}, errors.New("connect to daemon control socket")
 	}
 	defer connection.Close()
+	stopCancellation := context.AfterFunc(ctx, func() {
+		_ = connection.SetDeadline(time.Now())
+	})
+	defer stopCancellation()
 	if err := connection.SetDeadline(deadline); err != nil {
 		return Response{}, errors.New("set daemon control deadline")
 	}

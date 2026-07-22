@@ -1,0 +1,6 @@
+DASHBOARD
+upstream [!] DEGRADED
+configuration READY
+> sample alpha  [OK] HEALTHY
+tab Focus  enter Open  r Retry
+? Help  q Quit
