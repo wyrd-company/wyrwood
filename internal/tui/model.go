@@ -43,7 +43,6 @@ const (
 	loadReady
 	loadEmpty
 	loadUnavailable
-	loadDenied
 	loadDisconnected
 )
 
@@ -57,6 +56,15 @@ const (
 )
 
 type scheduleFunc func(context.Context, time.Duration, uint64) tea.Cmd
+
+type refreshOperation uint8
+
+const (
+	refreshConfiguration refreshOperation = 1 << iota
+	refreshKeys
+	refreshStatus
+	refreshEvents
+)
 
 type options struct {
 	Colors       bool
@@ -78,8 +86,7 @@ type Model struct {
 	generation       uint64
 	refreshCtx       context.Context
 	refreshCancel    context.CancelFunc
-	backgroundStatus bool
-	backgroundEvents bool
+	pendingRefresh   refreshOperation
 	refreshScheduled bool
 	schedule         scheduleFunc
 
@@ -151,6 +158,7 @@ func NewModel(client Client, opts options) *Model {
 		styles:             newPalette(opts.Colors, opts.ColorProfile),
 		width:              referenceWidth,
 		height:             referenceHeight,
+		focus:              focusConsumers,
 		configurationState: loadLoading,
 		keysState:          loadLoading,
 		statusState:        loadLoading,
@@ -183,27 +191,26 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			if message.err == nil {
 				model.keys = message.result
 			}
+			return model, model.settleRefreshOperation(refreshKeys)
 		}
 	case statusMsg:
 		if message.generation == model.generation {
-			model.backgroundStatus = false
 			model.statusState = stateFor(message.err, 1)
 			if message.err == nil {
 				model.status = message.result
 			}
-			return model, model.scheduleWhenSettled()
+			return model, model.settleRefreshOperation(refreshStatus)
 		}
 	case eventsMsg:
 		if message.generation == model.generation {
-			model.backgroundEvents = false
 			model.eventsState = stateFor(message.err, len(message.result.Events))
 			if message.err == nil {
 				model.events = message.result
 			}
-			return model, model.scheduleWhenSettled()
+			return model, model.settleRefreshOperation(refreshEvents)
 		}
 	case tickMsg:
-		if message.generation == model.generation {
+		if message.generation == model.generation && model.pendingRefresh == 0 {
 			return model, model.startRefresh(false, false)
 		}
 	}
@@ -222,7 +229,7 @@ func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.help = false
 		} else if model.route != routeDashboard {
 			model.route = routeDashboard
-			model.focus = focusUpstream
+			model.focus = focusConsumers
 		}
 	case "tab":
 		model.focus = (model.focus + 1) % focusCount
@@ -236,7 +243,6 @@ func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return model, model.startRefresh(true, true)
 	case "up", "k", "down", "j":
 		if model.route == routeDashboard && model.focus == focusConsumers && len(model.consumers) > 0 {
-			var command tea.Cmd
 			updated, command := model.consumerList.Update(key)
 			model.consumerList = updated
 			return model, command
@@ -253,7 +259,7 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 		model.configurationState = stateFor(message.err, 0)
 		model.consumers = nil
 		model.setConsumerItems()
-		return model, nil
+		return model, model.settleRefreshOperation(refreshConfiguration)
 	}
 	if message.offset == 0 {
 		model.configuration = message.page
@@ -265,7 +271,7 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 		model.configurationState = loadUnavailable
 		model.consumers = nil
 		model.setConsumerItems()
-		return model, nil
+		return model, model.settleRefreshOperation(refreshConfiguration)
 	}
 	if message.page.NextOffset != nil {
 		return model, model.loadConfiguration(message.generation, *message.page.NextOffset, message.page.Revision)
@@ -274,11 +280,11 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 		model.configurationState = loadUnavailable
 		model.consumers = nil
 		model.setConsumerItems()
-		return model, nil
+		return model, model.settleRefreshOperation(refreshConfiguration)
 	}
 	model.configurationState = stateFor(nil, len(model.consumers))
 	model.setConsumerItems()
-	return model, nil
+	return model, model.settleRefreshOperation(refreshConfiguration)
 }
 
 func (model *Model) startRefresh(includeConfiguration, includeKeys bool) tea.Cmd {
@@ -290,8 +296,7 @@ func (model *Model) startRefresh(includeConfiguration, includeKeys bool) tea.Cmd
 	refreshContext, cancel := context.WithCancel(model.ctx)
 	model.refreshCtx = refreshContext
 	model.refreshCancel = cancel
-	model.backgroundStatus = true
-	model.backgroundEvents = true
+	model.pendingRefresh = refreshStatus | refreshEvents
 	model.refreshScheduled = false
 	model.statusState = loadLoading
 	model.eventsState = loadLoading
@@ -300,12 +305,14 @@ func (model *Model) startRefresh(includeConfiguration, includeKeys bool) tea.Cmd
 		model.loadEvents(refreshContext, generation),
 	}
 	if includeConfiguration {
+		model.pendingRefresh |= refreshConfiguration
 		model.configurationState = loadLoading
 		model.consumers = nil
 		model.setConsumerItems()
 		commands = append(commands, model.loadConfigurationWithContext(refreshContext, generation, 0, ""))
 	}
 	if includeKeys {
+		model.pendingRefresh |= refreshKeys
 		model.keysState = loadLoading
 		commands = append(commands, model.loadKeys(refreshContext, generation))
 	}
@@ -345,11 +352,16 @@ func (model *Model) loadEvents(ctx context.Context, generation uint64) tea.Cmd {
 }
 
 func (model *Model) scheduleWhenSettled() tea.Cmd {
-	if model.backgroundStatus || model.backgroundEvents || model.closed || model.refreshScheduled {
+	if model.pendingRefresh != 0 || model.closed || model.refreshScheduled {
 		return nil
 	}
 	model.refreshScheduled = true
 	return model.schedule(model.currentRefreshContext(), refreshInterval, model.generation)
+}
+
+func (model *Model) settleRefreshOperation(operation refreshOperation) tea.Cmd {
+	model.pendingRefresh &^= operation
+	return model.scheduleWhenSettled()
 }
 
 func (model *Model) currentRefreshContext() context.Context {
@@ -412,17 +424,11 @@ func stateFor(err error, count int) loadState {
 		}
 		return loadReady
 	}
-	switch {
-	case errors.Is(err, ErrDenied):
-		return loadDenied
-	case errors.Is(err, context.Canceled):
+	if errors.Is(err, context.Canceled) {
 		return loadLoading
 	}
 	var remote *control.RemoteError
 	if errors.As(err, &remote) {
-		if remote.Code == control.ErrorUnsupportedVersion {
-			return loadUnavailable
-		}
 		return loadUnavailable
 	}
 	return loadDisconnected
@@ -436,8 +442,6 @@ func (state loadState) String() string {
 		return "READY"
 	case loadEmpty:
 		return "EMPTY"
-	case loadDenied:
-		return "DENIED"
 	case loadDisconnected:
 		return "DISCONNECTED"
 	default:

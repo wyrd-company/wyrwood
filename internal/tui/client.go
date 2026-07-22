@@ -11,7 +11,6 @@ package tui
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/control"
@@ -22,10 +21,6 @@ const (
 	eventLimit            = 100
 	refreshInterval       = 5 * time.Second
 )
-
-// ErrDenied is a categorical client failure used by tests and future transport
-// adapters. It contains no displayable low-level error text.
-var ErrDenied = errors.New("control request denied")
 
 // Client is the presentation-independent, context-aware read boundary used by
 // the terminal state machine. Implementations must return promptly after the

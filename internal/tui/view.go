@@ -109,7 +109,7 @@ func (model *Model) viewUpstream(width, height int) string {
 		connection = lipgloss.JoinHorizontal(lipgloss.Top,
 			model.panel("UPSTREAM CONNECTION", model.upstreamConnection(styles), leftWidth, bodyHeight, true, styles),
 			"  ",
-			model.panel("APPROVED EVENTS", model.upstreamEvents(styles, bodyHeight-2), rightWidth, bodyHeight, false, styles),
+			model.panel("EVENTS", model.upstreamEvents(styles, bodyHeight-2), rightWidth, bodyHeight, false, styles),
 		)
 	}
 	return lipgloss.JoinVertical(lipgloss.Left, header, connection, model.footer(styles))
@@ -144,7 +144,7 @@ func (model *Model) viewNarrow(width int) string {
 		"upstream " + model.healthLabel(model.status.Upstream, model.statusState, styles),
 		"configuration " + model.configurationState.String(),
 		selected,
-		"tab Focus  enter Open  r Retry",
+		model.dashboardBindings(),
 		"? Help  q Quit",
 	}
 	return strings.Join(lines, "\n")
@@ -164,7 +164,7 @@ func (model *Model) consumerRows(styles palette, availableHeight int) string {
 	if len(model.consumers) == 0 {
 		return "EMPTY  No configured consumers."
 	}
-	rows := []string{"  NAME                 LISTENER                 CONNECTIONS"}
+	rows := []string{"  " + padDisplay("NAME", 20) + " " + padDisplay("LISTENER", 25) + " CONNECTIONS"}
 	selectedIndex := model.consumerList.Index()
 	maximumRows := maximum(1, availableHeight-2)
 	start := bounded(selectedIndex-maximumRows/2, 0, maximum(0, len(model.consumers)-maximumRows))
@@ -181,13 +181,13 @@ func (model *Model) consumerRows(styles palette, availableHeight int) string {
 			listener = model.healthLabel(status.Listener, loadReady, styles)
 			connections = fmt.Sprintf("%d", status.ActiveConnections)
 		}
-		row := fmt.Sprintf("%s %-20s %-24s %s", marker, truncatePlain(sanitize(consumer.Name), 20), listener, connections)
+		row := marker + " " + padDisplay(sanitize(consumer.Name), 20) + " " + padDisplay(listener, 25) + " " + connections
 		if index == selectedIndex {
 			row = styles.identity.Bold(true).Render(row)
 		}
 		rows = append(rows, row)
 	}
-	if model.status.Truncated {
+	if model.statusState == loadReady && model.status.Truncated {
 		rows = append(rows, styles.caution.Render("[!] STATUS INCOMPLETE — configured consumers remain authoritative"))
 	}
 	return strings.Join(rows, "\n")
@@ -215,7 +215,7 @@ func (model *Model) consumerSummary(styles palette) string {
 	} else {
 		lines = append(lines, "[--] STATUS NOT PROJECTED")
 	}
-	lines = append(lines, "", "RECENT APPROVED EVENTS")
+	lines = append(lines, "", "RECENT EVENTS")
 	count := 0
 	for index := len(model.events.Events) - 1; index >= 0 && count < 5; index-- {
 		event := model.events.Events[index]
@@ -309,12 +309,24 @@ func (model *Model) footer(styles palette) string {
 	if model.route == routeUpstream {
 		lines = []string{"esc Back   r Refresh   ? Help   q Quit"}
 	} else {
-		lines = []string{"tab/shift+tab Focus   ↑/↓ Select   enter Open   r Refresh   ? Help   q Quit"}
+		lines = []string{model.dashboardBindings() + "   ? Help   q Quit"}
 	}
 	if model.help {
 		lines = append(lines, "All actions are keyboard-only. Refresh retries unavailable panels; color is never the sole state signal.")
 	}
 	return styles.muted.Render(strings.Join(lines, "\n"))
+}
+
+func (model *Model) dashboardBindings() string {
+	bindings := []string{"tab/shift+tab Focus"}
+	if model.focus == focusConsumers && len(model.consumers) > 0 {
+		bindings = append(bindings, "↑/↓ Select")
+	}
+	if model.focus == focusUpstream {
+		bindings = append(bindings, "enter Upstream")
+	}
+	bindings = append(bindings, "r Refresh")
+	return strings.Join(bindings, "   ")
 }
 
 func (model *Model) footerHeight() int {
@@ -366,6 +378,9 @@ func (model *Model) countLabel(state loadState, count int) string {
 }
 
 func (model *Model) revisionLabel() string {
+	if model.statusState != loadReady && model.statusState != loadEmpty {
+		return ""
+	}
 	if model.configuration.Revision == "" || model.status.ActiveRevision == "" {
 		return ""
 	}
@@ -376,6 +391,9 @@ func (model *Model) revisionLabel() string {
 }
 
 func (model *Model) statusFor(id string) (ConsumerStatus, bool) {
+	if model.statusState != loadReady && model.statusState != loadEmpty {
+		return ConsumerStatus{}, false
+	}
 	for _, status := range model.status.Consumers {
 		if status.ID == id {
 			return status, true
@@ -408,8 +426,9 @@ func sanitize(value string) string {
 	return builder.String()
 }
 
-func truncatePlain(value string, width int) string {
-	return ansi.Truncate(value, maximum(0, width), "…")
+func padDisplay(value string, width int) string {
+	value = ansi.Truncate(value, maximum(0, width), "…")
+	return value + strings.Repeat(" ", maximum(0, width-ansi.StringWidth(value)))
 }
 
 func fit(value string, width, height int) string {

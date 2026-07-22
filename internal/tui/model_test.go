@@ -227,11 +227,15 @@ func TestRefreshSchedulesOnlyAfterBothBackgroundLoadsSettle(t *testing.T) {
 		return func() tea.Msg { return tickMsg{} }
 	}
 	model := NewModel(populatedClient(), options{Schedule: scheduler})
-	model.Init()
+	model.startRefresh(false, false)
 	generation := model.generation
 	_, command := model.Update(statusMsg{generation: generation, result: Status{}})
 	if command != nil || scheduled != 0 {
 		t.Fatalf("scheduled before events settled: %d", scheduled)
+	}
+	model.Update(statusMsg{generation: generation, result: Status{}})
+	if scheduled != 0 {
+		t.Fatalf("duplicate status completion settled another operation: %d", scheduled)
 	}
 	_, command = model.Update(eventsMsg{generation: generation, result: Events{}})
 	if command == nil || scheduled != 1 {
@@ -240,6 +244,39 @@ func TestRefreshSchedulesOnlyAfterBothBackgroundLoadsSettle(t *testing.T) {
 	model.Update(eventsMsg{generation: generation, result: Events{}})
 	if scheduled != 1 {
 		t.Fatalf("duplicate completion should be ignored by lifecycle, schedules %d", scheduled)
+	}
+}
+
+func TestRefreshWaitsForPaginatedConfigurationAndKeysBeforeScheduling(t *testing.T) {
+	scheduled := 0
+	scheduler := func(context.Context, time.Duration, uint64) tea.Cmd {
+		scheduled++
+		return func() tea.Msg { return tickMsg{} }
+	}
+	client := populatedClient()
+	model := NewModel(client, options{Schedule: scheduler})
+	model.Init()
+	generation := model.generation
+
+	_, nextPage := model.Update(configurationMsg{generation: generation, offset: 0, page: client.configurationPages[0]})
+	if nextPage == nil {
+		t.Fatal("first configuration page did not request its successor")
+	}
+	model.Update(keysMsg{generation: generation, result: client.keys})
+	model.Update(statusMsg{generation: generation, result: client.status})
+	_, command := model.Update(eventsMsg{generation: generation, result: client.events})
+	if command != nil || scheduled != 0 || model.pendingRefresh != 1 {
+		t.Fatalf("partial refresh = command %v, schedules %d, pending %d", command, scheduled, model.pendingRefresh)
+	}
+
+	model.Update(tickMsg{generation: generation})
+	if model.generation != generation || model.configurationState != loadLoading {
+		t.Fatalf("early tick replaced partial refresh: generation %d, configuration %s", model.generation, model.configurationState)
+	}
+
+	_, command = model.Update(nextPage())
+	if command == nil || scheduled != 1 || model.pendingRefresh != 0 || model.configurationState != loadReady {
+		t.Fatalf("completed refresh = command %v, schedules %d, pending %d, configuration %s", command, scheduled, model.pendingRefresh, model.configurationState)
 	}
 }
 
@@ -294,9 +331,8 @@ func (*blockingClient) Events(context.Context, int) (Events, error) { return Eve
 
 func TestNavigationFocusHelpResizeAndCleanExit(t *testing.T) {
 	model := readyModel(t, false)
-	model.Update(tea.KeyMsg{Type: tea.KeyTab})
 	if model.focus != focusConsumers {
-		t.Fatalf("focus = %d", model.focus)
+		t.Fatalf("initial focus = %d", model.focus)
 	}
 	model.Update(tea.KeyMsg{Type: tea.KeyDown})
 	selectedBefore := model.consumerList.Index()
@@ -332,7 +368,7 @@ func TestCategoricalFailureStatesAndRetry(t *testing.T) {
 	model.Init()
 	generation := model.generation
 	model.Update(configurationMsg{generation: generation, err: &control.RemoteError{Code: control.ErrorUnsupportedVersion}})
-	model.Update(keysMsg{generation: generation, err: ErrDenied})
+	model.Update(keysMsg{generation: generation, err: &control.RemoteError{Code: control.ErrorResourceLimit}})
 	model.Update(statusMsg{generation: generation, err: errors.New("private marker")})
 	model.Update(eventsMsg{generation: generation, result: Events{}})
 	view := model.View()
@@ -348,6 +384,81 @@ func TestCategoricalFailureStatesAndRetry(t *testing.T) {
 	model.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
 	if model.generation != priorGeneration+1 {
 		t.Fatal("retry did not create a new request generation")
+	}
+}
+
+func TestDisconnectedStatusDoesNotRenderStaleHealthyOrRevisionState(t *testing.T) {
+	model := readyModel(t, false)
+	readyView := model.View()
+	if !strings.Contains(readyView, "UNAPPLIED") || !strings.Contains(readyView, "HEALTHY") {
+		t.Fatalf("ready fixture lacks expected state:\n%s", readyView)
+	}
+
+	model.Update(statusMsg{generation: model.generation, err: errors.New("connection lost")})
+	view := model.View()
+	for _, stale := range []string{"UNAPPLIED", "ACTIVE", "HEALTHY", "STATUS INCOMPLETE"} {
+		if strings.Contains(view, stale) {
+			t.Fatalf("disconnected view retained %q:\n%s", stale, view)
+		}
+	}
+	if !strings.Contains(view, "DISCONNECTED") || !strings.Contains(view, "STATUS NOT PROJECTED") {
+		t.Fatalf("disconnected state not rendered explicitly:\n%s", view)
+	}
+}
+
+func TestDeniedEventUsesTextMarkerWithoutColor(t *testing.T) {
+	model := readyModel(t, false)
+	consumer, ok := model.selectedConsumer()
+	if !ok {
+		t.Fatal("fixture has no selected consumer")
+	}
+	model.events = Events{Events: []Event{{
+		Timestamp:  time.Date(2026, 2, 3, 4, 8, 9, 0, time.UTC),
+		ConsumerID: consumer.ID,
+		Operation:  "sign",
+		Outcome:    "denied",
+	}}}
+	view := model.View()
+	if !strings.Contains(view, "[!] sign") || !strings.Contains(view, "denied") || strings.Contains(view, "\x1b[") {
+		t.Fatalf("denied event is not text-identifiable without color:\n%s", view)
+	}
+}
+
+func TestDashboardFooterAdvertisesOnlyCurrentActions(t *testing.T) {
+	model := readyModel(t, false)
+	model.focus = focusUpstream
+	if footer := model.footer(model.styles); !strings.Contains(footer, "enter Upstream") {
+		t.Fatalf("upstream footer lacks its action: %q", footer)
+	}
+	model.focus = focusConsumers
+	if footer := model.footer(model.styles); strings.Contains(footer, "enter") || !strings.Contains(footer, "Select") {
+		t.Fatalf("consumer footer advertises unavailable action: %q", footer)
+	}
+	model.focus = focusSummary
+	if footer := model.footer(model.styles); strings.Contains(footer, "enter") || strings.Contains(footer, "Select") {
+		t.Fatalf("summary footer advertises unavailable action: %q", footer)
+	}
+}
+
+func TestConsumerRowsAlignWideNamesByDisplayWidth(t *testing.T) {
+	model := readyModel(t, false)
+	model.consumers[0].Name = strings.Repeat("界", 20)
+	model.setConsumerItems()
+	rows := strings.Split(model.consumerRows(model.styles, 10), "\n")
+	if len(rows) < 3 || !strings.Contains(rows[1], "…") {
+		t.Fatalf("wide consumer name was not display-truncated: %#v", rows)
+	}
+	for _, row := range rows[1:3] {
+		separator := strings.LastIndex(row, " ")
+		if separator < 0 || ansi.StringWidth(row[:separator]) != 48 {
+			t.Fatalf("connections column is not aligned by display width (%d): %q", ansi.StringWidth(row[:maximum(0, separator)]), row)
+		}
+	}
+	model.Update(tea.WindowSizeMsg{Width: 118, Height: 34})
+	for _, line := range strings.Split(model.View(), "\n") {
+		if ansi.StringWidth(line) > 118 {
+			t.Fatalf("wide-name view exceeded terminal width: %q", line)
+		}
 	}
 }
 

@@ -44,5 +44,15 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 		tea.WithAltScreen(),
 	)
 	_, err := program.Run()
+	return normalizeRunError(err)
+}
+
+func normalizeRunError(err error) error {
+	if err == nil || errors.Is(err, tea.ErrInterrupted) {
+		return nil
+	}
+	if errors.Is(err, tea.ErrProgramKilled) && !errors.Is(err, tea.ErrProgramPanic) {
+		return nil
+	}
 	return err
 }
