@@ -163,7 +163,20 @@ proposed-design:
     Wyrwood exposes a versioned request-response control API only through an
     owner-only Unix-domain socket. The Linux transport verifies the peer UID from
     kernel credentials against the daemon UID in addition to filesystem
-    permissions. No TCP listener exists. The single wyrwood executable provides
+    permissions before decoding each accepted peer. No TCP listener exists.
+    Protocol version 1 uses one request and response per connection, each framed
+    by a four-byte big-endian JSON length. Requests are limited to 64 KiB,
+    responses to 1 MiB, JSON nesting to 64 levels, and all fields, operations,
+    result categories, and error categories are closed. Duplicate fields are
+    invalid. The dedicated runtime directory and socket use exact modes 0700 and
+    0600. Startup removes only an owned connection-refused stale socket; shutdown
+    closes accepted clients and unlinks only the socket inode it created. Apply
+    always reads the daemon's fixed, 1 MiB-bounded configuration path, so clients
+    cannot redirect filesystem access. Keys returns at most 1024 fingerprints and
+    256-byte sanitized comment display labels. Status returns at most 1024
+    path-free categorical consumer projections and events returns at most 1000
+    task #9 event records. Failures expose only categorical codes. The single
+    wyrwood executable provides
     daemon, init, apply, keys, status, events, tui, and service subcommands. Init
     creates the per-user configuration using SSH_AUTH_SOCK as the initial
     upstream path when present. Keys returns upstream comments as display labels

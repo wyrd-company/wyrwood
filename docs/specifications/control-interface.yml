@@ -1,0 +1,60 @@
+$schema: https://refinery.systems/ontology/specification
+relationships: {}
+format: json-schema
+description: >-
+  Wyrwood control protocol version 1 is a local request-response API carried
+  only by an AF_UNIX stream socket. The machine-readable envelopes and
+  projections are defined by `assets/control-interface/control-message.schema.json`.
+  Each connection carries exactly one request and one response. A frame is a
+  four-byte big-endian unsigned JSON length followed by that many bytes. A
+  request is at most 65536 bytes and a response is at most 1048576 bytes. JSON
+  fields and vocabularies are closed, duplicate fields and nesting beyond 64
+  levels are rejected, and the complete request must arrive within 5 seconds.
+  At most 64 authenticated control peers are processed concurrently.
+
+  Linux binds `$XDG_RUNTIME_DIR/wyrwood/control.sock`, falling back to
+  `/run/user/<uid>/wyrwood/control.sock` when XDG_RUNTIME_DIR is unset. The
+  dedicated Wyrwood runtime directory has exact mode `0700`; the socket has
+  exact mode `0600`. Both are owned by the daemon effective UID. Every accepted
+  peer is authorized from Linux SO_PEERCRED before request bytes are decoded,
+  and its UID must equal the daemon effective UID. An unauthorized connection
+  is closed without a response. Wyrwood exposes no TCP control listener. On
+  startup an owned socket is removed as stale only when a bounded stream probe
+  returns connection-refused. A live socket and every foreign, symlink, or
+  non-socket path block startup. Shutdown closes accepted peers and removes only
+  the device and inode created by that daemon.
+
+  Every request contains integer `version` 1 and one operation. `apply`, `keys`,
+  and `status` have no operation fields. `events` requires `limit` from 1 through
+  1000. Unsupported versions receive the version-1 `unsupported-version`
+  category. Other failures use only the closed categories `bad-request`,
+  `apply-invalid`, `apply-failed`, `upstream-unavailable`, `resource-limit`, and
+  `internal`; responses contain no raw configuration, filesystem, upstream, or
+  protocol error text.
+
+  Apply always loads the daemon's fixed configuration path. A client cannot
+  supply a path. Its real parent directory and regular file must be owned by the
+  daemon UID with exact modes `0700` and `0600`. The complete file is bounded to
+  1 MiB, strictly parsed, and
+  passed through runtime preparation and endpoint reconciliation. Any failure
+  before runtime commit leaves the active snapshot, listeners, policies, and
+  connections unchanged. A successful or post-commit-degraded response reports
+  only commit state and bounded cleanup counters.
+
+  Keys performs the configured bounded upstream connect and identity-list
+  operation. It returns at most 1024 entries. Each entry contains only the
+  canonical SHA-256 fingerprint used as selection identity and an upstream
+  comment sanitized as display data and truncated to 256 UTF-8 bytes. Status
+  returns categorical daemon, upstream, and listener health, opaque consumer
+  identifiers, configured display names, bounded connection counts, and at most
+  1024 consumers with an explicit truncation marker. Events returns at most the
+  requested number of existing closed operational-event records in durable
+  order. It does not add paths, payloads, signatures, public-key bytes, comments,
+  destinations, raw client messages, or raw errors to the task #9 event model.
+validation-criteria: >-
+  Linux integration tests use real Unix sockets to verify owner-only modes,
+  SO_PEERCRED acceptance for the effective UID, an injected kernel-credential
+  boundary for otherwise unsafe unauthorized-UID coverage, stale and live
+  socket behavior, bounded malformed input, version mismatches, daemon startup
+  while upstream is absent, atomic apply failure and success, bounded keys,
+  status and event projections, restart, and complete shutdown cleanup.

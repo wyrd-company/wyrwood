@@ -29,6 +29,12 @@ var (
 
 // Parse decodes and validates one strict YAML configuration document.
 func Parse(data []byte) (Config, error) {
+	if len(data) == 0 {
+		return Config{}, fieldError("", "document is empty")
+	}
+	if len(data) > MaximumDocumentBytes {
+		return Config{}, fieldError("", "document exceeds the supported size")
+	}
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	var document yaml.Node
 	if err := decoder.Decode(&document); err != nil {
@@ -61,7 +67,12 @@ func Parse(data []byte) (Config, error) {
 
 // Load reads and parses a configuration file.
 func Load(path string) (Config, error) {
-	data, err := os.ReadFile(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return Config{}, fmt.Errorf("read configuration %s: %w", path, err)
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, MaximumDocumentBytes+1))
 	if err != nil {
 		return Config{}, fmt.Errorf("read configuration %s: %w", path, err)
 	}

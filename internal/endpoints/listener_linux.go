@@ -121,6 +121,12 @@ func (endpoint *endpoint) isClosing() bool {
 	return endpoint.closing
 }
 
+func (endpoint *endpoint) connectionCount() int {
+	endpoint.mu.Lock()
+	defer endpoint.mu.Unlock()
+	return len(endpoint.connections)
+}
+
 func (endpoint *endpoint) track(connection *net.UnixConn) {
 	endpoint.mu.Lock()
 	if endpoint.closing {

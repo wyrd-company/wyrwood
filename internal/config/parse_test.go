@@ -145,6 +145,15 @@ timeouts:
 	}
 }
 
+func TestParseRejectsOversizedDocumentBeforeYAMLDecoding(t *testing.T) {
+	t.Parallel()
+
+	_, err := Parse(make([]byte, MaximumDocumentBytes+1))
+	if err == nil || !strings.Contains(err.Error(), "exceeds the supported size") {
+		t.Fatalf("Parse() error = %v", err)
+	}
+}
+
 func TestParseAcceptsPositiveGoDurationSpellings(t *testing.T) {
 	t.Parallel()
 

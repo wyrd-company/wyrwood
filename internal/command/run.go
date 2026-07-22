@@ -6,8 +6,13 @@
 package command
 
 import (
+	"context"
 	"fmt"
 	"io"
+	"os/signal"
+	"syscall"
+
+	"github.com/wyrd-company/wyrwood/internal/daemon"
 )
 
 const help = `Wyrwood provides stable, filtered SSH-agent endpoints for containers.
@@ -42,7 +47,20 @@ func Run(args []string, stdout, stderr io.Writer) int {
 	case "version", "--version":
 		_, _ = fmt.Fprintln(stdout, "wyrwood dev")
 		return 0
-	case "daemon", "init", "apply", "keys", "status", "events", "tui", "service":
+	case "daemon":
+		options, err := daemon.DefaultOptions()
+		if err != nil {
+			_, _ = fmt.Fprintln(stderr, "wyrwood daemon could not resolve its per-user paths")
+			return 1
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		if err := daemon.Run(ctx, options); err != nil {
+			_, _ = fmt.Fprintln(stderr, "wyrwood daemon stopped with an operational error")
+			return 1
+		}
+		return 0
+	case "init", "apply", "keys", "status", "events", "tui", "service":
 		_, _ = fmt.Fprintf(stderr, "wyrwood %s is not implemented yet\n", args[0])
 		return 1
 	default:

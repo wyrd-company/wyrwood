@@ -71,7 +71,6 @@ func TestRunRejectsUnimplementedCommands(t *testing.T) {
 	t.Parallel()
 
 	commands := []string{
-		"daemon",
 		"init",
 		"apply",
 		"keys",

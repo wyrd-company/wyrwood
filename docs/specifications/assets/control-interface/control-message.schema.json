@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.company/wyrwood/control-message.schema.json",
+  "title": "Wyrwood control protocol version 1",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/response" }],
+  "$defs": {
+    "request": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "enum": ["apply", "keys", "status"] }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "limit"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "events" },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 1000 }
+          }
+        }
+      ]
+    },
+    "error": {
+      "enum": [
+        "none",
+        "bad-request",
+        "unsupported-version",
+        "apply-invalid",
+        "apply-failed",
+        "upstream-unavailable",
+        "resource-limit",
+        "internal"
+      ]
+    },
+    "health": { "enum": ["healthy", "degraded", "unavailable"] },
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "display"],
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^SHA256:[A-Za-z0-9+/]{43}$"
+        },
+        "display": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "consumer-status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "listener", "active_connections"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string" },
+        "listener": { "$ref": "#/$defs/health" },
+        "active_connections": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "timestamp",
+        "consumer_id",
+        "operation",
+        "outcome",
+        "latency_ns",
+        "error_code"
+      ],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "consumer_id": { "type": "string", "maxLength": 128 },
+        "operation": {
+          "enum": [
+            "consumer-connect",
+            "list-identities",
+            "sign",
+            "session-bind",
+            "upstream-connect",
+            "replay",
+            "reconcile"
+          ]
+        },
+        "fingerprint": {
+          "type": "string",
+          "pattern": "^SHA256:[A-Za-z0-9+/]{43}$"
+        },
+        "outcome": { "enum": ["succeeded", "denied", "failed"] },
+        "latency_ns": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9223372036854775807
+        },
+        "error_code": {
+          "enum": [
+            "none",
+            "policy-denied",
+            "upstream-unavailable",
+            "upstream-timeout",
+            "upstream-protocol",
+            "consumer-protocol",
+            "resource-limit",
+            "internal"
+          ]
+        }
+      }
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "ok", "error"],
+      "oneOf": [
+        {
+          "properties": {
+            "ok": { "const": false },
+            "error": {
+              "enum": [
+                "bad-request",
+                "unsupported-version",
+                "apply-invalid",
+                "apply-failed",
+                "upstream-unavailable",
+                "resource-limit",
+                "internal"
+              ]
+            }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["keys"] },
+              { "required": ["status"] },
+              { "required": ["events"] }
+            ]
+          }
+        },
+        {
+          "required": ["apply"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["keys"] },
+              { "required": ["status"] },
+              { "required": ["events"] }
+            ]
+          }
+        },
+        {
+          "required": ["keys"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["status"] },
+              { "required": ["events"] }
+            ]
+          }
+        },
+        {
+          "required": ["status"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["keys"] },
+              { "required": ["events"] }
+            ]
+          }
+        },
+        {
+          "required": ["events"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["keys"] },
+              { "required": ["status"] }
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "version": { "const": 1 },
+        "ok": { "type": "boolean" },
+        "error": { "$ref": "#/$defs/error" },
+        "apply": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "committed",
+            "degraded",
+            "pending_cleanup",
+            "pending_permissions"
+          ],
+          "properties": {
+            "committed": { "type": "boolean" },
+            "degraded": { "type": "boolean" },
+            "pending_cleanup": { "type": "integer", "minimum": 0 },
+            "pending_permissions": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "keys": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["keys"],
+          "properties": {
+            "keys": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": { "$ref": "#/$defs/key" }
+            }
+          }
+        },
+        "status": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["daemon", "upstream", "consumers", "truncated"],
+          "properties": {
+            "daemon": { "$ref": "#/$defs/health" },
+            "upstream": { "$ref": "#/$defs/health" },
+            "consumers": {
+              "type": "array",
+              "maxItems": 1024,
+              "items": { "$ref": "#/$defs/consumer-status" }
+            },
+            "truncated": { "type": "boolean" }
+          }
+        },
+        "events": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["events"],
+          "properties": {
+            "events": {
+              "type": "array",
+              "maxItems": 1000,
+              "items": { "$ref": "#/$defs/event" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

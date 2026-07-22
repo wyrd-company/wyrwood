@@ -4,7 +4,8 @@ format: json-schema
 description: >-
   Wyrwood configuration is one strict YAML document whose machine-readable
   structure is defined by
-  `assets/configuration/configuration.schema.json`. The document records one
+  `assets/configuration/configuration.schema.json`. Input is bounded to 1 MiB
+  before YAML decoding. The document records one
   canonical absolute upstream SSH-agent socket path, zero or more consumer
   security principals, and the deadlines applied to upstream operations. Each
   consumer records a display name, a canonical absolute socket path, an

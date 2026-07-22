@@ -8,6 +8,9 @@ package config
 import "time"
 
 const (
+	// MaximumDocumentBytes bounds configuration input before YAML decoding.
+	MaximumDocumentBytes = 1024 * 1024
+
 	DefaultConnectTimeout = 5 * time.Second
 	DefaultListTimeout    = 5 * time.Second
 	DefaultReplayTimeout  = 5 * time.Second

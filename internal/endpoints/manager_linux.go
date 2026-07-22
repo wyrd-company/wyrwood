@@ -15,6 +15,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -49,6 +51,14 @@ type Health struct {
 	PendingPermissions int
 	EventSinkError     bool
 	ListenerError      bool
+}
+
+// ConsumerStatus is a bounded, path-free view of one active endpoint.
+type ConsumerStatus struct {
+	ID                string
+	Name              string
+	Listening         bool
+	ActiveConnections int
 }
 
 // Manager owns every active consumer listener for one daemon process.
@@ -248,6 +258,30 @@ func (manager *Manager) Health() Health {
 	manager.applyMu.Lock()
 	defer manager.applyMu.Unlock()
 	return manager.healthLocked()
+}
+
+// ConsumerStatuses returns at most limit active endpoint projections in stable
+// identifier order. It never exposes the endpoint's filesystem path or policy.
+func (manager *Manager) ConsumerStatuses(limit int) ([]ConsumerStatus, bool) {
+	manager.applyMu.Lock()
+	defer manager.applyMu.Unlock()
+	snapshot := manager.store.Active()
+	statuses := make([]ConsumerStatus, 0, len(manager.active))
+	for path, active := range manager.active {
+		consumer, exists := snapshot.Consumer(path)
+		if !exists {
+			continue
+		}
+		statuses = append(statuses, ConsumerStatus{
+			ID: string(consumerID(path)), Name: consumer.Name(), Listening: !active.isClosing(),
+			ActiveConnections: active.connectionCount(),
+		})
+	}
+	slices.SortFunc(statuses, func(left, right ConsumerStatus) int { return strings.Compare(left.ID, right.ID) })
+	if limit >= 0 && len(statuses) > limit {
+		return statuses[:limit], true
+	}
+	return statuses, false
 }
 
 func (manager *Manager) healthLocked() Health {
