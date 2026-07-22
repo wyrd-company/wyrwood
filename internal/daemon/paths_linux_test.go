@@ -33,3 +33,18 @@ func TestDefaultOptionsUsePerUserXDGLocations(t *testing.T) {
 		t.Fatalf("DefaultOptions() = %#v", options)
 	}
 }
+
+func TestDefaultControlPathDependsOnlyOnTheRuntimeRoot(t *testing.T) {
+	runtimeRoot := filepath.Join(t.TempDir(), "runtime")
+	t.Setenv("XDG_RUNTIME_DIR", runtimeRoot)
+	t.Setenv("XDG_CONFIG_HOME", "relative-configuration")
+	t.Setenv("XDG_STATE_HOME", "relative-state")
+
+	path, err := DefaultControlPath()
+	if err != nil {
+		t.Fatalf("DefaultControlPath(): %v", err)
+	}
+	if path != filepath.Join(runtimeRoot, "wyrwood", "control.sock") {
+		t.Fatalf("DefaultControlPath() = %q", path)
+	}
+}

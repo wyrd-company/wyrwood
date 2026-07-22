@@ -40,3 +40,13 @@ func defaultStateRoot() (string, error) {
 	}
 	return root, nil
 }
+
+// DefaultControlPath returns the control socket shared by local management
+// surfaces and the per-user daemon.
+func DefaultControlPath() (string, error) {
+	runtimeRoot, err := defaultRuntimeRoot()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(runtimeRoot, "wyrwood", "control.sock"), nil
+}

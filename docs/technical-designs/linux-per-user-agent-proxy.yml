@@ -182,7 +182,10 @@ proposed-design:
     creates the per-user configuration using SSH_AUTH_SOCK as the initial
     upstream path when present. Keys returns upstream comments as display labels
     and fingerprints as selection identity. Human-readable output is the
-    terminal default and structured output is available for automation. The
+    terminal default. Versioned closed JSON output carries the same information
+    for automation, and categorical exit statuses distinguish usage,
+    initialization, daemon, apply, and upstream failures. Runtime commands have
+    no path or deadline overrides and use the bounded control client. The
     terminal interface uses the same API for upstream selection with path
     browsing or manual entry, consumer editing, key selection, apply, health,
     and event inspection.

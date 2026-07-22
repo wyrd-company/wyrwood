@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.company/wyrwood/command-output.schema.json",
+  "title": "Wyrwood command output version 1",
+  "x-relationships": {
+    "implements": "command-line-interface",
+    "uses": "control-interface"
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "command", "ok"],
+  "oneOf": [
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "init" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/init-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "apply" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/apply-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "keys" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/keys-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "status" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/status-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "const": "events" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/events-result" }
+      }
+    },
+    {
+      "required": ["error"],
+      "not": { "required": ["result"] },
+      "properties": {
+        "command": { "enum": ["init", "apply", "keys", "status", "events"] },
+        "ok": { "const": false },
+        "error": { "$ref": "#/$defs/error-result" }
+      }
+    }
+  ],
+  "properties": {
+    "version": { "const": 1 },
+    "command": { "enum": ["init", "apply", "keys", "status", "events"] },
+    "ok": { "type": "boolean" },
+    "result": {
+      "oneOf": [
+        { "$ref": "#/$defs/init-result" },
+        { "$ref": "#/$defs/apply-result" },
+        { "$ref": "#/$defs/keys-result" },
+        { "$ref": "#/$defs/status-result" },
+        { "$ref": "#/$defs/events-result" }
+      ]
+    },
+    "error": { "$ref": "#/$defs/error-result" }
+  },
+  "$defs": {
+    "health": { "enum": ["healthy", "degraded", "unavailable"] },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
+    },
+    "init-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "maxLength": 4096 }
+      }
+    },
+    "apply-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["committed", "degraded", "pending_cleanup", "pending_permissions"],
+      "properties": {
+        "committed": { "const": true },
+        "degraded": { "type": "boolean" },
+        "pending_cleanup": { "type": "integer", "minimum": 0 },
+        "pending_permissions": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fingerprint", "display"],
+      "properties": {
+        "fingerprint": { "$ref": "#/$defs/fingerprint" },
+        "display": { "type": "string", "maxLength": 256 }
+      }
+    },
+    "keys-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keys"],
+      "properties": {
+        "keys": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": { "$ref": "#/$defs/key" }
+        }
+      }
+    },
+    "consumer-status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "listener", "active_connections"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "listener": { "$ref": "#/$defs/health" },
+        "active_connections": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "status-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["daemon", "upstream", "consumers", "truncated"],
+      "properties": {
+        "daemon": { "$ref": "#/$defs/health" },
+        "upstream": { "$ref": "#/$defs/health" },
+        "consumers": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/consumer-status" }
+        },
+        "truncated": { "type": "boolean" }
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["timestamp", "consumer_id", "operation", "outcome", "latency_ns", "error_code"],
+      "properties": {
+        "timestamp": { "type": "string", "format": "date-time" },
+        "consumer_id": { "type": "string", "maxLength": 128 },
+        "operation": {
+          "enum": ["consumer-connect", "list-identities", "sign", "session-bind", "upstream-connect", "replay", "reconcile"]
+        },
+        "fingerprint": { "$ref": "#/$defs/fingerprint" },
+        "outcome": { "enum": ["succeeded", "denied", "failed"] },
+        "latency_ns": { "type": "integer", "minimum": 0, "maximum": 9223372036854775807 },
+        "error_code": {
+          "enum": ["none", "policy-denied", "upstream-unavailable", "upstream-timeout", "upstream-protocol", "consumer-protocol", "resource-limit", "internal"]
+        }
+      }
+    },
+    "events-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["events"],
+      "properties": {
+        "events": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": { "$ref": "#/$defs/event" }
+        }
+      }
+    },
+    "error-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "action"],
+      "properties": {
+        "code": {
+          "enum": [
+            "usage", "initialization-failed", "durability-uncertain", "daemon-unavailable",
+            "apply-invalid", "apply-failed", "upstream-unavailable", "resource-limit",
+            "request-rejected", "incompatible-daemon", "daemon-failed"
+          ]
+        },
+        "message": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "action": { "type": "string", "minLength": 1, "maxLength": 256 }
+      }
+    }
+  }
+}

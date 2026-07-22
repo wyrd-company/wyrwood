@@ -48,7 +48,7 @@ func DefaultOptions() (Options, error) {
 	if err != nil {
 		return Options{}, err
 	}
-	runtimeRoot, err := defaultRuntimeRoot()
+	controlPath, err := DefaultControlPath()
 	if err != nil {
 		return Options{}, err
 	}
@@ -57,7 +57,7 @@ func DefaultOptions() (Options, error) {
 		return Options{}, err
 	}
 	return Options{
-		ConfigPath: configPath, ControlPath: filepath.Join(runtimeRoot, "wyrwood", "control.sock"),
+		ConfigPath: configPath, ControlPath: controlPath,
 		EventPath: filepath.Join(stateRoot, "wyrwood", "events.bin"), EventRetention: defaultEventRetention,
 		UID: uint32(os.Geteuid()), createStateRoot: true,
 	}, nil

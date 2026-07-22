@@ -1,5 +1,9 @@
 ---
-relationships: {}
+relationships:
+  references:
+    - wyrwood
+    - linux-per-user-agent-proxy
+    - command-line-interface
 ---
 
 # Wyrwood
@@ -21,17 +25,43 @@ directory into the container and set the container's `SSH_AUTH_SOCK` to the
 socket's mounted path. Mounting the directory, rather than the socket file,
 allows socket replacement to remain visible inside a running container.
 
+## Command-line use
+
+Create the initial owner-only configuration from the current `SSH_AUTH_SOCK`,
+start the per-user daemon, edit the default YAML configuration, and ask that
+daemon to apply it:
+
+```console
+wyrwood init
+wyrwood daemon
+wyrwood apply
+```
+
+Runtime commands always use the daemon's owner-authenticated local control
+socket. They do not accept alternate configuration or control paths.
+
+```console
+wyrwood keys
+wyrwood status
+wyrwood events --limit 50
+wyrwood status --output json
+```
+
+Human-readable output is the default. `--output json` emits a versioned,
+closed JSON object for automation. Successful output goes to standard output;
+categorical actionable errors go to standard error. Append `--help` to a
+management command to show its specific options. The `tui` and `service`
+commands are reserved for their dedicated implementations.
+
 ## Project direction
 
-The [concept](docs/concepts/wyrwood.yml) defines the product and the
-[Linux technical design](docs/technical-designs/linux-per-user-agent-proxy.yml) defines its
-architecture and security boundaries.
-
-The repository currently provides the Go command foundation used by the daemon,
-command-line interface, and terminal user interface.
+The [concept](docs/concepts/wyrwood.yml) defines the product, the
+[Linux technical design](docs/technical-designs/linux-per-user-agent-proxy.yml)
+defines its architecture and security boundaries, and the
+[command-line specification](docs/specifications/command-line-interface.yml)
+defines stable output and exit statuses.
 
 ```console
 task check
 task build
-./wyrwood --help
 ```

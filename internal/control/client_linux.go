@@ -9,13 +9,12 @@ package control
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"time"
-	"unicode/utf8"
 )
 
-const clientOperationTimeout = 65 * time.Second
+// ClientOperationTimeout bounds every complete CLI and TUI control exchange.
+const ClientOperationTimeout = 65 * time.Second
 
 // RemoteError is a stable categorical daemon rejection. It contains no raw
 // daemon or upstream error text.
@@ -33,7 +32,7 @@ func NewClient(path string) (*Client, error) {
 	if path == "" {
 		return nil, errors.New("control socket path is required")
 	}
-	return &Client{path: path, timeout: clientOperationTimeout}, nil
+	return &Client{path: path, timeout: ClientOperationTimeout}, nil
 }
 
 func (client *Client) Apply() (ApplyResult, error) {
@@ -69,12 +68,16 @@ func (client *Client) Events(limit int) (EventsResult, error) {
 }
 
 func (client *Client) call(request Request) (Response, error) {
-	connection, err := net.DialTimeout("unix", client.path, client.timeout)
+	deadline := time.Now().Add(client.timeout)
+	dialer := net.Dialer{Timeout: client.timeout, Deadline: deadline}
+	connection, err := dialer.Dial("unix", client.path)
 	if err != nil {
 		return Response{}, errors.New("connect to daemon control socket")
 	}
 	defer connection.Close()
-	_ = connection.SetDeadline(time.Now().Add(client.timeout))
+	if err := connection.SetDeadline(deadline); err != nil {
+		return Response{}, errors.New("set daemon control deadline")
+	}
 	if err := writeJSONFrame(connection, MaximumRequestBytes, request); err != nil {
 		return Response{}, err
 	}
@@ -89,75 +92,4 @@ func (client *Client) call(request Request) (Response, error) {
 		return Response{}, &RemoteError{Code: response.Error}
 	}
 	return response, nil
-}
-
-func validateResponse(request Request, response Response) error {
-	if response.Version != Version {
-		return errors.New("daemon control protocol version mismatch")
-	}
-	results := 0
-	if response.Apply != nil {
-		results++
-	}
-	if response.Keys != nil {
-		results++
-	}
-	if response.Status != nil {
-		results++
-	}
-	if response.Events != nil {
-		results++
-	}
-	if !response.OK {
-		if !validErrorCode(response.Error) || response.Error == ErrorNone || results != 0 {
-			return errors.New("invalid daemon error response")
-		}
-		return nil
-	}
-	if response.Error != ErrorNone || results != 1 {
-		return errors.New("invalid daemon success response")
-	}
-	valid := request.Operation == OperationApply && response.Apply != nil ||
-		request.Operation == OperationKeys && response.Keys != nil ||
-		request.Operation == OperationStatus && response.Status != nil ||
-		request.Operation == OperationEvents && response.Events != nil
-	if !valid {
-		return fmt.Errorf("daemon returned the wrong operation result")
-	}
-	if response.Keys != nil && len(response.Keys.Keys) > MaximumProjectedKeys ||
-		response.Status != nil && len(response.Status.Consumers) > MaximumProjectedConsumers ||
-		response.Events != nil && (request.Limit == nil || len(response.Events.Events) > *request.Limit) {
-		return errors.New("daemon response exceeds the operation bound")
-	}
-	if response.Status != nil {
-		if !validHealth(response.Status.Daemon) || !validHealth(response.Status.Upstream) {
-			return errors.New("daemon returned an invalid health category")
-		}
-		for _, consumer := range response.Status.Consumers {
-			if consumer.Name == "" || !utf8.ValidString(consumer.Name) || utf8.RuneCountInString(consumer.Name) > MaximumConsumerNameCharacters ||
-				!validHealth(consumer.Listener) || consumer.ActiveConnections < 0 {
-				return errors.New("daemon returned an invalid consumer status")
-			}
-		}
-	}
-	return nil
-}
-
-func validHealth(health HealthCategory) bool {
-	switch health {
-	case HealthHealthy, HealthDegraded, HealthUnavailable:
-		return true
-	default:
-		return false
-	}
-}
-
-func validErrorCode(code ErrorCode) bool {
-	switch code {
-	case ErrorNone, ErrorBadRequest, ErrorUnsupportedVersion, ErrorApplyInvalid,
-		ErrorApplyFailed, ErrorUpstreamUnavailable, ErrorResourceLimit, ErrorInternal:
-		return true
-	default:
-		return false
-	}
 }

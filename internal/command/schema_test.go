@@ -1,0 +1,199 @@
+// ---
+// relationships:
+//   verifies: command-line-interface
+// ---
+
+package command
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"reflect"
+	"runtime"
+	"sort"
+	"testing"
+	"time"
+
+	"github.com/wyrd-company/wyrwood/internal/control"
+)
+
+func TestCommandOutputSchemaIsClosedAndVersioned(t *testing.T) {
+	schema := loadCommandSchema(t)
+	if schema["$schema"] != "https://json-schema.org/draft/2020-12/schema" {
+		t.Fatalf("schema draft = %v", schema["$schema"])
+	}
+	if schema["additionalProperties"] != false {
+		t.Fatal("command envelope schema is not closed")
+	}
+	properties := object(t, schema["properties"])
+	version := object(t, properties["version"])
+	if version["const"] != float64(1) {
+		t.Fatalf("schema version = %v", version["const"])
+	}
+	variants := array(t, schema["oneOf"])
+	if len(variants) != 6 {
+		t.Fatalf("schema variants = %d, want 6", len(variants))
+	}
+	commands := []string{"init", "apply", "keys", "status", "events"}
+	for index, command := range commands {
+		variant := object(t, variants[index])
+		variantProperties := object(t, variant["properties"])
+		if object(t, variantProperties["command"])["const"] != command ||
+			object(t, variantProperties["result"])["$ref"] != "#/$defs/"+command+"-result" {
+			t.Fatalf("schema variant %d does not bind %s to its result", index, command)
+		}
+		if !reflect.DeepEqual(array(t, object(t, variant["not"])["required"]), []any{"error"}) {
+			t.Fatalf("schema success variant %s permits an error", command)
+		}
+	}
+	errorVariant := object(t, variants[5])
+	if !reflect.DeepEqual(array(t, object(t, errorVariant["not"])["required"]), []any{"result"}) {
+		t.Fatal("schema error variant permits a result")
+	}
+	definitions := object(t, schema["$defs"])
+	for _, name := range []string{"init-result", "apply-result", "key", "keys-result", "consumer-status", "status-result", "event", "events-result", "error-result"} {
+		if object(t, definitions[name])["additionalProperties"] != false {
+			t.Fatalf("schema definition %s is not closed", name)
+		}
+	}
+}
+
+func TestCommandSchemaCarriesControlBoundsAndDeadline(t *testing.T) {
+	schema := loadCommandSchema(t)
+	definitions := object(t, schema["$defs"])
+	apply := object(t, object(t, definitions["apply-result"])["properties"])
+	if object(t, apply["committed"])["const"] != true {
+		t.Fatal("structured CLI success permits an uncommitted apply")
+	}
+	keys := object(t, object(t, object(t, definitions["keys-result"])["properties"])["keys"])
+	if keys["maxItems"] != float64(control.MaximumProjectedKeys) {
+		t.Fatalf("key maximum = %v", keys["maxItems"])
+	}
+	consumers := object(t, object(t, object(t, definitions["status-result"])["properties"])["consumers"])
+	if consumers["maxItems"] != float64(control.MaximumProjectedConsumers) {
+		t.Fatalf("consumer maximum = %v", consumers["maxItems"])
+	}
+	events := object(t, object(t, object(t, definitions["events-result"])["properties"])["events"])
+	if events["maxItems"] != float64(control.MaximumEventLimit) {
+		t.Fatalf("event maximum = %v", events["maxItems"])
+	}
+	if defaultEventLimit < 1 || defaultEventLimit > control.MaximumEventLimit {
+		t.Fatalf("default event limit = %d", defaultEventLimit)
+	}
+	if control.ClientOperationTimeout != 65*time.Second || control.ClientOperationTimeout <= 0 {
+		t.Fatalf("client operation timeout = %s", control.ClientOperationTimeout)
+	}
+}
+
+func TestStructuredTypesAndSchemaExposeTheSameFields(t *testing.T) {
+	schema := loadCommandSchema(t)
+	definitions := object(t, schema["$defs"])
+	tests := []struct {
+		definition string
+		typeOf     reflect.Type
+	}{
+		{definition: "init-result", typeOf: reflect.TypeFor[initResult]()},
+		{definition: "apply-result", typeOf: reflect.TypeFor[control.ApplyResult]()},
+		{definition: "key", typeOf: reflect.TypeFor[control.Key]()},
+		{definition: "keys-result", typeOf: reflect.TypeFor[control.KeysResult]()},
+		{definition: "consumer-status", typeOf: reflect.TypeFor[control.ConsumerStatus]()},
+		{definition: "status-result", typeOf: reflect.TypeFor[control.StatusResult]()},
+		{definition: "event", typeOf: reflect.TypeFor[control.Event]()},
+		{definition: "events-result", typeOf: reflect.TypeFor[control.EventsResult]()},
+		{definition: "error-result", typeOf: reflect.TypeFor[errorProjection]()},
+	}
+	for _, test := range tests {
+		t.Run(test.definition, func(t *testing.T) {
+			definition := object(t, definitions[test.definition])
+			properties := sortedKeys(object(t, definition["properties"]))
+			fields := jsonFieldNames(test.typeOf)
+			if !reflect.DeepEqual(properties, fields) {
+				t.Fatalf("schema fields = %v, Go fields = %v", properties, fields)
+			}
+		})
+	}
+}
+
+func TestCommandErrorSchemaContainsEveryEmittedCategory(t *testing.T) {
+	schema := loadCommandSchema(t)
+	definitions := object(t, schema["$defs"])
+	errorDefinition := object(t, definitions["error-result"])
+	properties := object(t, errorDefinition["properties"])
+	codes := array(t, object(t, properties["code"])["enum"])
+	actual := make([]string, len(codes))
+	for index, code := range codes {
+		actual[index] = code.(string)
+	}
+	sort.Strings(actual)
+	want := []string{
+		"apply-failed", "apply-invalid", "daemon-failed", "daemon-unavailable",
+		"durability-uncertain", "incompatible-daemon", "initialization-failed",
+		"request-rejected", "resource-limit", "upstream-unavailable", "usage",
+	}
+	sort.Strings(want)
+	if !reflect.DeepEqual(actual, want) {
+		t.Fatalf("schema error codes = %v, want %v", actual, want)
+	}
+}
+
+func loadCommandSchema(t *testing.T) map[string]any {
+	t.Helper()
+	_, source, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test source")
+	}
+	path := filepath.Join(filepath.Dir(source), "..", "..", "docs", "specifications", "assets", "command-line-interface", "command-output.schema.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(schema): %v", err)
+	}
+	var schema map[string]any
+	if err := json.Unmarshal(data, &schema); err != nil {
+		t.Fatalf("command schema is not valid JSON: %v", err)
+	}
+	return schema
+}
+
+func object(t *testing.T, value any) map[string]any {
+	t.Helper()
+	object, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("schema value %#v is not an object", value)
+	}
+	return object
+}
+
+func array(t *testing.T, value any) []any {
+	t.Helper()
+	array, ok := value.([]any)
+	if !ok {
+		t.Fatalf("schema value %#v is not an array", value)
+	}
+	return array
+}
+
+func sortedKeys(values map[string]any) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func jsonFieldNames(value reflect.Type) []string {
+	fields := make([]string, 0, value.NumField())
+	for index := 0; index < value.NumField(); index++ {
+		name := value.Field(index).Tag.Get("json")
+		for position, character := range name {
+			if character == ',' {
+				name = name[:position]
+				break
+			}
+		}
+		fields = append(fields, name)
+	}
+	sort.Strings(fields)
+	return fields
+}

@@ -322,6 +322,94 @@ func TestClientRejectsServerVersionMismatch(t *testing.T) {
 	<-done
 }
 
+func TestClientBoundsTheCompleteControlExchange(t *testing.T) {
+	path := controlPath(t)
+	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: path, Net: "unix"})
+	if err != nil {
+		t.Fatalf("ListenUnix(): %v", err)
+	}
+	defer listener.Close()
+	release := make(chan struct{})
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		connection, acceptErr := listener.AcceptUnix()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		<-release
+	}()
+
+	client, err := NewClient(path)
+	if err != nil {
+		t.Fatalf("NewClient(): %v", err)
+	}
+	client.timeout = 20 * time.Millisecond
+	started := time.Now()
+	_, requestErr := client.Status()
+	elapsed := time.Since(started)
+	close(release)
+	<-done
+	if requestErr == nil {
+		t.Fatal("Status() error = nil")
+	}
+	if elapsed > 250*time.Millisecond {
+		t.Fatalf("Status() elapsed = %s, want bounded by one client deadline", elapsed)
+	}
+}
+
+func TestClientRejectsInvalidSuccessProjections(t *testing.T) {
+	timestamp := time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC)
+	tests := []struct {
+		name     string
+		request  Request
+		response Response
+	}{
+		{
+			name: "negative apply count", request: Request{Version: Version, Operation: OperationApply},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Apply: &ApplyResult{Committed: true, PendingCleanup: -1}},
+		},
+		{
+			name: "invalid key fingerprint", request: Request{Version: Version, Operation: OperationKeys},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Keys: &KeysResult{Keys: []Key{{Fingerprint: "invalid"}}}},
+		},
+		{
+			name: "null key list", request: Request{Version: Version, Operation: OperationKeys},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Keys: &KeysResult{}},
+		},
+		{
+			name: "oversized key display", request: Request{Version: Version, Operation: OperationKeys},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Keys: &KeysResult{Keys: []Key{{Fingerprint: "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", Display: strings.Repeat("x", MaximumDisplayBytes+1)}}}},
+		},
+		{
+			name: "oversized consumer ID", request: Request{Version: Version, Operation: OperationStatus},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Status: &StatusResult{Daemon: HealthHealthy, Upstream: HealthHealthy, Consumers: []ConsumerStatus{{ID: strings.Repeat("x", 129), Name: "sample", Listener: HealthHealthy}}}},
+		},
+		{
+			name: "null consumer list", request: Request{Version: Version, Operation: OperationStatus},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Status: &StatusResult{Daemon: HealthHealthy, Upstream: HealthHealthy}},
+		},
+		{
+			name: "invalid event category", request: Request{Version: Version, Operation: OperationEvents, Limit: pointerTo(1)},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Events: &EventsResult{Events: []Event{{Timestamp: timestamp, ConsumerID: "unit", Operation: "unknown", Outcome: "failed", ErrorCode: "internal"}}}},
+		},
+		{
+			name: "null event list", request: Request{Version: Version, Operation: OperationEvents, Limit: pointerTo(1)},
+			response: Response{Version: Version, OK: true, Error: ErrorNone, Events: &EventsResult{}},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if err := validateResponse(test.request, test.response); err == nil {
+				t.Fatalf("validateResponse(%#v) error = nil", test.response)
+			}
+		})
+	}
+}
+
+func pointerTo(value int) *int { return &value }
+
 func controlPath(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()

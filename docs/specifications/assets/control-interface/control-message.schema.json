@@ -47,7 +47,7 @@
       "properties": {
         "fingerprint": {
           "type": "string",
-          "pattern": "^SHA256:[A-Za-z0-9+/]{43}$"
+          "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
         },
         "display": { "type": "string", "maxLength": 256 }
       }
@@ -90,7 +90,7 @@
         },
         "fingerprint": {
           "type": "string",
-          "pattern": "^SHA256:[A-Za-z0-9+/]{43}$"
+          "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
         },
         "outcome": { "enum": ["succeeded", "denied", "failed"] },
         "latency_ns": {
