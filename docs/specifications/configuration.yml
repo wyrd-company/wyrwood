@@ -83,4 +83,7 @@ validation-criteria: >-
   deterministic atomic owner-only replacement, durability uncertainty, and
   separation of durable mutation from runtime apply. Identifier tests use exact
   UTF-8 socket-path bytes and verify stability, path-change replacement, and
-  parity across configuration, status, and events.
+  parity across configuration, status, and events. The Linux management gate
+  drives both clients through real daemon mutations and proves that a stale
+  client cannot change persisted bytes, every page belongs to one revision, and
+  a terminal save is visible to the scriptable projection before apply.

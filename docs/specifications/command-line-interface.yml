@@ -53,8 +53,8 @@ description: >-
   successful apply because the active configuration changed.
 
   Exit status 0 means the command completed successfully. Status 1 is a local
-  operational or output failure and remains the status for commands whose
-  dedicated implementation is absent. Status 2 is command-line usage failure.
+  operational, terminal-initialization, service-manager, or output failure.
+  Status 2 is command-line usage failure.
   Status 3 is initialization failure or uncertain initialization durability.
   Status 4 means the daemon path, connection, exchange, or protocol version was
   unavailable. Status 5 means apply or a managed mutation rejected invalid
@@ -93,7 +93,10 @@ validation-criteria: >-
   configuration pagination, exact create-versus-replace grammar, complete
   fingerprint replacement, affected consumer identifiers including a path-change
   replacement, exact `configuration-not-found` status 10 behavior, status
-  truncation wording, and that persisted mutations remain unapplied. The
-  Linux milestone gate exercises the same fixed
-  owner-authenticated control operations used by the runtime commands while the
-  container scenario changes policy, queries events, and restarts the daemon.
+  truncation wording, and that persisted mutations remain unapplied. Linux
+  milestone gates exercise the same fixed owner-authenticated control operations
+  used by the runtime commands. The container scenario changes policy, queries
+  events, and restarts the daemon. The management scenario builds the user-facing
+  executable, starts a real daemon, and drives both the scriptable and terminal
+  clients through durable mutations, stale conflicts, coherent pagination,
+  apply, outages, bounded redacted output, and lifecycle cleanup.

@@ -279,3 +279,11 @@ proposed-design:
     immediate allowlist changes, selected signing, unselected and removed-key
     denial, same-user control authorization, different-UID peer rejection,
     endpoint recreation, closed event redaction, and exact bounded retention.
+    A separate process-level Linux management gate builds the user-facing
+    executable, initializes its fixed per-user paths, starts and restarts a real
+    daemon with a controllable upstream, and drives the scriptable and terminal
+    clients over the same control socket. It proves cross-client revision
+    visibility, stale-conflict recovery, coherent pagination, durable-versus-active
+    apply, live policy changes, retirement isolation, categorical outages and
+    invalid configuration, bounded redacted output, resize, cancellation,
+    interruption, terminal restoration, and complete process/socket cleanup.

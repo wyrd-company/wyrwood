@@ -38,7 +38,7 @@ Commands:
   keys      List identities available from the upstream agent
   status    Inspect daemon and consumer health
   events    Inspect bounded operational events
-  tui       Open the terminal diagnostics interface
+  tui       Open the terminal management interface
   service   Manage per-user login startup
   version   Print version information
   help      Show this help

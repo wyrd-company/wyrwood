@@ -81,9 +81,17 @@ categorical actionable errors go to standard error. Append `--help` to a
 management command to show its specific options. Service installation enables
 login startup and safely restarts an already-active daemon only when its unit
 changes. `wyrwood service status --output json` provides the same closed output
-contract for automation. The `tui` command remains reserved for its dedicated
-implementation. Starting or stopping an absent unit reports the distinct
+contract for automation. Starting or stopping an absent unit reports the distinct
 `service-not-installed` category and directs the user to install it first.
+
+Run `wyrwood tui` from an interactive terminal to use the same daemon control
+interface. The dashboard, upstream view, consumer detail, new-consumer form,
+and timeout settings expose keyboard-only configuration and diagnostics. Saved
+edits remain visibly unapplied until the explicit Apply action succeeds. Dirty
+edits require confirmation before discard or exit, and a stale revision keeps
+the candidate available for reload or cancellation instead of overwriting a
+newer YAML document. Run `wyrwood tui --help` for its invocation grammar; the
+persistent footer and expanded `?` help show the keys available in each view.
 
 ## Project direction
 
@@ -95,6 +103,7 @@ defines stable output and exit statuses.
 
 ```console
 task check
+task test:integration:management
 task test:integration:linux
 task build
 ```

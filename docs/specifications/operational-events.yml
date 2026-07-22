@@ -65,4 +65,8 @@ validation-criteria: >-
   detection, and query projections. The Linux Docker gate drives signing and
   session-binding markers through a mounted consumer endpoint, verifies their
   absence from projected and durable records, crosses the configured retention
-  boundary, and verifies the exact retained count.
+  boundary, and verifies the exact retained count. The Linux management gate
+  drives more than one terminal projection page of real policy activity,
+  verifies the CLI returns its requested bounded suffix, and scans both
+  projected and durable bytes for configured paths, request payloads, upstream
+  display-control markers, and other prohibited values.

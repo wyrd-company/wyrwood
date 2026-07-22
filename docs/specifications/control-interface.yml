@@ -123,4 +123,7 @@ validation-criteria: >-
   shutdown cleanup. The
   Docker milestone gate also proves effective-UID control access and rejection
   of a container-root peer that can traverse the mounted owner-only directory
-  but whose kernel peer UID differs from the daemon UID.
+  but whose kernel peer UID differs from the daemon UID. The process-level Linux
+  management gate proves the compiled CLI and terminal client share this one
+  daemon transport across revisioned writes, coherent pagination, apply,
+  categorical failures, restart, and shutdown cleanup.

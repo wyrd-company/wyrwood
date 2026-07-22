@@ -26,9 +26,16 @@ tasks:
       - go test ./...
 
   test:integration:linux:
-    desc: Run the real Linux Docker and Unix-socket milestone gate
+    desc: Run all real Linux milestone gates
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
+
+  test:integration:management:
+    desc: Run the real Linux management milestone gate
+    cmds:
+      - >-
+        go test -count=1 -tags=integration
+        -run '^TestLinuxManagementMilestone$' ./internal/integration
 
   vet:
     desc: Run Go static analysis
