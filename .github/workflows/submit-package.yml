@@ -114,7 +114,7 @@ jobs:
           echo "Verified retained package handoff for $release_version."
 
       - name: Submit package release
-        uses: wyrd-company/repo.wyrd.foo/.github/actions/submit-release@REPLACE_WITH_REPO_WYRD_FOO_COMMIT_A_SHA
+        uses: wyrd-company/repo.wyrd.foo/.github/actions/submit-release@0e0d0e934e1a0f6f34550ed9ee28717623614b8c
         with:
           manifest: handoff/release-manifest.json
           app-client-id: ${{ secrets.REPO_WYRD_FOO_APP_CLIENT_ID }}

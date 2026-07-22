@@ -24,7 +24,7 @@ jobs:
     # Commit A must pin the reviewed inbox, allowlist, and package-stage contract.
     # The non-SHA sentinel deliberately blocks every release until it is replaced.
     env:
-      REPO_WYRD_FOO_PUBLISHER_COMMIT: REPLACE_WITH_REPO_WYRD_FOO_COMMIT_A_SHA
+      REPO_WYRD_FOO_PUBLISHER_COMMIT: 0e0d0e934e1a0f6f34550ed9ee28717623614b8c
     steps:
       - name: Check out release commit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
