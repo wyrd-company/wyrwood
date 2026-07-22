@@ -27,7 +27,7 @@ func validateStorageInputs(path string, retention int) error {
 	}
 	root := string(filepath.Separator)
 	directory := filepath.Dir(path)
-	if path == root || directory == root || filepath.Dir(directory) == root {
+	if path == root || directory == root {
 		return errors.New("event store path must use a dedicated directory below the filesystem root")
 	}
 	if retention <= 0 || retention > maximumRetention {
@@ -72,10 +72,16 @@ func cleanupStaleReplacements(directory string, remove func(string) error) error
 }
 
 func ensureOwnerOnlyDirectory(path string) error {
-	if err := os.MkdirAll(path, 0o700); err != nil {
-		return fmt.Errorf("create event store directory: %w", err)
-	}
 	info, err := os.Lstat(path)
+	created := false
+	if errors.Is(err, os.ErrNotExist) {
+		if err := os.Mkdir(path, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+			return fmt.Errorf("create event store leaf directory: %w", err)
+		} else if err == nil {
+			created = true
+		}
+		info, err = os.Lstat(path)
+	}
 	if err != nil {
 		return fmt.Errorf("inspect event store directory: %w", err)
 	}
@@ -85,8 +91,17 @@ func ensureOwnerOnlyDirectory(path string) error {
 	if err := requireCurrentOwner(info); err != nil {
 		return fmt.Errorf("event store directory: %w", err)
 	}
-	if err := os.Chmod(path, 0o700); err != nil {
-		return fmt.Errorf("secure event store directory: %w", err)
+	if created {
+		if err := os.Chmod(path, 0o700); err != nil {
+			return fmt.Errorf("secure created event store directory: %w", err)
+		}
+		info, err = os.Lstat(path)
+		if err != nil {
+			return fmt.Errorf("inspect created event store directory: %w", err)
+		}
+	}
+	if info.Mode().Perm() != 0o700 || info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) != 0 {
+		return errors.New("existing event store directory must already have mode 0700")
 	}
 	return nil
 }

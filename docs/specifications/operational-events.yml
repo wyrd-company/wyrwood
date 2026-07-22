@@ -21,16 +21,18 @@ description: >-
   frame make the store unreadable rather than discarding subsequent history.
 
   The daemon receives the canonical absolute storage path and a retention limit from
-  1 through 100000 events as explicit inputs. The dedicated parent is neither the
-  filesystem root nor one of its immediate children. The parent directory has mode
-  `0700`; the event file and stable writer-lock file have mode `0600`; all are owned by
-  the daemon's effective user. The lock admits one daemon writer. Startup removes
-  stale owned regular replacement files in the reserved `.events-` namespace while
-  leaving every other entry untouched. Every append is synchronized to durable
-  storage before returning. Crossing the retention limit writes the retained sequence
-  to an owner-only temporary file in the same directory, synchronizes it, atomically
-  renames it over the event file, and synchronizes the directory. The store contains
-  events only and has no configuration authority.
+  1 through 100000 events as explicit inputs. The event path has a dedicated leaf
+  parent below the filesystem root. The store creates a missing leaf parent with mode
+  `0700` without creating its ancestors. An existing parent is a real directory owned
+  by the daemon's effective user and already has exact mode `0700`; the store does not
+  change its mode. The event file and stable writer-lock file have mode `0600`. The
+  lock admits one daemon writer. Startup removes stale owned regular replacement files
+  in the reserved `.events-` namespace while leaving every other entry untouched.
+  Every append is synchronized to durable storage before returning. Crossing the
+  retention limit writes the retained sequence to an owner-only temporary file in the
+  same directory, synchronizes it, atomically renames it over the event file, and
+  synchronizes the directory. The store contains events only and has no configuration
+  authority.
 
   Recent-event queries preserve durable write order. Last-activity projections select
   each consumer's greatest retained timestamp. Overall and per-consumer health use

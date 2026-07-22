@@ -273,6 +273,90 @@ func TestOpenRejectsNULPathBeforeCreatingDirectory(t *testing.T) {
 	}
 }
 
+func TestOpenDoesNotChangeExistingNonOwnerOnlyParent(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "existing-state")
+	if err := os.Mkdir(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(directory, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	unrelated := filepath.Join(directory, "keep.txt")
+	content := []byte("fixture")
+	if err := os.WriteFile(unrelated, content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(directory, "events.bin")
+
+	if _, err := Open(path, 4); err == nil {
+		t.Fatal("Open(existing 0755 parent) error = nil")
+	}
+	info, err := os.Stat(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o755 {
+		t.Errorf("existing parent mode = %#o, want unchanged 0755", got)
+	}
+	got, err := os.ReadFile(unrelated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, content) {
+		t.Errorf("unrelated content = %q, want %q", got, content)
+	}
+	for _, absent := range []string{path, path + ".lock"} {
+		if _, err := os.Lstat(absent); !errors.Is(err, os.ErrNotExist) {
+			t.Errorf("Open created %s before rejecting parent: %v", absent, err)
+		}
+	}
+}
+
+func TestOpenCreatesOnlyMissingLeafParent(t *testing.T) {
+	base := t.TempDir()
+	directory := filepath.Join(base, "state")
+	path := filepath.Join(directory, "events.bin")
+	store, err := Open(path, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	info, err := os.Stat(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o700 {
+		t.Errorf("created parent mode = %#o, want 0700", got)
+	}
+}
+
+func TestOpenDoesNotCreateMissingParentAncestors(t *testing.T) {
+	base := t.TempDir()
+	ancestor := filepath.Join(base, "missing-ancestor")
+	path := filepath.Join(ancestor, "state", "events.bin")
+	if _, err := Open(path, 4); err == nil {
+		t.Fatal("Open(missing ancestors) error = nil")
+	}
+	if _, err := os.Lstat(ancestor); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("Open created a missing ancestor: %v", err)
+	}
+}
+
+func TestOpenAcceptsExistingOwnerOnlyParent(t *testing.T) {
+	directory := filepath.Join(t.TempDir(), "state")
+	if err := os.Mkdir(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(directory, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	store, err := Open(filepath.Join(directory, "events.bin"), 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+}
+
 func TestOpenRemovesOnlyStaleOwnedRegularReplacements(t *testing.T) {
 	directory := filepath.Join(t.TempDir(), "state")
 	path := filepath.Join(directory, "events.bin")
