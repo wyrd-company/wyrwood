@@ -20,10 +20,10 @@ const (
 	extensionRequest  = 27
 
 	agentFailure          = 5
-	agentSuccess          = 6
 	agentExtensionFailure = 28
 
-	maxMessageBytes = 16 << 20
+	// OpenSSH portable ssh-agent.c defines AGENT_MAX_LEN as 256 KiB.
+	maxMessageBytes = 256 * 1024
 )
 
 // Serve runs the bounded, deny-by-default SSH-agent protocol for one
@@ -152,7 +152,9 @@ func processExtension(policyAgent *Agent, request []byte) []byte {
 		return []byte{agentExtensionFailure}
 	}
 	if len(response) == 0 {
-		return []byte{agentSuccess}
+		// ExtendedAgent.Extension returns the complete response, including its
+		// type byte. An empty success violates that contract.
+		return []byte{agentExtensionFailure}
 	}
 	return response
 }

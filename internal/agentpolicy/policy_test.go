@@ -9,6 +9,7 @@ import (
 	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
+	"crypto/rsa"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -27,8 +28,9 @@ import (
 )
 
 const (
-	testSocket           = "/run/consumer/agent.sock"
-	sessionBindExtension = "session-bind@openssh.com"
+	testSocket             = "/run/consumer/agent.sock"
+	sessionBindExtension   = "session-bind@openssh.com"
+	openSSHAgentMaxMessage = 256 * 1024
 )
 
 func TestProtocolFiltersIdentitiesByFingerprintNotComment(t *testing.T) {
@@ -73,14 +75,47 @@ func TestProtocolSignsOnlyAllowedFingerprints(t *testing.T) {
 	if err := fixture.allowedKey.Verify(payload, signature); err != nil {
 		t.Fatalf("allowed signature verification error = %v", err)
 	}
-	if _, err := client.SignWithFlags(fixture.allowedKey, payload, agent.SignatureFlagRsaSha512); err != nil {
-		t.Fatalf("SignWithFlags(allowed) error = %v", err)
-	}
-	if got := fixture.upstream.lastSignatureFlags(); got != agent.SignatureFlagRsaSha512 {
-		t.Fatalf("upstream signature flags = %d, want %d", got, agent.SignatureFlagRsaSha512)
-	}
 	if _, err := client.Sign(fixture.deniedKey, payload); err == nil {
 		t.Fatal("Sign(denied) error = nil")
+	}
+}
+
+func TestProtocolPreservesSignatureFlags(t *testing.T) {
+	t.Parallel()
+
+	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("rsa.GenerateKey() error = %v", err)
+	}
+	publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
+	if err != nil {
+		t.Fatalf("ssh.NewPublicKey() error = %v", err)
+	}
+	keyring := agent.NewKeyring()
+	if err := keyring.Add(agent.AddedKey{PrivateKey: privateKey}); err != nil {
+		t.Fatalf("Add(fixture key) error = %v", err)
+	}
+	upstream := &recordingAgent{ExtendedAgent: keyring.(agent.ExtendedAgent)}
+	store, err := runtime.NewStore(testConfiguration([]string{ssh.FingerprintSHA256(publicKey)}))
+	if err != nil {
+		t.Fatalf("runtime.NewStore() error = %v", err)
+	}
+	policyAgent, err := agentpolicy.New(store, testSocket, upstream)
+	if err != nil {
+		t.Fatalf("agentpolicy.New() error = %v", err)
+	}
+	client, closeClient := serveClient(t, policyAgent)
+	defer closeClient()
+
+	signature, err := client.SignWithFlags(publicKey, []byte("generic authentication challenge"), agent.SignatureFlagRsaSha512)
+	if err != nil {
+		t.Fatalf("SignWithFlags(allowed) error = %v", err)
+	}
+	if signature.Format != ssh.KeyAlgoRSASHA512 {
+		t.Fatalf("signature format = %q, want %q", signature.Format, ssh.KeyAlgoRSASHA512)
+	}
+	if got := upstream.lastSignatureFlags(); got != agent.SignatureFlagRsaSha512 {
+		t.Fatalf("upstream signature flags = %d, want %d", got, agent.SignatureFlagRsaSha512)
 	}
 }
 
@@ -164,6 +199,61 @@ func TestProtocolForwardsOnlyWellFramedSessionBind(t *testing.T) {
 	if got := fixture.upstream.extensionCount(); got != before {
 		t.Fatalf("unknown extension forwarded %d calls, want %d", got, before)
 	}
+	// The task contract intentionally permits session-bind only. RFC 9987's
+	// query extension must not create a second allowlisted extension.
+	if _, err := client.Extension("query", nil); !errors.Is(err, agent.ErrExtensionUnsupported) {
+		t.Fatalf("Extension(query) error = %v, want ErrExtensionUnsupported", err)
+	}
+	if got := fixture.upstream.extensionCount(); got != before {
+		t.Fatalf("query extension forwarded %d calls, want %d", got, before)
+	}
+}
+
+func TestProtocolRejectsEmptySuccessfulExtensionResponse(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	fixture.upstream.setExtensionResponse(nil)
+	client, closeClient := serveClient(t, fixture.policyAgent)
+	defer closeClient()
+
+	if _, err := client.Extension(sessionBindExtension, sessionBindContents()); err == nil {
+		t.Fatal("Extension(empty upstream response) error = nil")
+	} else if errors.Is(err, agent.ErrExtensionUnsupported) {
+		t.Fatalf("Extension(empty upstream response) error = %v, want extension failure", err)
+	}
+}
+
+func TestProtocolEnforcesOpenSSHAgentMessageLimit(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	exactRequest := make([]byte, openSSHAgentMaxMessage)
+	exactRequest[0] = 255
+	if reply := exchangeRaw(t, fixture.policyAgent, exactRequest); !bytes.Equal(reply, []byte{5}) {
+		t.Fatalf("exact-limit request reply = %v, want failure", reply)
+	}
+	assertRequestRejectedBeforeBody(t, fixture.policyAgent, openSSHAgentMaxMessage+1)
+
+	exactResponse := make([]byte, openSSHAgentMaxMessage)
+	exactResponse[0] = 6
+	fixture.upstream.setExtensionResponse(exactResponse)
+	client, closeClient := serveClient(t, fixture.policyAgent)
+	response, err := client.Extension(sessionBindExtension, sessionBindContents())
+	closeClient()
+	if err != nil {
+		t.Fatalf("Extension(exact-limit response) error = %v", err)
+	}
+	if len(response) != openSSHAgentMaxMessage {
+		t.Fatalf("exact-limit response length = %d, want %d", len(response), openSSHAgentMaxMessage)
+	}
+
+	fixture.upstream.setExtensionResponse(make([]byte, openSSHAgentMaxMessage+1))
+	client, closeClient = serveClient(t, fixture.policyAgent)
+	if _, err := client.Extension(sessionBindExtension, sessionBindContents()); !errors.Is(err, agent.ErrExtensionUnsupported) {
+		t.Fatalf("Extension(over-limit response) error = %v, want ErrExtensionUnsupported", err)
+	}
+	closeClient()
 }
 
 func TestProtocolRejectsMutationsAndUnknownOpcodesBeforeDecoding(t *testing.T) {
@@ -271,7 +361,10 @@ func newFixture(t *testing.T) fixture {
 	if err := keyring.Add(agent.AddedKey{PrivateKey: deniedPrivate, Comment: "shared display label"}); err != nil {
 		t.Fatalf("Add(denied fixture key) error = %v", err)
 	}
-	upstream := &recordingAgent{ExtendedAgent: keyring.(agent.ExtendedAgent)}
+	upstream := &recordingAgent{
+		ExtendedAgent:  keyring.(agent.ExtendedAgent),
+		extensionReply: []byte{6},
+	}
 	allowedFingerprint := ssh.FingerprintSHA256(allowedKey)
 	store, err := runtime.NewStore(testConfiguration([]string{allowedFingerprint}))
 	if err != nil {
@@ -317,6 +410,20 @@ func testConfiguration(fingerprints []string) config.Config {
 	}
 }
 
+func sessionBindContents() []byte {
+	return ssh.Marshal(struct {
+		HostKey      []byte
+		SessionID    []byte
+		Signature    []byte
+		IsForwarding bool
+	}{
+		HostKey:      []byte("opaque host key"),
+		SessionID:    []byte("opaque session identifier"),
+		Signature:    []byte("opaque host signature"),
+		IsForwarding: true,
+	})
+}
+
 func serveClient(t *testing.T, policyAgent *agentpolicy.Agent) (agent.ExtendedAgent, func()) {
 	t.Helper()
 	clientConnection, serverConnection := net.Pipe()
@@ -341,6 +448,9 @@ func serveClient(t *testing.T, policyAgent *agentpolicy.Agent) (agent.ExtendedAg
 func exchangeRaw(t *testing.T, policyAgent *agentpolicy.Agent, request []byte) []byte {
 	t.Helper()
 	clientConnection, serverConnection := net.Pipe()
+	if err := clientConnection.SetDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatalf("set connection deadline error = %v", err)
+	}
 	done := make(chan error, 1)
 	go func() {
 		done <- agentpolicy.Serve(policyAgent, serverConnection)
@@ -365,10 +475,24 @@ func exchangeRaw(t *testing.T, policyAgent *agentpolicy.Agent, request []byte) [
 	return reply
 }
 
+func assertRequestRejectedBeforeBody(t *testing.T, policyAgent *agentpolicy.Agent, size uint32) {
+	t.Helper()
+	var connection bytes.Buffer
+	var length [4]byte
+	binary.BigEndian.PutUint32(length[:], size)
+	if _, err := connection.Write(length[:]); err != nil {
+		t.Fatalf("write request length error = %v", err)
+	}
+	if err := agentpolicy.Serve(policyAgent, &connection); err == nil || err.Error() != "agent request exceeds size limit" {
+		t.Fatalf("Serve(over-limit request) error = %v, want size-limit error", err)
+	}
+}
+
 type recordingAgent struct {
 	agent.ExtendedAgent
 	mu             sync.Mutex
 	extensions     [][]byte
+	extensionReply []byte
 	mutations      int
 	signatureFlags agent.SignatureFlags
 }
@@ -377,7 +501,7 @@ func (recorder *recordingAgent) SignWithFlags(key ssh.PublicKey, data []byte, fl
 	recorder.mu.Lock()
 	recorder.signatureFlags = flags
 	recorder.mu.Unlock()
-	return recorder.ExtendedAgent.Sign(key, data)
+	return recorder.ExtendedAgent.SignWithFlags(key, data, flags)
 }
 
 func (recorder *recordingAgent) Extension(extensionType string, contents []byte) ([]byte, error) {
@@ -387,7 +511,7 @@ func (recorder *recordingAgent) Extension(extensionType string, contents []byte)
 		return nil, agent.ErrExtensionUnsupported
 	}
 	recorder.extensions = append(recorder.extensions, slices.Clone(contents))
-	return []byte{6}, nil
+	return slices.Clone(recorder.extensionReply), nil
 }
 
 func (recorder *recordingAgent) Add(key agent.AddedKey) error {
@@ -446,4 +570,10 @@ func (recorder *recordingAgent) lastSignatureFlags() agent.SignatureFlags {
 	recorder.mu.Lock()
 	defer recorder.mu.Unlock()
 	return recorder.signatureFlags
+}
+
+func (recorder *recordingAgent) setExtensionResponse(response []byte) {
+	recorder.mu.Lock()
+	defer recorder.mu.Unlock()
+	recorder.extensionReply = slices.Clone(response)
 }
