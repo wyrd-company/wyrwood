@@ -24,6 +24,7 @@
     "absoluteCanonicalPath": {
       "type": "string",
       "minLength": 2,
+      "maxLength": 107,
       "pattern": "^/",
       "description": "An absolute path in canonical lexical form. Canonicalization is checked semantically."
     },
@@ -60,6 +61,7 @@
         },
         "fingerprints": {
           "type": "array",
+          "maxItems": 1024,
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/fingerprint" }
         }

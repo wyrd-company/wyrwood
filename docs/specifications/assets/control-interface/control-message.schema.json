@@ -24,6 +24,74 @@
             "operation": { "const": "events" },
             "limit": { "type": "integer", "minimum": 1, "maximum": 1000 }
           }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "offset", "limit"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "configuration" },
+            "offset": { "const": 0 },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 16 }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "offset", "limit", "expected_revision"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "configuration" },
+            "offset": { "type": "integer", "minimum": 1 },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 16 },
+            "expected_revision": { "$ref": "#/$defs/revision" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "expected_revision", "upstream"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "set-upstream" },
+            "expected_revision": { "$ref": "#/$defs/revision" },
+            "upstream": { "$ref": "#/$defs/absolute-path" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "expected_revision", "timeouts"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "set-timeouts" },
+            "expected_revision": { "$ref": "#/$defs/revision" },
+            "timeouts": { "$ref": "#/$defs/timeouts" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "expected_revision", "consumer"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "put-consumer" },
+            "expected_revision": { "$ref": "#/$defs/revision" },
+            "consumer_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "consumer": { "$ref": "#/$defs/configuration-consumer-input" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "operation", "expected_revision", "consumer_id"],
+          "properties": {
+            "version": { "const": 1 },
+            "operation": { "const": "retire-consumer" },
+            "expected_revision": { "$ref": "#/$defs/revision" },
+            "consumer_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+          }
         }
       ]
     },
@@ -34,10 +102,66 @@
         "unsupported-version",
         "apply-invalid",
         "apply-failed",
+        "configuration-invalid",
+        "configuration-conflict",
+        "configuration-not-found",
+        "configuration-failed",
+        "configuration-durability-uncertain",
         "upstream-unavailable",
         "resource-limit",
         "internal"
       ]
+    },
+    "revision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "absolute-path": { "type": "string", "minLength": 2, "maxLength": 107, "pattern": "^/" },
+    "duration": { "type": "string", "minLength": 2, "maxLength": 64 },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connect", "list", "replay", "sign"],
+      "properties": {
+        "connect": { "$ref": "#/$defs/duration" },
+        "list": { "$ref": "#/$defs/duration" },
+        "replay": { "$ref": "#/$defs/duration" },
+        "sign": { "$ref": "#/$defs/duration" }
+      }
+    },
+    "configuration-consumer-input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "socket", "fingerprints"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "socket": { "$ref": "#/$defs/absolute-path" },
+        "access_group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
+        "fingerprints": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fingerprint" }
+        }
+      }
+    },
+    "configuration-consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "socket", "fingerprints"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "socket": { "$ref": "#/$defs/absolute-path" },
+        "access_group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
+        "fingerprints": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fingerprint" }
+        }
+      }
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
     },
     "health": { "enum": ["healthy", "degraded", "unavailable"] },
     "key": {
@@ -46,8 +170,7 @@
       "required": ["fingerprint", "display"],
       "properties": {
         "fingerprint": {
-          "type": "string",
-          "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
+          "$ref": "#/$defs/fingerprint"
         },
         "display": { "type": "string", "maxLength": 256 }
       }
@@ -126,6 +249,11 @@
                 "unsupported-version",
                 "apply-invalid",
                 "apply-failed",
+                "configuration-invalid",
+                "configuration-conflict",
+                "configuration-not-found",
+                "configuration-failed",
+                "configuration-durability-uncertain",
                 "upstream-unavailable",
                 "resource-limit",
                 "internal"
@@ -137,7 +265,9 @@
               { "required": ["apply"] },
               { "required": ["keys"] },
               { "required": ["status"] },
-              { "required": ["events"] }
+              { "required": ["events"] },
+              { "required": ["configuration"] },
+              { "required": ["configuration_change"] }
             ]
           }
         },
@@ -151,7 +281,9 @@
             "anyOf": [
               { "required": ["keys"] },
               { "required": ["status"] },
-              { "required": ["events"] }
+              { "required": ["events"] },
+              { "required": ["configuration"] },
+              { "required": ["configuration_change"] }
             ]
           }
         },
@@ -165,7 +297,9 @@
             "anyOf": [
               { "required": ["apply"] },
               { "required": ["status"] },
-              { "required": ["events"] }
+              { "required": ["events"] },
+              { "required": ["configuration"] },
+              { "required": ["configuration_change"] }
             ]
           }
         },
@@ -179,7 +313,9 @@
             "anyOf": [
               { "required": ["apply"] },
               { "required": ["keys"] },
-              { "required": ["events"] }
+              { "required": ["events"] },
+              { "required": ["configuration"] },
+              { "required": ["configuration_change"] }
             ]
           }
         },
@@ -193,7 +329,41 @@
             "anyOf": [
               { "required": ["apply"] },
               { "required": ["keys"] },
-              { "required": ["status"] }
+              { "required": ["status"] },
+              { "required": ["configuration"] },
+              { "required": ["configuration_change"] }
+            ]
+          }
+        },
+        {
+          "required": ["configuration"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["keys"] },
+              { "required": ["status"] },
+              { "required": ["events"] },
+              { "required": ["configuration_change"] }
+            ]
+          }
+        },
+        {
+          "required": ["configuration_change"],
+          "properties": {
+            "ok": { "const": true },
+            "error": { "const": "none" }
+          },
+          "not": {
+            "anyOf": [
+              { "required": ["apply"] },
+              { "required": ["keys"] },
+              { "required": ["status"] },
+              { "required": ["events"] },
+              { "required": ["configuration"] }
             ]
           }
         }
@@ -206,12 +376,14 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "revision",
             "committed",
             "degraded",
             "pending_cleanup",
             "pending_permissions"
           ],
           "properties": {
+            "revision": { "$ref": "#/$defs/revision" },
             "committed": { "type": "boolean" },
             "degraded": { "type": "boolean" },
             "pending_cleanup": { "type": "integer", "minimum": 0 },
@@ -233,8 +405,9 @@
         "status": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["daemon", "upstream", "consumers", "truncated"],
+          "required": ["active_revision", "daemon", "upstream", "consumers", "truncated"],
           "properties": {
+            "active_revision": { "$ref": "#/$defs/revision" },
             "daemon": { "$ref": "#/$defs/health" },
             "upstream": { "$ref": "#/$defs/health" },
             "consumers": {
@@ -255,6 +428,41 @@
               "maxItems": 1000,
               "items": { "$ref": "#/$defs/event" }
             }
+          }
+        },
+        "configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "revision",
+            "upstream",
+            "timeouts",
+            "total_consumers",
+            "offset",
+            "consumers",
+            "complete"
+          ],
+          "properties": {
+            "revision": { "$ref": "#/$defs/revision" },
+            "upstream": { "$ref": "#/$defs/absolute-path" },
+            "timeouts": { "$ref": "#/$defs/timeouts" },
+            "total_consumers": { "type": "integer", "minimum": 0 },
+            "offset": { "type": "integer", "minimum": 0 },
+            "consumers": {
+              "type": "array",
+              "maxItems": 16,
+              "items": { "$ref": "#/$defs/configuration-consumer" }
+            },
+            "complete": { "type": "boolean" }
+          }
+        },
+        "configuration_change": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["revision", "changed"],
+          "properties": {
+            "revision": { "$ref": "#/$defs/revision" },
+            "changed": { "type": "boolean" }
           }
         }
       }

@@ -1,0 +1,119 @@
+$schema: https://refinery.systems/ontology/specification
+relationships:
+  references:
+    - configuration
+    - operational-events
+  uses:
+    - command-line-interface
+    - control-interface
+format: cli
+description: >-
+  `wyrwood tui` is Wyrwood's keyboard-operated interactive management client.
+  It uses Charmbracelet Bubble Tea for the application model, Bubbles only for
+  focused input and list primitives, and Lip Gloss for terminal styling. The
+  application is one Model/Update/View state machine. Daemon requests, clocks,
+  refresh scheduling, Linux socket discovery, and process exit are injected
+  effects that return closed typed messages to Update; rendering and state
+  transitions perform no I/O. Starting without an interactive input and output
+  terminal fails before terminal state changes. Normal exit, initialization
+  failure, SIGINT, and SIGTERM restore cursor, input mode, and the prior screen.
+
+  Startup enters an alternate screen and loads the durable configuration pages,
+  live status, the latest 100 events, and upstream keys through control protocol
+  version 1. Each load is independently represented as loading, ready, empty,
+  unavailable, or failed. Categorical failure text and a retry action replace
+  unavailable data without preventing navigation to data that loaded. Responses
+  carry a request generation; Update ignores results from a superseded refresh
+  or a closed application. One five-second status and event refresh is scheduled
+  only after the preceding refresh completes. Configuration and key refresh are
+  explicit because either can change an edit's meaning.
+
+  The dashboard is the initial route. It presents the categorical upstream
+  health, durable-versus-active configuration state, consumer name, listener
+  health, active-connection count, and a selected consumer summary. The
+  consumer summary contains configured fingerprints and recent approved events,
+  not filesystem telemetry or inferred usage totals. The upstream route presents
+  its configured socket as editable configuration, categorical reachability,
+  available fingerprint and sanitized comment projections, and approved
+  upstream-connect and replay events. It contains no process identifier,
+  protocol-version claim, watch implementation, reconnect policy control,
+  reconnect command, aggregate healing metric, or unretained history. Consumer
+  detail presents configured name, complete socket path, optional numeric access
+  group, fingerprint checklist, listener health, active connections, and recent
+  approved events for its opaque consumer identifier. New consumer is a form for
+  those same editable fields. It accepts a complete absolute socket path and
+  explains the dedicated parent-directory requirement; it does not invent a
+  filename from a directory or promise that missing ancestors are created.
+
+  Global navigation uses Tab and Shift+Tab to move focus in documented order,
+  arrow keys to move within a focused list, Enter to open or activate, Space to
+  toggle a focused fingerprint, Esc to cancel or return, `?` to expand help,
+  `r` to refresh the current route, and `q` to request exit outside text input.
+  Every route renders a persistent footer containing only currently available
+  keys. Focus begins at the route's primary collection or first form field, then
+  follows visible detail controls, the primary action, and the secondary action.
+  A visible leading marker identifies the selected row, brackets
+  identify checked and unchecked values, underlining or a doubled border
+  identifies the focused field, and text labels accompany every semantic color.
+  Disabled actions include a textual reason and do not receive activation focus.
+
+  Upstream browsing starts from the configured socket's parent and lists only
+  entries returned by the injected Linux socket-browser effect. Manual entry is
+  always available. Existence and file type are advisory validation signals;
+  selecting a path grants no authority and does not prove that an agent is
+  reachable. Fingerprints are authorization identities. Upstream comments are
+  sanitized display labels and never selection keys. Consumer creation and edit
+  replace the complete exact fingerprint allowlist; no wildcard or future-key
+  grant exists. Changing a consumer socket path is presented as replacing its
+  security principal. Retirement requires an explicit confirmation that names
+  the consumer and states that apply closes connections and removes only the
+  owned socket.
+
+  Each editor owns one base configuration revision and one candidate semantic
+  mutation. Save sends `set-upstream`, `set-timeouts`, `put-consumer`, or
+  `retire-consumer` with that base revision. A successful save replaces the
+  editor's base with the returned durable revision and clears its local dirty
+  marker. It does not alter runtime state. The dashboard compares the durable
+  revision with status's active revision and labels a mismatch `UNAPPLIED` in
+  text and color. Apply is a separate action that asks the daemon to load the
+  fixed durable file. Rejected apply retains the durable-versus-active mismatch;
+  committed apply refreshes configuration, status, and events; a committed but
+  degraded result remains committed and displays its categorical cleanup counts.
+
+  A configuration-conflict response preserves the candidate, disables Save,
+  and offers Reload or Cancel. Reload fetches one coherent revision from page
+  zero onward and never merges or silently reapplies local values. Cancel returns
+  to the candidate so the user can inspect it. A configuration change observed
+  during background activity refreshes an unedited view, but marks an open dirty
+  editor conflicted without replacing its candidate. Esc from a dirty editor and
+  exit with a dirty editor require explicit Discard or Keep editing. SIGINT once
+  requests the same confirmation when an edit is dirty; a second SIGINT exits
+  immediately after restoring the terminal. Persisted but unapplied configuration
+  is not a local dirty edit, so exit presents an informational `UNAPPLIED` state
+  without blocking exit.
+
+  The reference layout is 118 columns by 34 rows. It uses a dark terminal canvas,
+  thin bordered panels, compact spacing, and restrained semantic accents: green
+  for healthy or accepted, pink for editable or destructive focus, purple for
+  selection and identity, and amber for degraded or caution. Color is enabled
+  only when the terminal reports support and `NO_COLOR` is absent. At widths
+  below 96 columns, side-by-side panels become a single focused panel with a
+  route summary. At widths below 60 columns or heights below 16 rows, the view
+  shows the route title, essential state, focused item, and two-line scrolling
+  key help. Content is clipped or scrolled within the current terminal dimensions;
+  it never writes beyond them. Resize preserves route, selection, edit values,
+  and focus where the focused control remains available.
+validation-criteria: >-
+  Conformance tests drive the Bubble Tea model with typed messages and injected
+  fake control, clock, socket-browser, and exit effects without starting a real
+  terminal. State-transition tests cover startup, each load state, generation
+  cancellation, bounded refresh, navigation and focus order, editing, stale
+  revision conflict, save, apply rejection and degraded commit, destructive
+  confirmation, dirty cancellation, resize, interrupt, and exit. Golden render
+  tests cover dashboard, consumer detail, upstream detail, and new-consumer form
+  at 118 by 34 plus the narrow fallbacks, with color disabled and with semantic
+  color enabled. Linux integration tests use a pseudo-terminal and real control
+  socket to verify non-terminal refusal, terminal restoration, keyboard-only
+  operation, cross-client revision visibility, categorical output, and bounded
+  rendering. Inspection verifies that every rendered runtime and event datum
+  belongs to the control and operational-event specifications.

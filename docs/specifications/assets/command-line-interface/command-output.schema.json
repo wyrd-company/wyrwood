@@ -59,6 +59,31 @@
       "required": ["result"],
       "not": { "required": ["error"] },
       "properties": {
+        "command": { "const": "configuration-show" },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/configuration-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": {
+          "enum": [
+            "configuration-set-upstream",
+            "configuration-set-timeouts",
+            "consumer-put",
+            "consumer-retire"
+          ]
+        },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/configuration-change-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
         "command": { "const": "service" },
         "ok": { "const": true },
         "result": { "$ref": "#/$defs/service-result" }
@@ -68,7 +93,14 @@
       "required": ["error"],
       "not": { "required": ["result"] },
       "properties": {
-        "command": { "enum": ["init", "apply", "keys", "status", "events", "service"] },
+        "command": {
+          "enum": [
+            "init", "apply", "keys", "status", "events",
+            "configuration-show", "configuration-set-upstream",
+            "configuration-set-timeouts", "consumer-put", "consumer-retire",
+            "service"
+          ]
+        },
         "ok": { "const": false },
         "error": { "$ref": "#/$defs/error-result" }
       }
@@ -76,7 +108,14 @@
   ],
   "properties": {
     "version": { "const": 1 },
-    "command": { "enum": ["init", "apply", "keys", "status", "events", "service"] },
+    "command": {
+      "enum": [
+        "init", "apply", "keys", "status", "events",
+        "configuration-show", "configuration-set-upstream",
+        "configuration-set-timeouts", "consumer-put", "consumer-retire",
+        "service"
+      ]
+    },
     "ok": { "type": "boolean" },
     "result": {
       "oneOf": [
@@ -85,12 +124,15 @@
         { "$ref": "#/$defs/keys-result" },
         { "$ref": "#/$defs/status-result" },
         { "$ref": "#/$defs/events-result" },
+        { "$ref": "#/$defs/configuration-result" },
+        { "$ref": "#/$defs/configuration-change-result" },
         { "$ref": "#/$defs/service-result" }
       ]
     },
     "error": { "$ref": "#/$defs/error-result" }
   },
   "$defs": {
+    "revision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "health": { "enum": ["healthy", "degraded", "unavailable"] },
     "fingerprint": {
       "type": "string",
@@ -107,8 +149,9 @@
     "apply-result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["committed", "degraded", "pending_cleanup", "pending_permissions"],
+      "required": ["revision", "committed", "degraded", "pending_cleanup", "pending_permissions"],
       "properties": {
+        "revision": { "$ref": "#/$defs/revision" },
         "committed": { "const": true },
         "degraded": { "type": "boolean" },
         "pending_cleanup": { "type": "integer", "minimum": 0 },
@@ -150,8 +193,9 @@
     "status-result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["daemon", "upstream", "consumers", "truncated"],
+      "required": ["active_revision", "daemon", "upstream", "consumers", "truncated"],
       "properties": {
+        "active_revision": { "$ref": "#/$defs/revision" },
         "daemon": { "$ref": "#/$defs/health" },
         "upstream": { "$ref": "#/$defs/health" },
         "consumers": {
@@ -192,6 +236,57 @@
         }
       }
     },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["connect", "list", "replay", "sign"],
+      "properties": {
+        "connect": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "list": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "replay": { "type": "string", "minLength": 2, "maxLength": 64 },
+        "sign": { "type": "string", "minLength": 2, "maxLength": 64 }
+      }
+    },
+    "configuration-consumer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "socket", "fingerprints"],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "name": { "type": "string", "minLength": 1, "maxLength": 256 },
+        "socket": { "type": "string", "minLength": 2, "maxLength": 107, "pattern": "^/" },
+        "access_group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
+        "fingerprints": {
+          "type": "array",
+          "maxItems": 1024,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/fingerprint" }
+        }
+      }
+    },
+    "configuration-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "upstream", "timeouts", "consumers"],
+      "properties": {
+        "revision": { "$ref": "#/$defs/revision" },
+        "upstream": { "type": "string", "minLength": 2, "maxLength": 107, "pattern": "^/" },
+        "timeouts": { "$ref": "#/$defs/timeouts" },
+        "consumers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/configuration-consumer" }
+        }
+      }
+    },
+    "configuration-change-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "changed"],
+      "properties": {
+        "revision": { "$ref": "#/$defs/revision" },
+        "changed": { "type": "boolean" }
+      }
+    },
     "service-result": {
       "type": "object",
       "additionalProperties": false,
@@ -226,7 +321,10 @@
         "code": {
           "enum": [
             "usage", "initialization-failed", "durability-uncertain", "daemon-unavailable",
-            "apply-invalid", "apply-failed", "upstream-unavailable", "resource-limit",
+            "apply-invalid", "apply-failed", "configuration-invalid",
+            "configuration-conflict", "configuration-not-found",
+            "configuration-failed", "configuration-durability-uncertain",
+            "upstream-unavailable", "resource-limit",
             "request-rejected", "incompatible-daemon", "daemon-failed",
             "service-unavailable", "service-not-installed", "service-failed"
           ]

@@ -7,7 +7,9 @@ description: >-
   `assets/configuration/configuration.schema.json`. Input is bounded to 1 MiB
   before YAML decoding. The document records one
   canonical absolute upstream SSH-agent socket path, zero or more consumer
-  security principals, and the deadlines applied to upstream operations. Each
+  security principals, and the deadlines applied to upstream operations. Linux
+  socket paths contain at most 107 characters and must also fit the kernel's
+  107-byte AF_UNIX pathname limit. Each
   consumer records a display name, a canonical absolute socket path, an
   optional Linux numeric group identifier, and an exact allowlist of OpenSSH
   SHA-256 public-key fingerprints.
@@ -19,7 +21,9 @@ description: >-
   256 Unicode characters. Fingerprint values
   use OpenSSH's canonical `SHA256:` prefix followed by the unpadded base64
   encoding of exactly 32 digest bytes; each consumer's list contains unique
-  values.
+  values. A consumer contains at most 1024 fingerprints, matching the bounded
+  upstream-key projection and keeping one complete consumer mutation within the
+  64 KiB control-request limit.
 
   Timeout values use Go duration syntax. Connect, identity-list, and
   session-binding replay deadlines are each between 100 milliseconds and 30
@@ -36,6 +40,23 @@ description: >-
   file with mode `0600` as one atomic no-replace operation. A directory-sync
   failure after publication returns the resolved configuration path together
   with an explicit durability-uncertainty error.
+
+  The daemon projects the editable configuration through its owner-authenticated
+  control interface and identifies the exact persisted bytes with a lowercase
+  SHA-256 revision. Direct file edits remain supported and therefore produce a
+  different revision even when they change only comments or formatting. A
+  managed mutation supplies the revision it was based on, changes the complete
+  upstream path, complete timeout set, or one complete consumer, or retires one
+  consumer. The daemon validates the resulting complete configuration,
+  deterministically serializes every modeled value, and atomically replaces the
+  fixed owner-only file. Comments and formatting are not modeled and are not
+  preserved by a managed mutation. Persisting a mutation does not change the
+  active runtime snapshot; apply is a separate daemon operation.
+
+  Configuration reads paginate consumers and repeat the revision, upstream, and
+  timeout values on every page. A later page requires the first page's revision,
+  so a direct or managed edit between pages fails as a configuration conflict
+  instead of combining revisions.
 validation-criteria: >-
   A configuration conforms when it validates against the JSON Schema asset and
   the Go parser accepts it. The parser enforces YAML field closure, canonical
@@ -45,4 +66,7 @@ validation-criteria: >-
   and initialization's owner-only, atomic, no-replace behavior. The Linux
   container integration gate applies fingerprint additions and removals while
   one downstream connection remains open and verifies that the next request
-  observes the complete newly committed allowlist.
+  observes the complete newly committed allowlist. Control tests verify coherent
+  pagination, exact-byte revisions, stale-write rejection, complete-candidate
+  validation, deterministic atomic owner-only replacement, durability
+  uncertainty, and separation of durable mutation from runtime apply.

@@ -81,7 +81,17 @@ proposed-design:
     ownership, access groups, distinct consumers, valid fingerprints, and
     supported timeout bounds. Validation creates an immutable runtime snapshot
     before any listener changes. A different socket path is a different consumer
-    security principal.
+    security principal. The owner-authenticated control interface projects the
+    editable model in consumer pages and identifies exact persisted bytes by a
+    SHA-256 revision. Revisioned semantic operations replace the upstream path,
+    complete global timeout set, or one complete consumer, or retire one
+    consumer. Each operation rereads and hashes the fixed file, rejects a stale
+    revision, validates the complete candidate, deterministically serializes all
+    modeled values, and atomically replaces and synchronizes the owner-only YAML.
+    Managed writes preserve modeled values but not YAML comments or formatting.
+    They do not change runtime state. Direct edits participate in the same
+    revision check, and explicit apply remains the only durable-to-runtime
+    transition.
   transactional-apply: >-
     Listener reconciliation has a prepare and commit boundary. Prepare creates
     every new parent directory and binds every new listener without accepting
@@ -177,15 +187,21 @@ proposed-design:
     are limited to 256 Unicode characters and returned unchanged. Status returns
     at most 512 path-free categorical consumer projections and events returns at most 1000
     task #9 event records. Failures expose only categorical codes. The single
-    wyrwood executable provides
-    daemon, init, apply, keys, status, events, tui, and service subcommands. Init
+    wyrwood executable provides daemon, init, apply, keys, status, events,
+    configuration, consumer, tui, and service subcommands. Init
     creates the per-user configuration using SSH_AUTH_SOCK as the initial
     upstream path when present. Keys returns upstream comments as display labels
     and fingerprints as selection identity. Human-readable output is the
     terminal default. Versioned closed JSON output carries the same information
     for automation, and categorical exit statuses distinguish usage,
-    initialization, daemon, apply, and upstream failures. Runtime commands have
-    no path or deadline overrides and use the bounded control client. The
+    initialization, daemon, configuration, apply, and upstream failures. Runtime
+    commands have no path or deadline overrides and use the bounded control
+    client. Both management clients use paginated configuration reads plus
+    revisioned set-upstream, set-timeouts, put-consumer, and retire-consumer
+    operations. No configuration mutation accepts a path to another file. Status
+    and apply report the active configuration revision so clients distinguish a
+    durable saved revision from the running snapshot. The scriptable interface
+    exposes exact non-interactive configuration and consumer commands. The
     terminal interface uses the same API for upstream selection with path
     browsing or manual entry, consumer editing, key selection, apply, health,
     and event inspection.
@@ -226,9 +242,13 @@ proposed-design:
     The Go module separates command dispatch, configuration, agent protocol,
     policy, connection management, endpoint reconciliation, control transport,
     events, platform paths, and service integration. Interfaces exist at the
-    operating-system and upstream-agent boundaries. Protocol and policy tests
-    use in-memory connections; lifecycle tests use real Unix sockets and
-    temporary directories.
+    operating-system and upstream-agent boundaries. The terminal package uses
+    Bubble Tea's Model/Update/View boundary, focused Bubbles primitives, and Lip
+    Gloss styling. Control I/O, clocks, refresh scheduling, socket browsing, and
+    exit are injected effects that return typed messages, leaving Update and
+    View deterministic and terminal-free in tests. Protocol and policy tests use
+    in-memory connections; lifecycle tests use real Unix sockets and temporary
+    directories.
   verification: >-
     Unit tests cover configuration invariants, operation filtering, fingerprint
     authorization, policy changes on open connections, session-binding replay,
