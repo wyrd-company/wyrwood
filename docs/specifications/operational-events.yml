@@ -37,11 +37,25 @@ description: >-
   Recent-event queries preserve durable write order. Last-activity projections select
   each consumer's greatest retained timestamp. Overall and per-consumer health use
   the most recently written retained event and return only `unknown`, `healthy`,
-  `denied`, or `degraded` with its categorical error code and timestamp.
+  `denied`, or `degraded` with its categorical error code and timestamp. Endpoint
+  reconciliation and consumer admission emit lifecycle records. Consumer identity
+  listing, signing, and accepted session binding emit a record at the policy
+  boundary; signing records the requested canonical fingerprint. Upstream connection
+  and session-binding replay emit separate recovery records. Event-recorder failure
+  degrades daemon health but never expands an agent response or exposes the omitted
+  request material. Connect failures use `upstream-unavailable` unless their dial
+  deadline expires; operation and replay deadline expiry use `upstream-timeout`, and
+  other accepted upstream protocol failures use `upstream-protocol`. Each
+  agent-operation record is submitted synchronously to the durable store before that
+  policy operation returns. Its latency measures the agent boundary before event
+  persistence rather than local storage time.
 validation-criteria: >-
   A record conforms when it validates against the JSON Schema asset and the Go event
   validator accepts it. Reflection tests verify the event type's exact fields and the
   absence of open-ended maps, slices, or interfaces. Storage tests verify owner-only
   modes, exclusive writing, restart survival, bounded retention, final-frame recovery,
   fatal interior corruption, atomic inode replacement, concurrent access under race
-  detection, and query projections.
+  detection, and query projections. The Linux Docker gate drives signing and
+  session-binding markers through a mounted consumer endpoint, verifies their
+  absence from projected and durable records, crosses the configured retention
+  boundary, and verifies the exact retained count.

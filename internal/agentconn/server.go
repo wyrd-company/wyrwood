@@ -1,6 +1,7 @@
 // ---
 // relationships:
 //   implements: linux-per-user-agent-proxy
+//   uses: operational-events
 // ---
 
 package agentconn
@@ -12,6 +13,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/agentpolicy"
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/events"
 )
 
 // Serve constructs one unshared upstream pair for exactly one downstream
@@ -26,6 +28,37 @@ func Serve(
 	timeouts config.Timeouts,
 	downstream io.ReadWriteCloser,
 ) error {
+	return serve(ctx, policies, consumerSocket, upstreamPath, timeouts, downstream, "", nil)
+}
+
+// ServeObserved runs one paired downstream connection and emits only closed,
+// redacted operational records for its consumer identity.
+func ServeObserved(
+	ctx context.Context,
+	policies agentpolicy.PolicySource,
+	consumerSocket string,
+	upstreamPath string,
+	timeouts config.Timeouts,
+	downstream io.ReadWriteCloser,
+	consumerID events.ConsumerID,
+	record func(events.Event),
+) error {
+	if record == nil {
+		return errors.New("operational event recorder is required")
+	}
+	return serve(ctx, policies, consumerSocket, upstreamPath, timeouts, downstream, consumerID, record)
+}
+
+func serve(
+	ctx context.Context,
+	policies agentpolicy.PolicySource,
+	consumerSocket string,
+	upstreamPath string,
+	timeouts config.Timeouts,
+	downstream io.ReadWriteCloser,
+	consumerID events.ConsumerID,
+	record func(events.Event),
+) error {
 	if ctx == nil {
 		return errors.New("serve context is required")
 	}
@@ -33,7 +66,13 @@ func Serve(
 		return errors.New("downstream connection is required")
 	}
 	defer func() { _ = downstream.Close() }()
-	upstream, err := New(upstreamPath, timeouts)
+	var upstream *Connection
+	var err error
+	if record == nil {
+		upstream, err = New(upstreamPath, timeouts)
+	} else {
+		upstream, err = newObserved(upstreamPath, timeouts, consumerID, record)
+	}
 	if err != nil {
 		return err
 	}
@@ -49,7 +88,12 @@ func Serve(
 		}
 	}()
 
-	policyAgent, err := agentpolicy.New(policies, consumerSocket, upstream)
+	var policyAgent *agentpolicy.Agent
+	if record == nil {
+		policyAgent, err = agentpolicy.New(policies, consumerSocket, upstream)
+	} else {
+		policyAgent, err = agentpolicy.NewObserved(policies, consumerSocket, upstream, consumerID, record)
+	}
 	if err != nil {
 		return err
 	}

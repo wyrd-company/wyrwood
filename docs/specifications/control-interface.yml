@@ -58,4 +58,7 @@ validation-criteria: >-
   boundary for otherwise unsafe unauthorized-UID coverage, stale and live
   socket behavior, bounded malformed input, version mismatches, daemon startup
   while upstream is absent, atomic apply failure and success, bounded keys,
-  status and event projections, restart, and complete shutdown cleanup.
+  status and event projections, restart, and complete shutdown cleanup. The
+  Docker milestone gate also proves effective-UID control access and rejection
+  of a container-root peer that can traverse the mounted owner-only directory
+  but whose kernel peer UID differs from the daemon UID.

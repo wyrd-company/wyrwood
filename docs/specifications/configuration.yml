@@ -42,4 +42,7 @@ validation-criteria: >-
   filesystem paths, cross-field uniqueness and directory isolation, canonical
   fingerprint encoding, Linux group range, duration parsing and bounds, and a
   single-document input. Filesystem tests verify Linux default-path resolution
-  and initialization's owner-only, atomic, no-replace behavior.
+  and initialization's owner-only, atomic, no-replace behavior. The Linux
+  container integration gate applies fingerprint additions and removals while
+  one downstream connection remains open and verifies that the next request
+  observes the complete newly committed allowlist.

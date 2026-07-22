@@ -1,6 +1,7 @@
 // ---
 // relationships:
 //   implements: linux-per-user-agent-proxy
+//   uses: operational-events
 // ---
 
 // Package agentconn owns one fixed-path upstream SSH-agent connection for each
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/events"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -63,15 +65,37 @@ type Connection struct {
 	bindings   []sessionBinding
 	dialCancel context.CancelFunc
 	closed     bool
+	observer   observer
+}
+
+type observer struct {
+	consumerID events.ConsumerID
+	record     func(events.Event)
 }
 
 // New creates a lazy paired connection at one validated, fixed socket path.
 // It deliberately does not consult SSH_AUTH_SOCK and never changes the path.
 func New(path string, timeouts config.Timeouts) (*Connection, error) {
+	return newConnection(path, timeouts, observer{})
+}
+
+func newObserved(
+	path string,
+	timeouts config.Timeouts,
+	consumerID events.ConsumerID,
+	record func(events.Event),
+) (*Connection, error) {
+	if record == nil {
+		return nil, errors.New("operational event recorder is required")
+	}
+	return newConnection(path, timeouts, observer{consumerID: consumerID, record: record})
+}
+
+func newConnection(path string, timeouts config.Timeouts, observer observer) (*Connection, error) {
 	if err := config.Validate(config.Config{Upstream: path, Timeouts: timeouts}); err != nil {
 		return nil, err
 	}
-	return &Connection{path: path, timeouts: timeouts}, nil
+	return &Connection{path: path, timeouts: timeouts, observer: observer}, nil
 }
 
 // List applies the configured identity-list deadline to the complete upstream
@@ -188,6 +212,9 @@ func (connection *Connection) run(
 		}
 		if err := beforeOperation(); err != nil {
 			connection.stateMu.Unlock()
+			if errors.Is(err, ErrBindingLimit) {
+				return categorized(err, events.ErrorResourceLimit)
+			}
 			return err
 		}
 		connection.stateMu.Unlock()
@@ -197,17 +224,18 @@ func (connection *Connection) run(
 	if err != nil {
 		return err
 	}
-	if err := upstreamConnection.SetDeadline(time.Now().Add(timeout)); err != nil {
+	deadline := time.Now().Add(timeout)
+	if err := upstreamConnection.SetDeadline(deadline); err != nil {
 		connection.discard(upstreamConnection)
-		return operationError
+		return categorized(operationError, events.ErrorUpstreamProtocol)
 	}
 	if err := operation(upstream); err != nil {
 		connection.discard(upstreamConnection)
-		return operationError
+		return categorized(operationError, deadlineErrorCode(err, deadline))
 	}
 	if err := upstreamConnection.SetDeadline(time.Time{}); err != nil {
 		connection.discard(upstreamConnection)
-		return operationError
+		return categorized(operationError, events.ErrorUpstreamProtocol)
 	}
 	connection.stateMu.Lock()
 	defer connection.stateMu.Unlock()
@@ -233,12 +261,15 @@ func (connection *Connection) connectAndReplay() (net.Conn, agent.ExtendedAgent,
 		return upstreamConnection, upstream, nil
 	}
 
+	connectStarted := time.Now()
 	dialContext, cancel := context.WithTimeout(context.Background(), connection.timeouts.Connect)
 	connection.dialCancel = cancel
 	connection.stateMu.Unlock()
 	defer cancel()
 	upstreamConnection, err := connection.dialer.DialContext(dialContext, "unix", connection.path)
 	if err != nil {
+		code := connectErrorCode(err)
+		connection.record(events.OperationUpstreamConnect, events.OutcomeFailed, code, connectStarted)
 		connection.stateMu.Lock()
 		connection.dialCancel = nil
 		closed := connection.closed
@@ -246,8 +277,9 @@ func (connection *Connection) connectAndReplay() (net.Conn, agent.ExtendedAgent,
 		if closed {
 			return nil, nil, ErrClosed
 		}
-		return nil, nil, ErrConnect
+		return nil, nil, categorized(ErrConnect, code)
 	}
+	connection.record(events.OperationUpstreamConnect, events.OutcomeSucceeded, events.ErrorNone, connectStarted)
 	upstream := agent.NewClient(upstreamConnection)
 
 	connection.stateMu.Lock()
@@ -265,28 +297,82 @@ func (connection *Connection) connectAndReplay() (net.Conn, agent.ExtendedAgent,
 	if len(bindings) == 0 {
 		return upstreamConnection, upstream, nil
 	}
+	replayStarted := time.Now()
 	// One deadline bounds the complete ordered replay, not each individual
 	// binding, so replay cost cannot grow into an unbounded outage.
-	if err := upstreamConnection.SetDeadline(time.Now().Add(connection.timeouts.Replay)); err != nil {
+	replayDeadline := time.Now().Add(connection.timeouts.Replay)
+	if err := upstreamConnection.SetDeadline(replayDeadline); err != nil {
 		connection.discard(upstreamConnection)
-		return nil, nil, ErrReplay
+		connection.record(events.OperationReplay, events.OutcomeFailed, events.ErrorUpstreamProtocol, replayStarted)
+		return nil, nil, categorized(ErrReplay, events.ErrorUpstreamProtocol)
 	}
 	for _, binding := range bindings {
 		if _, err := upstream.Extension(sessionBindExtension, binding.request); err != nil {
 			connection.discard(upstreamConnection)
-			return nil, nil, ErrReplay
+			code := deadlineErrorCode(err, replayDeadline)
+			connection.record(events.OperationReplay, events.OutcomeFailed, code, replayStarted)
+			return nil, nil, categorized(ErrReplay, code)
 		}
 	}
 	if err := upstreamConnection.SetDeadline(time.Time{}); err != nil {
 		connection.discard(upstreamConnection)
-		return nil, nil, ErrReplay
+		connection.record(events.OperationReplay, events.OutcomeFailed, events.ErrorUpstreamProtocol, replayStarted)
+		return nil, nil, categorized(ErrReplay, events.ErrorUpstreamProtocol)
 	}
 	connection.stateMu.Lock()
 	defer connection.stateMu.Unlock()
 	if connection.closed || connection.connection != upstreamConnection {
 		return nil, nil, ErrClosed
 	}
+	connection.record(events.OperationReplay, events.OutcomeSucceeded, events.ErrorNone, replayStarted)
 	return upstreamConnection, upstream, nil
+}
+
+func (connection *Connection) record(operation events.Operation, outcome events.Outcome, code events.ErrorCode, started time.Time) {
+	if connection.observer.record == nil {
+		return
+	}
+	connection.observer.record(events.Event{
+		Timestamp: time.Now(), ConsumerID: connection.observer.consumerID, Operation: operation,
+		Outcome: outcome, Latency: time.Since(started), ErrorCode: code,
+	})
+}
+
+func deadlineErrorCode(err error, deadline time.Time) events.ErrorCode {
+	if !time.Now().Before(deadline) {
+		return events.ErrorUpstreamTimeout
+	}
+	return upstreamErrorCode(err)
+}
+
+func connectErrorCode(err error) events.ErrorCode {
+	if upstreamErrorCode(err) == events.ErrorUpstreamTimeout {
+		return events.ErrorUpstreamTimeout
+	}
+	return events.ErrorUpstreamUnavailable
+}
+
+func upstreamErrorCode(err error) events.ErrorCode {
+	var networkError net.Error
+	if errors.As(err, &networkError) && networkError.Timeout() {
+		return events.ErrorUpstreamTimeout
+	}
+	return events.ErrorUpstreamProtocol
+}
+
+type categorizedError struct {
+	category error
+	code     events.ErrorCode
+}
+
+func (err *categorizedError) Error() string { return err.category.Error() }
+func (err *categorizedError) Unwrap() error { return err.category }
+func (err *categorizedError) OperationalEventErrorCode() events.ErrorCode {
+	return err.code
+}
+
+func categorized(category error, code events.ErrorCode) error {
+	return &categorizedError{category: category, code: code}
 }
 
 type sessionBinding struct {

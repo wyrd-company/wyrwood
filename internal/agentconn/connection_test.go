@@ -23,12 +23,84 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/agentconn"
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
 
 const sessionBindExtension = "session-bind@openssh.com"
+
+func TestObservedServeRecordsUpstreamConnectionAndReplayCategorically(t *testing.T) {
+	fixture := newConnectionFixture(t)
+	first := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	clientConnection, serverConnection := net.Pipe()
+	var recordMu sync.Mutex
+	var recorded []events.Event
+	done := make(chan error, 1)
+	go func() {
+		done <- agentconn.ServeObserved(
+			context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
+			fixture.timeouts, serverConnection, "consumer-generic", func(event events.Event) {
+				recordMu.Lock()
+				recorded = append(recorded, event)
+				recordMu.Unlock()
+			},
+		)
+	}()
+	client := agent.NewClient(clientConnection)
+	binding := sessionBinding(fixture.publicKey, "private-session-marker", "private-proof-marker")
+	if _, err := client.Extension(sessionBindExtension, binding); err != nil {
+		t.Fatalf("Extension() error = %v", err)
+	}
+	first.close(t)
+	if _, err := client.List(); err == nil {
+		t.Fatal("List(stale stream) error = nil")
+	}
+	if _, err := client.List(); err == nil {
+		t.Fatal("List(absent upstream) error = nil")
+	}
+	second := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	defer second.close(t)
+	if _, err := client.List(); err != nil {
+		t.Fatalf("List(recovered stream) error = %v", err)
+	}
+	_ = clientConnection.Close()
+	select {
+	case err := <-done:
+		if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+			t.Fatalf("ServeObserved() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("ServeObserved() did not stop")
+	}
+
+	recordMu.Lock()
+	defer recordMu.Unlock()
+	assertEventOperation(t, recorded, events.OperationUpstreamConnect, events.OutcomeSucceeded, events.ErrorNone)
+	assertEventOperation(t, recorded, events.OperationUpstreamConnect, events.OutcomeFailed, events.ErrorUpstreamUnavailable)
+	assertEventOperation(t, recorded, events.OperationReplay, events.OutcomeSucceeded, events.ErrorNone)
+	assertEventOperation(t, recorded, events.OperationListIdentities, events.OutcomeFailed, events.ErrorUpstreamUnavailable)
+	for index, event := range recorded {
+		if err := event.Validate(); err != nil {
+			t.Fatalf("recorded[%d] invalid: %v", index, err)
+		}
+	}
+}
+
+func assertEventOperation(t *testing.T, recorded []events.Event, operation events.Operation, outcome events.Outcome, code events.ErrorCode) {
+	t.Helper()
+	for _, event := range recorded {
+		if event.Operation == operation && event.Outcome == outcome && event.ErrorCode == code {
+			return
+		}
+	}
+	t.Fatalf("event %s/%s/%s absent from %#v", operation, outcome, code, recorded)
+}
 
 func TestServeReconnectsAtFixedPathAndReplaysBindingsBeforeNextRequest(t *testing.T) {
 	fixture := newConnectionFixture(t)
@@ -126,6 +198,43 @@ func TestServeDiscardsDelayedListStreamAndKeepsDownstreamUsable(t *testing.T) {
 	}
 	accepted := server.waitAccepted(t, 2)
 	accepted[0].waitDone(t)
+}
+
+func TestObservedServeCategorizesOperationDeadlineAsTimeout(t *testing.T) {
+	fixture := newConnectionFixture(t)
+	fixture.timeouts.List = 100 * time.Millisecond
+	server := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		upstream := newScriptedAgent(t, fixture.privateKey)
+		upstream.listDelay = 250 * time.Millisecond
+		return upstream
+	})
+	defer server.close(t)
+	clientConnection, serverConnection := net.Pipe()
+	var recordMu sync.Mutex
+	var recorded []events.Event
+	done := make(chan error, 1)
+	go func() {
+		done <- agentconn.ServeObserved(
+			context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
+			fixture.timeouts, serverConnection, "consumer-generic", func(event events.Event) {
+				recordMu.Lock()
+				recorded = append(recorded, event)
+				recordMu.Unlock()
+			},
+		)
+	}()
+	if _, err := agent.NewClient(clientConnection).List(); err == nil {
+		t.Fatal("List(delayed upstream) error = nil")
+	}
+	_ = clientConnection.Close()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("ServeObserved() did not stop")
+	}
+	recordMu.Lock()
+	defer recordMu.Unlock()
+	assertEventOperation(t, recorded, events.OperationListIdentities, events.OutcomeFailed, events.ErrorUpstreamTimeout)
 }
 
 func TestServeBoundsCompleteReplayAndRecoversAgain(t *testing.T) {
@@ -410,6 +519,21 @@ func TestConnectionRejectsInvalidPathAndTimeouts(t *testing.T) {
 	timeouts.Replay = 0
 	if _, err := agentconn.New("/tmp/service/endpoint.sock", timeouts); err == nil {
 		t.Fatal("New(invalid replay timeout) error = nil")
+	}
+}
+
+func TestServeObservedRequiresEventRecorder(t *testing.T) {
+	t.Parallel()
+
+	fixture := newConnectionFixture(t)
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	if err := agentconn.ServeObserved(
+		context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
+		fixture.timeouts, server, "consumer-generic", nil,
+	); err == nil || err.Error() != "operational event recorder is required" {
+		t.Fatalf("ServeObserved(nil recorder) error = %v", err)
 	}
 }
 

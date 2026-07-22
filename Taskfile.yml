@@ -25,6 +25,11 @@ tasks:
     cmds:
       - go test ./...
 
+  test:integration:linux:
+    desc: Run the real Linux Docker and Unix-socket milestone gate
+    cmds:
+      - go test -count=1 -tags=integration ./internal/integration
+
   vet:
     desc: Run Go static analysis
     cmds:

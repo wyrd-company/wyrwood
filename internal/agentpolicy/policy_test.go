@@ -22,6 +22,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/agentpolicy"
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
@@ -77,6 +78,100 @@ func TestProtocolSignsOnlyAllowedFingerprints(t *testing.T) {
 	}
 	if _, err := client.Sign(fixture.deniedKey, payload); err == nil {
 		t.Fatal("Sign(denied) error = nil")
+	}
+}
+
+func TestObservedPolicyEmitsOnlyClosedCategoricalOperationRecords(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	consumerID := events.ConsumerID("consumer-generic")
+	var recorded []events.Event
+	observed, err := agentpolicy.NewObserved(
+		fixture.store, testSocket, fixture.upstream, consumerID,
+		func(event events.Event) { recorded = append(recorded, event) },
+	)
+	if err != nil {
+		t.Fatalf("agentpolicy.NewObserved() error = %v", err)
+	}
+	if _, err := observed.List(); err != nil {
+		t.Fatalf("List() error = %v", err)
+	}
+	payload := []byte("private-payload-marker")
+	if _, err := observed.Sign(fixture.allowedKey, payload); err != nil {
+		t.Fatalf("Sign(allowed) error = %v", err)
+	}
+	if _, err := observed.Sign(fixture.deniedKey, payload); !errors.Is(err, agentpolicy.ErrPolicyDenied) {
+		t.Fatalf("Sign(denied) error = %v", err)
+	}
+	if _, err := observed.Extension(sessionBindExtension, sessionBindContents()); err != nil {
+		t.Fatalf("Extension() error = %v", err)
+	}
+
+	if len(recorded) != 4 {
+		t.Fatalf("record count = %d, want 4: %#v", len(recorded), recorded)
+	}
+	want := []struct {
+		operation events.Operation
+		outcome   events.Outcome
+		code      events.ErrorCode
+		key       *string
+	}{
+		{operation: events.OperationListIdentities, outcome: events.OutcomeSucceeded, code: events.ErrorNone},
+		{operation: events.OperationSign, outcome: events.OutcomeSucceeded, code: events.ErrorNone, key: &fixture.allowedFingerprint},
+		{operation: events.OperationSign, outcome: events.OutcomeDenied, code: events.ErrorPolicyDenied, key: &fixture.deniedFingerprint},
+		{operation: events.OperationSessionBind, outcome: events.OutcomeSucceeded, code: events.ErrorNone},
+	}
+	for index, expected := range want {
+		observed := recorded[index]
+		if err := observed.Validate(); err != nil {
+			t.Fatalf("recorded[%d] invalid: %v", index, err)
+		}
+		if observed.ConsumerID != consumerID || observed.Operation != expected.operation || observed.Outcome != expected.outcome || observed.ErrorCode != expected.code {
+			t.Fatalf("recorded[%d] = %#v, want operation=%s outcome=%s code=%s", index, observed, expected.operation, expected.outcome, expected.code)
+		}
+		if expected.key == nil && observed.Fingerprint != nil || expected.key != nil && (observed.Fingerprint == nil || string(*observed.Fingerprint) != *expected.key) {
+			t.Fatalf("recorded[%d] fingerprint = %v, want %v", index, observed.Fingerprint, expected.key)
+		}
+	}
+}
+
+func TestObservedPolicyRequiresClosedEventIdentityAndRecorder(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	if _, err := agentpolicy.NewObserved(fixture.store, testSocket, fixture.upstream, "invalid id with spaces", func(events.Event) {}); err == nil {
+		t.Fatal("NewObserved(invalid consumer ID) error = nil")
+	}
+	if _, err := agentpolicy.NewObserved(fixture.store, testSocket, fixture.upstream, "consumer-generic", nil); err == nil {
+		t.Fatal("NewObserved(nil recorder) error = nil")
+	}
+}
+
+func TestObservedPolicyRejectsOpenEndedUpstreamErrorCodes(t *testing.T) {
+	t.Parallel()
+
+	fixture := newFixture(t)
+	upstream := &listErrorAgent{
+		ExtendedAgent: fixture.upstream,
+		err:           invalidOperationalError{},
+	}
+	var recorded []events.Event
+	observed, err := agentpolicy.NewObserved(
+		fixture.store, testSocket, upstream, "consumer-generic",
+		func(event events.Event) { recorded = append(recorded, event) },
+	)
+	if err != nil {
+		t.Fatalf("NewObserved() error = %v", err)
+	}
+	if _, err := observed.List(); err == nil {
+		t.Fatal("List() error = nil")
+	}
+	if len(recorded) != 1 || recorded[0].ErrorCode != events.ErrorUpstreamProtocol {
+		t.Fatalf("recorded = %#v, want closed upstream-protocol fallback", recorded)
+	}
+	if err := recorded[0].Validate(); err != nil {
+		t.Fatalf("recorded event invalid: %v", err)
 	}
 }
 
@@ -495,6 +590,20 @@ type recordingAgent struct {
 	extensionReply []byte
 	mutations      int
 	signatureFlags agent.SignatureFlags
+}
+
+type listErrorAgent struct {
+	agent.ExtendedAgent
+	err error
+}
+
+func (upstream *listErrorAgent) List() ([]*agent.Key, error) { return nil, upstream.err }
+
+type invalidOperationalError struct{}
+
+func (invalidOperationalError) Error() string { return "categorical failure" }
+func (invalidOperationalError) OperationalEventErrorCode() events.ErrorCode {
+	return "open-ended-code"
 }
 
 func (recorder *recordingAgent) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {

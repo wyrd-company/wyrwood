@@ -51,4 +51,6 @@ validation-criteria: >-
   service installation, and retained policy denial; default and bounded event
   limits; quoted display data; committed apply enforcement; exclusive use of the
   local control client for runtime commands; and schema parity with implementation
-  constants and result fields.
+  constants and result fields. The Linux milestone gate exercises the same fixed
+  owner-authenticated control operations used by the runtime commands while the
+  container scenario changes policy, queries events, and restarts the daemon.

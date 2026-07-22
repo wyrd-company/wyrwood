@@ -3,6 +3,7 @@
 // ---
 // relationships:
 //   implements: linux-per-user-agent-proxy
+//   uses: operational-events
 // ---
 
 package endpoints
@@ -155,7 +156,10 @@ func (endpoint *endpoint) serve(connection *net.UnixConn) {
 		ErrorCode:  events.ErrorNone,
 	})
 	snapshot := endpoint.manager.store.Active()
-	_ = agentconn.Serve(endpoint.ctx, endpoint.manager.store, endpoint.consumer.Socket(), snapshot.Upstream(), snapshot.Timeouts(), connection)
+	_ = agentconn.ServeObserved(
+		endpoint.ctx, endpoint.manager.store, endpoint.consumer.Socket(), snapshot.Upstream(), snapshot.Timeouts(),
+		connection, consumerID(endpoint.consumer.Socket()), endpoint.manager.record,
+	)
 }
 
 func (endpoint *endpoint) closeConnections() {

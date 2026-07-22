@@ -233,7 +233,12 @@ proposed-design:
     Unit tests cover configuration invariants, operation filtering, fingerprint
     authorization, policy changes on open connections, session-binding replay,
     deadline handling, event redaction by construction, and atomic endpoint
-    reconciliation. Linux integration tests run a controllable upstream agent,
-    mount or model the consumer parent directory, replace the upstream socket
-    at the same path, and verify that the same consumer endpoint resumes
-    allowed signing while hidden and removed keys remain denied.
+    reconciliation. The Linux integration gate bind-mounts a real consumer
+    parent directory into one Docker container, sets its SSH_AUTH_SOCK, and
+    drives one persistent downstream connection. The gate replaces a
+    controllable upstream socket at the exact same path, verifies ordered
+    session-binding replay and bounded outage failure, and restarts the daemon
+    while the container identity and mount set remain unchanged. It also proves
+    immediate allowlist changes, selected signing, unselected and removed-key
+    denial, same-user control authorization, different-UID peer rejection,
+    endpoint recreation, closed event redaction, and exact bounded retention.

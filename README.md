@@ -25,6 +25,14 @@ directory into the container and set the container's `SSH_AUTH_SOCK` to the
 socket's mounted path. Mounting the directory, rather than the socket file,
 allows socket replacement to remain visible inside a running container.
 
+The Linux integration gate runs this topology against a real Docker container
+and real Unix sockets. It keeps one downstream connection open while policies
+change, replaces a controllable upstream agent at the same path, verifies
+session-binding replay, and recreates the daemon endpoint without restarting or
+remounting the container.
+The gate requires a reachable Linux Docker daemon and pulls `ubuntu:24.04` only
+when that image is absent.
+
 ## Command-line use
 
 Create the initial owner-only configuration from the current `SSH_AUTH_SOCK`,
@@ -68,5 +76,6 @@ defines stable output and exit statuses.
 
 ```console
 task check
+task test:integration:linux
 task build
 ```
