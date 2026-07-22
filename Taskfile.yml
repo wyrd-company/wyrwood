@@ -128,6 +128,7 @@ tasks:
     desc: Validate GitHub Actions workflows
     cmds:
       - actionlint
+      - scripts/check-publishing-secret-contract.sh
 
   check:
     desc: Run all repository checks

@@ -117,5 +117,5 @@ jobs:
         uses: wyrd-company/repo.wyrd.foo/.github/actions/submit-release@0e0d0e934e1a0f6f34550ed9ee28717623614b8c
         with:
           manifest: handoff/release-manifest.json
-          app-client-id: ${{ secrets.REPO_WYRD_FOO_APP_CLIENT_ID }}
-          app-private-key: ${{ secrets.REPO_WYRD_FOO_APP_PRIVATE_KEY }}
+          app-client-id: ${{ secrets.REPO_WYRD_FOO_PUBLISHER_APP_ID }}
+          app-private-key: ${{ secrets.REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY }}

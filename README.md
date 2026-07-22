@@ -156,8 +156,8 @@ downloads only that run's retained manifest and fails closed when the artifact
 has expired or is unavailable; it never recomputes digests from mutable GitHub
 Release assets. Package submission uses these product-repository secrets:
 
-- `REPO_WYRD_FOO_APP_CLIENT_ID`
-- `REPO_WYRD_FOO_APP_PRIVATE_KEY`
+- `REPO_WYRD_FOO_PUBLISHER_APP_ID`
+- `REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`
 
 GitHub does not emit a new workflow event for a release created with the Release
 workflow's `GITHUB_TOKEN`. After **every** automated release, manually dispatch
