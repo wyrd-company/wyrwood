@@ -152,6 +152,7 @@ func (manager *Manager) Apply(next config.Config) (ApplyResult, error) {
 	staged, metadata, err := manager.prepare(plan)
 	if err != nil {
 		rollbackErr := manager.rollback(staged, metadata)
+		manager.recordReconciliationFailure(plan)
 		return manager.result(false), errors.Join(err, rollbackErr)
 	}
 
@@ -404,6 +405,32 @@ func (manager *Manager) recordReconciliation(plan runtime.Plan) {
 		if _, pending := manager.pending[consumer.Socket()]; !pending {
 			record(consumer)
 		}
+	}
+}
+
+func (manager *Manager) recordReconciliationFailure(plan runtime.Plan) {
+	seen := make(map[string]struct{})
+	record := func(consumer runtime.Consumer) {
+		if _, exists := seen[consumer.Socket()]; exists {
+			return
+		}
+		seen[consumer.Socket()] = struct{}{}
+		manager.record(events.Event{
+			Timestamp:  manager.deps.now(),
+			ConsumerID: consumerID(consumer.Socket()),
+			Operation:  events.OperationReconcile,
+			Outcome:    events.OutcomeFailed,
+			ErrorCode:  events.ErrorInternal,
+		})
+	}
+	for _, consumer := range plan.Retained() {
+		record(consumer)
+	}
+	for _, update := range plan.Updated() {
+		record(update.After())
+	}
+	for _, consumer := range plan.Added() {
+		record(consumer)
 	}
 }
 

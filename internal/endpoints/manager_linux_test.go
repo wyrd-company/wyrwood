@@ -159,9 +159,10 @@ func TestPreparationFailureRollsBackStagedListenerAndActiveMetadata(t *testing.T
 	root := t.TempDir()
 	upstreamPath := filepath.Join(root, "service", "agent.sock")
 	activePath := filepath.Join(root, "active", "agent.sock")
+	sink := &recordingSink{}
 	manager, err := Open(
 		configuration(upstreamPath, consumer("active", activePath, nil, testFingerprint(1))),
-		&recordingSink{},
+		sink,
 	)
 	if err != nil {
 		t.Fatalf("Open(): %v", err)
@@ -204,6 +205,9 @@ func TestPreparationFailureRollsBackStagedListenerAndActiveMetadata(t *testing.T
 	}
 	if _, err := os.Stat(filepath.Dir(secondAdded)); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("failing candidate unexpectedly created a parent: %v", err)
+	}
+	if !sink.contains(events.OperationReconcile, events.OutcomeFailed) {
+		t.Fatal("preparation failure was not recorded categorically")
 	}
 }
 
