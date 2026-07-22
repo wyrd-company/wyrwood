@@ -11,8 +11,6 @@ package tui
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -464,9 +462,3 @@ func maximum(left, right int) int {
 	}
 	return right
 }
-
-func debugState(model *Model) string {
-	return fmt.Sprintf("route=%d focus=%d generation=%d consumers=%d", model.route, model.focus, model.generation, len(model.consumers))
-}
-
-func upper(value fmt.Stringer) string { return strings.ToUpper(value.String()) }

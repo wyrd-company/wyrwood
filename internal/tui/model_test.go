@@ -12,6 +12,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -145,6 +146,10 @@ func readyModel(t *testing.T, colors bool) *Model {
 
 func noSchedule(context.Context, time.Duration, uint64) tea.Cmd { return nil }
 
+func debugState(model *Model) string {
+	return fmt.Sprintf("route=%d focus=%d generation=%d consumers=%d", model.route, model.focus, model.generation, len(model.consumers))
+}
+
 func TestModelLoadsCoherentConfigurationPages(t *testing.T) {
 	client := populatedClient()
 	model := NewModel(client, options{Schedule: noSchedule})
@@ -234,6 +239,18 @@ func TestRefreshSchedulesOnlyAfterBothBackgroundLoadsSettle(t *testing.T) {
 	model.Update(eventsMsg{generation: generation, result: Events{}})
 	if scheduled != 1 {
 		t.Fatalf("duplicate completion should be ignored by lifecycle, schedules %d", scheduled)
+	}
+}
+
+func TestRealSchedulerReturnsTickOrStopsOnCancellation(t *testing.T) {
+	message := schedule(context.Background(), 0, 7)()
+	if tick, ok := message.(tickMsg); !ok || tick.generation != 7 {
+		t.Fatalf("scheduled message = %#v", message)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if message := schedule(ctx, time.Hour, 8)(); message != nil {
+		t.Fatalf("canceled schedule returned %#v", message)
 	}
 }
 
