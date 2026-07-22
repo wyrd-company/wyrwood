@@ -717,9 +717,9 @@ func (model *Model) updateModal(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	switch key.String() {
 	case "esc", "k":
-		wasExit := model.modal == modalExit
+		dismissed := model.modal
 		model.modal = modalNone
-		if wasExit && model.resetInterrupt != nil {
+		if model.editor != nil && (dismissed == modalExit || dismissed == modalDiscard) && model.resetInterrupt != nil {
 			model.resetInterrupt()
 		}
 	case "d":

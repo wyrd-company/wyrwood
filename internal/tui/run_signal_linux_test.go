@@ -195,10 +195,20 @@ func TestRunKeepEditingResetsExternalInterruptLatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitForPTYText(t, controller, &rendered, "DIRTY")
+	if _, err := controller.Write([]byte("\x1b")); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "Discard local edits?")
+	// An external interrupt received while the discard confirmation is already
+	// open arms the process latch but leaves that confirmation active.
 	if err := command.Process.Signal(os.Interrupt); err != nil {
 		t.Fatal(err)
 	}
-	waitForPTYText(t, controller, &rendered, "Discard local edits and exit?")
+	select {
+	case err := <-waitDone:
+		t.Fatalf("interrupt exited from discard confirmation: %v", err)
+	case <-time.After(50 * time.Millisecond):
+	}
 	if _, err := controller.Write([]byte("k")); err != nil {
 		t.Fatal(err)
 	}

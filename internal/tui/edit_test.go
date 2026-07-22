@@ -230,20 +230,34 @@ func TestDirtyCancelAndExitRequireExplicitDiscard(t *testing.T) {
 }
 
 func TestKeepEditingResetsExternalInterruptConfirmation(t *testing.T) {
-	resets := 0
-	model := readyModel(t, false)
-	model.resetInterrupt = func() { resets++ }
-	model.Update(key("s"))
-	model.editor.inputs[0].SetValue("6s")
-	model.editor.syncDirty()
-	model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	model.Update(key("k"))
-	if resets != 1 || model.modal != modalNone {
-		t.Fatalf("interrupt reset = %d, modal = %d", resets, model.modal)
-	}
-	model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	if model.modal != modalExit || model.closed {
-		t.Fatal("later interrupt did not open a fresh confirmation")
+	for _, initial := range []modalKind{modalExit, modalDiscard} {
+		for _, dismiss := range []tea.KeyMsg{key("k"), {Type: tea.KeyEsc}} {
+			t.Run(fmt.Sprintf("modal-%d-%s", initial, dismiss.String()), func(t *testing.T) {
+				resets := 0
+				model := readyModel(t, false)
+				model.resetInterrupt = func() { resets++ }
+				model.Update(key("s"))
+				model.editor.inputs[0].SetValue("6s")
+				model.editor.syncDirty()
+				if initial == modalExit {
+					model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+				} else {
+					model.Update(tea.KeyMsg{Type: tea.KeyEsc})
+					model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+				}
+				if model.modal != initial {
+					t.Fatalf("initial modal = %d, want %d", model.modal, initial)
+				}
+				model.Update(dismiss)
+				if resets != 1 || model.modal != modalNone {
+					t.Fatalf("interrupt reset = %d, modal = %d", resets, model.modal)
+				}
+				model.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+				if model.modal != modalExit || model.closed {
+					t.Fatal("later interrupt did not open a fresh confirmation")
+				}
+			})
+		}
 	}
 }
 
