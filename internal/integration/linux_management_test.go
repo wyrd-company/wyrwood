@@ -155,6 +155,7 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	terminal.waitFor("APPLIED · COMMITTED")
 	terminal.write("q")
 	terminal.waitClean()
+	assertNoPrivateMarkers(t, terminal.output(), []byte(commentMarker))
 	primaryConfiguration := showConfiguration(t, paths.binary, environment)
 	primary := findConsumer(t, primaryConfiguration, "sample alpha")
 	if !reflect.DeepEqual(primary.Fingerprints, []string{selectedFingerprint}) {
@@ -198,7 +199,6 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	terminal.waitFor("SAVED")
 	terminal.write("q")
 	terminal.waitClean()
-	assertNoPrivateMarkers(t, terminal.output(), []byte(commentMarker))
 
 	afterTUI := showConfiguration(t, paths.binary, environment)
 	if afterTUI.Revision == rival.Revision || afterTUI.Timeouts.Connect != "6s" {
@@ -235,10 +235,12 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	current := showConfiguration(t, paths.binary, environment)
 	primary = findConsumer(t, current, "sample alpha")
 	added := putExistingConsumer(t, paths.binary, environment, current.Revision, primary.ID, primary.Name, primary.Socket, selectedFingerprint, alternateFingerprint)
+	assertAgentFingerprints(t, primaryClient, selectedFingerprint)
 	assertCommandSuccess(t, paths.binary, environment, "apply", "--output", "json")
 	assertAgentFingerprints(t, primaryClient, alternateFingerprint, selectedFingerprint)
 
 	removed := putExistingConsumer(t, paths.binary, environment, added.Revision, added.ConsumerID, primary.Name, primary.Socket, alternateFingerprint)
+	assertAgentFingerprints(t, primaryClient, alternateFingerprint, selectedFingerprint)
 	assertCommandSuccess(t, paths.binary, environment, "apply", "--output", "json")
 	assertAgentFingerprints(t, primaryClient, alternateFingerprint)
 	payloadMarker := []byte("private-request-payload-marker")
@@ -288,7 +290,7 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	pagedTerminal.waitFor("sample beta")
 	for index := 0; index < 16; index++ {
 		pagedTerminal.write("j")
-		time.Sleep(5 * time.Millisecond)
+		pagedTerminal.waitFor(fmt.Sprintf("║ > sample page %02d", index))
 	}
 	pagedTerminal.waitFor("sample page 15")
 	pagedTerminal.write("q")
@@ -330,6 +332,13 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	})
 	t.Cleanup(upstream.close)
 
+	if _, err := os.Lstat(paths.control); err != nil {
+		t.Fatalf("daemon was not available for non-terminal refusal proof: %v", err)
+	}
+	nonTerminal := runManagementCommand(paths.binary, environment, "tui")
+	assertCommandFailureText(t, nonTerminal, 1, "terminal interface unavailable")
+	assertNoPrivateMarkers(t, append(nonTerminal.stdout, nonTerminal.stderr...), []byte(paths.control), []byte(paths.root))
+
 	daemon.stop(t)
 	daemonFailure := runManagementCommand(paths.binary, environment, "status", "--output", "json")
 	assertCommandFailure(t, daemonFailure, 4, "daemon-unavailable")
@@ -339,9 +348,6 @@ func TestLinuxManagementMilestone(t *testing.T) {
 	daemonOutageTerminal.write("q")
 	daemonOutageTerminal.waitClean()
 	assertNoPrivateMarkers(t, daemonOutageTerminal.output(), []byte(paths.control), []byte(paths.root))
-	nonTerminal := runManagementCommand(paths.binary, environment, "tui")
-	assertCommandFailureText(t, nonTerminal, 1, "terminal interface unavailable")
-	assertNoPrivateMarkers(t, append(nonTerminal.stdout, nonTerminal.stderr...), []byte(paths.control), []byte(paths.root))
 
 	daemon = startManagementDaemon(t, paths, environment)
 	interrupted := startManagementTUI(t, paths.binary, environment, 118, 34)

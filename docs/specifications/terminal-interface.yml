@@ -142,8 +142,10 @@ validation-criteria: >-
   daemon control socket to verify non-terminal refusal, terminal restoration,
   keyboard-only operation, resize, cancellation, interruption, cross-client
   revision visibility, stale conflict recovery, coherent configuration
-  pagination, categorical outage and invalid-configuration output, bounded
-  events, and cleanup. Settings tests cover the `s` binding, footer and expanded-help
+  pagination, categorical outage and invalid-configuration output, and cleanup.
+  The management scenario verifies the exact 100-record event bound through the
+  CLI; deterministic terminal tests verify fixed event requests and dimension-
+  bounded event rendering. Settings tests cover the `s` binding, footer and expanded-help
   discoverability, focus order, duration syntax and every bound, dirty
   save/cancel, conflict/reload, color-independent invalid state, and narrow
   rendering. Fingerprint tests cover offered-only, configured-only, union,

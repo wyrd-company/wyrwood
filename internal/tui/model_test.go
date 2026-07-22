@@ -48,6 +48,7 @@ type fakeClient struct {
 	applyErr              error
 	mutations             []mutationRecord
 	configurationRequests []configurationRequest
+	eventLimits           []int
 }
 
 type configurationRequest struct {
@@ -109,6 +110,9 @@ func (client *fakeClient) Events(ctx context.Context, limit int) (Events, error)
 	if err := ctx.Err(); err != nil {
 		return Events{}, err
 	}
+	client.mu.Lock()
+	client.eventLimits = append(client.eventLimits, limit)
+	client.mu.Unlock()
 	return client.events, client.eventsErr
 }
 
@@ -292,6 +296,9 @@ func TestInitLoadsEveryProjectionThroughTheInjectedClient(t *testing.T) {
 	}
 	if !reflect.DeepEqual(gotCounts, wantCounts) {
 		t.Fatalf("startup calls = %#v, want %#v", gotCounts, wantCounts)
+	}
+	if !reflect.DeepEqual(client.eventLimits, []int{eventLimit}) {
+		t.Fatalf("startup event limits = %v, want fixed %d-record page", client.eventLimits, eventLimit)
 	}
 }
 
