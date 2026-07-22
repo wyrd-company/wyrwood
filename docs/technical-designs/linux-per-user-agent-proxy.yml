@@ -88,20 +88,25 @@ proposed-design:
     clients. An owned existing socket is removed as stale only when a stream
     connection probe returns connection-refused; a live listener, foreign
     socket, symlink, or non-socket entry blocks preparation. Preparation records
-    prior metadata for active endpoints whose access settings change. If any
-    preparation step fails, Wyrwood closes and removes every staged listener and
-    socket file and restores prior active endpoint metadata, leaving the active
-    snapshot, listeners, and policies unchanged. Parent directories remain in
-    place, including directories created during preparation. Commit publishes
-    the new immutable configuration, activates staged listeners, and updates the
-    policy references used by retained listeners as one in-memory state
-    transition. An upstream path or timeout change closes retained client pairs
-    so reconnecting clients cannot continue with obsolete connection settings.
-    Commit then closes retired listeners and all of their downstream and paired
-    upstream connections. Socket cleanup compares the created device and inode
-    before unlinking, so a replacement directory entry is never removed. A
-    post-commit cleanup failure is reported as degraded health and retried in the
-    background; it does not restore an obsolete authorization policy or listener.
+    prior metadata for active endpoints. An unchanged access group may have its
+    currently authorized modes repaired during preparation. An access-group
+    change can only revoke access before commit: Wyrwood changes the live parent
+    and socket to owner-only 0700/0600 without assigning the candidate group. If
+    any preparation step fails, Wyrwood closes and removes every staged listener
+    and socket file and restores prior active endpoint metadata, leaving the
+    active snapshot, listeners, and policies unchanged. Parent directories remain
+    in place, including directories created during preparation. Commit publishes
+    the new immutable configuration and updates retained policies as one in-memory
+    transition. It closes existing client pairs for access-group changes before
+    granting candidate filesystem access, while policy-only changes at an
+    unchanged group preserve their connections. A failed post-commit permission
+    grant leaves the endpoint owner-only, reports degraded health, and retries
+    without restoring the old policy. Staged listeners activate only after commit.
+    An upstream path or timeout change closes retained client pairs so reconnecting
+    clients cannot continue with obsolete connection settings. Commit then closes
+    retired listeners and all of their downstream and paired upstream connections.
+    A post-commit cleanup failure is degraded and retried in the background; it
+    does not restore an obsolete authorization policy or listener.
   consumer-endpoints: >-
     The user assigns each socket path and mounts its dedicated parent directory
     into exactly the intended container. Wyrwood creates the socket inside that
@@ -109,11 +114,20 @@ proposed-design:
     visible through the mount instead of relying on a bind-mounted socket
     inode. Retiring a consumer stops its listener, closes its downstream and
     paired upstream connections, and removes only its socket file. The daemon
-    never removes the user-selected parent directory. Listener accept loops
+    never removes the user-selected parent directory. Wyrwood pins an open handle
+    to each prepared parent directory and transfers its ownership from staged
+    listener to active endpoint to pending cleanup. Retirement verifies the
+    pinned parent and socket device/inode and unlinks through that handle, so a
+    parent path rename or replacement cannot strand a socket in the directory
+    inode visible through an existing bind mount or redirect cleanup to a new
+    directory. The handle closes only after the owned socket is absent. Listener
+    accept loops
     begin only after the complete runtime snapshot commits, so a staged socket
     can accumulate kernel connections but cannot process a request under the old
     policy. Each accepted connection is tracked until it exits so retirement can
-    close every active pair before cleanup.
+    close every active pair before cleanup. Temporary accept failures use bounded
+    exponential backoff, report transient degraded health, and clear that health
+    after the listener accepts again; permanent failures remain degraded.
   protocol-enforcement: >-
     Wyrwood implements the SSH-agent framing needed to inspect every request.
     Identity enumeration returns only keys whose ssh.FingerprintSHA256 value is

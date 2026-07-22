@@ -28,6 +28,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/runtime"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"golang.org/x/sys/unix"
 )
 
 func TestApplyDoesNotAcceptBeforeCommitAndPublishesFilteredEndpoint(t *testing.T) {
@@ -155,6 +156,108 @@ func TestPolicyUpdateAffectsAnOpenConnectionAndRetirementClosesIt(t *testing.T) 
 	_ = connection.Close()
 }
 
+func TestAccessGroupChangeRevokesBeforeCommitAndClosesExistingConnection(t *testing.T) {
+	root := t.TempDir()
+	upstreamPath := filepath.Join(root, "service", "agent.sock")
+	publicKey, privateKey := generateKey(t)
+	upstream := startAgentServer(t, upstreamPath, privateKey)
+	defer upstream.close(t)
+	path := filepath.Join(root, "subject", "agent.sock")
+	manager, err := Open(configuration(upstreamPath, consumer("sample", path, nil, ssh.FingerprintSHA256(publicKey))), &recordingSink{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeManager(t, manager)
+	connection, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := agent.NewClient(connection)
+	assertListedFingerprints(t, client, []string{ssh.FingerprintSHA256(publicKey)})
+
+	prepared := make(chan struct{})
+	commit := make(chan struct{})
+	manager.applyMu.Lock()
+	manager.deps.beforeCommit = func() {
+		close(prepared)
+		<-commit
+	}
+	manager.applyMu.Unlock()
+	group := uint32(os.Getegid())
+	applyDone := make(chan error, 1)
+	go func() {
+		_, applyErr := manager.Apply(configuration(upstreamPath, consumer("sample", path, &group, ssh.FingerprintSHA256(publicKey))))
+		applyDone <- applyErr
+	}()
+	select {
+	case <-prepared:
+	case <-time.After(time.Second):
+		t.Fatal("group transition did not reach commit boundary")
+	}
+	assertMode(t, filepath.Dir(path), 0o700)
+	assertMode(t, path, 0o600)
+	assertListedFingerprints(t, client, []string{ssh.FingerprintSHA256(publicKey)})
+	close(commit)
+	if err := <-applyDone; err != nil {
+		t.Fatalf("Apply(group change): %v", err)
+	}
+	assertMode(t, filepath.Dir(path), 0o710)
+	assertMode(t, path, 0o660)
+	if _, err := client.List(); err == nil {
+		t.Fatal("connection admitted under the old access group remained usable")
+	}
+	upstreamDeadline := time.Now().Add(time.Second)
+	for upstream.clientCount() != 0 && time.Now().Before(upstreamDeadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if count := upstream.clientCount(); count != 0 {
+		t.Fatalf("paired upstream connections = %d, want 0", count)
+	}
+	_ = connection.Close()
+}
+
+func TestPostCommitGroupGrantFailureStaysOwnerOnlyUntilRetry(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "subject", "agent.sock")
+	manager, err := Open(configuration(filepath.Join(root, "service", "agent.sock"), consumer("sample", path, nil, testFingerprint(1))), &recordingSink{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeManager(t, manager)
+	originalApply := manager.deps.applyPermissions
+	fail := true
+	manager.applyMu.Lock()
+	manager.deps.applyPermissions = func(change *metadataChange) error {
+		if change.postCommit && fail {
+			return errors.New("injected candidate permission failure")
+		}
+		return originalApply(change)
+	}
+	manager.applyMu.Unlock()
+	group := uint32(os.Getegid())
+	result, err := manager.Apply(configuration(filepath.Join(root, "service", "agent.sock"), consumer("sample", path, &group, testFingerprint(2))))
+	if err != nil || !result.Committed || !result.Degraded || result.PendingPermissions != 1 {
+		t.Fatalf("Apply() = %#v, %v", result, err)
+	}
+	if policy, exists := manager.Policy(path); !exists || !policy.Allows(testFingerprint(2)) || policy.Allows(testFingerprint(1)) {
+		t.Fatal("candidate policy did not remain committed")
+	}
+	assertMode(t, filepath.Dir(path), 0o700)
+	assertMode(t, path, 0o600)
+	blocked, blockedErr := manager.Apply(configuration(filepath.Join(root, "service", "agent.sock"), consumer("sample", path, nil, testFingerprint(3))))
+	if blockedErr == nil || blocked.Committed {
+		t.Fatalf("Apply(while permissions pending) = %#v, %v", blocked, blockedErr)
+	}
+	manager.applyMu.Lock()
+	fail = false
+	manager.applyMu.Unlock()
+	if health := manager.RetryCleanup(); health.Degraded || health.PendingPermissions != 0 {
+		t.Fatalf("RetryCleanup() = %#v", health)
+	}
+	assertMode(t, filepath.Dir(path), 0o710)
+	assertMode(t, path, 0o660)
+}
+
 func TestPreparationFailureRollsBackStagedListenerAndActiveMetadata(t *testing.T) {
 	root := t.TempDir()
 	upstreamPath := filepath.Join(root, "service", "agent.sock")
@@ -171,13 +274,18 @@ func TestPreparationFailureRollsBackStagedListenerAndActiveMetadata(t *testing.T
 
 	originalPrepare := manager.deps.prepareSocket
 	preparedCount := 0
+	stagedFD := -1
 	manager.applyMu.Lock()
 	manager.deps.prepareSocket = func(candidate runtime.Consumer) (*stagedSocket, error) {
 		preparedCount++
 		if preparedCount == 2 {
 			return nil, errors.New("injected bind failure")
 		}
-		return originalPrepare(candidate)
+		staged, prepareErr := originalPrepare(candidate)
+		if staged != nil {
+			stagedFD = staged.file.parent.fd
+		}
+		return staged, prepareErr
 	}
 	manager.applyMu.Unlock()
 	group := uint32(os.Getegid())
@@ -209,6 +317,39 @@ func TestPreparationFailureRollsBackStagedListenerAndActiveMetadata(t *testing.T
 	if !sink.contains(events.OperationReconcile, events.OutcomeFailed) {
 		t.Fatal("preparation failure was not recorded categorically")
 	}
+	assertFDClosed(t, stagedFD)
+}
+
+func TestFailedOpenClosesPinnedFDWhenRollbackCleanupCannotFinish(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "subject", "agent.sock")
+	deps := defaultDependencies()
+	originalPrepare := deps.prepareSocket
+	pinnedFD := -1
+	deps.prepareSocket = func(candidate runtime.Consumer) (*stagedSocket, error) {
+		staged, err := originalPrepare(candidate)
+		if err != nil {
+			return staged, err
+		}
+		pinnedFD = staged.file.parent.fd
+		return staged, errors.New("injected preparation failure after bind")
+	}
+	deps.removeSocket = func(*endpointFile) error {
+		return errors.New("injected persistent rollback cleanup failure")
+	}
+
+	manager, err := openWithDependencies(
+		configuration(filepath.Join(root, "service", "agent.sock"), consumer("sample", path, nil, testFingerprint(1))),
+		&recordingSink{},
+		deps,
+	)
+	if err == nil || manager != nil {
+		t.Fatalf("openWithDependencies() = %#v, %v", manager, err)
+	}
+	if pinnedFD < 0 {
+		t.Fatal("preparation did not expose a pinned parent descriptor")
+	}
+	assertFDClosed(t, pinnedFD)
 }
 
 func TestPostCommitCleanupFailureIsDegradedAndRetryable(t *testing.T) {
@@ -227,11 +368,11 @@ func TestPostCommitCleanupFailureIsDegradedAndRetryable(t *testing.T) {
 	originalRemove := manager.deps.removeSocket
 	fail := true
 	manager.applyMu.Lock()
-	manager.deps.removeSocket = func(path string, identity fileIdentity) error {
-		if path == consumerPath && fail {
+	manager.deps.removeSocket = func(file *endpointFile) error {
+		if fail {
 			return errors.New("injected cleanup failure")
 		}
-		return originalRemove(path, identity)
+		return originalRemove(file)
 	}
 	manager.applyMu.Unlock()
 	result, err := manager.Apply(configuration(upstreamPath))
@@ -383,6 +524,7 @@ func TestCleanupDoesNotRemoveAReplacementEntry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	pinnedFD := manager.active[path].file.parent.fd
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
@@ -392,9 +534,153 @@ func TestCleanupDoesNotRemoveAReplacementEntry(t *testing.T) {
 	if err := manager.Close(); err != nil {
 		t.Fatalf("Close(): %v", err)
 	}
+	assertFDClosed(t, pinnedFD)
 	contents, err := os.ReadFile(path)
 	if err != nil || string(contents) != "replacement" {
 		t.Fatalf("replacement entry changed: %q, %v", contents, err)
+	}
+}
+
+func TestRetirementCleansSocketThroughRenamedPinnedParent(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Join(root, "subject")
+	path := filepath.Join(parent, "agent.sock")
+	upstream := filepath.Join(root, "service", "agent.sock")
+	manager, err := Open(configuration(upstream, consumer("sample", path, nil, testFingerprint(1))), &recordingSink{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pinnedFD := manager.active[path].file.parent.fd
+	renamed := filepath.Join(root, "renamed")
+	if err := os.Rename(parent, renamed); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(parent, "marker.txt")
+	if err := os.WriteFile(marker, []byte("replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := manager.Apply(configuration(upstream))
+	if err != nil || result.Degraded {
+		t.Fatalf("Apply(retire): %#v, %v", result, err)
+	}
+	if _, err := os.Lstat(filepath.Join(renamed, "agent.sock")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("socket remained in renamed mounted directory: %v", err)
+	}
+	if contents, err := os.ReadFile(marker); err != nil || string(contents) != "replacement" {
+		t.Fatalf("replacement directory changed: %q, %v", contents, err)
+	}
+	assertFDClosed(t, pinnedFD)
+	closeManager(t, manager)
+}
+
+func TestRenamedParentCleanupFailureRetainsPinnedFDUntilRetry(t *testing.T) {
+	root := t.TempDir()
+	parent := filepath.Join(root, "subject")
+	path := filepath.Join(parent, "agent.sock")
+	upstream := filepath.Join(root, "service", "agent.sock")
+	manager, err := Open(configuration(upstream, consumer("sample", path, nil, testFingerprint(1))), &recordingSink{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeManager(t, manager)
+	pinnedFD := manager.active[path].file.parent.fd
+	renamed := filepath.Join(root, "renamed")
+	if err := os.Rename(parent, renamed); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(parent, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	marker := filepath.Join(parent, "marker.txt")
+	if err := os.WriteFile(marker, []byte("replacement"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	originalRemove := manager.deps.removeSocket
+	fail := true
+	manager.applyMu.Lock()
+	manager.deps.removeSocket = func(file *endpointFile) error {
+		if fail {
+			return errors.New("injected pinned cleanup failure")
+		}
+		return originalRemove(file)
+	}
+	manager.applyMu.Unlock()
+	result, err := manager.Apply(configuration(upstream))
+	if err != nil || !result.Degraded || result.PendingCleanup != 1 {
+		t.Fatalf("Apply(retire): %#v, %v", result, err)
+	}
+	assertFDOpen(t, pinnedFD)
+	if _, err := os.Lstat(filepath.Join(renamed, "agent.sock")); err != nil {
+		t.Fatalf("pending socket absent before retry: %v", err)
+	}
+	manager.applyMu.Lock()
+	fail = false
+	manager.applyMu.Unlock()
+	if health := manager.RetryCleanup(); health.Degraded || health.PendingCleanup != 0 {
+		t.Fatalf("RetryCleanup() = %#v", health)
+	}
+	if _, err := os.Lstat(filepath.Join(renamed, "agent.sock")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("retry left socket in renamed directory: %v", err)
+	}
+	if contents, err := os.ReadFile(marker); err != nil || string(contents) != "replacement" {
+		t.Fatalf("replacement directory changed: %q, %v", contents, err)
+	}
+	assertFDClosed(t, pinnedFD)
+}
+
+func TestTemporaryAcceptFailureRetriesAndRecoversHealth(t *testing.T) {
+	root := t.TempDir()
+	upstreamPath := filepath.Join(root, "service", "agent.sock")
+	publicKey, privateKey := generateKey(t)
+	upstream := startAgentServer(t, upstreamPath, privateKey)
+	defer upstream.close(t)
+	path := filepath.Join(root, "subject", "agent.sock")
+	deps := defaultDependencies()
+	originalAccept := deps.accept
+	injected := make(chan struct{})
+	var attempts atomic.Int32
+	deps.accept = func(listener *net.UnixListener) (*net.UnixConn, error) {
+		if attempts.Add(1) == 1 {
+			close(injected)
+			return nil, temporaryFixtureError{}
+		}
+		return originalAccept(listener)
+	}
+	manager, err := openWithDependencies(configuration(upstreamPath, consumer("sample", path, nil, ssh.FingerprintSHA256(publicKey))), &recordingSink{}, deps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeManager(t, manager)
+	select {
+	case <-injected:
+	case <-time.After(time.Second):
+		t.Fatal("temporary accept failure was not injected")
+	}
+	degradedDeadline := time.Now().Add(time.Second)
+	for !manager.Health().Degraded && time.Now().Before(degradedDeadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if !manager.Health().Degraded {
+		t.Fatal("temporary accept failure did not report degraded health")
+	}
+	connection, err := net.Dial("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.Close()
+	assertListedFingerprints(t, agent.NewClient(connection), []string{ssh.FingerprintSHA256(publicKey)})
+	deadline := time.Now().Add(time.Second)
+	for manager.Health().Degraded && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	if health := manager.Health(); health.Degraded || health.ListenerError {
+		t.Fatalf("listener health did not recover: %#v", health)
+	}
+	if attempts.Load() < 2 {
+		t.Fatalf("accept attempts = %d, want at least 2", attempts.Load())
 	}
 }
 
@@ -405,11 +691,11 @@ func TestCleanupFailureIsRetriedInTheBackground(t *testing.T) {
 	deps.retryInterval = 5 * time.Millisecond
 	originalRemove := deps.removeSocket
 	var attempts atomic.Int32
-	deps.removeSocket = func(candidate string, identity fileIdentity) error {
-		if candidate == path && attempts.Add(1) == 1 {
+	deps.removeSocket = func(file *endpointFile) error {
+		if attempts.Add(1) == 1 {
 			return errors.New("injected first cleanup failure")
 		}
-		return originalRemove(candidate, identity)
+		return originalRemove(file)
 	}
 	manager, err := openWithDependencies(
 		configuration(filepath.Join(root, "service", "agent.sock"), consumer("sample", path, nil, testFingerprint(1))),
@@ -667,6 +953,12 @@ func (server *agentServer) close(t *testing.T) {
 	server.wg.Wait()
 }
 
+func (server *agentServer) clientCount() int {
+	server.mu.Lock()
+	defer server.mu.Unlock()
+	return len(server.clients)
+}
+
 func assertListedFingerprints(t *testing.T, client agent.Agent, want []string) {
 	t.Helper()
 	keys, err := client.List()
@@ -713,5 +1005,30 @@ func closeManager(t *testing.T, manager *Manager) {
 	t.Helper()
 	if err := manager.Close(); err != nil {
 		t.Errorf("Close(): %v", err)
+	}
+}
+
+type temporaryFixtureError struct{}
+
+func (temporaryFixtureError) Error() string   { return "temporary fixture error" }
+func (temporaryFixtureError) Timeout() bool   { return false }
+func (temporaryFixtureError) Temporary() bool { return true }
+
+func assertFDOpen(t *testing.T, fd int) {
+	t.Helper()
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		t.Fatalf("fd %d is not open: %v", fd, err)
+	}
+}
+
+func assertFDClosed(t *testing.T, fd int) {
+	t.Helper()
+	if fd < 0 {
+		t.Fatalf("invalid fixture fd %d", fd)
+	}
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); !errors.Is(err, unix.EBADF) {
+		t.Fatalf("fd %d remained open: %v", fd, err)
 	}
 }

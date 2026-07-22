@@ -10,18 +10,15 @@
 package endpoints
 
 import (
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/wyrd-company/wyrwood/internal/agentconn"
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/runtime"
@@ -39,17 +36,19 @@ type EventSink interface {
 // ApplyResult reports whether a complete snapshot was published and whether
 // post-commit work still leaves endpoint health degraded.
 type ApplyResult struct {
-	Committed      bool
-	Degraded       bool
-	PendingCleanup int
+	Committed          bool
+	Degraded           bool
+	PendingCleanup     int
+	PendingPermissions int
 }
 
 // Health reports only bounded categorical reconciliation state.
 type Health struct {
-	Degraded       bool
-	PendingCleanup int
-	EventSinkError bool
-	ListenerError  bool
+	Degraded           bool
+	PendingCleanup     int
+	PendingPermissions int
+	EventSinkError     bool
+	ListenerError      bool
 }
 
 // Manager owns every active consumer listener for one daemon process.
@@ -59,37 +58,48 @@ type Manager struct {
 	sink    EventSink
 	deps    dependencies
 
-	active  map[string]*endpoint
-	pending map[string]*pendingCleanup
-	closed  bool
+	active             map[string]*endpoint
+	pending            map[string]*pendingCleanup
+	pendingPermissions map[string]*pendingPermission
+	closed             bool
 
-	eventSinkError atomic.Bool
-	listenerError  atomic.Bool
-	stopRetry      chan struct{}
-	retryDone      chan struct{}
+	eventSinkError     atomic.Bool
+	listenerError      atomic.Bool
+	transientListeners atomic.Int64
+	stopRetry          chan struct{}
+	retryDone          chan struct{}
 }
 
 type dependencies struct {
-	prepareSocket func(runtime.Consumer) (*stagedSocket, error)
-	prepareActive func(runtime.Consumer, fileIdentity) (*metadataChange, error)
-	removeSocket  func(string, fileIdentity) error
-	now           func() time.Time
-	retryInterval time.Duration
-	beforeCommit  func()
+	prepareSocket    func(runtime.Consumer) (*stagedSocket, error)
+	prepareActive    func(runtime.Consumer, *endpointFile, bool) (*metadataChange, error)
+	removeSocket     func(*endpointFile) error
+	applyPermissions func(*metadataChange) error
+	accept           func(*net.UnixListener) (*net.UnixConn, error)
+	now              func() time.Time
+	retryInterval    time.Duration
+	beforeCommit     func()
 }
 
 type pendingCleanup struct {
-	identity   fileIdentity
+	file       *endpointFile
+	consumerID events.ConsumerID
+}
+
+type pendingPermission struct {
+	change     *metadataChange
 	consumerID events.ConsumerID
 }
 
 func defaultDependencies() dependencies {
 	return dependencies{
-		prepareSocket: prepareSocket,
-		prepareActive: prepareActiveSocket,
-		removeSocket:  removeSocket,
-		now:           time.Now,
-		retryInterval: defaultCleanupRetryInterval,
+		prepareSocket:    prepareSocket,
+		prepareActive:    prepareActiveSocket,
+		removeSocket:     removeSocket,
+		applyPermissions: func(change *metadataChange) error { return change.commit() },
+		accept:           func(listener *net.UnixListener) (*net.UnixConn, error) { return listener.AcceptUnix() },
+		now:              time.Now,
+		retryInterval:    defaultCleanupRetryInterval,
 	}
 }
 
@@ -103,7 +113,7 @@ func openWithDependencies(initial config.Config, sink EventSink, deps dependenci
 	if sink == nil {
 		return nil, errors.New("operational event sink is required")
 	}
-	if deps.prepareSocket == nil || deps.prepareActive == nil || deps.removeSocket == nil || deps.now == nil {
+	if deps.prepareSocket == nil || deps.prepareActive == nil || deps.removeSocket == nil || deps.applyPermissions == nil || deps.accept == nil || deps.now == nil {
 		return nil, errors.New("endpoint dependencies are incomplete")
 	}
 	if deps.retryInterval <= 0 {
@@ -117,18 +127,25 @@ func openWithDependencies(initial config.Config, sink EventSink, deps dependenci
 		return nil, fmt.Errorf("create endpoint runtime: %w", err)
 	}
 	manager := &Manager{
-		store:     store,
-		sink:      sink,
-		deps:      deps,
-		active:    make(map[string]*endpoint),
-		pending:   make(map[string]*pendingCleanup),
-		stopRetry: make(chan struct{}),
-		retryDone: make(chan struct{}),
+		store:              store,
+		sink:               sink,
+		deps:               deps,
+		active:             make(map[string]*endpoint),
+		pending:            make(map[string]*pendingCleanup),
+		pendingPermissions: make(map[string]*pendingPermission),
+		stopRetry:          make(chan struct{}),
+		retryDone:          make(chan struct{}),
 	}
 	go manager.retryLoop()
 	if _, err := manager.Apply(initial); err != nil {
-		_ = manager.Close()
-		return nil, err
+		closeErr := manager.Close()
+		manager.applyMu.Lock()
+		for path, pending := range manager.pending {
+			closeErr = errors.Join(closeErr, pending.file.parent.close())
+			delete(manager.pending, path)
+		}
+		manager.applyMu.Unlock()
+		return nil, errors.Join(err, closeErr)
 	}
 	return manager, nil
 }
@@ -144,6 +161,10 @@ func (manager *Manager) Apply(next config.Config) (ApplyResult, error) {
 	}
 
 	manager.retryCleanupLocked()
+	manager.retryPermissionsLocked()
+	if len(manager.pendingPermissions) > 0 {
+		return manager.result(false), errors.New("consumer permission transition remains pending")
+	}
 	prepared, err := manager.store.Prepare(next)
 	if err != nil {
 		return manager.result(false), err
@@ -165,16 +186,23 @@ func (manager *Manager) Apply(next config.Config) (ApplyResult, error) {
 		return manager.result(false), errors.Join(err, rollbackErr)
 	}
 
+	upstreamChanged := before.Upstream() != prepared.Snapshot().Upstream() || before.Timeouts() != prepared.Snapshot().Timeouts()
+	for _, update := range plan.Updated() {
+		if upstreamChanged || accessGroupChanged(update.Before(), update.After()) {
+			manager.active[update.After().Socket()].closeConnections()
+		}
+	}
+	if upstreamChanged {
+		for _, consumer := range plan.Retained() {
+			manager.active[consumer.Socket()].closeConnections()
+		}
+	}
+	manager.commitMetadataLocked(metadata)
+
 	for _, candidate := range staged {
-		active := newEndpoint(manager, candidate.listener, candidate.identity, candidate.consumer)
+		active := newEndpoint(manager, candidate.listener, candidate.file, candidate.consumer)
 		manager.active[candidate.path] = active
 		active.start()
-	}
-
-	if before.Upstream() != prepared.Snapshot().Upstream() || before.Timeouts() != prepared.Snapshot().Timeouts() {
-		for _, active := range manager.active {
-			active.closeConnections()
-		}
 	}
 
 	for _, consumer := range plan.Retired() {
@@ -184,94 +212,11 @@ func (manager *Manager) Apply(next config.Config) (ApplyResult, error) {
 			continue
 		}
 		active.stop()
-		manager.cleanupRetiredLocked(consumer.Socket(), active.identity)
+		manager.cleanupRetiredLocked(consumer.Socket(), active.file)
 	}
 
 	manager.recordReconciliation(plan)
 	return manager.result(true), nil
-}
-
-func (manager *Manager) prepare(plan runtime.Plan) ([]*stagedSocket, []*metadataChange, error) {
-	metadata := make([]*metadataChange, 0, len(plan.Retained())+len(plan.Updated()))
-	for _, consumer := range plan.Retained() {
-		active := manager.active[consumer.Socket()]
-		if active == nil {
-			return nil, metadata, fmt.Errorf("active listener is absent for retained consumer")
-		}
-		change, err := manager.deps.prepareActive(consumer, active.identity)
-		if err != nil {
-			return nil, metadata, fmt.Errorf("prepare retained consumer permissions: %w", err)
-		}
-		metadata = append(metadata, change)
-	}
-	for _, update := range plan.Updated() {
-		consumer := update.After()
-		active := manager.active[consumer.Socket()]
-		if active == nil {
-			return nil, metadata, fmt.Errorf("active listener is absent for updated consumer")
-		}
-		change, err := manager.deps.prepareActive(consumer, active.identity)
-		if err != nil {
-			return nil, metadata, fmt.Errorf("prepare updated consumer permissions: %w", err)
-		}
-		metadata = append(metadata, change)
-	}
-
-	staged := make([]*stagedSocket, 0, len(plan.Added()))
-	for _, consumer := range plan.Added() {
-		candidate, err := manager.deps.prepareSocket(consumer)
-		if candidate != nil {
-			staged = append(staged, candidate)
-		}
-		if err != nil {
-			return staged, metadata, fmt.Errorf("prepare added consumer listener: %w", err)
-		}
-		// Successfully binding this identity proves any older socket at the same
-		// path is gone, even if a previous cleanup attempt was pending.
-		delete(manager.pending, consumer.Socket())
-	}
-	return staged, metadata, nil
-}
-
-func (manager *Manager) rollback(staged []*stagedSocket, metadata []*metadataChange) error {
-	var result error
-	for index := len(staged) - 1; index >= 0; index-- {
-		candidate := staged[index]
-		if err := candidate.listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
-			result = errors.Join(result, fmt.Errorf("close staged listener: %w", err))
-		}
-		if err := manager.deps.removeSocket(candidate.path, candidate.identity); err != nil {
-			manager.pending[candidate.path] = &pendingCleanup{
-				identity:   candidate.identity,
-				consumerID: consumerID(candidate.path),
-			}
-			result = errors.Join(result, fmt.Errorf("remove staged socket: %w", err))
-		}
-		if candidate.parentChange != nil {
-			if err := candidate.parentChange.rollback(); err != nil {
-				result = errors.Join(result, fmt.Errorf("restore staged parent metadata: %w", err))
-			}
-		}
-	}
-	for index := len(metadata) - 1; index >= 0; index-- {
-		if err := metadata[index].rollback(); err != nil {
-			result = errors.Join(result, fmt.Errorf("restore active endpoint metadata: %w", err))
-		}
-	}
-	return result
-}
-
-func (manager *Manager) cleanupRetiredLocked(path string, identity fileIdentity) {
-	if err := manager.deps.removeSocket(path, identity); err != nil {
-		manager.pending[path] = &pendingCleanup{identity: identity, consumerID: consumerID(path)}
-		manager.record(events.Event{
-			Timestamp:  manager.deps.now(),
-			ConsumerID: consumerID(path),
-			Operation:  events.OperationReconcile,
-			Outcome:    events.OutcomeFailed,
-			ErrorCode:  events.ErrorInternal,
-		})
-	}
 }
 
 // RetryCleanup immediately retries every failed post-commit socket removal.
@@ -280,42 +225,11 @@ func (manager *Manager) RetryCleanup() Health {
 	defer manager.applyMu.Unlock()
 	if !manager.closed {
 		manager.retryCleanupLocked()
+		manager.retryPermissionsLocked()
+	} else {
+		manager.retryCleanupLocked()
 	}
 	return manager.healthLocked()
-}
-
-func (manager *Manager) retryCleanupLocked() {
-	for path, pending := range manager.pending {
-		if err := manager.deps.removeSocket(path, pending.identity); err != nil {
-			continue
-		}
-		delete(manager.pending, path)
-		manager.record(events.Event{
-			Timestamp:  manager.deps.now(),
-			ConsumerID: pending.consumerID,
-			Operation:  events.OperationReconcile,
-			Outcome:    events.OutcomeSucceeded,
-			ErrorCode:  events.ErrorNone,
-		})
-	}
-}
-
-func (manager *Manager) retryLoop() {
-	defer close(manager.retryDone)
-	ticker := time.NewTicker(manager.deps.retryInterval)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-manager.stopRetry:
-			return
-		case <-ticker.C:
-			manager.applyMu.Lock()
-			if !manager.closed {
-				manager.retryCleanupLocked()
-			}
-			manager.applyMu.Unlock()
-		}
-	}
 }
 
 // Active returns the immutable runtime snapshot active at the instant of the call.
@@ -338,16 +252,17 @@ func (manager *Manager) Health() Health {
 
 func (manager *Manager) healthLocked() Health {
 	return Health{
-		Degraded:       len(manager.pending) > 0 || manager.eventSinkError.Load() || manager.listenerError.Load(),
-		PendingCleanup: len(manager.pending),
-		EventSinkError: manager.eventSinkError.Load(),
-		ListenerError:  manager.listenerError.Load(),
+		Degraded:           len(manager.pending) > 0 || len(manager.pendingPermissions) > 0 || manager.eventSinkError.Load() || manager.listenerError.Load() || manager.transientListeners.Load() > 0,
+		PendingCleanup:     len(manager.pending),
+		PendingPermissions: len(manager.pendingPermissions),
+		EventSinkError:     manager.eventSinkError.Load(),
+		ListenerError:      manager.listenerError.Load(),
 	}
 }
 
 func (manager *Manager) result(committed bool) ApplyResult {
 	health := manager.healthLocked()
-	return ApplyResult{Committed: committed, Degraded: health.Degraded, PendingCleanup: health.PendingCleanup}
+	return ApplyResult{Committed: committed, Degraded: health.Degraded, PendingCleanup: health.PendingCleanup, PendingPermissions: health.PendingPermissions}
 }
 
 // Close stops accepting, closes every active client pair, and removes only the
@@ -355,7 +270,12 @@ func (manager *Manager) result(committed bool) ApplyResult {
 func (manager *Manager) Close() error {
 	manager.applyMu.Lock()
 	if manager.closed {
+		manager.retryCleanupLocked()
+		remaining := len(manager.pending)
 		manager.applyMu.Unlock()
+		if remaining > 0 {
+			return errors.New("consumer socket cleanup remains pending")
+		}
 		return nil
 	}
 	manager.closed = true
@@ -368,8 +288,12 @@ func (manager *Manager) Close() error {
 	var result error
 	for path, active := range manager.active {
 		active.stop()
-		if err := manager.deps.removeSocket(path, active.identity); err != nil {
+		delete(manager.pendingPermissions, path)
+		if err := manager.deps.removeSocket(active.file); err != nil {
+			manager.pending[path] = &pendingCleanup{file: active.file, consumerID: consumerID(path)}
 			result = errors.Join(result, fmt.Errorf("remove consumer socket: %w", err))
+		} else {
+			result = errors.Join(result, active.file.parent.close())
 		}
 		delete(manager.active, path)
 	}
@@ -378,6 +302,12 @@ func (manager *Manager) Close() error {
 		result = errors.Join(result, errors.New("consumer socket cleanup remains pending"))
 	}
 	return result
+}
+
+func accessGroupChanged(before, after runtime.Consumer) bool {
+	beforeGroup, beforeHasGroup := before.AccessGroup()
+	afterGroup, afterHasGroup := after.AccessGroup()
+	return beforeHasGroup != afterHasGroup || beforeHasGroup && beforeGroup != afterGroup
 }
 
 func (manager *Manager) recordReconciliation(plan runtime.Plan) {
@@ -399,7 +329,9 @@ func (manager *Manager) recordReconciliation(plan runtime.Plan) {
 		record(consumer)
 	}
 	for _, update := range plan.Updated() {
-		record(update.After())
+		if _, pending := manager.pendingPermissions[update.After().Socket()]; !pending {
+			record(update.After())
+		}
 	}
 	for _, consumer := range plan.Retired() {
 		if _, pending := manager.pending[consumer.Socket()]; !pending {
@@ -443,112 +375,4 @@ func (manager *Manager) record(event events.Event) {
 func consumerID(path string) events.ConsumerID {
 	digest := sha256.Sum256([]byte(path))
 	return events.ConsumerID("consumer-" + hex.EncodeToString(digest[:16]))
-}
-
-type endpoint struct {
-	manager  *Manager
-	listener *net.UnixListener
-	identity fileIdentity
-	consumer runtime.Consumer
-	ctx      context.Context
-	cancel   context.CancelFunc
-
-	mu          sync.Mutex
-	connections map[io.Closer]struct{}
-	closing     bool
-	wg          sync.WaitGroup
-}
-
-func newEndpoint(manager *Manager, listener *net.UnixListener, identity fileIdentity, consumer runtime.Consumer) *endpoint {
-	ctx, cancel := context.WithCancel(context.Background())
-	return &endpoint{
-		manager:     manager,
-		listener:    listener,
-		identity:    identity,
-		consumer:    consumer,
-		ctx:         ctx,
-		cancel:      cancel,
-		connections: make(map[io.Closer]struct{}),
-	}
-}
-
-func (endpoint *endpoint) start() {
-	endpoint.wg.Add(1)
-	go endpoint.accept()
-}
-
-func (endpoint *endpoint) accept() {
-	defer endpoint.wg.Done()
-	for {
-		connection, err := endpoint.listener.AcceptUnix()
-		if err != nil {
-			endpoint.mu.Lock()
-			closing := endpoint.closing
-			endpoint.mu.Unlock()
-			if !closing {
-				endpoint.manager.listenerError.Store(true)
-			}
-			return
-		}
-		endpoint.mu.Lock()
-		if endpoint.closing {
-			endpoint.mu.Unlock()
-			_ = connection.Close()
-			continue
-		}
-		endpoint.connections[connection] = struct{}{}
-		endpoint.wg.Add(1)
-		endpoint.mu.Unlock()
-		go endpoint.serve(connection)
-	}
-}
-
-func (endpoint *endpoint) serve(connection *net.UnixConn) {
-	defer endpoint.wg.Done()
-	defer func() {
-		endpoint.mu.Lock()
-		delete(endpoint.connections, connection)
-		endpoint.mu.Unlock()
-	}()
-	endpoint.manager.record(events.Event{
-		Timestamp:  endpoint.manager.deps.now(),
-		ConsumerID: consumerID(endpoint.consumer.Socket()),
-		Operation:  events.OperationConsumerConnect,
-		Outcome:    events.OutcomeSucceeded,
-		ErrorCode:  events.ErrorNone,
-	})
-	snapshot := endpoint.manager.store.Active()
-	_ = agentconn.Serve(
-		endpoint.ctx,
-		endpoint.manager.store,
-		endpoint.consumer.Socket(),
-		snapshot.Upstream(),
-		snapshot.Timeouts(),
-		connection,
-	)
-}
-
-func (endpoint *endpoint) closeConnections() {
-	endpoint.mu.Lock()
-	defer endpoint.mu.Unlock()
-	for connection := range endpoint.connections {
-		_ = connection.Close()
-	}
-}
-
-func (endpoint *endpoint) stop() {
-	endpoint.mu.Lock()
-	if endpoint.closing {
-		endpoint.mu.Unlock()
-		endpoint.wg.Wait()
-		return
-	}
-	endpoint.closing = true
-	endpoint.cancel()
-	_ = endpoint.listener.Close()
-	for connection := range endpoint.connections {
-		_ = connection.Close()
-	}
-	endpoint.mu.Unlock()
-	endpoint.wg.Wait()
 }

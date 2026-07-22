@@ -27,221 +27,125 @@ type fileIdentity struct {
 	inode  uint64
 }
 
-type fileMetadata struct {
+// parentHandle pins the exact dedicated directory inode visible to a mounted
+// consumer. Ownership moves from staged listener to active endpoint to pending
+// cleanup and ends only after the socket inode is gone.
+type parentHandle struct {
+	fd       int
 	identity fileIdentity
-	mode     uint32
-	owner    uint32
-	group    uint32
 }
 
-type metadataChange struct {
-	parentPath string
-	parent     fileMetadata
-	socketPath string
-	socket     *fileMetadata
+type endpointFile struct {
+	parent   *parentHandle
+	name     string
+	identity fileIdentity
 }
 
 type stagedSocket struct {
 	path         string
 	consumer     runtime.Consumer
 	listener     *net.UnixListener
-	identity     fileIdentity
+	file         *endpointFile
 	parentChange *metadataChange
 }
 
 func prepareSocket(consumer runtime.Consumer) (*stagedSocket, error) {
-	if len(consumer.Socket()) > maximumUnixSocketPathBytes {
-		return nil, fmt.Errorf("consumer socket path exceeds Linux AF_UNIX pathname limit")
-	}
-	directoryMode, socketMode, group := desiredPermissions(consumer)
-	if err := validateAccessGroup(group); err != nil {
+	if err := validateConsumerFilesystemInputs(consumer); err != nil {
 		return nil, err
 	}
+	directoryMode, socketMode, group := desiredPermissions(consumer)
 	directory := filepath.Dir(consumer.Socket())
-	directoryFD, original, created, err := openConsumerDirectory(directory)
+	parent, original, created, err := openConsumerDirectory(directory)
 	if err != nil {
 		return nil, err
 	}
-	defer unix.Close(directoryFD)
-
-	change := &metadataChange{parentPath: directory, parent: original}
+	change := &metadataChange{
+		path:          consumer.Socket(),
+		file:          &endpointFile{parent: parent, name: filepath.Base(consumer.Socket())},
+		parentBefore:  original,
+		directoryMode: directoryMode,
+		socketMode:    socketMode,
+		group:         cloneGroup(group),
+	}
 	if created {
 		change = nil
 	}
-	if err := applyDirectoryPermissions(directoryFD, directoryMode, group); err != nil {
+	closeOnError := func(cause error) (*stagedSocket, error) {
 		if change != nil {
-			return nil, errors.Join(err, change.rollback())
+			cause = errors.Join(cause, change.rollback())
+		} else {
+			_ = unix.Fchmod(parent.fd, 0o700)
 		}
-		_ = unix.Fchmod(directoryFD, 0o700)
-		return nil, err
+		return nil, errors.Join(cause, parent.close())
 	}
 
+	if err := applyDirectoryPermissions(parent.fd, directoryMode, group); err != nil {
+		return closeOnError(err)
+	}
 	name := filepath.Base(consumer.Socket())
-	if err := removeStaleOwnedSocket(directoryFD, name, consumer.Socket()); err != nil {
-		if change != nil {
-			err = errors.Join(err, change.rollback())
-		}
-		return nil, err
+	if err := removeStaleOwnedSocket(parent, name, consumer.Socket()); err != nil {
+		return closeOnError(err)
 	}
 	listener, err := net.ListenUnix("unix", &net.UnixAddr{Name: consumer.Socket(), Net: "unix"})
 	if err != nil {
-		if change != nil {
-			err = errors.Join(err, change.rollback())
-		}
-		return nil, fmt.Errorf("bind consumer listener: %w", err)
+		return closeOnError(fmt.Errorf("bind consumer listener: %w", err))
 	}
 	listener.SetUnlinkOnClose(false)
 
-	identity, err := secureSocket(directoryFD, name, socketMode, group)
-	if err != nil {
-		candidate := &stagedSocket{
-			path:         consumer.Socket(),
-			consumer:     consumer,
-			listener:     listener,
-			identity:     identity,
-			parentChange: change,
-		}
-		if identity == (fileIdentity{}) {
-			closeErr := listener.Close()
-			unlinkErr := unix.Unlinkat(directoryFD, name, 0)
-			if change != nil {
-				unlinkErr = errors.Join(unlinkErr, change.rollback())
-			}
-			return nil, errors.Join(err, closeErr, unlinkErr)
-		}
-		return candidate, err
-	}
-	return &stagedSocket{
+	identity, err := secureSocket(parent.fd, name, socketMode, group)
+	file := &endpointFile{parent: parent, name: name, identity: identity}
+	candidate := &stagedSocket{
 		path:         consumer.Socket(),
 		consumer:     consumer,
 		listener:     listener,
-		identity:     identity,
+		file:         file,
 		parentChange: change,
-	}, nil
-}
-
-func prepareActiveSocket(consumer runtime.Consumer, expected fileIdentity) (*metadataChange, error) {
-	if len(consumer.Socket()) > maximumUnixSocketPathBytes {
-		return nil, fmt.Errorf("consumer socket path exceeds Linux AF_UNIX pathname limit")
 	}
-	directoryMode, socketMode, group := desiredPermissions(consumer)
-	if err := validateAccessGroup(group); err != nil {
-		return nil, err
-	}
-	directory := filepath.Dir(consumer.Socket())
-	directoryFD, parent, created, err := openConsumerDirectory(directory)
 	if err != nil {
-		return nil, err
-	}
-	defer unix.Close(directoryFD)
-	if created {
-		return nil, errors.New("active consumer parent directory was absent")
-	}
-
-	name := filepath.Base(consumer.Socket())
-	socket, err := statAt(directoryFD, name)
-	if err != nil {
-		return nil, fmt.Errorf("inspect active consumer socket: %w", err)
-	}
-	if socket.mode&unix.S_IFMT != unix.S_IFSOCK || socket.identity != expected || metadataOwner(socket) != uint32(os.Geteuid()) {
-		return nil, errors.New("active consumer socket identity or ownership changed")
-	}
-
-	change := &metadataChange{
-		parentPath: directory,
-		parent:     parent,
-		socketPath: consumer.Socket(),
-		socket:     &socket,
-	}
-	if err := applyDirectoryPermissions(directoryFD, directoryMode, group); err != nil {
-		return nil, errors.Join(err, change.rollback())
-	}
-	if err := applyAtPermissions(directoryFD, name, socketMode, group); err != nil {
-		return nil, errors.Join(err, change.rollback())
-	}
-	return change, nil
-}
-
-func desiredPermissions(consumer runtime.Consumer) (directoryMode uint32, socketMode uint32, group *uint32) {
-	if accessGroup, exists := consumer.AccessGroup(); exists {
-		return 0o710, 0o660, &accessGroup
-	}
-	return 0o700, 0o600, nil
-}
-
-func validateAccessGroup(group *uint32) error {
-	if group == nil || *group == uint32(os.Getegid()) {
-		return nil
-	}
-	groups, err := os.Getgroups()
-	if err != nil {
-		return fmt.Errorf("inspect daemon access groups: %w", err)
-	}
-	for _, candidate := range groups {
-		if candidate >= 0 && uint32(candidate) == *group {
-			return nil
+		if identity != (fileIdentity{}) {
+			return candidate, err
 		}
+		closeErr := listener.Close()
+		unlinkErr := unix.Unlinkat(parent.fd, name, 0)
+		if change != nil {
+			unlinkErr = errors.Join(unlinkErr, change.rollback())
+		}
+		return nil, errors.Join(err, closeErr, unlinkErr, parent.close())
 	}
-	return errors.New("daemon user is not a member of the configured access group")
+	return candidate, nil
 }
 
-func openConsumerDirectory(path string) (int, fileMetadata, bool, error) {
-	parent := filepath.Dir(path)
+func openConsumerDirectory(path string) (*parentHandle, fileMetadata, bool, error) {
+	ancestor := filepath.Dir(path)
 	name := filepath.Base(path)
-	parentFD, err := unix.Open(parent, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	ancestorFD, err := unix.Open(ancestor, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return -1, fileMetadata{}, false, fmt.Errorf("open consumer parent ancestor: %w", err)
+		return nil, fileMetadata{}, false, fmt.Errorf("open consumer parent ancestor: %w", err)
 	}
-	defer unix.Close(parentFD)
+	defer unix.Close(ancestorFD)
 
 	created := false
-	if err := unix.Mkdirat(parentFD, name, 0o700); err != nil {
+	if err := unix.Mkdirat(ancestorFD, name, 0o700); err != nil {
 		if !errors.Is(err, unix.EEXIST) {
-			return -1, fileMetadata{}, false, fmt.Errorf("create consumer parent: %w", err)
+			return nil, fileMetadata{}, false, fmt.Errorf("create consumer parent: %w", err)
 		}
 	} else {
 		created = true
 	}
-	directoryFD, err := unix.Openat(parentFD, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	directoryFD, err := unix.Openat(ancestorFD, name, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
 	if err != nil {
-		return -1, fileMetadata{}, created, fmt.Errorf("open consumer parent: %w", err)
+		return nil, fileMetadata{}, created, fmt.Errorf("open consumer parent: %w", err)
 	}
 	metadata, err := statFD(directoryFD)
 	if err != nil {
 		unix.Close(directoryFD)
-		return -1, fileMetadata{}, created, fmt.Errorf("inspect consumer parent: %w", err)
+		return nil, fileMetadata{}, created, fmt.Errorf("inspect consumer parent: %w", err)
 	}
-	if metadata.mode&unix.S_IFMT != unix.S_IFDIR {
+	if metadata.mode&unix.S_IFMT != unix.S_IFDIR || metadata.owner != uint32(os.Geteuid()) {
 		unix.Close(directoryFD)
-		return -1, fileMetadata{}, created, errors.New("consumer parent is not a directory")
+		return nil, fileMetadata{}, created, errors.New("consumer parent is not an owned real directory")
 	}
-	if metadataOwner(metadata) != uint32(os.Geteuid()) {
-		unix.Close(directoryFD)
-		return -1, fileMetadata{}, created, errors.New("consumer parent is not owned by the daemon user")
-	}
-	return directoryFD, metadata, created, nil
-}
-
-func applyDirectoryPermissions(directoryFD int, mode uint32, group *uint32) error {
-	if group != nil {
-		if err := unix.Fchown(directoryFD, -1, int(*group)); err != nil {
-			return fmt.Errorf("assign consumer parent group: %w", err)
-		}
-	}
-	if err := unix.Fchmod(directoryFD, mode); err != nil {
-		return fmt.Errorf("set consumer parent mode: %w", err)
-	}
-	metadata, err := statFD(directoryFD)
-	if err != nil {
-		return fmt.Errorf("verify consumer parent permissions: %w", err)
-	}
-	if metadata.mode&0o7777 != mode {
-		return errors.New("consumer parent mode did not apply exactly")
-	}
-	if group != nil && metadata.group != *group {
-		return errors.New("consumer parent group did not apply exactly")
-	}
-	return nil
+	return &parentHandle{fd: directoryFD, identity: metadata.identity}, metadata, created, nil
 }
 
 func secureSocket(directoryFD int, name string, mode uint32, group *uint32) (fileIdentity, error) {
@@ -249,7 +153,7 @@ func secureSocket(directoryFD int, name string, mode uint32, group *uint32) (fil
 	if err != nil {
 		return fileIdentity{}, fmt.Errorf("inspect bound consumer socket: %w", err)
 	}
-	if metadata.mode&unix.S_IFMT != unix.S_IFSOCK || metadataOwner(metadata) != uint32(os.Geteuid()) {
+	if metadata.mode&unix.S_IFMT != unix.S_IFSOCK || metadata.owner != uint32(os.Geteuid()) {
 		return metadata.identity, errors.New("bound consumer endpoint is not an owned socket")
 	}
 	if err := applyAtPermissions(directoryFD, name, mode, group); err != nil {
@@ -265,34 +169,8 @@ func secureSocket(directoryFD int, name string, mode uint32, group *uint32) (fil
 	return verified.identity, nil
 }
 
-func applyAtPermissions(directoryFD int, name string, mode uint32, group *uint32) error {
-	groupID := -1
-	if group != nil {
-		groupID = int(*group)
-	}
-	if group != nil {
-		if err := unix.Fchownat(directoryFD, name, -1, groupID, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-			return fmt.Errorf("assign consumer socket group: %w", err)
-		}
-	}
-	if err := unix.Fchmodat(directoryFD, name, mode, 0); err != nil {
-		return fmt.Errorf("set consumer socket mode: %w", err)
-	}
-	metadata, err := statAt(directoryFD, name)
-	if err != nil {
-		return fmt.Errorf("verify consumer socket permissions: %w", err)
-	}
-	if metadata.mode&0o7777 != mode {
-		return errors.New("consumer socket mode did not apply exactly")
-	}
-	if group != nil && metadata.group != *group {
-		return errors.New("consumer socket group did not apply exactly")
-	}
-	return nil
-}
-
-func removeStaleOwnedSocket(directoryFD int, name, path string) error {
-	metadata, err := statAt(directoryFD, name)
+func removeStaleOwnedSocket(parent *parentHandle, name, path string) error {
+	metadata, err := statAt(parent.fd, name)
 	if errors.Is(err, unix.ENOENT) {
 		return nil
 	}
@@ -302,7 +180,7 @@ func removeStaleOwnedSocket(directoryFD int, name, path string) error {
 	if metadata.mode&unix.S_IFMT != unix.S_IFSOCK {
 		return errors.New("consumer socket path contains a non-socket entry")
 	}
-	if metadataOwner(metadata) != uint32(os.Geteuid()) {
+	if metadata.owner != uint32(os.Geteuid()) {
 		return errors.New("consumer socket path contains a foreign socket")
 	}
 	connection, probeErr := net.DialTimeout("unix", path, 25*time.Millisecond)
@@ -313,116 +191,47 @@ func removeStaleOwnedSocket(directoryFD int, name, path string) error {
 	if !errors.Is(probeErr, unix.ECONNREFUSED) {
 		return fmt.Errorf("verify stale consumer socket: %w", probeErr)
 	}
-	if err := unix.Unlinkat(directoryFD, name, 0); err != nil {
+	if err := unix.Unlinkat(parent.fd, name, 0); err != nil {
 		return fmt.Errorf("remove stale consumer socket: %w", err)
 	}
 	return nil
 }
 
-func removeSocket(path string, expected fileIdentity) error {
-	directoryFD, err := unix.Open(filepath.Dir(path), unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if errors.Is(err, unix.ENOENT) {
-		return nil
+func removeSocket(file *endpointFile) error {
+	if file == nil || file.parent == nil {
+		return errors.New("consumer socket cleanup handle is absent")
 	}
+	parent, err := statFD(file.parent.fd)
 	if err != nil {
-		return fmt.Errorf("open consumer parent for cleanup: %w", err)
+		return fmt.Errorf("inspect pinned consumer parent for cleanup: %w", err)
 	}
-	defer unix.Close(directoryFD)
-	name := filepath.Base(path)
-	metadata, err := statAt(directoryFD, name)
+	if parent.identity != file.parent.identity || parent.mode&unix.S_IFMT != unix.S_IFDIR {
+		return errors.New("pinned consumer parent identity changed before cleanup")
+	}
+	metadata, err := statAt(file.parent.fd, file.name)
 	if errors.Is(err, unix.ENOENT) {
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("inspect consumer socket for cleanup: %w", err)
 	}
-	if metadata.identity != expected {
+	if metadata.identity != file.identity {
 		return nil
 	}
 	if metadata.mode&unix.S_IFMT != unix.S_IFSOCK {
 		return errors.New("owned consumer socket was replaced by a non-socket entry")
 	}
-	if err := unix.Unlinkat(directoryFD, name, 0); err != nil {
+	if err := unix.Unlinkat(file.parent.fd, file.name, 0); err != nil {
 		return fmt.Errorf("remove consumer socket: %w", err)
 	}
 	return nil
 }
 
-func (change *metadataChange) rollback() error {
-	if change == nil {
+func (parent *parentHandle) close() error {
+	if parent == nil || parent.fd < 0 {
 		return nil
 	}
-	directoryFD, err := unix.Open(change.parentPath, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-	if err != nil {
-		return fmt.Errorf("open consumer parent for metadata rollback: %w", err)
-	}
-	defer unix.Close(directoryFD)
-	currentParent, err := statFD(directoryFD)
-	if err != nil {
-		return fmt.Errorf("inspect consumer parent for metadata rollback: %w", err)
-	}
-	if currentParent.identity != change.parent.identity {
-		return errors.New("consumer parent identity changed before metadata rollback")
-	}
-	var result error
-	if change.socket != nil {
-		name := filepath.Base(change.socketPath)
-		current, statErr := statAt(directoryFD, name)
-		if statErr != nil {
-			result = errors.Join(result, fmt.Errorf("inspect consumer socket for metadata rollback: %w", statErr))
-		} else if current.identity != change.socket.identity {
-			result = errors.Join(result, errors.New("consumer socket identity changed before metadata rollback"))
-		} else {
-			if current.group != change.socket.group {
-				if err := unix.Fchownat(directoryFD, name, -1, int(change.socket.group), unix.AT_SYMLINK_NOFOLLOW); err != nil {
-					result = errors.Join(result, fmt.Errorf("restore consumer socket group: %w", err))
-				}
-			}
-			if current.mode&0o7777 != change.socket.mode&0o7777 {
-				if err := unix.Fchmodat(directoryFD, name, change.socket.mode&0o7777, 0); err != nil {
-					result = errors.Join(result, fmt.Errorf("restore consumer socket mode: %w", err))
-				}
-			}
-		}
-	}
-	if currentParent.group != change.parent.group {
-		if err := unix.Fchown(directoryFD, -1, int(change.parent.group)); err != nil {
-			result = errors.Join(result, fmt.Errorf("restore consumer parent group: %w", err))
-		}
-	}
-	if currentParent.mode&0o7777 != change.parent.mode&0o7777 {
-		if err := unix.Fchmod(directoryFD, change.parent.mode&0o7777); err != nil {
-			result = errors.Join(result, fmt.Errorf("restore consumer parent mode: %w", err))
-		}
-	}
-	return result
-}
-
-func statFD(fd int) (fileMetadata, error) {
-	var stat unix.Stat_t
-	if err := unix.Fstat(fd, &stat); err != nil {
-		return fileMetadata{}, err
-	}
-	return metadataFromStat(stat), nil
-}
-
-func statAt(directoryFD int, name string) (fileMetadata, error) {
-	var stat unix.Stat_t
-	if err := unix.Fstatat(directoryFD, name, &stat, unix.AT_SYMLINK_NOFOLLOW); err != nil {
-		return fileMetadata{}, err
-	}
-	return metadataFromStat(stat), nil
-}
-
-func metadataFromStat(stat unix.Stat_t) fileMetadata {
-	return fileMetadata{
-		identity: fileIdentity{device: uint64(stat.Dev), inode: stat.Ino},
-		mode:     stat.Mode,
-		owner:    stat.Uid,
-		group:    stat.Gid,
-	}
-}
-
-func metadataOwner(metadata fileMetadata) uint32 {
-	return metadata.owner
+	fd := parent.fd
+	parent.fd = -1
+	return unix.Close(fd)
 }
