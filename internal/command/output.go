@@ -106,6 +106,10 @@ var (
 		code: "daemon-unavailable", message: "the daemon request could not be completed",
 		action: "Start 'wyrwood daemon' and verify its owner-only runtime directory.", exitCode: exitDaemonUnavailable,
 	}
+	failureInvalidDaemonResponse = failure{
+		code: "daemon-failed", message: "the daemon request could not be completed",
+		action: "Run matching Wyrwood CLI and daemon versions, then retry.", exitCode: exitRequestFailed,
+	}
 	failureUncommitted = failure{
 		code: "apply-failed", message: "the daemon did not commit the configuration",
 		action: "Inspect 'wyrwood status' and 'wyrwood events' before retrying.", exitCode: exitRequestFailed,

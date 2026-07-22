@@ -164,7 +164,7 @@ func runPutConsumer(command string, args []string, stdout, stderr io.Writer, dep
 		return writeFailure(stderr, options.output, command, classifyRequestFailure(err))
 	}
 	if result.ConsumerID == nil {
-		return writeFailure(stderr, options.output, command, failureDaemonUnavailable)
+		return writeFailure(stderr, options.output, command, failureInvalidDaemonResponse)
 	}
 	return writeSuccess(stdout, stderr, options.output, command, consumerChangeResult{Revision: result.Revision, Changed: result.Changed, ConsumerID: *result.ConsumerID})
 }
@@ -188,7 +188,7 @@ func runRetireConsumer(command string, args []string, stdout, stderr io.Writer, 
 		return writeFailure(stderr, options.output, command, classifyRequestFailure(err))
 	}
 	if result.ConsumerID == nil {
-		return writeFailure(stderr, options.output, command, failureDaemonUnavailable)
+		return writeFailure(stderr, options.output, command, failureInvalidDaemonResponse)
 	}
 	return writeSuccess(stdout, stderr, options.output, command, consumerChangeResult{Revision: result.Revision, Changed: result.Changed, ConsumerID: *result.ConsumerID})
 }

@@ -285,20 +285,51 @@ func TestConfigurationShowRejectsIncoherentPaginationWithoutPartialOutput(t *tes
 func TestConfigurationHelpDocumentsExactGrammarWithoutRunningClient(t *testing.T) {
 	client := successfulClient()
 	tests := []struct {
+		name string
 		args []string
 		want string
 	}{
-		{args: []string{"configuration", "--help"}, want: "configuration show"},
-		{args: []string{"configuration", "set-upstream", "--help"}, want: "--revision REVISION --socket SOCKET"},
-		{args: []string{"configuration", "set-timeouts", "--help"}, want: "--connect DURATION --list DURATION --replay DURATION --sign DURATION"},
-		{args: []string{"consumer", "put", "--help"}, want: "[--fingerprint FINGERPRINT]..."},
-		{args: []string{"consumer", "retire", "--help"}, want: "--revision REVISION --id ID"},
+		{name: "bare configuration help", args: []string{"configuration", "--help"}, want: "configuration show"},
+		{name: "bare consumer help", args: []string{"consumer", "--help"}, want: "consumer put"},
+		{name: "configuration show help", args: []string{"configuration", "show", "--help"}, want: "configuration show [--output human|json]"},
+		{name: "set upstream help", args: []string{"configuration", "set-upstream", "--help"}, want: "--revision REVISION --socket SOCKET"},
+		{name: "set timeouts help", args: []string{"configuration", "set-timeouts", "--help"}, want: "--connect DURATION --list DURATION --replay DURATION --sign DURATION"},
+		{name: "put consumer help", args: []string{"consumer", "put", "--help"}, want: "[--fingerprint FINGERPRINT]..."},
+		{name: "retire consumer help", args: []string{"consumer", "retire", "--help"}, want: "--revision REVISION --id ID"},
 	}
 	for _, test := range tests {
-		exitCode, stdout, stderr := execute(t, test.args, testDependencies(client))
-		if exitCode != exitSuccess || !strings.Contains(stdout, test.want) || stderr != "" || len(client.calls) != 0 {
-			t.Fatalf("help %v = (%d, %q, %q), calls %v", test.args, exitCode, stdout, stderr, client.calls)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			exitCode, stdout, stderr := execute(t, test.args, testDependencies(client))
+			if exitCode != exitSuccess || !strings.Contains(stdout, test.want) || stderr != "" || len(client.calls) != 0 {
+				t.Fatalf("help %v = (%d, %q, %q), calls %v", test.args, exitCode, stdout, stderr, client.calls)
+			}
+		})
+	}
+}
+
+func TestSuccessfulConsumerMutationWithoutRequiredIDIsAProtocolFailure(t *testing.T) {
+	tests := []struct {
+		name    string
+		args    []string
+		client  *fakeClient
+		command string
+	}{
+		{
+			name: "put", args: []string{"consumer", "put", "--revision", revisionA, "--name", "sample", "--socket", "/tmp/sample.sock", "--output=json"},
+			client: &fakeClient{putConsumerResult: control.ConfigurationChangeResult{Operation: control.OperationPutConsumer, Revision: revisionB, Changed: true}}, command: "put-consumer",
+		},
+		{
+			name: "retire", args: []string{"consumer", "retire", "--revision", revisionA, "--id", consumerA, "--output=json"},
+			client: &fakeClient{retireConsumerResult: control.ConfigurationChangeResult{Operation: control.OperationRetireConsumer, Revision: revisionB, Changed: true}}, command: "retire-consumer",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			exitCode, stdout, stderr := execute(t, test.args, testDependencies(test.client))
+			if exitCode != exitRequestFailed || stdout != "" || !strings.Contains(stderr, `"code":"daemon-failed"`) || !strings.Contains(stderr, `"message":"the daemon request could not be completed"`) || strings.Contains(stderr, "Start 'wyrwood daemon'") || !reflect.DeepEqual(test.client.calls, []string{test.command}) {
+				t.Fatalf("run = (%d, %q, %q), calls %v", exitCode, stdout, stderr, test.client.calls)
+			}
+		})
 	}
 }
 
