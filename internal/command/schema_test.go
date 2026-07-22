@@ -139,6 +139,11 @@ func TestStructuredTypesAndSchemaExposeTheSameFields(t *testing.T) {
 		{definition: "status-result", typeOf: reflect.TypeFor[control.StatusResult]()},
 		{definition: "event", typeOf: reflect.TypeFor[control.Event]()},
 		{definition: "events-result", typeOf: reflect.TypeFor[control.EventsResult]()},
+		{definition: "timeouts", typeOf: reflect.TypeFor[control.ConfigurationTimeouts]()},
+		{definition: "configuration-consumer", typeOf: reflect.TypeFor[configurationConsumer]()},
+		{definition: "configuration-result", typeOf: reflect.TypeFor[configurationResult]()},
+		{definition: "configuration-change-result", typeOf: reflect.TypeFor[configurationChangeResult]()},
+		{definition: "consumer-change-result", typeOf: reflect.TypeFor[consumerChangeResult]()},
 		{definition: "service-result", typeOf: reflect.TypeFor[userservice.Result]()},
 		{definition: "error-result", typeOf: reflect.TypeFor[errorProjection]()},
 	}

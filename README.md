@@ -36,8 +36,7 @@ when that image is absent.
 ## Command-line use
 
 Create the initial owner-only configuration from the current `SSH_AUTH_SOCK`,
-install and start the systemd user service, edit the default YAML configuration,
-and ask that daemon to apply it:
+install and start the systemd user service, and ask that daemon to apply it:
 
 ```console
 wyrwood init
@@ -55,6 +54,26 @@ wyrwood status
 wyrwood events --limit 50
 wyrwood status --output json
 ```
+
+Inspect and change durable configuration through the same control socket. Each
+change requires the exact revision returned by `configuration show`; a saved
+change remains unapplied until the explicit `apply` command succeeds.
+
+```console
+revision=$(wyrwood configuration show --output json | jq -r '.result.revision')
+wyrwood configuration set-upstream --revision "$revision" --socket /tmp/source.sock
+
+revision=$(wyrwood configuration show --output json | jq -r '.result.revision')
+wyrwood consumer put --revision "$revision" --name sample \
+  --socket /tmp/sample/endpoint.sock \
+  --fingerprint SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+
+wyrwood apply
+```
+
+`consumer put` replaces the complete consumer value and fingerprint allowlist.
+Pass the opaque `--id` from `configuration show` to replace an existing
+consumer; omit it to create one. `consumer retire` requires that identifier.
 
 Human-readable output is the default. `--output json` emits a versioned,
 closed JSON object for automation. Successful output goes to standard output;

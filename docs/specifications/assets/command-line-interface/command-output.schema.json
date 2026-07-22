@@ -2,6 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://wyrd.company/wyrwood/command-output.schema.json",
   "title": "Wyrwood command output version 1",
+  "description": "Closed success or error envelope emitted by one non-interactive Wyrwood command.",
   "x-relationships": {
     "implements": "command-line-interface",
     "uses": "control-interface"

@@ -32,6 +32,14 @@ description: >-
   remains the explicit runtime transition. Comments from `keys` are display data
   and are never accepted in place of fingerprints.
 
+  Configuration pagination is transport-only. The command emits no partial
+  result until every page from one revision has arrived, and its result contains
+  one complete consumer collection without offsets or page totals. A conflict
+  on a later page fails the command without mixing revisions or automatically
+  retrying. Each mutation is likewise attempted exactly once. Callers inspect
+  the current revision before retrying a transport failure, conflict, or
+  uncertain durability result.
+
   Human-readable output is the default. `--output json` emits exactly one JSON
   object and newline whose version-1 contract is defined by
   `assets/command-line-interface/command-output.schema.json`. The human and JSON

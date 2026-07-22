@@ -30,6 +30,9 @@ Commands:
   daemon    Run the per-user daemon
   init      Create the initial per-user configuration
   apply     Validate and apply the default configuration
+  configuration
+            Inspect or change durable configuration
+  consumer  Create, replace, or retire a consumer
   keys      List identities available from the upstream agent
   status    Inspect daemon and consumer health
   events    Inspect bounded operational events
@@ -48,6 +51,11 @@ type controlClient interface {
 	Keys() (control.KeysResult, error)
 	Status() (control.StatusResult, error)
 	Events(limit int) (control.EventsResult, error)
+	Configuration(offset, limit int, expectedRevision string) (control.ConfigurationResult, error)
+	SetUpstream(expectedRevision, upstream string) (control.ConfigurationChangeResult, error)
+	SetTimeouts(expectedRevision string, timeouts control.ConfigurationTimeouts) (control.ConfigurationChangeResult, error)
+	PutConsumer(expectedRevision string, consumerID *string, consumer control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, error)
+	RetireConsumer(expectedRevision, consumerID string) (control.ConfigurationChangeResult, error)
 }
 
 type dependencies struct {
@@ -103,6 +111,10 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 		return runInit(args[1:], stdout, stderr, deps)
 	case "apply", "keys", "status", "events":
 		return runManagement(args[0], args[1:], stdout, stderr, deps)
+	case "configuration":
+		return runConfiguration(args[1:], stdout, stderr, deps)
+	case "consumer":
+		return runConsumer(args[1:], stdout, stderr, deps)
 	case "service":
 		return runService(args[1:], stdout, stderr, deps)
 	case "tui":

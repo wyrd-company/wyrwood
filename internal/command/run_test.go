@@ -27,16 +27,42 @@ import (
 const sampleFingerprint = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 
 type fakeClient struct {
-	applyResult  control.ApplyResult
-	applyErr     error
-	keysResult   control.KeysResult
-	keysErr      error
-	statusResult control.StatusResult
-	statusErr    error
-	eventsResult control.EventsResult
-	eventsErr    error
-	calls        []string
-	eventLimit   int
+	applyResult            control.ApplyResult
+	applyErr               error
+	keysResult             control.KeysResult
+	keysErr                error
+	statusResult           control.StatusResult
+	statusErr              error
+	eventsResult           control.EventsResult
+	eventsErr              error
+	configurationResults   []control.ConfigurationResult
+	configurationErrors    []error
+	setUpstreamResult      control.ConfigurationChangeResult
+	setUpstreamErr         error
+	setTimeoutsResult      control.ConfigurationChangeResult
+	setTimeoutsErr         error
+	putConsumerResult      control.ConfigurationChangeResult
+	putConsumerErr         error
+	retireConsumerResult   control.ConfigurationChangeResult
+	retireConsumerErr      error
+	calls                  []string
+	eventLimit             int
+	configurationRequests  []configurationRequest
+	setUpstreamRevision    string
+	setUpstreamSocket      string
+	setTimeoutsRevision    string
+	setTimeoutsValue       control.ConfigurationTimeouts
+	putConsumerRevision    string
+	putConsumerID          *string
+	putConsumerValue       control.ConfigurationConsumerInput
+	retireConsumerRevision string
+	retireConsumerID       string
+}
+
+type configurationRequest struct {
+	offset           int
+	limit            int
+	expectedRevision string
 }
 
 func (client *fakeClient) Apply() (control.ApplyResult, error) {
@@ -58,6 +84,43 @@ func (client *fakeClient) Events(limit int) (control.EventsResult, error) {
 	client.calls = append(client.calls, "events")
 	client.eventLimit = limit
 	return client.eventsResult, client.eventsErr
+}
+
+func (client *fakeClient) Configuration(offset, limit int, expectedRevision string) (control.ConfigurationResult, error) {
+	client.calls = append(client.calls, "configuration")
+	client.configurationRequests = append(client.configurationRequests, configurationRequest{offset: offset, limit: limit, expectedRevision: expectedRevision})
+	index := len(client.configurationRequests) - 1
+	if index < len(client.configurationErrors) && client.configurationErrors[index] != nil {
+		return control.ConfigurationResult{}, client.configurationErrors[index]
+	}
+	if index >= len(client.configurationResults) {
+		return control.ConfigurationResult{}, errors.New("unexpected configuration page")
+	}
+	return client.configurationResults[index], nil
+}
+
+func (client *fakeClient) SetUpstream(expectedRevision, upstream string) (control.ConfigurationChangeResult, error) {
+	client.calls = append(client.calls, "set-upstream")
+	client.setUpstreamRevision, client.setUpstreamSocket = expectedRevision, upstream
+	return client.setUpstreamResult, client.setUpstreamErr
+}
+
+func (client *fakeClient) SetTimeouts(expectedRevision string, timeouts control.ConfigurationTimeouts) (control.ConfigurationChangeResult, error) {
+	client.calls = append(client.calls, "set-timeouts")
+	client.setTimeoutsRevision, client.setTimeoutsValue = expectedRevision, timeouts
+	return client.setTimeoutsResult, client.setTimeoutsErr
+}
+
+func (client *fakeClient) PutConsumer(expectedRevision string, consumerID *string, consumer control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, error) {
+	client.calls = append(client.calls, "put-consumer")
+	client.putConsumerRevision, client.putConsumerID, client.putConsumerValue = expectedRevision, consumerID, consumer
+	return client.putConsumerResult, client.putConsumerErr
+}
+
+func (client *fakeClient) RetireConsumer(expectedRevision, consumerID string) (control.ConfigurationChangeResult, error) {
+	client.calls = append(client.calls, "retire-consumer")
+	client.retireConsumerRevision, client.retireConsumerID = expectedRevision, consumerID
+	return client.retireConsumerResult, client.retireConsumerErr
 }
 
 func testDependencies(client controlClient) dependencies {
@@ -154,9 +217,9 @@ func TestHumanOutputGolden(t *testing.T) {
 		client *fakeClient
 		want   string
 	}{
-		{name: "apply", args: []string{"apply"}, client: &fakeClient{applyResult: control.ApplyResult{Committed: true, Degraded: true, PendingCleanup: 2, PendingPermissions: 1}}, want: "Configuration applied (degraded=true, pending-cleanup=2, pending-permissions=1).\n"},
+		{name: "apply", args: []string{"apply"}, client: &fakeClient{applyResult: control.ApplyResult{Revision: strings.Repeat("a", 64), Committed: true, Degraded: true, PendingCleanup: 2, PendingPermissions: 1}}, want: "Configuration applied at revision \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" (committed=true, degraded=true, pending-cleanup=2, pending-permissions=1).\n"},
 		{name: "keys", args: []string{"keys"}, client: &fakeClient{keysResult: control.KeysResult{Keys: []control.Key{{Fingerprint: sampleFingerprint, Display: "line\nlabel"}}}}, want: "FINGERPRINT\tDISPLAY\n" + sampleFingerprint + "\t\"line\\nlabel\"\n"},
-		{name: "status", args: []string{"status"}, client: &fakeClient{statusResult: control.StatusResult{Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{{ID: "unit\nrecord", Name: "sample", Listener: control.HealthDegraded, ActiveConnections: 3}}, Truncated: true}}, want: "Daemon: healthy\nUpstream: unavailable\nConsumers: 1\nTruncated: true\nID\tNAME\tLISTENER\tCONNECTIONS\n\"unit\\nrecord\"\t\"sample\"\tdegraded\t3\n"},
+		{name: "status", args: []string{"status"}, client: &fakeClient{statusResult: control.StatusResult{ActiveRevision: strings.Repeat("a", 64), Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{{ID: "unit\nrecord", Name: "sample", Listener: control.HealthDegraded, ActiveConnections: 3}}, Truncated: true}}, want: "Active revision: \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\nDaemon: healthy\nUpstream: unavailable\nConsumers: 1\nRuntime observability: incomplete (status truncated)\nID\tNAME\tLISTENER\tCONNECTIONS\n\"unit\\nrecord\"\t\"sample\"\tdegraded\t3\n"},
 		{name: "policy denial event", args: []string{"events", "--limit", "4"}, client: &fakeClient{eventsResult: control.EventsResult{Events: []control.Event{{Timestamp: timestamp, ConsumerID: "unit", Operation: "sign", Fingerprint: &fingerprint, Outcome: "denied", LatencyNS: 12, ErrorCode: "policy-denied"}}}}, want: "TIMESTAMP\tCONSUMER\tOPERATION\tFINGERPRINT\tOUTCOME\tLATENCY_NS\tERROR\n2026-01-02T03:04:05.000000006Z\t\"unit\"\tsign\t" + sampleFingerprint + "\tdenied\t12\tpolicy-denied\n"},
 	}
 	for _, test := range tests {
@@ -475,13 +538,20 @@ func TestManagementCommandsTraverseTheRealControlClient(t *testing.T) {
 	deps := testDependencies(nil)
 	deps.defaultControlPath = func() (string, error) { return path, nil }
 	deps.newClient = func(path string) (controlClient, error) { return control.NewClient(path) }
-	for _, command := range []string{"apply", "keys", "status", "events"} {
-		exitCode, _, stderr := execute(t, []string{command}, deps)
+	commands := [][]string{
+		{"apply"}, {"keys"}, {"status"}, {"events"}, {"configuration", "show"},
+		{"configuration", "set-upstream", "--revision", strings.Repeat("a", 64), "--socket", "/tmp/replacement.sock"},
+		{"configuration", "set-timeouts", "--revision", strings.Repeat("a", 64), "--connect", "1s", "--list", "2s", "--replay", "3s", "--sign", "4s"},
+		{"consumer", "put", "--revision", strings.Repeat("a", 64), "--name", "sample", "--socket", "/tmp/sample.sock"},
+		{"consumer", "retire", "--revision", strings.Repeat("a", 64), "--id", strings.Repeat("c", 64)},
+	}
+	for _, args := range commands {
+		exitCode, _, stderr := execute(t, args, deps)
 		if exitCode != exitSuccess || stderr != "" {
-			t.Fatalf("%s = (%d, stderr %q)", command, exitCode, stderr)
+			t.Fatalf("%v = (%d, stderr %q)", args, exitCode, stderr)
 		}
 	}
-	if !reflect.DeepEqual(handler.calls, []string{"apply", "keys", "status", "events"}) {
+	if !reflect.DeepEqual(handler.calls, []string{"apply", "keys", "status", "events", "configuration", "set-upstream", "set-timeouts", "put-consumer", "retire-consumer"}) {
 		t.Fatalf("handler calls = %v", handler.calls)
 	}
 }
@@ -504,19 +574,26 @@ func (handler *commandHandler) Status() (control.StatusResult, control.ErrorCode
 }
 
 func (handler *commandHandler) Configuration(offset, _ int, _ *string) (control.ConfigurationResult, control.ErrorCode) {
+	handler.calls = append(handler.calls, "configuration")
 	return control.ConfigurationResult{Revision: strings.Repeat("a", 64), Upstream: "/run/sample/agent.sock", Timeouts: control.ConfigurationTimeouts{Connect: "5s", List: "5s", Replay: "5s", Sign: "2m"}, Offset: offset, Consumers: []control.ConfigurationConsumer{}, Complete: true}, control.ErrorNone
 }
 func (handler *commandHandler) SetUpstream(string, string) (control.ConfigurationChangeResult, control.ErrorCode) {
-	return control.ConfigurationChangeResult{}, control.ErrorInternal
+	handler.calls = append(handler.calls, "set-upstream")
+	return control.ConfigurationChangeResult{Operation: control.OperationSetUpstream, Revision: strings.Repeat("b", 64), Changed: true}, control.ErrorNone
 }
 func (handler *commandHandler) SetTimeouts(string, control.ConfigurationTimeouts) (control.ConfigurationChangeResult, control.ErrorCode) {
-	return control.ConfigurationChangeResult{}, control.ErrorInternal
+	handler.calls = append(handler.calls, "set-timeouts")
+	return control.ConfigurationChangeResult{Operation: control.OperationSetTimeouts, Revision: strings.Repeat("b", 64), Changed: true}, control.ErrorNone
 }
 func (handler *commandHandler) PutConsumer(string, *string, control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, control.ErrorCode) {
-	return control.ConfigurationChangeResult{}, control.ErrorInternal
+	handler.calls = append(handler.calls, "put-consumer")
+	id := strings.Repeat("c", 64)
+	return control.ConfigurationChangeResult{Operation: control.OperationPutConsumer, Revision: strings.Repeat("b", 64), Changed: true, ConsumerID: &id}, control.ErrorNone
 }
 func (handler *commandHandler) RetireConsumer(string, string) (control.ConfigurationChangeResult, control.ErrorCode) {
-	return control.ConfigurationChangeResult{}, control.ErrorInternal
+	handler.calls = append(handler.calls, "retire-consumer")
+	id := strings.Repeat("c", 64)
+	return control.ConfigurationChangeResult{Operation: control.OperationRetireConsumer, Revision: strings.Repeat("b", 64), Changed: true, ConsumerID: &id}, control.ErrorNone
 }
 
 func (handler *commandHandler) Events(int) (control.EventsResult, control.ErrorCode) {
