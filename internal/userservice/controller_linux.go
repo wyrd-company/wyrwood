@@ -8,17 +8,26 @@
 package userservice
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"io"
+	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
-const systemctlTimeout = 30 * time.Second
+const (
+	systemctlTimeout       = 30 * time.Second
+	maximumSystemctlOutput = 4 * 1024
+)
 
 type commandResult struct {
 	exitCode int
 	missing  bool
+	output   []byte
+	overflow bool
 }
 
 type commandRunner interface {
@@ -31,18 +40,42 @@ func (execRunner) run(name string, arguments ...string) commandResult {
 	ctx, cancel := context.WithTimeout(context.Background(), systemctlTimeout)
 	defer cancel()
 	command := exec.CommandContext(ctx, name, arguments...)
+	output := &boundedWriter{limit: maximumSystemctlOutput}
+	command.Stdout = output
+	command.Stderr = io.Discard
 	err := command.Run()
 	if err == nil {
-		return commandResult{}
+		return commandResult{output: output.bytes(), overflow: output.overflow}
 	}
-	if errors.Is(err, exec.ErrNotFound) {
-		return commandResult{exitCode: -1, missing: true}
+	if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
+		return commandResult{exitCode: -1, missing: true, output: output.bytes(), overflow: output.overflow}
 	}
 	var exitError *exec.ExitError
 	if errors.As(err, &exitError) {
-		return commandResult{exitCode: exitError.ExitCode()}
+		return commandResult{exitCode: exitError.ExitCode(), output: output.bytes(), overflow: output.overflow}
 	}
-	return commandResult{exitCode: -1}
+	return commandResult{exitCode: -1, output: output.bytes(), overflow: output.overflow}
+}
+
+type boundedWriter struct {
+	buffer   bytes.Buffer
+	limit    int
+	overflow bool
+}
+
+func (writer *boundedWriter) Write(value []byte) (int, error) {
+	accepted := len(value)
+	remaining := writer.limit - writer.buffer.Len()
+	if remaining < len(value) {
+		writer.overflow = true
+		value = value[:max(remaining, 0)]
+	}
+	_, _ = writer.buffer.Write(value)
+	return accepted, nil
+}
+
+func (writer *boundedWriter) bytes() []byte {
+	return append([]byte(nil), writer.buffer.Bytes()...)
 }
 
 type controller interface {
@@ -78,35 +111,59 @@ func (control systemdController) mutate(arguments ...string) error {
 }
 
 func (control systemdController) status() (bool, State, error) {
-	enabled := control.invoke("--quiet", "is-enabled", UnitName)
-	if enabled.missing {
+	result := control.invoke("show", UnitName, "--property=LoadState,UnitFileState,ActiveState")
+	if result.missing {
 		return false, "", ErrUnavailable
 	}
-	if enabled.exitCode != 0 && enabled.exitCode != 1 {
+	if result.exitCode != 0 || result.overflow {
 		return false, "", ErrController
 	}
-	failed := control.invoke("--quiet", "is-failed", UnitName)
-	if failed.missing {
-		return false, "", ErrUnavailable
-	}
-	if failed.exitCode == 0 {
-		return enabled.exitCode == 0, StateFailed, nil
-	}
-	if failed.exitCode != 1 {
+	return parseStatusProjection(result.output)
+}
+
+func parseStatusProjection(output []byte) (bool, State, error) {
+	if len(output) == 0 || len(output) > maximumSystemctlOutput || bytes.IndexByte(output, '\r') >= 0 || !bytes.HasSuffix(output, []byte("\n")) {
 		return false, "", ErrController
 	}
-	active := control.invoke("--quiet", "is-active", UnitName)
-	if active.missing {
-		return false, "", ErrUnavailable
+	values := make(map[string]string, 3)
+	for _, line := range strings.Split(string(output[:len(output)-1]), "\n") {
+		name, value, found := strings.Cut(line, "=")
+		if !found || name == "" || value == "" {
+			return false, "", ErrController
+		}
+		if _, duplicate := values[name]; duplicate {
+			return false, "", ErrController
+		}
+		switch name {
+		case "LoadState", "UnitFileState", "ActiveState":
+			values[name] = value
+		default:
+			return false, "", ErrController
+		}
 	}
-	switch active.exitCode {
-	case 0:
-		return enabled.exitCode == 0, StateActive, nil
-	case 3:
-		return enabled.exitCode == 0, StateInactive, nil
+	if len(values) != 3 || values["LoadState"] != "loaded" {
+		return false, "", ErrController
+	}
+	var enabled bool
+	switch values["UnitFileState"] {
+	case "enabled":
+		enabled = true
+	case "disabled":
 	default:
 		return false, "", ErrController
 	}
+	var state State
+	switch values["ActiveState"] {
+	case string(StateActive):
+		state = StateActive
+	case string(StateInactive):
+		state = StateInactive
+	case string(StateFailed):
+		state = StateFailed
+	default:
+		return false, "", ErrController
+	}
+	return enabled, state, nil
 }
 
 func (control systemdController) invoke(arguments ...string) commandResult {

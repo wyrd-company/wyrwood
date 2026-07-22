@@ -405,6 +405,7 @@ func TestServiceUsageAndFailuresAreCategorical(t *testing.T) {
 		code string
 	}{
 		{err: userservice.ErrUnavailable, code: "service-unavailable"},
+		{err: userservice.ErrNotInstalled, code: "service-not-installed"},
 		{err: errors.New("private marker"), code: "service-failed"},
 	} {
 		deps.manageService = func(userservice.Action) (userservice.Result, error) { return userservice.Result{}, test.err }
@@ -412,6 +413,23 @@ func TestServiceUsageAndFailuresAreCategorical(t *testing.T) {
 		if exitCode != exitOperational || stdout != "" || strings.Contains(stderr, "private marker") || !strings.Contains(stderr, `"code":"`+test.code+`"`) {
 			t.Fatalf("service failure = (%d, %q, %q)", exitCode, stdout, stderr)
 		}
+	}
+}
+
+func TestServiceNotInstalledFailureIsAccurateAndActionable(t *testing.T) {
+	deps := testDependencies(&fakeClient{})
+	deps.manageService = func(userservice.Action) (userservice.Result, error) {
+		return userservice.Result{}, userservice.ErrNotInstalled
+	}
+	exitCode, stdout, stderr := execute(t, []string{"service", "start"}, deps)
+	wantHuman := "wyrwood service: the per-user service is not installed. Run 'wyrwood service install' before retrying.\n"
+	if exitCode != exitOperational || stdout != "" || stderr != wantHuman {
+		t.Fatalf("human = (%d, %q, %q)", exitCode, stdout, stderr)
+	}
+	exitCode, stdout, stderr = execute(t, []string{"service", "stop", "--output=json"}, deps)
+	wantJSON := "{\"version\":1,\"command\":\"service\",\"ok\":false,\"error\":{\"code\":\"service-not-installed\",\"message\":\"the per-user service is not installed\",\"action\":\"Run 'wyrwood service install' before retrying.\"}}\n"
+	if exitCode != exitOperational || stdout != "" || stderr != wantJSON {
+		t.Fatalf("json = (%d, %q, %q)", exitCode, stdout, stderr)
 	}
 }
 

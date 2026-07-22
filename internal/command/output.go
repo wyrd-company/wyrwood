@@ -89,6 +89,10 @@ var (
 		code: "service-failed", message: "the per-user service operation did not complete",
 		action: "Inspect the user unit and systemd user-manager state before retrying.", exitCode: exitOperational,
 	}
+	failureServiceNotInstalled = failure{
+		code: "service-not-installed", message: "the per-user service is not installed",
+		action: "Run 'wyrwood service install' before retrying.", exitCode: exitOperational,
+	}
 )
 
 func failurePointer(value failure) *failure { return &value }

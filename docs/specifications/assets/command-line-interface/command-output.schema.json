@@ -228,7 +228,7 @@
             "usage", "initialization-failed", "durability-uncertain", "daemon-unavailable",
             "apply-invalid", "apply-failed", "upstream-unavailable", "resource-limit",
             "request-rejected", "incompatible-daemon", "daemon-failed",
-            "service-unavailable", "service-failed"
+            "service-unavailable", "service-not-installed", "service-failed"
           ]
         },
         "message": { "type": "string", "minLength": 1, "maxLength": 256 },

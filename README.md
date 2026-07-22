@@ -55,7 +55,8 @@ management command to show its specific options. Service installation enables
 login startup and safely restarts an already-active daemon only when its unit
 changes. `wyrwood service status --output json` provides the same closed output
 contract for automation. The `tui` command remains reserved for its dedicated
-implementation.
+implementation. Starting or stopping an absent unit reports the distinct
+`service-not-installed` category and directs the user to install it first.
 
 ## Project direction
 

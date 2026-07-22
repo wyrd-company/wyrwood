@@ -212,7 +212,9 @@ proposed-design:
     installations do not restart. The unit is enabled by `default.target`, uses
     bounded failure restart and stop timing, and restores listeners before
     upstream access. Removal disables and stops before unlinking and reloads
-    even when retrying an already-unlinked unit. The adapter supplies Linux
+    even when retrying an already-unlinked unit. One bounded systemd property
+    query provides load, enablement, and activity state and rejects incomplete
+    or open-ended projections. The adapter supplies Linux
     configuration, data, and runtime locations,
     the Unix control transport, consumer AF_UNIX listeners, ownership and group
     access, and directory-mount semantics. Policy, SSH-agent framing, connection

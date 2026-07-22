@@ -59,6 +59,7 @@ type fakeController struct {
 	state         State
 	failAt        string
 	preventEnable bool
+	statusState   *State
 	calls         []string
 }
 
@@ -93,6 +94,9 @@ func (control *fakeController) stop() error {
 func (control *fakeController) status() (bool, State, error) {
 	if err := control.operation("status"); err != nil {
 		return false, "", err
+	}
+	if control.statusState != nil {
+		return control.enabled, *control.statusState, nil
 	}
 	return control.enabled, control.state, nil
 }
@@ -249,6 +253,26 @@ func TestManagerDoesNotReportInstallSuccessUntilLoginEnablementIsVisible(t *test
 	control := &fakeController{state: StateInactive, preventEnable: true}
 	if _, err := testManager(store, control).manage(ActionInstall); !errors.Is(err, ErrController) {
 		t.Fatalf("install error = %v", err)
+	}
+}
+
+func TestManagerRejectsUnexpectedStateAfterSuccessfulStartOrStop(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		action     Action
+		initial    State
+		unexpected State
+	}{
+		{name: "start immediately fails", action: ActionStart, initial: StateInactive, unexpected: StateFailed},
+		{name: "stop remains active", action: ActionStop, initial: StateActive, unexpected: StateActive},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakeStore{installed: true}
+			control := &fakeController{enabled: true, state: test.initial, statusState: &test.unexpected}
+			if _, err := testManager(store, control).manage(test.action); !errors.Is(err, ErrController) {
+				t.Fatalf("%s error = %v", test.action, err)
+			}
+		})
 	}
 }
 

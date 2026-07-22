@@ -152,7 +152,7 @@ func TestCommandErrorSchemaContainsEveryEmittedCategory(t *testing.T) {
 		"apply-failed", "apply-invalid", "daemon-failed", "daemon-unavailable",
 		"durability-uncertain", "incompatible-daemon", "initialization-failed",
 		"request-rejected", "resource-limit", "upstream-unavailable", "usage",
-		"service-failed", "service-unavailable",
+		"service-failed", "service-not-installed", "service-unavailable",
 	}
 	sort.Strings(want)
 	if !reflect.DeepEqual(actual, want) {

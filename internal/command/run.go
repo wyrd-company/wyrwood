@@ -141,8 +141,11 @@ func runService(args []string, stdout, stderr io.Writer, deps dependencies) int 
 	result, err := deps.manageService(action)
 	if err != nil {
 		problem := failureService
-		if errors.Is(err, userservice.ErrUnavailable) {
+		switch {
+		case errors.Is(err, userservice.ErrUnavailable):
 			problem = failureServiceUnavailable
+		case errors.Is(err, userservice.ErrNotInstalled):
+			problem = failureServiceNotInstalled
 		}
 		return writeFailure(stderr, options.output, "service", problem)
 	}
