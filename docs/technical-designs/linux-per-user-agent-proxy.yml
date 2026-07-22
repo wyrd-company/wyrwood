@@ -115,16 +115,20 @@ proposed-design:
     stream fails, Wyrwood fails that request without retrying it, closes the
     stream, and makes a bounded connection attempt before the next request. A
     reconstructed stream replays the connection's accepted bindings in their
-    original order before forwarding that next request. One replay deadline
-    bounds the complete replay sequence, and the same deadline bounds a newly
-    forwarded session-bind exchange. Connect and identity-list operations use
-    their short configurable deadlines for the complete operation. Signing
-    uses its separate longer deadline for the complete request and response so
-    an upstream application can wait for human approval. Connect, operation,
-    or replay failure returns an agent failure while the downstream listener
-    remains available. Every failed or timed-out protocol stream is closed and
-    rebuilt on a later request because a delayed response would make that
-    stream unsafe to reuse.
+    original order before forwarding that next request. The replay journal
+    retains the first accepted raw request for at most 16 unique parsed host-key
+    and session-identifier pairs, matching OpenSSH's per-connection limit.
+    Semantically duplicate requests still reach the upstream for validation but
+    do not create replay entries; a seventeenth unique pair is rejected before
+    it reaches the upstream. One replay deadline bounds the complete replay
+    sequence, and the same deadline bounds a newly forwarded session-bind
+    exchange. Connect and identity-list operations use their short configurable
+    deadlines for the complete operation. Signing uses its separate longer
+    deadline for the complete request and response so an upstream application
+    can wait for human approval. Connect, operation, or replay failure returns
+    an agent failure while the downstream listener remains available. Every
+    failed or timed-out protocol stream is closed and rebuilt on a later request
+    because a delayed response would make that stream unsafe to reuse.
   control-interface: >-
     Wyrwood exposes a versioned request-response control API only through an
     owner-only Unix-domain socket. The Linux transport verifies the peer UID from

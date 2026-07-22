@@ -11,6 +11,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"os"
@@ -37,8 +38,8 @@ func TestServeReconnectsAtFixedPathAndReplaysBindingsBeforeNextRequest(t *testin
 	client, closeClient := serveDownstream(t, fixture)
 	defer closeClient()
 
-	firstBinding := sessionBinding("first")
-	secondBinding := sessionBinding("second")
+	firstBinding := sessionBinding(fixture.publicKey, "first", "proof")
+	secondBinding := sessionBinding(fixture.publicKey, "second", "proof")
 	for _, binding := range [][]byte{firstBinding, secondBinding} {
 		if _, err := client.Extension(sessionBindExtension, binding); err != nil {
 			t.Fatalf("Extension() error = %v", err)
@@ -136,7 +137,7 @@ func TestServeBoundsCompleteReplayAndRecoversAgain(t *testing.T) {
 	client, closeClient := serveDownstream(t, fixture)
 	defer closeClient()
 
-	binding := sessionBinding("accepted")
+	binding := sessionBinding(fixture.publicKey, "accepted", "proof")
 	if _, err := client.Extension(sessionBindExtension, binding); err != nil {
 		t.Fatalf("Extension() error = %v", err)
 	}
@@ -215,7 +216,7 @@ func TestServeDoesNotReplayRejectedBinding(t *testing.T) {
 	client, closeClient := serveDownstream(t, fixture)
 	defer closeClient()
 
-	if _, err := client.Extension(sessionBindExtension, sessionBinding("rejected")); err == nil {
+	if _, err := client.Extension(sessionBindExtension, sessionBinding(fixture.publicKey, "rejected", "proof")); err == nil {
 		t.Fatal("Extension(rejected) error = nil")
 	}
 	if keys, err := client.List(); err != nil {
@@ -227,6 +228,91 @@ func TestServeDoesNotReplayRejectedBinding(t *testing.T) {
 	accepted := server.waitAccepted(t, 2)
 	if got := accepted[1].agent.operations(); !operationsEqual(got, []operation{{kind: "list"}}) {
 		t.Fatalf("operations after rejected binding = %#v", got)
+	}
+}
+
+func TestServeRetainsOnlyFirstAcceptedRawRequestForSemanticDuplicates(t *testing.T) {
+	fixture := newConnectionFixture(t)
+	first := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	client, closeClient := serveDownstream(t, fixture)
+	defer closeClient()
+
+	retained := sessionBinding(fixture.publicKey, "shared", "first proof")
+	duplicate := sessionBinding(fixture.publicKey, "shared", "different proof")
+	for _, binding := range [][]byte{retained, retained, retained, duplicate} {
+		if _, err := client.Extension(sessionBindExtension, binding); err != nil {
+			t.Fatalf("Extension(duplicate) error = %v", err)
+		}
+	}
+	firstAccepted := first.waitAccepted(t, 1)[0]
+	if got := firstAccepted.agent.operations(); len(got) != 4 {
+		t.Fatalf("initial upstream operation count = %d, want 4", len(got))
+	}
+	first.close(t)
+
+	second := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	defer second.close(t)
+	if _, err := client.List(); err == nil {
+		t.Fatal("List(on stale stream) error = nil")
+	}
+	if _, err := client.List(); err != nil {
+		t.Fatalf("List(after replacement) error = %v", err)
+	}
+
+	want := []operation{{kind: "extension", contents: retained}, {kind: "list"}}
+	if got := second.waitAccepted(t, 1)[0].agent.operations(); !operationsEqual(got, want) {
+		t.Fatalf("replacement operations = %#v, want first accepted request only", got)
+	}
+}
+
+func TestServeRejectsSeventeenthUniqueBindingBeforeUpstreamAndReplaysSixteenInOrder(t *testing.T) {
+	fixture := newConnectionFixture(t)
+	first := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	client, closeClient := serveDownstream(t, fixture)
+	defer closeClient()
+
+	bindings := make([][]byte, 17)
+	for index := range bindings {
+		bindings[index] = sessionBinding(fixture.publicKey, fmt.Sprintf("identifier %02d", index), "proof")
+	}
+	for index, binding := range bindings[:16] {
+		if _, err := client.Extension(sessionBindExtension, binding); err != nil {
+			t.Fatalf("Extension(unique %d) error = %v", index, err)
+		}
+	}
+	if _, err := client.Extension(sessionBindExtension, bindings[16]); err == nil {
+		t.Fatal("Extension(seventeenth unique) error = nil")
+	}
+	firstAccepted := first.waitAccepted(t, 1)[0]
+	if got := firstAccepted.agent.operations(); len(got) != 16 {
+		t.Fatalf("initial upstream operation count = %d, want 16", len(got))
+	}
+	first.close(t)
+
+	second := startUnixAgent(t, fixture.upstreamPath, func(int) *scriptedAgent {
+		return newScriptedAgent(t, fixture.privateKey)
+	})
+	defer second.close(t)
+	if _, err := client.List(); err == nil {
+		t.Fatal("List(on stale stream) error = nil")
+	}
+	if _, err := client.List(); err != nil {
+		t.Fatalf("List(after replacement) error = %v", err)
+	}
+
+	want := make([]operation, 0, 17)
+	for _, binding := range bindings[:16] {
+		want = append(want, operation{kind: "extension", contents: binding})
+	}
+	want = append(want, operation{kind: "list"})
+	if got := second.waitAccepted(t, 1)[0].agent.operations(); !operationsEqual(got, want) {
+		t.Fatalf("replacement operations did not preserve sixteen-binding order")
 	}
 }
 
@@ -593,16 +679,16 @@ func (server *unixAgentServer) close(t *testing.T) {
 	}
 }
 
-func sessionBinding(marker string) []byte {
+func sessionBinding(hostKey ssh.PublicKey, marker, proof string) []byte {
 	return ssh.Marshal(struct {
 		HostKey      []byte
 		SessionID    []byte
 		Signature    []byte
 		IsForwarding bool
 	}{
-		HostKey:      []byte("opaque key"),
+		HostKey:      hostKey.Marshal(),
 		SessionID:    []byte("opaque identifier " + marker),
-		Signature:    []byte("opaque proof"),
+		Signature:    []byte(proof),
 		IsForwarding: true,
 	})
 }

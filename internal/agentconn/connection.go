@@ -20,7 +20,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
-const sessionBindExtension = "session-bind@openssh.com"
+const (
+	sessionBindExtension = "session-bind@openssh.com"
+	maxSessionBindings   = 16
+)
 
 var (
 	// ErrClosed means the paired connection has ended with its downstream owner.
@@ -35,6 +38,9 @@ var (
 	ErrSign = errors.New("upstream signing failed")
 	// ErrExtension categorizes an upstream session-binding failure.
 	ErrExtension = errors.New("upstream session binding failed")
+	// ErrBindingLimit means the connection already owns the maximum number of
+	// unique OpenSSH session bindings.
+	ErrBindingLimit = errors.New("upstream session binding limit reached")
 	// ErrOperationDenied means the paired adapter does not expose an operation.
 	ErrOperationDenied = errors.New("upstream operation is not exposed")
 	// ErrClose categorizes a failure to close the owned upstream stream.
@@ -54,7 +60,7 @@ type Connection struct {
 
 	connection net.Conn
 	upstream   agent.ExtendedAgent
-	bindings   [][]byte
+	bindings   []sessionBinding
 	dialCancel context.CancelFunc
 	closed     bool
 }
@@ -72,7 +78,7 @@ func New(path string, timeouts config.Timeouts) (*Connection, error) {
 // request and response.
 func (connection *Connection) List() ([]*agent.Key, error) {
 	var keys []*agent.Key
-	err := connection.run(connection.timeouts.List, ErrList, func(upstream agent.ExtendedAgent) error {
+	err := connection.run(connection.timeouts.List, ErrList, nil, func(upstream agent.ExtendedAgent) error {
 		var err error
 		keys, err = upstream.List()
 		return err
@@ -89,7 +95,7 @@ func (connection *Connection) Sign(key ssh.PublicKey, data []byte) (*ssh.Signatu
 // separate signing deadline to the complete upstream request and response.
 func (connection *Connection) SignWithFlags(key ssh.PublicKey, data []byte, flags agent.SignatureFlags) (*ssh.Signature, error) {
 	var signature *ssh.Signature
-	err := connection.run(connection.timeouts.Sign, ErrSign, func(upstream agent.ExtendedAgent) error {
+	err := connection.run(connection.timeouts.Sign, ErrSign, nil, func(upstream agent.ExtendedAgent) error {
 		var err error
 		signature, err = upstream.SignWithFlags(key, data, flags)
 		return err
@@ -103,14 +109,33 @@ func (connection *Connection) Extension(extensionType string, contents []byte) (
 	if extensionType != sessionBindExtension {
 		return nil, agent.ErrExtensionUnsupported
 	}
+	binding, err := parseSessionBinding(contents)
+	if err != nil {
+		return nil, ErrExtension
+	}
 
 	var response []byte
-	err := connection.run(connection.timeouts.Replay, ErrExtension, func(upstream agent.ExtendedAgent) error {
+	duplicate := false
+	err = connection.run(connection.timeouts.Replay, ErrExtension, func() error {
+		for _, accepted := range connection.bindings {
+			if accepted.sameIdentity(binding) {
+				duplicate = true
+				return nil
+			}
+		}
+		if len(connection.bindings) >= maxSessionBindings {
+			return ErrBindingLimit
+		}
+		return nil
+	}, func(upstream agent.ExtendedAgent) error {
 		var err error
 		response, err = upstream.Extension(extensionType, contents)
 		return err
 	}, func() {
-		connection.bindings = append(connection.bindings, slices.Clone(contents))
+		if !duplicate {
+			binding.request = slices.Clone(contents)
+			connection.bindings = append(connection.bindings, binding)
+		}
 	})
 	if err != nil {
 		return nil, err
@@ -149,11 +174,24 @@ func (connection *Connection) Close() error {
 func (connection *Connection) run(
 	timeout time.Duration,
 	operationError error,
+	beforeOperation func() error,
 	operation func(agent.ExtendedAgent) error,
 	afterSuccess func(),
 ) error {
 	connection.operationMu.Lock()
 	defer connection.operationMu.Unlock()
+	if beforeOperation != nil {
+		connection.stateMu.Lock()
+		if connection.closed {
+			connection.stateMu.Unlock()
+			return ErrClosed
+		}
+		if err := beforeOperation(); err != nil {
+			connection.stateMu.Unlock()
+			return err
+		}
+		connection.stateMu.Unlock()
+	}
 
 	upstreamConnection, upstream, err := connection.connectAndReplay()
 	if err != nil {
@@ -234,7 +272,7 @@ func (connection *Connection) connectAndReplay() (net.Conn, agent.ExtendedAgent,
 		return nil, nil, ErrReplay
 	}
 	for _, binding := range bindings {
-		if _, err := upstream.Extension(sessionBindExtension, binding); err != nil {
+		if _, err := upstream.Extension(sessionBindExtension, binding.request); err != nil {
 			connection.discard(upstreamConnection)
 			return nil, nil, ErrReplay
 		}
@@ -249,6 +287,37 @@ func (connection *Connection) connectAndReplay() (net.Conn, agent.ExtendedAgent,
 		return nil, nil, ErrClosed
 	}
 	return upstreamConnection, upstream, nil
+}
+
+type sessionBinding struct {
+	hostKey   []byte
+	sessionID []byte
+	request   []byte
+}
+
+func parseSessionBinding(contents []byte) (sessionBinding, error) {
+	var decoded struct {
+		HostKey      []byte
+		SessionID    []byte
+		Signature    []byte
+		IsForwarding bool
+	}
+	if err := ssh.Unmarshal(contents, &decoded); err != nil {
+		return sessionBinding{}, err
+	}
+	hostKey, err := ssh.ParsePublicKey(decoded.HostKey)
+	if err != nil {
+		return sessionBinding{}, err
+	}
+	return sessionBinding{
+		hostKey:   hostKey.Marshal(),
+		sessionID: slices.Clone(decoded.SessionID),
+	}, nil
+}
+
+func (binding sessionBinding) sameIdentity(other sessionBinding) bool {
+	return slices.Equal(binding.hostKey, other.hostKey) &&
+		slices.Equal(binding.sessionID, other.sessionID)
 }
 
 func (connection *Connection) discard(upstreamConnection net.Conn) {
