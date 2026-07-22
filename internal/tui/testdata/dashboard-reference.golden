@@ -9,11 +9,11 @@ WYRWOOD  /  DIAGNOSTICS  /  DASHBOARD
 │   NAME                 LISTENER                 CONNECTIONS      │  │ sample alpha                             │
 │ > sample alpha         [OK] HEALTHY             2                │  │ socket /tmp/example/alpha.sock           │
 │   sample beta          [--] STATUS NOT PROJECTED --              │  │ fingerprints 1                           │
-│ [!] STATUS INCOMPLETE — configured consumers remain              │  │ [OK] HEALTHY  ·  2 active connections    │
-│ authoritative                                                    │  │                                          │
+│ [!] STATUS INCOMPLETE — configured consumers remain              │  │   • SHA256:AAAAAAAAAAAA…                 │
+│ authoritative                                                    │  │ [OK] HEALTHY  ·  2 active connections    │
+│                                                                  │  │                                          │
 │                                                                  │  │ RECENT APPROVED EVENTS                   │
 │                                                                  │  │ 04:05:06 [OK] sign             succeeded │
-│                                                                  │  │                                          │
 │                                                                  │  │                                          │
 │                                                                  │  │                                          │
 │                                                                  │  │                                          │

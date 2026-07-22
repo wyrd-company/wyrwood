@@ -346,6 +346,14 @@ func TestRenderingSanitizesControlAndBidiCharacters(t *testing.T) {
 	}
 }
 
+func TestSelectedConsumerSummaryIncludesConfiguredFingerprintIdentities(t *testing.T) {
+	model := readyModel(t, false)
+	view := model.View()
+	if !strings.Contains(view, "SHA256:AAAAAAAAAAAA…") {
+		t.Fatalf("selected summary omits configured fingerprint identity:\n%s", view)
+	}
+}
+
 func TestViewsAreBoundedToTerminalDimensions(t *testing.T) {
 	model := readyModel(t, true)
 	for _, size := range []tea.WindowSizeMsg{{Width: 118, Height: 34}, {Width: 58, Height: 14}, {Width: 10000, Height: 10000}, {Width: 1, Height: 1}} {

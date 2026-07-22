@@ -199,6 +199,13 @@ func (model *Model) consumerSummary(styles palette) string {
 		"socket " + sanitize(consumer.Socket),
 		fmt.Sprintf("fingerprints %d", len(consumer.Fingerprints)),
 	}
+	for index, fingerprint := range consumer.Fingerprints {
+		if index == 4 {
+			lines = append(lines, fmt.Sprintf("  … %d more", len(consumer.Fingerprints)-index))
+			break
+		}
+		lines = append(lines, styles.identity.Render("  • "+shortFingerprint(fingerprint)))
+	}
 	if status, projected := model.statusFor(consumer.ID); projected {
 		lines = append(lines, model.healthLabel(status.Listener, loadReady, styles)+fmt.Sprintf("  ·  %d active connections", status.ActiveConnections))
 	} else {
