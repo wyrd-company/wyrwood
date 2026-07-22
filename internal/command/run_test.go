@@ -183,6 +183,27 @@ func TestEmptyHumanResultsAreExplicit(t *testing.T) {
 	}
 }
 
+func TestEmptyStructuredResultsAreEmptyArrays(t *testing.T) {
+	tests := []struct {
+		command string
+		want    string
+	}{
+		{command: "keys", want: "{\"version\":1,\"command\":\"keys\",\"ok\":true,\"result\":{\"keys\":[]}}\n"},
+		{command: "events", want: "{\"version\":1,\"command\":\"events\",\"ok\":true,\"result\":{\"events\":[]}}\n"},
+	}
+	for _, test := range tests {
+		t.Run(test.command, func(t *testing.T) {
+			exitCode, stdout, stderr := execute(t, []string{test.command, "--output=json"}, testDependencies(successfulClient()))
+			if exitCode != exitSuccess || stdout != test.want || stderr != "" {
+				t.Fatalf("run() = (%d, %q, %q), want stdout %q", exitCode, stdout, stderr, test.want)
+			}
+			if strings.Contains(stdout, "null") {
+				t.Fatalf("structured empty result contains null: %s", stdout)
+			}
+		})
+	}
+}
+
 func TestStructuredOutputGolden(t *testing.T) {
 	timestamp := time.Date(2026, 1, 2, 3, 4, 5, 6, time.UTC)
 	fingerprint := sampleFingerprint
@@ -224,6 +245,7 @@ func TestStableFailureExitCodesAndStructuredErrors(t *testing.T) {
 		{name: "apply failure", command: "apply", err: &control.RemoteError{Code: control.ErrorApplyFailed}, wantExit: exitRequestFailed, wantCode: "apply-failed"},
 		{name: "upstream unavailable", command: "keys", err: &control.RemoteError{Code: control.ErrorUpstreamUnavailable}, wantExit: exitUpstream, wantCode: "upstream-unavailable"},
 		{name: "resource limit", command: "keys", err: &control.RemoteError{Code: control.ErrorResourceLimit}, wantExit: exitRequestFailed, wantCode: "resource-limit"},
+		{name: "bad request", command: "status", err: &control.RemoteError{Code: control.ErrorBadRequest}, wantExit: exitRequestFailed, wantCode: "request-rejected"},
 		{name: "version mismatch", command: "status", err: &control.RemoteError{Code: control.ErrorUnsupportedVersion}, wantExit: exitDaemonUnavailable, wantCode: "incompatible-daemon"},
 		{name: "internal", command: "status", err: &control.RemoteError{Code: control.ErrorInternal}, wantExit: exitRequestFailed, wantCode: "daemon-failed"},
 		{name: "transport", command: "status", err: errors.New("private marker"), wantExit: exitDaemonUnavailable, wantCode: "daemon-unavailable"},
@@ -316,6 +338,21 @@ func TestEventsLimitIsBoundedAndDefaultsToOneHundred(t *testing.T) {
 		if exitCode != exitUsage || stdout != "" || !strings.Contains(stderr, `"code":"usage"`) || len(client.calls) != 0 {
 			t.Fatalf("limit %q = (%d, %q, %q, calls %v)", value, exitCode, stdout, stderr, client.calls)
 		}
+	}
+}
+
+func TestLimitIsRejectedByEveryNonEventsManagementCommand(t *testing.T) {
+	for _, command := range []string{"apply", "keys", "status"} {
+		t.Run(command, func(t *testing.T) {
+			client := successfulClient()
+			exitCode, stdout, stderr := execute(t, []string{command, "--limit", "10", "--output=json"}, testDependencies(client))
+			if exitCode != exitUsage || stdout != "" || !strings.Contains(stderr, `"code":"usage"`) {
+				t.Fatalf("%s --limit = (%d, %q, %q)", command, exitCode, stdout, stderr)
+			}
+			if len(client.calls) != 0 {
+				t.Fatalf("%s --limit made control calls %v", command, client.calls)
+			}
+		})
 	}
 }
 
