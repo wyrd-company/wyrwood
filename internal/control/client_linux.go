@@ -45,41 +45,21 @@ func (client *Client) Apply() (ApplyResult, error) {
 }
 
 func (client *Client) Keys() (KeysResult, error) {
-	response, err := client.call(Request{Version: Version, Operation: OperationKeys})
-	if err != nil {
-		return KeysResult{}, err
-	}
-	return *response.Keys, nil
+	return client.KeysContext(context.Background())
 }
 
 func (client *Client) Status() (StatusResult, error) {
-	response, err := client.call(Request{Version: Version, Operation: OperationStatus})
-	if err != nil {
-		return StatusResult{}, err
-	}
-	return *response.Status, nil
+	return client.StatusContext(context.Background())
 }
 
 func (client *Client) Events(limit int) (EventsResult, error) {
-	response, err := client.call(Request{Version: Version, Operation: OperationEvents, Limit: &limit})
-	if err != nil {
-		return EventsResult{}, err
-	}
-	return *response.Events, nil
+	return client.EventsContext(context.Background(), limit)
 }
 
 // Configuration returns one coherent page. expectedRevision must be empty for
 // offset zero and must be the first page's revision for every later page.
 func (client *Client) Configuration(offset, limit int, expectedRevision string) (ConfigurationResult, error) {
-	request := Request{Version: Version, Operation: OperationConfiguration, Offset: &offset, Limit: &limit}
-	if expectedRevision != "" {
-		request.ExpectedRevision = &expectedRevision
-	}
-	response, err := client.call(request)
-	if err != nil {
-		return ConfigurationResult{}, err
-	}
-	return *response.Configuration, nil
+	return client.ConfigurationContext(context.Background(), offset, limit, expectedRevision)
 }
 
 func (client *Client) SetUpstream(expectedRevision, upstream string) (ConfigurationChangeResult, error) {
