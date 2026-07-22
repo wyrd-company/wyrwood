@@ -42,7 +42,6 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 		tea.WithInput(input),
 		tea.WithOutput(output),
 		tea.WithAltScreen(),
-		tea.WithContext(model.ctx),
 	)
 	_, err := program.Run()
 	return err
