@@ -415,8 +415,6 @@ func stateFor(err error, count int) loadState {
 	switch {
 	case errors.Is(err, ErrDenied):
 		return loadDenied
-	case errors.Is(err, ErrConfigurationUnavailable):
-		return loadUnavailable
 	case errors.Is(err, context.Canceled):
 		return loadLoading
 	}

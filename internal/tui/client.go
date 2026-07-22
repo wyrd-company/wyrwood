@@ -23,11 +23,6 @@ const (
 	refreshInterval       = 5 * time.Second
 )
 
-// ErrConfigurationUnavailable marks the temporary integration seam that task
-// 32 replaces with the daemon's paginated configuration operation. It is kept
-// categorical so the application never falls back to reading YAML directly.
-var ErrConfigurationUnavailable = errors.New("configuration projection unavailable")
-
 // ErrDenied is a categorical client failure used by tests and future transport
 // adapters. It contains no displayable low-level error text.
 var ErrDenied = errors.New("control request denied")
@@ -109,6 +104,7 @@ type Event struct {
 type Events struct{ Events []Event }
 
 type contextControlClient interface {
+	ConfigurationContext(context.Context, int, int, string) (control.ConfigurationResult, error)
 	KeysContext(context.Context) (control.KeysResult, error)
 	StatusContext(context.Context) (control.StatusResult, error)
 	EventsContext(context.Context, int) (control.EventsResult, error)
@@ -122,8 +118,39 @@ func NewControlClient(client contextControlClient) *ControlClient {
 	return &ControlClient{client: client}
 }
 
-func (*ControlClient) Configuration(context.Context, int, int, string) (ConfigurationPage, error) {
-	return ConfigurationPage{}, ErrConfigurationUnavailable
+func (client *ControlClient) Configuration(ctx context.Context, offset, limit int, revision string) (ConfigurationPage, error) {
+	result, err := client.client.ConfigurationContext(ctx, offset, limit, revision)
+	if err != nil {
+		return ConfigurationPage{}, err
+	}
+	consumers := make([]Consumer, len(result.Consumers))
+	for index, consumer := range result.Consumers {
+		consumers[index] = Consumer{
+			ID:           consumer.ID,
+			Name:         consumer.Name,
+			Socket:       consumer.Socket,
+			AccessGroup:  consumer.AccessGroup,
+			Fingerprints: append([]string(nil), consumer.Fingerprints...),
+		}
+	}
+	var nextOffset *int
+	if !result.Complete {
+		next := result.Offset + len(result.Consumers)
+		nextOffset = &next
+	}
+	return ConfigurationPage{
+		Revision: result.Revision,
+		Upstream: result.Upstream,
+		Timeouts: Timeouts{
+			Connect: result.Timeouts.Connect,
+			List:    result.Timeouts.List,
+			Replay:  result.Timeouts.Replay,
+			Sign:    result.Timeouts.Sign,
+		},
+		TotalConsumers: result.TotalConsumers,
+		Consumers:      consumers,
+		NextOffset:     nextOffset,
+	}, nil
 }
 
 func (client *ControlClient) Keys(ctx context.Context) (Keys, error) {
@@ -153,10 +180,11 @@ func (client *ControlClient) Status(ctx context.Context) (Status, error) {
 		}
 	}
 	return Status{
-		Daemon:    health(result.Daemon),
-		Upstream:  health(result.Upstream),
-		Consumers: consumers,
-		Truncated: result.Truncated,
+		ActiveRevision: result.ActiveRevision,
+		Daemon:         health(result.Daemon),
+		Upstream:       health(result.Upstream),
+		Consumers:      consumers,
+		Truncated:      result.Truncated,
 	}, nil
 }
 

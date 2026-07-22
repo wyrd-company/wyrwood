@@ -24,6 +24,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/wyrd-company/wyrwood/internal/control"
 )
 
 var updateGolden = flag.Bool("update", false, "update golden render files")
@@ -330,7 +331,7 @@ func TestCategoricalFailureStatesAndRetry(t *testing.T) {
 	model := NewModel(populatedClient(), options{Schedule: noSchedule})
 	model.Init()
 	generation := model.generation
-	model.Update(configurationMsg{generation: generation, err: ErrConfigurationUnavailable})
+	model.Update(configurationMsg{generation: generation, err: &control.RemoteError{Code: control.ErrorUnsupportedVersion}})
 	model.Update(keysMsg{generation: generation, err: ErrDenied})
 	model.Update(statusMsg{generation: generation, err: errors.New("private marker")})
 	model.Update(eventsMsg{generation: generation, result: Events{}})

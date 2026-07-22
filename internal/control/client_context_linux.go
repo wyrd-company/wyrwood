@@ -9,6 +9,20 @@ package control
 
 import "context"
 
+// ConfigurationContext performs a coherent configuration-page request that
+// can be interrupted by a closing interactive client.
+func (client *Client) ConfigurationContext(ctx context.Context, offset, limit int, expectedRevision string) (ConfigurationResult, error) {
+	request := Request{Version: Version, Operation: OperationConfiguration, Offset: &offset, Limit: &limit}
+	if expectedRevision != "" {
+		request.ExpectedRevision = &expectedRevision
+	}
+	response, err := client.callContext(ctx, request)
+	if err != nil {
+		return ConfigurationResult{}, err
+	}
+	return *response.Configuration, nil
+}
+
 // KeysContext performs a key projection request that can be interrupted by a
 // closing interactive client.
 func (client *Client) KeysContext(ctx context.Context) (KeysResult, error) {
