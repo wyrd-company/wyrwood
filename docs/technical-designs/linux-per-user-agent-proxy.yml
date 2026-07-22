@@ -56,11 +56,15 @@ proposed-design:
     group uses mode 0700 for its parent directory and mode 0600 for its socket.
     A consumer with a configured numeric group uses mode 0710 for its parent
     directory and mode 0660 for its socket, with both entries assigned to that
-    group. The daemon user must own the dedicated parent directory; Wyrwood
-    creates a missing directory and applies the configured ownership and modes
-    without granting access to other users. A container process reaches the
-    socket as the daemon UID, through root DAC override, or through the
-    configured group.
+    group. The daemon user must own the dedicated leaf parent directory. Wyrwood
+    creates that leaf with mode 0700 only when its ancestor already exists; it
+    does not create missing ancestors. Existing parents are opened as real
+    directories without following a final symlink. Directory and socket modes
+    are applied and verified exactly, and configured group assignment must
+    name one of the daemon user's effective or supplementary groups and succeed
+    before preparation can commit. Linux pathname sockets must fit the 107-byte
+    AF_UNIX path limit. A container process reaches the socket as the daemon UID,
+    through root DAC override, or through the configured group.
     Every host or container process with that filesystem access shares the
     consumer's authority. The daemon restores configured consumer listeners at
     login without requiring the upstream endpoint to be available. It holds no
@@ -81,15 +85,23 @@ proposed-design:
   transactional-apply: >-
     Listener reconciliation has a prepare and commit boundary. Prepare creates
     every new parent directory and binds every new listener without accepting
-    clients. If preparation fails, Wyrwood closes and removes every staged
-    listener and socket file, leaving the active snapshot and listeners
-    unchanged. Parent directories remain in place, including directories created
-    during preparation. Commit publishes the new immutable configuration,
-    activates staged listeners, and updates the policy references used by
-    retained listeners as one in-memory state transition. It then closes retired
-    listeners, closes their client connections, and removes their socket files.
-    A post-commit cleanup failure is reported as degraded health and retried; it
-    does not restore an obsolete authorization policy or listener.
+    clients. An owned existing socket is removed as stale only when a stream
+    connection probe returns connection-refused; a live listener, foreign
+    socket, symlink, or non-socket entry blocks preparation. Preparation records
+    prior metadata for active endpoints whose access settings change. If any
+    preparation step fails, Wyrwood closes and removes every staged listener and
+    socket file and restores prior active endpoint metadata, leaving the active
+    snapshot, listeners, and policies unchanged. Parent directories remain in
+    place, including directories created during preparation. Commit publishes
+    the new immutable configuration, activates staged listeners, and updates the
+    policy references used by retained listeners as one in-memory state
+    transition. An upstream path or timeout change closes retained client pairs
+    so reconnecting clients cannot continue with obsolete connection settings.
+    Commit then closes retired listeners and all of their downstream and paired
+    upstream connections. Socket cleanup compares the created device and inode
+    before unlinking, so a replacement directory entry is never removed. A
+    post-commit cleanup failure is reported as degraded health and retried in the
+    background; it does not restore an obsolete authorization policy or listener.
   consumer-endpoints: >-
     The user assigns each socket path and mounts its dedicated parent directory
     into exactly the intended container. Wyrwood creates the socket inside that
@@ -97,7 +109,11 @@ proposed-design:
     visible through the mount instead of relying on a bind-mounted socket
     inode. Retiring a consumer stops its listener, closes its downstream and
     paired upstream connections, and removes only its socket file. The daemon
-    never removes the user-selected parent directory.
+    never removes the user-selected parent directory. Listener accept loops
+    begin only after the complete runtime snapshot commits, so a staged socket
+    can accumulate kernel connections but cannot process a request under the old
+    policy. Each accepted connection is tracked until it exits so retirement can
+    close every active pair before cleanup.
   protocol-enforcement: >-
     Wyrwood implements the SSH-agent framing needed to inspect every request.
     Identity enumeration returns only keys whose ssh.FingerprintSHA256 value is
