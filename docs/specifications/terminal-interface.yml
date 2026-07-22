@@ -32,7 +32,11 @@ description: >-
   health, durable-versus-active configuration state, consumer name, listener
   health, active-connection count, and a selected consumer summary. The
   consumer summary contains configured fingerprints and recent approved events,
-  not filesystem telemetry or inferred usage totals. The upstream route presents
+  not filesystem telemetry or inferred usage totals. Configuration pagination
+  populates the complete consumer list independently of the bounded status
+  projection. When status is truncated, the dashboard displays `STATUS
+  INCOMPLETE` and labels consumers without a status entry `STATUS NOT PROJECTED`;
+  it never treats an omitted status entry as an absent consumer. The upstream route presents
   its configured socket as editable configuration, categorical reachability,
   available fingerprint and sanitized comment projections, and approved
   upstream-connect and replay events. It contains no process identifier,
@@ -45,13 +49,28 @@ description: >-
   explains the dedicated parent-directory requirement; it does not invent a
   filename from a directory or promise that missing ancestors are created.
 
+  Settings is a global route whose Timeouts panel edits the complete connect,
+  list, replay, and sign duration set. Focus starts at connect, then moves through
+  list, replay, sign, Save, and Cancel. Each field accepts the persisted positive
+  Go-duration syntax. Connect, list, and replay must each be from 100ms through
+  30s; sign must be from 1s through 10m. Syntax and range errors appear beside
+  the field with an `INVALID` marker, keep Save disabled, and remain
+  distinguishable without color. Editing any field marks the route `DIRTY`.
+  Save sends the complete four-value set through `set-timeouts`; cancellation,
+  stale conflict, reload, and exit use the same candidate-preserving flow as
+  every other editor. At widths below 60 columns the panel shows one focused
+  timeout, its allowed range and error, the dirty/conflict state, and scrolling
+  Save/Cancel actions; resize preserves all four candidate values and focus.
+
   Global navigation uses Tab and Shift+Tab to move focus in documented order,
   arrow keys to move within a focused list, Enter to open or activate, Space to
   toggle a focused fingerprint, Esc to cancel or return, `?` to expand help,
-  `r` to refresh the current route, and `q` to request exit outside text input.
-  Every route renders a persistent footer containing only currently available
-  keys. Focus begins at the route's primary collection or first form field, then
-  follows visible detail controls, the primary action, and the secondary action.
+  `r` to refresh the current route, `s` to open Settings, and `q` to request exit
+  outside text input. Every route renders a persistent footer containing only
+  currently available keys; it displays `s Settings` whenever that shortcut is
+  available, and expanded help documents the same binding. Focus begins at the
+  route's primary collection or first form field, then follows visible detail
+  controls, the primary action, and the secondary action.
   A visible leading marker identifies the selected row, brackets
   identify checked and unchecked values, underlining or a doubled border
   identifies the focused field, and text labels accompany every semantic color.
@@ -62,7 +81,13 @@ description: >-
   always available. Existence and file type are advisory validation signals;
   selecting a path grants no authority and does not prove that an agent is
   reachable. Fingerprints are authorization identities. Upstream comments are
-  sanitized display labels and never selection keys. Consumer creation and edit
+  sanitized display labels and never selection keys. A consumer editor presents
+  the union of its existing allowlist and the currently offered upstream keys.
+  An existing fingerprint absent from the upstream projection stays selected,
+  carries an `UNAVAILABLE` text marker in addition to subdued styling, and is
+  preserved on save unless the user explicitly deselects it. When the keys
+  request is unavailable, the existing allowlist remains selected and editable;
+  loading failure never produces an empty candidate. Consumer creation and edit
   replace the complete exact fingerprint allowlist; no wildcard or future-key
   grant exists. Changing a consumer socket path is presented as replacing its
   security principal. Retirement requires an explicit confirmation that names
@@ -110,10 +135,17 @@ validation-criteria: >-
   cancellation, bounded refresh, navigation and focus order, editing, stale
   revision conflict, save, apply rejection and degraded commit, destructive
   confirmation, dirty cancellation, resize, interrupt, and exit. Golden render
-  tests cover dashboard, consumer detail, upstream detail, and new-consumer form
-  at 118 by 34 plus the narrow fallbacks, with color disabled and with semantic
-  color enabled. Linux integration tests use a pseudo-terminal and real control
-  socket to verify non-terminal refusal, terminal restoration, keyboard-only
+  tests cover dashboard, consumer detail, upstream detail, new-consumer form,
+  and Settings/Timeouts at 118 by 34 plus the narrow fallbacks, with color
+  disabled and with semantic color enabled. Linux integration tests use a
+  pseudo-terminal and real control socket to verify non-terminal refusal,
+  terminal restoration, keyboard-only
   operation, cross-client revision visibility, categorical output, and bounded
-  rendering. Inspection verifies that every rendered runtime and event datum
-  belongs to the control and operational-event specifications.
+  rendering. Settings tests cover the `s` binding, footer and expanded-help
+  discoverability, focus order, duration syntax and every bound, dirty
+  save/cancel, conflict/reload, color-independent invalid state, and narrow
+  rendering. Fingerprint tests cover offered-only, configured-only, union,
+  unavailable upstream, and explicit deselection without losing configured
+  values. Status-truncation tests prove omitted status rows remain visible as
+  configured consumers. Inspection verifies that every rendered runtime and
+  event datum belongs to the control and operational-event specifications.

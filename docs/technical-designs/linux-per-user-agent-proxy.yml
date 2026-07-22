@@ -88,6 +88,13 @@ proposed-design:
     consumer. Each operation rereads and hashes the fixed file, rejects a stale
     revision, validates the complete candidate, deterministically serializes all
     modeled values, and atomically replaces and synchronizes the owner-only YAML.
+    One daemon-owned writer lock spans reread, ownership and mode checks,
+    revision comparison, validation, serialization, temporary write, rename,
+    directory sync, and result classification, so simultaneous writers cannot
+    both commit from one revision. Canonical YAML uses schema field order,
+    bytewise canonical-socket consumer order, lexicographic fingerprints, LF
+    line endings, and exactly one trailing newline. A canonical candidate above
+    1 MiB is invalid before publication.
     Managed writes preserve modeled values but not YAML comments or formatting.
     They do not change runtime state. Direct edits participate in the same
     revision check, and explicit apply remains the only durable-to-runtime
@@ -196,7 +203,7 @@ proposed-design:
     for automation, and categorical exit statuses distinguish usage,
     initialization, daemon, configuration, apply, and upstream failures. Runtime
     commands have no path or deadline overrides and use the bounded control
-    client. Both management clients use paginated configuration reads plus
+    client. Both management clients use fully paginated configuration reads plus
     revisioned set-upstream, set-timeouts, put-consumer, and retire-consumer
     operations. No configuration mutation accepts a path to another file. Status
     and apply report the active configuration revision so clients distinguish a
@@ -204,7 +211,9 @@ proposed-design:
     exposes exact non-interactive configuration and consumer commands. The
     terminal interface uses the same API for upstream selection with path
     browsing or manual entry, consumer editing, key selection, apply, health,
-    and event inspection.
+    and event inspection. The terminal includes a global Settings/Timeouts route
+    for the complete connect, list, replay, and sign set and retains configured
+    fingerprints that the current upstream projection does not offer.
   runtime-observability: >-
     Live state records daemon readiness, configured upstream reachability, each
     consumer listener state, active connection counts, and categorical recent
@@ -216,6 +225,12 @@ proposed-design:
     no signing payloads, signatures, public-key bytes, agent comments, filesystem
     paths, destinations, raw client messages, or raw upstream errors. Owner-only
     storage survives daemon restart and compacts through an atomic replacement.
+    The consumer identifier used by configuration, status, and events is the
+    lowercase hexadecimal SHA-256 digest of the UTF-8 bytes of the canonical
+    absolute consumer socket path. It remains stable while that path is stable;
+    changing the path creates a new principal and identifier. Status truncation
+    explicitly marks runtime observability incomplete and does not constrain the
+    complete paginated configuration view.
   platform-lifecycle: >-
     The Linux adapter installs, removes, starts, stops, and inspects a systemd
     user service without a shell, sudo, or machine-level unit. An owner-only
@@ -252,8 +267,10 @@ proposed-design:
   verification: >-
     Unit tests cover configuration invariants, operation filtering, fingerprint
     authorization, policy changes on open connections, session-binding replay,
-    deadline handling, event redaction by construction, and atomic endpoint
-    reconciliation. The Linux integration gate bind-mounts a real consumer
+    deadline handling, event redaction by construction, serialized configuration
+    writers, canonical size-bounded YAML, identifier and schema round trips,
+    deterministic terminal transitions, and atomic endpoint reconciliation. The
+    Linux integration gate bind-mounts a real consumer
     parent directory into one Docker container, sets its SSH_AUTH_SOCK, and
     drives one persistent downstream connection. The gate replaces a
     controllable upstream socket at the exact same path, verifies ordered

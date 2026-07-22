@@ -36,8 +36,8 @@ description: >-
   `apply-failed`, `configuration-invalid`, `configuration-conflict`,
   `configuration-not-found`, `configuration-failed`,
   `configuration-durability-uncertain`, `upstream-unavailable`,
-  `resource-limit`, and `internal`; responses contain no raw filesystem,
-  upstream, or protocol error text.
+  `resource-limit`, and `internal`; responses contain no raw configuration-parser,
+  filesystem, upstream, or protocol error text.
 
   Apply always loads the daemon's fixed configuration path. A client cannot
   supply a path. Its real parent directory and regular file must be owned by the
@@ -51,20 +51,40 @@ description: >-
 
   Configuration returns the approved editable model: revision, upstream socket,
   complete timeout set, total consumer count, and the requested consumer page.
+  Consumers are ordered bytewise by canonical socket path before pagination.
   Each projected consumer contains its opaque identifier plus configured name,
   socket, optional access group, and complete fingerprint allowlist. A page
   after offset zero is served only while its expected revision still matches the
   persisted bytes. A response reports the next offset or completion and never
   exceeds 1 MiB.
 
-  Each configuration mutation rereads the fixed file without following links,
-  verifies its owner and exact modes, hashes its exact bytes, and compares the
-  required revision before changing data. Set-upstream replaces the complete
+  The daemon serializes every configuration mutation through one single-writer
+  critical section. The section spans rereading the fixed file without following
+  links, ownership and exact-mode checks, exact-byte hashing and revision
+  comparison, complete candidate validation, canonical serialization, temporary
+  file write and sync, rename, directory sync, and final result classification.
+  A simultaneous mutation enters only after its predecessor leaves, observes the
+  predecessor's revision, and returns `configuration-conflict` for its stale
+  expected revision. Configuration reads remain concurrent where they use an
+  immutable read snapshot and the page revision check preserves coherence.
+  Set-upstream replaces the complete
   upstream path. Set-timeouts replaces all four timeouts. Put-consumer either
   creates a consumer or replaces the consumer selected by its opaque identifier
   with one complete candidate; retire-consumer removes the selected consumer.
+  The identifier is the full lowercase hexadecimal SHA-256 digest of the UTF-8
+  bytes of the canonical absolute socket path and is shared with status and
+  events. Put selects an existing consumer by its old identifier; a socket-path
+  change returns the new identifier. Successful put and retire responses include
+  the affected `consumer_id`; retire returns the removed identifier. The wire
+  field `access_group` maps exactly to persisted YAML `access-group` in both
+  directions. Wire durations use the same positive Go-duration syntax as YAML,
+  and complete-candidate validation enforces the operation-specific semantic
+  bounds.
+
   The daemon validates the complete resulting configuration before publication.
-  It deterministically serializes all modeled values, atomically replaces the
+  It deterministically serializes all modeled values in configuration-specification
+  order and rejects canonical candidate bytes above 1 MiB as
+  `configuration-invalid` before creating a temporary file. It atomically replaces the
   fixed file with mode `0600`, and synchronizes the containing mode-`0700`
   directory. A pre-publication failure leaves the prior revision. A directory
   synchronization failure after rename returns
@@ -80,7 +100,9 @@ description: >-
   returns the active configuration revision, categorical daemon, upstream, and
   listener health, opaque consumer identifiers, configured display names of at
   most 256 Unicode characters, bounded connection counts, and at most 512
-  consumers with an explicit truncation marker. Events returns at most the
+  consumers with an explicit truncation marker. Truncation means runtime
+  observability is incomplete; it never bounds configuration pagination or
+  implies that omitted configured consumers are absent. Events returns at most the
   requested number of existing closed operational-event records in durable
   order. It does not add paths, payloads, signatures, public-key bytes, comments,
   destinations, raw client messages, or raw errors to the task #9 event model.
@@ -91,8 +113,10 @@ validation-criteria: >-
   socket behavior, bounded malformed input, version mismatches, daemon startup
   while upstream is absent, atomic apply failure and success, coherent
   configuration pagination, direct-edit and concurrent-mutation conflicts,
-  complete-candidate validation, deterministic atomic replacement, uncertain
+  complete-candidate validation, mutually serialized writers, deterministic
+  canonical serialization, oversize rejection, atomic replacement, uncertain
   post-publication durability, bounded keys, status and event projections,
+  identifier parity, access-group and duration round trips, status truncation,
   restart, and complete shutdown cleanup. The
   Docker milestone gate also proves effective-UID control access and rejection
   of a container-root peer that can traverse the mounted owner-only directory

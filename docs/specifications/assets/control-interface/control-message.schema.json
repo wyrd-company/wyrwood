@@ -78,7 +78,7 @@
             "version": { "const": 1 },
             "operation": { "const": "put-consumer" },
             "expected_revision": { "$ref": "#/$defs/revision" },
-            "consumer_id": { "type": "string", "minLength": 1, "maxLength": 128 },
+            "consumer_id": { "$ref": "#/$defs/consumer-id" },
             "consumer": { "$ref": "#/$defs/configuration-consumer-input" }
           }
         },
@@ -90,7 +90,7 @@
             "version": { "const": 1 },
             "operation": { "const": "retire-consumer" },
             "expected_revision": { "$ref": "#/$defs/revision" },
-            "consumer_id": { "type": "string", "minLength": 1, "maxLength": 128 }
+            "consumer_id": { "$ref": "#/$defs/consumer-id" }
           }
         }
       ]
@@ -113,8 +113,13 @@
       ]
     },
     "revision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "consumer-id": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "absolute-path": { "type": "string", "minLength": 2, "maxLength": 107, "pattern": "^/" },
-    "duration": { "type": "string", "minLength": 2, "maxLength": 64 },
+    "duration": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^\\+?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|μs|ms|s|m|h))+$"
+    },
     "timeouts": {
       "type": "object",
       "additionalProperties": false,
@@ -147,7 +152,7 @@
       "additionalProperties": false,
       "required": ["id", "name", "socket", "fingerprints"],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "$ref": "#/$defs/consumer-id" },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
         "socket": { "$ref": "#/$defs/absolute-path" },
         "access_group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
@@ -180,7 +185,7 @@
       "additionalProperties": false,
       "required": ["id", "name", "listener", "active_connections"],
       "properties": {
-        "id": { "type": "string", "maxLength": 128 },
+        "id": { "$ref": "#/$defs/consumer-id" },
         "name": { "type": "string", "maxLength": 256 },
         "listener": { "$ref": "#/$defs/health" },
         "active_connections": { "type": "integer", "minimum": 0 }
@@ -199,7 +204,7 @@
       ],
       "properties": {
         "timestamp": { "type": "string", "format": "date-time" },
-        "consumer_id": { "type": "string", "maxLength": 128 },
+        "consumer_id": { "$ref": "#/$defs/consumer-id" },
         "operation": {
           "enum": [
             "consumer-connect",
@@ -459,10 +464,24 @@
         "configuration_change": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["revision", "changed"],
+          "required": ["operation", "revision", "changed"],
+          "oneOf": [
+            {
+              "properties": { "operation": { "enum": ["set-upstream", "set-timeouts"] } },
+              "not": { "required": ["consumer_id"] }
+            },
+            {
+              "required": ["consumer_id"],
+              "properties": { "operation": { "enum": ["put-consumer", "retire-consumer"] } }
+            }
+          ],
           "properties": {
+            "operation": {
+              "enum": ["set-upstream", "set-timeouts", "put-consumer", "retire-consumer"]
+            },
             "revision": { "$ref": "#/$defs/revision" },
-            "changed": { "type": "boolean" }
+            "changed": { "type": "boolean" },
+            "consumer_id": { "$ref": "#/$defs/consumer-id" }
           }
         }
       }

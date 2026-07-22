@@ -26,9 +26,11 @@ description: >-
   opaque identifier returned by `configuration show` replaces that consumer.
   `consumer retire` requires a revision and opaque consumer identifier. These
   commands invoke the corresponding daemon operations and print the resulting
-  durable revision. They do not apply it. `apply` remains the explicit runtime
-  transition. Comments from `keys` are display data and are never accepted in
-  place of fingerprints.
+  durable revision. Consumer put and retire also print the affected opaque
+  consumer identifier; replacing a socket path reports the new identifier while
+  selecting the old identifier in the request. They do not apply it. `apply`
+  remains the explicit runtime transition. Comments from `keys` are display data
+  and are never accepted in place of fingerprints.
 
   Human-readable output is the default. `--output json` emits exactly one JSON
   object and newline whose version-1 contract is defined by
@@ -37,7 +39,7 @@ description: >-
   paths are quoted so control characters cannot inject terminal records. JSON
   errors are written to standard error; successful JSON is written to standard
   output. Errors are categorical and actionable and never include raw
-  filesystem, configuration, daemon, protocol, or upstream errors. `apply`
+  filesystem, configuration-parser, daemon, protocol, or upstream errors. `apply`
   succeeds only when the daemon reports that the candidate configuration
   committed. A committed result can report degraded cleanup and remains a
   successful apply because the active configuration changed.
@@ -57,6 +59,13 @@ description: >-
   unit also uses status 1 with the distinct `service-not-installed` category.
   Status 8 means the supplied configuration revision is stale. Status 9 means a
   configuration replacement was published but its durability is uncertain.
+  Status 10 means a consumer selected for replacement or retirement does not
+  exist at the supplied current revision.
+
+  Human and JSON status output carry the daemon's truncation marker. A truncated
+  status result is labeled incomplete runtime observability and never implies
+  that consumers omitted from the status projection are absent from the fully
+  paginated configuration.
 
   `daemon` continues to delegate directly to the per-user daemon runtime and
   handles SIGINT and SIGTERM. `service install|remove|start|stop|status` delegates
@@ -67,14 +76,16 @@ description: >-
 validation-criteria: >-
   Command tests verify exact human projections and versioned JSON structure for
   runtime and service commands; categorical stable failures and exit statuses;
-  invalid configuration, stale revision, uncertain configuration durability,
+  invalid configuration, stale revision, missing consumer, uncertain configuration durability,
   unavailable daemon, unavailable upstream, absent
   service installation, and retained policy denial; default and bounded event
   limits; quoted display data; committed apply enforcement; exclusive use of the
   local control client for configuration and runtime commands; and schema parity
   with implementation constants and result fields. Tests also verify coherent
   configuration pagination, exact create-versus-replace grammar, complete
-  fingerprint replacement, and that persisted mutations remain unapplied. The
+  fingerprint replacement, affected consumer identifiers including a path-change
+  replacement, exact `configuration-not-found` status 10 behavior, status
+  truncation wording, and that persisted mutations remain unapplied. The
   Linux milestone gate exercises the same fixed
   owner-authenticated control operations used by the runtime commands while the
   container scenario changes policy, queries events, and restarts the daemon.

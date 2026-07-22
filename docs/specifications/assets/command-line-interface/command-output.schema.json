@@ -71,13 +71,20 @@
         "command": {
           "enum": [
             "configuration-set-upstream",
-            "configuration-set-timeouts",
-            "consumer-put",
-            "consumer-retire"
+            "configuration-set-timeouts"
           ]
         },
         "ok": { "const": true },
         "result": { "$ref": "#/$defs/configuration-change-result" }
+      }
+    },
+    {
+      "required": ["result"],
+      "not": { "required": ["error"] },
+      "properties": {
+        "command": { "enum": ["consumer-put", "consumer-retire"] },
+        "ok": { "const": true },
+        "result": { "$ref": "#/$defs/consumer-change-result" }
       }
     },
     {
@@ -126,6 +133,7 @@
         { "$ref": "#/$defs/events-result" },
         { "$ref": "#/$defs/configuration-result" },
         { "$ref": "#/$defs/configuration-change-result" },
+        { "$ref": "#/$defs/consumer-change-result" },
         { "$ref": "#/$defs/service-result" }
       ]
     },
@@ -133,10 +141,16 @@
   },
   "$defs": {
     "revision": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "consumer-id": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "health": { "enum": ["healthy", "degraded", "unavailable"] },
     "fingerprint": {
       "type": "string",
       "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$"
+    },
+    "duration": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^\\+?(?:(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)(?:ns|us|µs|μs|ms|s|m|h))+$"
     },
     "init-result": {
       "type": "object",
@@ -184,7 +198,7 @@
       "additionalProperties": false,
       "required": ["id", "name", "listener", "active_connections"],
       "properties": {
-        "id": { "type": "string", "maxLength": 128 },
+        "id": { "$ref": "#/$defs/consumer-id" },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
         "listener": { "$ref": "#/$defs/health" },
         "active_connections": { "type": "integer", "minimum": 0 }
@@ -212,7 +226,7 @@
       "required": ["timestamp", "consumer_id", "operation", "outcome", "latency_ns", "error_code"],
       "properties": {
         "timestamp": { "type": "string", "format": "date-time" },
-        "consumer_id": { "type": "string", "maxLength": 128 },
+        "consumer_id": { "$ref": "#/$defs/consumer-id" },
         "operation": {
           "enum": ["consumer-connect", "list-identities", "sign", "session-bind", "upstream-connect", "replay", "reconcile"]
         },
@@ -241,10 +255,10 @@
       "additionalProperties": false,
       "required": ["connect", "list", "replay", "sign"],
       "properties": {
-        "connect": { "type": "string", "minLength": 2, "maxLength": 64 },
-        "list": { "type": "string", "minLength": 2, "maxLength": 64 },
-        "replay": { "type": "string", "minLength": 2, "maxLength": 64 },
-        "sign": { "type": "string", "minLength": 2, "maxLength": 64 }
+        "connect": { "$ref": "#/$defs/duration" },
+        "list": { "$ref": "#/$defs/duration" },
+        "replay": { "$ref": "#/$defs/duration" },
+        "sign": { "$ref": "#/$defs/duration" }
       }
     },
     "configuration-consumer": {
@@ -252,7 +266,7 @@
       "additionalProperties": false,
       "required": ["id", "name", "socket", "fingerprints"],
       "properties": {
-        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "id": { "$ref": "#/$defs/consumer-id" },
         "name": { "type": "string", "minLength": 1, "maxLength": 256 },
         "socket": { "type": "string", "minLength": 2, "maxLength": 107, "pattern": "^/" },
         "access_group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
@@ -285,6 +299,16 @@
       "properties": {
         "revision": { "$ref": "#/$defs/revision" },
         "changed": { "type": "boolean" }
+      }
+    },
+    "consumer-change-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revision", "changed", "consumer_id"],
+      "properties": {
+        "revision": { "$ref": "#/$defs/revision" },
+        "changed": { "type": "boolean" },
+        "consumer_id": { "$ref": "#/$defs/consumer-id" }
       }
     },
     "service-result": {

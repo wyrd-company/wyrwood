@@ -14,6 +14,12 @@ description: >-
   optional Linux numeric group identifier, and an exact allowlist of OpenSSH
   SHA-256 public-key fingerprints.
 
+  A consumer's opaque identifier is the lowercase hexadecimal SHA-256 digest of
+  the UTF-8 bytes of its canonical absolute socket path. Configuration, status,
+  events, replacement selection, and retirement use that same identifier. It is
+  stable while the socket path is unchanged. Replacing the socket path creates a
+  different security principal and identifier.
+
   Consumer socket paths are unique and differ from the upstream path. Each
   consumer socket has a dedicated parent directory. Consumer parent directories
   are distinct, do not contain one another, and do not contain the upstream
@@ -49,12 +55,17 @@ description: >-
   upstream path, complete timeout set, or one complete consumer, or retires one
   consumer. The daemon validates the resulting complete configuration,
   deterministically serializes every modeled value, and atomically replaces the
-  fixed owner-only file. Comments and formatting are not modeled and are not
+  fixed owner-only file. Canonical YAML uses schema field order, orders consumers
+  bytewise by canonical socket path, orders each fingerprint list
+  lexicographically, uses LF line endings, and ends with exactly one newline.
+  The daemon rejects canonical candidate bytes above 1 MiB as invalid before it
+  creates or publishes a replacement. Comments and formatting are not modeled and are not
   preserved by a managed mutation. Persisting a mutation does not change the
   active runtime snapshot; apply is a separate daemon operation.
 
-  Configuration reads paginate consumers and repeat the revision, upstream, and
-  timeout values on every page. A later page requires the first page's revision,
+  Configuration reads paginate consumers in the same bytewise canonical socket
+  path order and repeat the revision, upstream, and timeout values on every
+  page. There is no consumer-count ceiling. A later page requires the first page's revision,
   so a direct or managed edit between pages fails as a configuration conflict
   instead of combining revisions.
 validation-criteria: >-
@@ -68,5 +79,8 @@ validation-criteria: >-
   one downstream connection remains open and verifies that the next request
   observes the complete newly committed allowlist. Control tests verify coherent
   pagination, exact-byte revisions, stale-write rejection, complete-candidate
-  validation, deterministic atomic owner-only replacement, durability
-  uncertainty, and separation of durable mutation from runtime apply.
+  validation, canonical serialization and the 1 MiB rejection boundary,
+  deterministic atomic owner-only replacement, durability uncertainty, and
+  separation of durable mutation from runtime apply. Identifier tests use exact
+  UTF-8 socket-path bytes and verify stability, path-change replacement, and
+  parity across configuration, status, and events.
