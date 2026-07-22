@@ -52,6 +52,7 @@ tasks:
     cmds:
       - bash -n scripts/*.sh
       - python3 -m py_compile scripts/*.py
+      - python3 scripts/check-release-toolchain.py
       - cd scripts && ./check-publishing-secret-contract.sh
 
   docs:check:
