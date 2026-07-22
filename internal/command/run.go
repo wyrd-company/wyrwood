@@ -48,6 +48,9 @@ Management options:
   --limit NUMBER        Events to return, from 1 through 1000 (default 100)
 `
 
+// version is replaced with the release version at link time.
+var version = "dev"
+
 type controlClient interface {
 	Apply() (control.ApplyResult, error)
 	Keys() (control.KeysResult, error)
@@ -110,7 +113,7 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 		_, _ = io.WriteString(stdout, help)
 		return exitSuccess
 	case "version", "--version":
-		_, _ = fmt.Fprintln(stdout, "wyrwood dev")
+		_, _ = fmt.Fprintln(stdout, "wyrwood "+version)
 		return exitSuccess
 	case "daemon":
 		if len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {

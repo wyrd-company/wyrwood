@@ -184,6 +184,17 @@ func TestRunHelpAndVersion(t *testing.T) {
 	}
 }
 
+func TestRunReportsLinkedVersion(t *testing.T) {
+	previous := version
+	version = "1.2.3"
+	t.Cleanup(func() { version = previous })
+
+	exitCode, stdout, stderr := execute(t, []string{"version"}, testDependencies(&fakeClient{}))
+	if exitCode != exitSuccess || stdout != "wyrwood 1.2.3\n" || stderr != "" {
+		t.Fatalf("version = (%d, %q, %q)", exitCode, stdout, stderr)
+	}
+}
+
 func TestInitIsTheOnlyDirectConfigurationOperation(t *testing.T) {
 	initialized := 0
 	deps := testDependencies(&fakeClient{})

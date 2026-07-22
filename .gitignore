@@ -5,3 +5,5 @@
 /wyrwood
 /dist/
 /coverage.out
+__pycache__/
+*.pyc

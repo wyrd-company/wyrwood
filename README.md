@@ -93,6 +93,54 @@ the candidate available for reload or cancellation instead of overwriting a
 newer YAML document. Run `wyrwood tui --help` for its invocation grammar; the
 persistent footer and expanded `?` help show the keys available in each view.
 
+## Installation
+
+### APT
+
+Install the repository key and source definition, then install Wyrwood:
+
+```console
+sudo install -d -m 0755 /etc/apt/keyrings
+curl -fsSL https://repo.wyrd.foo/pubkey.gpg |
+  sudo tee /etc/apt/keyrings/wyrd-company.gpg >/dev/null
+echo "deb [signed-by=/etc/apt/keyrings/wyrd-company.gpg] \
+https://repo.wyrd.foo/apt stable main" |
+  sudo tee /etc/apt/sources.list.d/wyrd-company.list >/dev/null
+sudo apt update
+sudo apt install wyrwood
+```
+
+### RPM
+
+Install the repository definition and Wyrwood with DNF:
+
+```console
+sudo curl -fsSL https://repo.wyrd.foo/wyrd.repo \
+  -o /etc/yum.repos.d/wyrd.repo
+sudo dnf install wyrwood
+```
+
+### Arch User Repository
+
+The prebuilt Arch User Repository (AUR) package is `wyrwood-bin`. Install it
+with an AUR helper, for example:
+
+```console
+paru -S wyrwood-bin
+```
+
+After upgrading through any package manager, restart an active Wyrwood daemon
+so it runs the new executable:
+
+```console
+wyrwood service stop
+wyrwood service start
+```
+
+The consumer endpoints are unavailable between those two commands. A new
+installation still requires the initialization and service commands in
+[Command-line use](#command-line-use).
+
 ## Project direction
 
 The [concept](docs/concepts/wyrwood.yml) defines the product, the
@@ -106,4 +154,5 @@ task check
 task test:integration:management
 task test:integration:linux
 task build
+task release:snapshot
 ```

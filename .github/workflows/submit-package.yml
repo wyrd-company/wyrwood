@@ -1,0 +1,82 @@
+# ---
+# relationships: {}
+# ---
+
+name: Submit package release
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing bare stable SemVer GitHub release to resubmit
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: package-submission-${{ github.event.workflow_run.id || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  submit:
+    name: Commit release manifest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out trusted submission code
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Download successful release handoff
+        if: github.event_name == 'workflow_run'
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: package-release-manifest
+          path: handoff
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Recover handoff from GitHub release
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          then
+          echo "Release tags must be bare stable SemVer values." >&2
+          exit 1
+          fi
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          commit="$(git rev-list -n 1 "refs/tags/$RELEASE_TAG")"
+          mkdir -p handoff/assets
+          gh release download "$RELEASE_TAG" \
+          --dir handoff/assets \
+          --pattern '*.tar.gz' \
+          --pattern '*.deb' \
+          --pattern '*.rpm'
+          scripts/create-release-manifest.py \
+          --artifacts-dir handoff/assets \
+          --version "$RELEASE_TAG" \
+          --commit "$commit" \
+          --output handoff/release-manifest.json
+
+      - name: Submit package release
+        uses: wyrd-company/repo.wyrd.foo/.github/actions/submit-release@REPLACE_WITH_REPO_WYRD_FOO_COMMIT_SHA
+        with:
+          manifest: handoff/release-manifest.json
+          app-client-id: ${{ secrets.REPO_WYRD_FOO_APP_CLIENT_ID }}
+          app-private-key: ${{ secrets.REPO_WYRD_FOO_APP_PRIVATE_KEY }}

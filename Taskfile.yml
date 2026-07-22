@@ -25,6 +25,11 @@ tasks:
     cmds:
       - go test ./...
 
+  test:release-manifest:
+    desc: Test the package release manifest generator
+    cmds:
+      - python3 -m unittest scripts/create-release-manifest_test.py
+
   test:integration:linux:
     desc: Run all real Linux milestone gates
     cmds:
@@ -53,11 +58,39 @@ tasks:
     cmds:
       - go build ./cmd/wyrwood
 
+  release:check:
+    desc: Validate the GoReleaser configuration
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@v2.17.0 check .goreleaser.yaml
+
+  release:ci:
+    desc: Run portable validation required before a release
+    deps:
+      - build
+      - format:check
+      - release:check
+      - test
+      - test:release-manifest
+      - vet
+
+  release:snapshot:
+    desc: Build local release artifacts without publishing
+    cmds:
+      - go run github.com/goreleaser/goreleaser/v2@v2.17.0 release --snapshot --clean
+
+  workflows:check:
+    desc: Validate GitHub Actions workflows
+    cmds:
+      - actionlint
+
   check:
     desc: Run all repository checks
     deps:
       - build
       - docs:check
       - format:check
+      - release:check
       - test
+      - test:release-manifest
       - vet
+      - workflows:check

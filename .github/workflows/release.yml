@@ -1,0 +1,77 @@
+# ---
+# relationships: {}
+# ---
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate stable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          then
+          echo "Release tags must be bare stable SemVer values." >&2
+          exit 1
+          fi
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Validate repository
+        run: go run github.com/go-task/task/v3/cmd/task@v3.52.0 release:ci
+
+      - name: Build and publish GitHub release
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
+        with:
+          distribution: goreleaser
+          version: v2.17.0
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create package repository handoff
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          commit="$(git rev-list -n 1 "refs/tags/$RELEASE_VERSION")"
+          scripts/create-release-manifest.py \
+          --artifacts-dir dist \
+          --version "$RELEASE_VERSION" \
+          --commit "$commit" \
+          --output dist/release-manifest.json
+
+      - name: Preserve package repository handoff
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: package-release-manifest
+          path: dist/release-manifest.json
+          if-no-files-found: error
+          retention-days: 90

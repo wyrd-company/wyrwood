@@ -1,0 +1,66 @@
+# ---
+# relationships: {}
+# ---
+
+version: 2
+
+project_name: wyrwood
+
+builds:
+  - id: wyrwood
+    main: ./cmd/wyrwood
+    binary: wyrwood
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/wyrd-company/wyrwood/internal/command.version={{ .Version }}
+
+archives:
+  - id: archives
+    ids:
+      - wyrwood
+    formats:
+      - tar.gz
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}aarch64{{ end }}
+    files:
+      - LICENSE
+      - README.md
+
+nfpms:
+  - id: packages
+    ids:
+      - wyrwood
+    package_name: wyrwood
+    formats:
+      - deb
+      - rpm
+    vendor: Wyrd Company
+    homepage: https://github.com/wyrd-company/wyrwood
+    maintainer: Wyrd Company <support@wyrd.company>
+    description: Filtered SSH-agent endpoints for containers
+    license: Apache-2.0
+    bindir: /usr/bin
+    file_name_template: >-
+      {{ .PackageName }}_{{ .Version }}_{{ .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64{{ else }}aarch64{{ end }}
+    contents:
+      - src: LICENSE
+        dst: /usr/share/licenses/wyrwood/LICENSE
+      - src: README.md
+        dst: /usr/share/doc/wyrwood/README.md
+
+checksum:
+  name_template: checksums.txt
+
+changelog:
+  use: git
+  sort: asc
