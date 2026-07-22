@@ -17,8 +17,7 @@ assert_reference() {
 }
 
 legacy_package_prefix="REPO_WYRD_FOO_APP_"
-if git grep -n -E -e "${legacy_package_prefix}(CLIENT_ID|PRIVATE_KEY)" \
-  -- .github README.md docs
+if git grep -n -E -e "${legacy_package_prefix}(CLIENT_ID|PRIVATE_KEY)"
 then
   echo "Legacy package publisher secret names are forbidden." >&2
   exit 1
