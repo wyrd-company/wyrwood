@@ -60,16 +60,32 @@ func (model *Model) View() string {
 	}
 	width := bounded(model.width, 1, maximumWidth)
 	height := bounded(model.height, 1, maximumHeight)
+	if model.browserState.active {
+		return fit(model.viewBrowser(width, height), width, height)
+	}
+	if model.editor != nil {
+		return fit(model.viewEditor(width, height), width, height)
+	}
 	if width < narrowWidth || height < shortHeight {
-		return fit(model.viewNarrow(width), width, height)
+		view := fit(model.viewNarrow(width), width, height)
+		if model.modal != modalNone {
+			view = overlayBottom(view, model.viewModal(width), width, height)
+		}
+		return view
 	}
 	var view string
-	if model.route == routeUpstream {
+	if model.route == routeConsumer {
+		view = model.viewConsumer(width, height)
+	} else if model.route == routeUpstream {
 		view = model.viewUpstream(width, height)
 	} else {
 		view = model.viewDashboard(width, height)
 	}
-	return fit(view, width, height)
+	view = fit(view, width, height)
+	if model.modal != modalNone {
+		view = overlayBottom(view, model.viewModal(width), width, height)
+	}
+	return view
 }
 
 func (model *Model) viewDashboard(width, height int) string {
@@ -115,6 +131,76 @@ func (model *Model) viewUpstream(width, height int) string {
 	return lipgloss.JoinVertical(lipgloss.Left, header, connection, model.footer(styles))
 }
 
+func (model *Model) viewConsumer(width, height int) string {
+	styles := model.styles
+	header := styles.identity.Bold(true).Render("WYRWOOD") + styles.muted.Render("  /  CONFIGURATION  /  CONSUMER")
+	footerHeight := model.footerHeight()
+	bodyHeight := maximum(5, height-footerHeight-2)
+	consumer, ok := model.selectedConsumer()
+	if !ok {
+		return lipgloss.JoinVertical(lipgloss.Left, header, model.panel("CONSUMER", "EMPTY  Consumer is not configured.", width, bodyHeight, true, styles), model.footer(styles))
+	}
+	left := model.panel("CONSUMER DETAIL", model.consumerDetail(consumer, styles), width, bodyHeight, true, styles)
+	if width >= stackedWidth {
+		leftWidth := (width * 3) / 5
+		rightWidth := width - leftWidth - 2
+		left = lipgloss.JoinHorizontal(lipgloss.Top,
+			model.panel("CONSUMER DETAIL", model.consumerDetail(consumer, styles), leftWidth, bodyHeight, true, styles),
+			"  ", model.panel("EVENTS", model.consumerEvents(consumer.ID, styles, bodyHeight-2), rightWidth, bodyHeight, false, styles),
+		)
+	}
+	return lipgloss.JoinVertical(lipgloss.Left, header, left, model.footer(styles))
+}
+
+func (model *Model) consumerDetail(consumer Consumer, styles palette) string {
+	group := "none"
+	if consumer.AccessGroup != nil {
+		group = fmt.Sprintf("%d", *consumer.AccessGroup)
+	}
+	lines := []string{
+		"name          " + sanitize(consumer.Name),
+		"socket        " + sanitize(consumer.Socket),
+		"access group  " + group,
+		"", "EXPOSED FINGERPRINTS",
+	}
+	choices := fingerprintUnion(consumer.Fingerprints, model.offeredKeys())
+	for index, choice := range choices {
+		if index == 10 {
+			lines = append(lines, fmt.Sprintf("… %d more", len(choices)-index))
+			break
+		}
+		label := "[x] " + shortFingerprint(choice.Fingerprint)
+		if !choice.Offered {
+			label += "  UNAVAILABLE"
+		} else if choice.Display != "" {
+			label += "  " + sanitize(choice.Display)
+		}
+		lines = append(lines, styles.identity.Render(label))
+	}
+	if len(choices) == 0 {
+		lines = append(lines, "[ ] EMPTY  No fingerprints selected.")
+	}
+	if status, projected := model.statusFor(consumer.ID); projected {
+		lines = append(lines, "", model.healthLabel(status.Listener, loadReady, styles)+fmt.Sprintf("  ·  %d active connections", status.ActiveConnections))
+	} else {
+		lines = append(lines, "", "[--] STATUS NOT PROJECTED")
+	}
+	return strings.Join(lines, "\n")
+}
+
+func (model *Model) consumerEvents(identifier string, styles palette, availableHeight int) string {
+	rows := make([]string, 0, availableHeight)
+	for index := len(model.events.Events) - 1; index >= 0 && len(rows) < availableHeight; index-- {
+		if model.events.Events[index].ConsumerID == identifier {
+			rows = append(rows, renderEvent(model.events.Events[index], styles))
+		}
+	}
+	if len(rows) == 0 {
+		return model.loadHint(model.eventsState)
+	}
+	return strings.Join(rows, "\n")
+}
+
 func (model *Model) viewNarrow(width int) string {
 	styles := model.styles
 	if model.route == routeUpstream {
@@ -128,6 +214,17 @@ func (model *Model) viewNarrow(width int) string {
 			"q Quit",
 		}
 		return strings.Join(lines, "\n")
+	}
+	if model.route == routeConsumer {
+		consumer, ok := model.selectedConsumer()
+		name := "consumer unavailable"
+		if ok {
+			name = sanitize(consumer.Name)
+		}
+		return strings.Join([]string{
+			styles.identity.Bold(true).Render("CONSUMER"), name,
+			"e Edit  x Retire", "a Apply  s Settings", "esc Back  ? Help  q Quit",
+		}, "\n")
 	}
 	selected := "no configured consumer"
 	if consumer, ok := model.selectedConsumer(); ok {
@@ -306,13 +403,18 @@ func (model *Model) panel(title, body string, width, height int, focused bool, s
 
 func (model *Model) footer(styles palette) string {
 	var lines []string
-	if model.route == routeUpstream {
-		lines = []string{"esc Back   r Refresh   ? Help   q Quit"}
+	if model.route == routeConsumer {
+		lines = []string{"e Edit   x Retire   a Apply   s Settings   esc Back   r Refresh   ? Help   q Quit"}
+	} else if model.route == routeUpstream {
+		lines = []string{"e Edit   a Apply   s Settings   esc Back   r Refresh   ? Help   q Quit"}
 	} else {
-		lines = []string{model.dashboardBindings() + "   ? Help   q Quit"}
+		lines = []string{model.dashboardBindings() + "   n New   a Apply   s Settings   ? Help   q Quit"}
 	}
 	if model.help {
 		lines = append(lines, "All actions are keyboard-only. Refresh retries unavailable panels; color is never the sole state signal.")
+	}
+	if model.notice != "" {
+		lines = append(lines, model.notice)
 	}
 	return styles.muted.Render(strings.Join(lines, "\n"))
 }
@@ -330,10 +432,14 @@ func (model *Model) dashboardBindings() string {
 }
 
 func (model *Model) footerHeight() int {
+	height := 1
 	if model.help {
-		return 2
+		height++
 	}
-	return 1
+	if model.notice != "" {
+		height++
+	}
+	return height
 }
 
 func (model *Model) upstreamSocket() string {
@@ -443,4 +549,14 @@ func fit(value string, width, height int) string {
 		lines[index] = ansi.Truncate(lines[index], width, "")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func overlayBottom(base, overlay string, width, height int) string {
+	overlayLines := strings.Split(fit(overlay, width, height), "\n")
+	baseLines := strings.Split(fit(base, width, height), "\n")
+	keep := maximum(0, height-len(overlayLines))
+	if len(baseLines) > keep {
+		baseLines = baseLines[:keep]
+	}
+	return fit(strings.Join(append(baseLines, overlayLines...), "\n"), width, height)
 }

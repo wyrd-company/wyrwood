@@ -1,0 +1,31 @@
+WYRWOOD  /  CONFIGURATION  /  NEW CONSUMER
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ NEW CONSUMER · CLEAN [FOCUS]                                                                                     ║
+║ >> Name  >                                                                                                       ║
+║    INVALID — must not be empty                                                                                   ║
+║    Socket path  >                                                                                                ║
+║   Dedicated parent required; missing ancestors are not created.                                                  ║
+║    Access group (optional numeric)  >                                                                            ║
+║                                                                                                                  ║
+║ EXPOSED FINGERPRINTS                                                                                             ║
+║    [ ] SHA256:AAAAAAAAAAAA…  sample primary                                                                      ║
+║    [ ] SHA256:BBBBBBBBBBBB…  sample alternate                                                                    ║
+║                                                                                                                  ║
+║    [CREATE DISABLED — fix invalid fields, change a value, or reload conflict]      [CANCEL]                      ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+tab/shift+tab Traverse   enter Activate   esc Cancel   ↑/↓ Keys   space Toggle

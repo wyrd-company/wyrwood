@@ -34,6 +34,8 @@ type route uint8
 const (
 	routeDashboard route = iota
 	routeUpstream
+	routeConsumer
+	routeSettings
 )
 
 type loadState uint8
@@ -70,6 +72,7 @@ type options struct {
 	Colors       bool
 	ColorProfile *termenv.Profile
 	Schedule     scheduleFunc
+	Browser      SocketBrowser
 }
 
 type consumerItem struct{ consumer Consumer }
@@ -108,6 +111,16 @@ type Model struct {
 	status             Status
 	events             Events
 	consumerList       list.Model
+
+	editor           *editorState
+	modal            modalKind
+	browser          SocketBrowser
+	browserState     browserViewState
+	request          uint64
+	mutationInFlight bool
+	applyInFlight    bool
+	notice           string
+	selectionID      string
 }
 
 type configurationMsg struct {
@@ -142,6 +155,9 @@ func NewModel(client Client, opts options) *Model {
 	if opts.Schedule == nil {
 		opts.Schedule = schedule
 	}
+	if opts.Browser == nil {
+		opts.Browser = linuxSocketBrowser{}
+	}
 	consumerList := list.New(nil, list.NewDefaultDelegate(), 1, 1)
 	consumerList.SetShowTitle(false)
 	consumerList.SetShowFilter(false)
@@ -155,6 +171,7 @@ func NewModel(client Client, opts options) *Model {
 		ctx:                ctx,
 		cancel:             cancel,
 		schedule:           opts.Schedule,
+		browser:            opts.Browser,
 		styles:             newPalette(opts.Colors, opts.ColorProfile),
 		width:              referenceWidth,
 		height:             referenceHeight,
@@ -190,6 +207,13 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 			model.keysState = stateFor(message.err, len(message.result.Keys))
 			if message.err == nil {
 				model.keys = message.result
+				if model.editor != nil && model.editor.kind == editConsumer {
+					selected := model.editor.selectedFingerprints()
+					model.editor.fingerprints = fingerprintUnion(selected, message.result.Keys)
+					model.editor.fingerprintIndex = bounded(model.editor.fingerprintIndex, 0, maximum(0, len(model.editor.fingerprints)-1))
+					model.editor.syncDirty()
+					model.editor.validate(model)
+				}
 			}
 			return model, model.settleRefreshOperation(refreshKeys)
 		}
@@ -213,11 +237,33 @@ func (model *Model) Update(message tea.Msg) (tea.Model, tea.Cmd) {
 		if message.generation == model.generation && model.pendingRefresh == 0 {
 			return model, model.startRefresh(false, false)
 		}
+	case mutationMsg:
+		return model.updateMutation(message)
+	case applyMsg:
+		return model.updateApply(message)
+	case browserMsg:
+		return model.updateBrowser(message)
 	}
 	return model, nil
 }
 
 func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if model.modal != modalNone {
+		return model.updateModal(key)
+	}
+	if model.browserState.active {
+		return model.updateBrowserKey(key)
+	}
+	if model.editor != nil {
+		return model.updateEditorKey(key)
+	}
+	if model.mutationInFlight || model.applyInFlight {
+		if key.String() == "ctrl+c" || key.String() == "q" {
+			model.close()
+			return model, tea.Quit
+		}
+		return model, nil
+	}
 	switch key.String() {
 	case "ctrl+c", "q":
 		model.close()
@@ -232,12 +278,46 @@ func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			model.focus = focusConsumers
 		}
 	case "tab":
-		model.focus = (model.focus + 1) % focusCount
+		if model.route == routeDashboard {
+			model.focus = (model.focus + 1) % focusCount
+		}
 	case "shift+tab":
-		model.focus = (model.focus + focusCount - 1) % focusCount
+		if model.route == routeDashboard {
+			model.focus = (model.focus + focusCount - 1) % focusCount
+		}
 	case "enter":
 		if model.route == routeDashboard && model.focus == focusUpstream {
 			model.route = routeUpstream
+		} else if model.route == routeDashboard && model.focus == focusConsumers {
+			if _, ok := model.selectedConsumer(); ok {
+				model.route = routeConsumer
+			}
+		}
+	case "e":
+		if model.route == routeUpstream && model.configurationUsable() {
+			model.openUpstreamEditor()
+		} else if model.route == routeConsumer && model.configurationUsable() {
+			if consumer, ok := model.selectedConsumer(); ok {
+				model.openConsumerEditor(&consumer)
+			}
+		}
+	case "n":
+		if model.route == routeDashboard && model.configurationUsable() {
+			model.openConsumerEditor(nil)
+		}
+	case "x":
+		if model.route == routeConsumer && model.configurationUsable() {
+			if _, ok := model.selectedConsumer(); ok {
+				model.modal = modalRetire
+			}
+		}
+	case "s":
+		if model.route != routeSettings && model.configurationUsable() {
+			model.openTimeoutEditor()
+		}
+	case "a":
+		if model.configurationUsable() {
+			return model, model.apply()
 		}
 	case "r":
 		return model, model.startRefresh(true, true)
@@ -251,15 +331,43 @@ func (model *Model) updateKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return model, nil
 }
 
+func (model *Model) configurationUsable() bool {
+	return (model.configurationState == loadReady || model.configurationState == loadEmpty) && model.configuration.Revision != ""
+}
+
 func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, tea.Cmd) {
 	if message.generation != model.generation {
 		return model, nil
 	}
+	if model.editor != nil && model.editor.reloading {
+		return model.updateReloadConfiguration(message)
+	}
 	if message.err != nil {
+		if model.editor != nil && model.editor.dirty {
+			var remote *control.RemoteError
+			if errors.As(message.err, &remote) && remote.Code == control.ErrorConfigurationConflict {
+				model.editor.conflict = true
+				model.editor.failure = "CONFLICT"
+			} else {
+				model.editor.failure = stateFor(message.err, 0).String() + " · candidate preserved"
+			}
+			return model, model.settleRefreshOperation(refreshConfiguration)
+		}
 		model.configurationState = stateFor(message.err, 0)
 		model.consumers = nil
 		model.setConsumerItems()
 		return model, model.settleRefreshOperation(refreshConfiguration)
+	}
+	if message.offset == 0 && model.editor != nil && model.editor.dirty && !model.editor.reloading {
+		if message.page.Revision != model.editor.baseRevision {
+			model.editor.conflict = true
+			model.editor.failure = "CONFLICT"
+		}
+		model.configurationState = stateFor(nil, len(model.consumers))
+		return model, model.settleRefreshOperation(refreshConfiguration)
+	}
+	if message.offset == 0 && model.editor != nil && !model.editor.dirty && message.page.Revision != model.editor.baseRevision {
+		model.editor.reloading = true
 	}
 	if message.offset == 0 {
 		model.configuration = message.page
@@ -284,6 +392,7 @@ func (model *Model) updateConfiguration(message configurationMsg) (tea.Model, te
 	}
 	model.configurationState = stateFor(nil, len(model.consumers))
 	model.setConsumerItems()
+	model.finishReloadEditor()
 	return model, model.settleRefreshOperation(refreshConfiguration)
 }
 
@@ -306,9 +415,14 @@ func (model *Model) startRefresh(includeConfiguration, includeKeys bool) tea.Cmd
 	}
 	if includeConfiguration {
 		model.pendingRefresh |= refreshConfiguration
-		model.configurationState = loadLoading
-		model.consumers = nil
-		model.setConsumerItems()
+		if model.editor != nil && !model.editor.dirty {
+			model.editor.reloading = true
+		}
+		if model.editor == nil {
+			model.configurationState = loadLoading
+			model.consumers = nil
+			model.setConsumerItems()
+		}
 		commands = append(commands, model.loadConfigurationWithContext(refreshContext, generation, 0, ""))
 	}
 	if includeKeys {
@@ -385,7 +499,7 @@ func schedule(ctx context.Context, delay time.Duration, generation uint64) tea.C
 }
 
 func (model *Model) setConsumerItems() {
-	selectedID := ""
+	selectedID := model.selectionID
 	if selected, ok := model.consumerList.SelectedItem().(consumerItem); ok {
 		selectedID = selected.consumer.ID
 	}
@@ -395,6 +509,7 @@ func (model *Model) setConsumerItems() {
 		items[index] = consumerItem{consumer: consumer}
 		if consumer.ID == selectedID {
 			selectedIndex = index
+			model.selectionID = ""
 		}
 	}
 	model.consumerList.SetItems(items)

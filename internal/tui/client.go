@@ -30,6 +30,11 @@ type Client interface {
 	Keys(context.Context) (Keys, error)
 	Status(context.Context) (Status, error)
 	Events(context.Context, int) (Events, error)
+	Apply(context.Context) (ApplyResult, error)
+	SetUpstream(context.Context, string, string) (ConfigurationChange, error)
+	SetTimeouts(context.Context, string, Timeouts) (ConfigurationChange, error)
+	PutConsumer(context.Context, string, *string, Consumer) (ConfigurationChange, error)
+	RetireConsumer(context.Context, string, string) (ConfigurationChange, error)
 }
 
 // ConfigurationPage is one coherent page of the approved editable model.
@@ -98,11 +103,30 @@ type Event struct {
 
 type Events struct{ Events []Event }
 
+type ApplyResult struct {
+	Revision           string
+	Committed          bool
+	Degraded           bool
+	PendingCleanup     int
+	PendingPermissions int
+}
+
+type ConfigurationChange struct {
+	Revision   string
+	Changed    bool
+	ConsumerID *string
+}
+
 type contextControlClient interface {
 	ConfigurationContext(context.Context, int, int, string) (control.ConfigurationResult, error)
 	KeysContext(context.Context) (control.KeysResult, error)
 	StatusContext(context.Context) (control.StatusResult, error)
 	EventsContext(context.Context, int) (control.EventsResult, error)
+	ApplyContext(context.Context) (control.ApplyResult, error)
+	SetUpstreamContext(context.Context, string, string) (control.ConfigurationChangeResult, error)
+	SetTimeoutsContext(context.Context, string, control.ConfigurationTimeouts) (control.ConfigurationChangeResult, error)
+	PutConsumerContext(context.Context, string, *string, control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, error)
+	RetireConsumerContext(context.Context, string, string) (control.ConfigurationChangeResult, error)
 }
 
 // ControlClient adapts the existing local control client without exposing
@@ -200,6 +224,46 @@ func (client *ControlClient) Events(ctx context.Context, limit int) (Events, err
 		}
 	}
 	return Events{Events: events}, nil
+}
+
+func (client *ControlClient) Apply(ctx context.Context) (ApplyResult, error) {
+	result, err := client.client.ApplyContext(ctx)
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	return ApplyResult{
+		Revision: result.Revision, Committed: result.Committed, Degraded: result.Degraded,
+		PendingCleanup: result.PendingCleanup, PendingPermissions: result.PendingPermissions,
+	}, nil
+}
+
+func (client *ControlClient) SetUpstream(ctx context.Context, revision, upstream string) (ConfigurationChange, error) {
+	result, err := client.client.SetUpstreamContext(ctx, revision, upstream)
+	return configurationChange(result), err
+}
+
+func (client *ControlClient) SetTimeouts(ctx context.Context, revision string, timeouts Timeouts) (ConfigurationChange, error) {
+	result, err := client.client.SetTimeoutsContext(ctx, revision, control.ConfigurationTimeouts{
+		Connect: timeouts.Connect, List: timeouts.List, Replay: timeouts.Replay, Sign: timeouts.Sign,
+	})
+	return configurationChange(result), err
+}
+
+func (client *ControlClient) PutConsumer(ctx context.Context, revision string, consumerID *string, consumer Consumer) (ConfigurationChange, error) {
+	result, err := client.client.PutConsumerContext(ctx, revision, consumerID, control.ConfigurationConsumerInput{
+		Name: consumer.Name, Socket: consumer.Socket, AccessGroup: consumer.AccessGroup,
+		Fingerprints: append([]string(nil), consumer.Fingerprints...),
+	})
+	return configurationChange(result), err
+}
+
+func (client *ControlClient) RetireConsumer(ctx context.Context, revision, consumerID string) (ConfigurationChange, error) {
+	result, err := client.client.RetireConsumerContext(ctx, revision, consumerID)
+	return configurationChange(result), err
+}
+
+func configurationChange(result control.ConfigurationChangeResult) ConfigurationChange {
+	return ConfigurationChange{Revision: result.Revision, Changed: result.Changed, ConsumerID: result.ConsumerID}
 }
 
 func health(value control.HealthCategory) Health {

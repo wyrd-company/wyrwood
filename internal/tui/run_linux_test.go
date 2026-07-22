@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,9 @@ func TestRunRestoresTerminalModeAndAlternateScreen(t *testing.T) {
 	}
 	defer controller.Close()
 	defer terminal.Close()
+	if err := pty.Setsize(terminal, &pty.Winsize{Rows: 34, Cols: 118}); err != nil {
+		t.Fatal(err)
+	}
 	before, err := unix.IoctlGetTermios(int(terminal.Fd()), unix.TCGETS)
 	if err != nil {
 		t.Fatal(err)
@@ -94,6 +98,72 @@ func TestRunRestoresTerminalModeAndAlternateScreen(t *testing.T) {
 	output := rendered.Bytes()
 	if !bytes.Contains(output, []byte("\x1b[?1049h")) || !bytes.Contains(output, []byte("\x1b[?1049l")) {
 		t.Fatalf("alternate-screen enter/leave sequences absent: %q", output)
+	}
+}
+
+func TestRunKeyboardSettingsWorkflowRestoresTerminal(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("NO_COLOR", "1")
+	controller, terminal, err := pty.Open()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer controller.Close()
+	defer terminal.Close()
+	if err := pty.Setsize(terminal, &pty.Winsize{Rows: 34, Cols: 118}); err != nil {
+		t.Fatal(err)
+	}
+	before, err := unix.IoctlGetTermios(int(terminal.Fd()), unix.TCGETS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client := populatedClient()
+	runDone := make(chan error, 1)
+	go func() { runDone <- Run(terminal, terminal, client) }()
+	var rendered bytes.Buffer
+	waitForPTYText(t, controller, &rendered, "DASHBOARD")
+	if _, err := controller.Write([]byte("s")); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "SETTINGS / TIMEOUTS")
+	if _, err := controller.Write([]byte("\x7f\x7f6s\t\t\t\t\r")); err != nil {
+		t.Fatal(err)
+	}
+	waitForPTYText(t, controller, &rendered, "SAVED")
+	if _, err := controller.Write([]byte("q")); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-runDone:
+		if err != nil {
+			t.Fatalf("Run() error = %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Run() did not exit after configuration workflow")
+	}
+	after, err := unix.IoctlGetTermios(int(terminal.Fd()), unix.TCGETS)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(after, before) {
+		t.Fatalf("terminal mode changed after configuration workflow\nbefore: %#v\nafter:  %#v", before, after)
+	}
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	if len(client.mutations) != 1 || client.mutations[0].operation != "set-timeouts" || client.mutations[0].revision != strings.Repeat("1", 64) || client.mutations[0].timeouts.Connect != "6s" {
+		t.Fatalf("keyboard mutation = %#v", client.mutations)
+	}
+}
+
+func waitForPTYText(t *testing.T, controller interface{ Fd() uintptr }, output *bytes.Buffer, value string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for !bytes.Contains(output.Bytes(), []byte(value)) && time.Now().Before(deadline) {
+		drainPTY(t, controller, output)
+		time.Sleep(time.Millisecond)
+	}
+	if !bytes.Contains(output.Bytes(), []byte(value)) {
+		t.Fatalf("terminal output did not contain %q: %q", value, output.Bytes())
 	}
 }
 

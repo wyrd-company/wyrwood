@@ -26,6 +26,14 @@ type fakeContextControl struct {
 	events        control.EventsResult
 	err           error
 	eventLimit    int
+	apply         control.ApplyResult
+	change        control.ConfigurationChangeResult
+	operation     string
+	revision      string
+	upstream      string
+	timeouts      control.ConfigurationTimeouts
+	consumerID    *string
+	consumer      control.ConfigurationConsumerInput
 }
 
 func (client *fakeContextControl) ConfigurationContext(context.Context, int, int, string) (control.ConfigurationResult, error) {
@@ -43,6 +51,61 @@ func (client *fakeContextControl) StatusContext(context.Context) (control.Status
 func (client *fakeContextControl) EventsContext(_ context.Context, limit int) (control.EventsResult, error) {
 	client.eventLimit = limit
 	return client.events, client.err
+}
+
+func (client *fakeContextControl) ApplyContext(context.Context) (control.ApplyResult, error) {
+	client.operation = "apply"
+	return client.apply, client.err
+}
+
+func (client *fakeContextControl) SetUpstreamContext(_ context.Context, revision, upstream string) (control.ConfigurationChangeResult, error) {
+	client.operation, client.revision, client.upstream = "set-upstream", revision, upstream
+	return client.change, client.err
+}
+
+func (client *fakeContextControl) SetTimeoutsContext(_ context.Context, revision string, timeouts control.ConfigurationTimeouts) (control.ConfigurationChangeResult, error) {
+	client.operation, client.revision, client.timeouts = "set-timeouts", revision, timeouts
+	return client.change, client.err
+}
+
+func (client *fakeContextControl) PutConsumerContext(_ context.Context, revision string, consumerID *string, consumer control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, error) {
+	client.operation, client.revision, client.consumerID, client.consumer = "put-consumer", revision, consumerID, consumer
+	return client.change, client.err
+}
+
+func (client *fakeContextControl) RetireConsumerContext(_ context.Context, revision, consumerID string) (control.ConfigurationChangeResult, error) {
+	client.operation, client.revision, client.consumerID = "retire-consumer", revision, &consumerID
+	return client.change, client.err
+}
+
+func TestControlClientMapsMutationsWithoutChangingSemanticValues(t *testing.T) {
+	identifier := strings.Repeat("a", 64)
+	changeID := strings.Repeat("b", 64)
+	remote := &fakeContextControl{
+		apply:  control.ApplyResult{Revision: strings.Repeat("2", 64), Committed: true, Degraded: true, PendingCleanup: 2, PendingPermissions: 1},
+		change: control.ConfigurationChangeResult{Revision: strings.Repeat("2", 64), Changed: true, ConsumerID: &changeID},
+	}
+	client := NewControlClient(remote)
+	apply, err := client.Apply(context.Background())
+	if err != nil || apply.PendingCleanup != 2 || apply.PendingPermissions != 1 || !apply.Committed || !apply.Degraded {
+		t.Fatalf("apply = (%#v, %v)", apply, err)
+	}
+	timeouts := Timeouts{Connect: "100ms", List: "2s", Replay: "3s", Sign: "4s"}
+	if _, err := client.SetTimeouts(context.Background(), strings.Repeat("1", 64), timeouts); err != nil || remote.timeouts.Connect != "100ms" {
+		t.Fatalf("timeouts mutation = (%#v, %v)", remote.timeouts, err)
+	}
+	group := uint32(17)
+	consumer := Consumer{Name: "sample", Socket: "/tmp/example/unit/agent.sock", AccessGroup: &group, Fingerprints: []string{sampleFingerprint}}
+	change, err := client.PutConsumer(context.Background(), strings.Repeat("1", 64), &identifier, consumer)
+	if err != nil || change.ConsumerID == nil || *change.ConsumerID != changeID || remote.consumer.Name != consumer.Name || remote.consumerID == nil || *remote.consumerID != identifier {
+		t.Fatalf("consumer mutation = (%#v, %#v, %v)", change, remote, err)
+	}
+	if _, err := client.SetUpstream(context.Background(), strings.Repeat("1", 64), "/tmp/example/source.sock"); err != nil || remote.operation != "set-upstream" || remote.upstream != "/tmp/example/source.sock" {
+		t.Fatalf("upstream mutation = (%#v, %v)", remote, err)
+	}
+	if _, err := client.RetireConsumer(context.Background(), strings.Repeat("1", 64), identifier); err != nil || remote.operation != "retire-consumer" || remote.consumerID == nil || *remote.consumerID != identifier {
+		t.Fatalf("retire mutation = (%#v, %v)", remote, err)
+	}
 }
 
 func TestControlClientMapsDiagnosticProjections(t *testing.T) {

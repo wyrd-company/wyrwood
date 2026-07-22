@@ -1,0 +1,31 @@
+WYRWOOD  /  CONFIGURATION  /  SETTINGS / TIMEOUTS
+╔══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+║ SETTINGS / TIMEOUTS · CLEAN [FOCUS]                                                                              ║
+║ >> Connect (100ms–30s)  > 1s                                                                                     ║
+║    List (100ms–30s)  > 2s                                                                                        ║
+║    Replay (100ms–30s)  > 3s                                                                                      ║
+║    Sign (1s–10m)  > 4s                                                                                           ║
+║                                                                                                                  ║
+║    [SAVE DISABLED — fix invalid fields, change a value, or reload conflict]      [CANCEL]                        ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+║                                                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+tab/shift+tab Traverse   enter Activate   esc Cancel

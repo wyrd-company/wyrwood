@@ -11,6 +11,8 @@ import (
 	"errors"
 	"io"
 	"os"
+	"os/signal"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/muesli/termenv"
@@ -42,9 +44,35 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 		tea.WithInput(input),
 		tea.WithOutput(output),
 		tea.WithAltScreen(),
+		tea.WithoutSignalHandler(),
 	)
+	signals := make(chan os.Signal, 2)
+	done := make(chan struct{})
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	defer func() {
+		signal.Stop(signals)
+		close(done)
+	}()
+	go forwardSignals(program, signals, done)
 	_, err := program.Run()
 	return normalizeRunError(err)
+}
+
+func forwardSignals(program *tea.Program, signals <-chan os.Signal, done <-chan struct{}) {
+	interrupted := false
+	for {
+		select {
+		case <-done:
+			return
+		case <-signals:
+			if interrupted {
+				program.Kill()
+				return
+			}
+			interrupted = true
+			program.Send(tea.KeyMsg{Type: tea.KeyCtrlC})
+		}
+	}
 }
 
 func normalizeRunError(err error) error {

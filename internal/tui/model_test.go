@@ -42,6 +42,20 @@ type fakeClient struct {
 	events             Events
 	eventsErr          error
 	calls              []string
+	changeResult       ConfigurationChange
+	changeErr          error
+	applyResult        ApplyResult
+	applyErr           error
+	mutations          []mutationRecord
+}
+
+type mutationRecord struct {
+	operation  string
+	revision   string
+	upstream   string
+	timeouts   Timeouts
+	consumer   Consumer
+	consumerID *string
 }
 
 func (client *fakeClient) Configuration(ctx context.Context, offset, limit int, revision string) (ConfigurationPage, error) {
@@ -79,6 +93,37 @@ func (client *fakeClient) Events(ctx context.Context, limit int) (Events, error)
 	return client.events, client.eventsErr
 }
 
+func (client *fakeClient) Apply(ctx context.Context) (ApplyResult, error) {
+	client.recordMutation(mutationRecord{operation: "apply"})
+	return client.applyResult, client.applyErr
+}
+
+func (client *fakeClient) SetUpstream(ctx context.Context, revision, upstream string) (ConfigurationChange, error) {
+	client.recordMutation(mutationRecord{operation: "set-upstream", revision: revision, upstream: upstream})
+	return client.changeResult, client.changeErr
+}
+
+func (client *fakeClient) SetTimeouts(ctx context.Context, revision string, timeouts Timeouts) (ConfigurationChange, error) {
+	client.recordMutation(mutationRecord{operation: "set-timeouts", revision: revision, timeouts: timeouts})
+	return client.changeResult, client.changeErr
+}
+
+func (client *fakeClient) PutConsumer(ctx context.Context, revision string, consumerID *string, consumer Consumer) (ConfigurationChange, error) {
+	client.recordMutation(mutationRecord{operation: "put-consumer", revision: revision, consumerID: consumerID, consumer: consumer})
+	return client.changeResult, client.changeErr
+}
+
+func (client *fakeClient) RetireConsumer(ctx context.Context, revision, consumerID string) (ConfigurationChange, error) {
+	client.recordMutation(mutationRecord{operation: "retire-consumer", revision: revision, consumerID: &consumerID})
+	return client.changeResult, client.changeErr
+}
+
+func (client *fakeClient) recordMutation(record mutationRecord) {
+	client.mu.Lock()
+	defer client.mu.Unlock()
+	client.mutations = append(client.mutations, record)
+}
+
 func (client *fakeClient) record(call string) {
 	client.mu.Lock()
 	defer client.mu.Unlock()
@@ -90,6 +135,8 @@ func populatedClient() *fakeClient {
 	consumerB := strings.Repeat("b", 64)
 	next := 1
 	return &fakeClient{
+		changeResult: ConfigurationChange{Revision: strings.Repeat("2", 64), Changed: true},
+		applyResult:  ApplyResult{Revision: strings.Repeat("2", 64), Committed: true},
 		configurationPages: map[int]ConfigurationPage{
 			0: {
 				Revision:       strings.Repeat("1", 64),
@@ -97,7 +144,7 @@ func populatedClient() *fakeClient {
 				Timeouts:       Timeouts{Connect: "1s", List: "2s", Replay: "3s", Sign: "4s"},
 				TotalConsumers: 2,
 				Consumers: []Consumer{{
-					ID: consumerA, Name: "sample alpha", Socket: "/tmp/example/alpha.sock", Fingerprints: []string{sampleFingerprint},
+					ID: consumerA, Name: "sample alpha", Socket: "/tmp/example/alpha/agent.sock", Fingerprints: []string{sampleFingerprint},
 				}},
 				NextOffset: &next,
 			},
@@ -105,7 +152,7 @@ func populatedClient() *fakeClient {
 				Revision:       strings.Repeat("1", 64),
 				TotalConsumers: 2,
 				Consumers: []Consumer{{
-					ID: consumerB, Name: "sample beta", Socket: "/tmp/example/beta.sock", Fingerprints: []string{sampleFingerprint, "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"},
+					ID: consumerB, Name: "sample beta", Socket: "/tmp/example/beta/agent.sock", Fingerprints: []string{sampleFingerprint, "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBA"},
 				}},
 			},
 		},
@@ -328,6 +375,19 @@ func (client *blockingClient) Status(ctx context.Context) (Status, error) {
 	return Status{}, ctx.Err()
 }
 func (*blockingClient) Events(context.Context, int) (Events, error) { return Events{}, nil }
+func (*blockingClient) Apply(context.Context) (ApplyResult, error)  { return ApplyResult{}, nil }
+func (*blockingClient) SetUpstream(context.Context, string, string) (ConfigurationChange, error) {
+	return ConfigurationChange{}, nil
+}
+func (*blockingClient) SetTimeouts(context.Context, string, Timeouts) (ConfigurationChange, error) {
+	return ConfigurationChange{}, nil
+}
+func (*blockingClient) PutConsumer(context.Context, string, *string, Consumer) (ConfigurationChange, error) {
+	return ConfigurationChange{}, nil
+}
+func (*blockingClient) RetireConsumer(context.Context, string, string) (ConfigurationChange, error) {
+	return ConfigurationChange{}, nil
+}
 
 func TestNavigationFocusHelpResizeAndCleanExit(t *testing.T) {
 	model := readyModel(t, false)
@@ -537,6 +597,50 @@ func TestDashboardAndUpstreamGoldens(t *testing.T) {
 			}
 			if !bytes.Equal([]byte(got), want) {
 				t.Fatalf("render differs from %s; run go test ./internal/tui -run TestDashboardAndUpstreamGoldens -update", path)
+			}
+		})
+	}
+}
+
+func TestConfigurationWorkflowGoldens(t *testing.T) {
+	tests := []struct {
+		name   string
+		colors bool
+		width  int
+		height int
+		setup  func(*Model)
+	}{
+		{name: "consumer-reference", width: 118, height: 34, setup: func(model *Model) { model.route = routeConsumer }},
+		{name: "consumer-narrow", width: 58, height: 14, setup: func(model *Model) { model.route = routeConsumer }},
+		{name: "new-consumer-reference", width: 118, height: 34, setup: func(model *Model) { model.openConsumerEditor(nil) }},
+		{name: "new-consumer-narrow", width: 58, height: 14, setup: func(model *Model) { model.openConsumerEditor(nil) }},
+		{name: "settings-reference", width: 118, height: 34, setup: func(model *Model) { model.openTimeoutEditor() }},
+		{name: "settings-narrow", width: 58, height: 14, setup: func(model *Model) { model.openTimeoutEditor() }},
+		{name: "consumer-reference-color", colors: true, width: 118, height: 34, setup: func(model *Model) { model.route = routeConsumer }},
+		{name: "consumer-narrow-color", colors: true, width: 58, height: 14, setup: func(model *Model) { model.route = routeConsumer }},
+		{name: "new-consumer-reference-color", colors: true, width: 118, height: 34, setup: func(model *Model) { model.openConsumerEditor(nil) }},
+		{name: "new-consumer-narrow-color", colors: true, width: 58, height: 14, setup: func(model *Model) { model.openConsumerEditor(nil) }},
+		{name: "settings-reference-color", colors: true, width: 118, height: 34, setup: func(model *Model) { model.openTimeoutEditor() }},
+		{name: "settings-narrow-color", colors: true, width: 58, height: 14, setup: func(model *Model) { model.openTimeoutEditor() }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			model := readyModel(t, test.colors)
+			test.setup(model)
+			model.Update(tea.WindowSizeMsg{Width: test.width, Height: test.height})
+			got := goldenValue(model.View(), test.colors)
+			path := filepath.Join("testdata", test.name+".golden")
+			if *updateGolden {
+				if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal([]byte(got), want) {
+				t.Fatalf("render differs from %s; run go test ./internal/tui -run TestConfigurationWorkflowGoldens -update", path)
 			}
 		})
 	}

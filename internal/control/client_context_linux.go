@@ -52,3 +52,57 @@ func (client *Client) EventsContext(ctx context.Context, limit int) (EventsResul
 	}
 	return *response.Events, nil
 }
+
+// ApplyContext asks the daemon to load the fixed durable configuration while
+// allowing an interactive client to cancel its transport wait.
+func (client *Client) ApplyContext(ctx context.Context) (ApplyResult, error) {
+	response, err := client.callContext(ctx, Request{Version: Version, Operation: OperationApply})
+	if err != nil {
+		return ApplyResult{}, err
+	}
+	return *response.Apply, nil
+}
+
+func (client *Client) SetUpstreamContext(ctx context.Context, expectedRevision, upstream string) (ConfigurationChangeResult, error) {
+	response, err := client.callContext(ctx, Request{
+		Version: Version, Operation: OperationSetUpstream,
+		ExpectedRevision: &expectedRevision, Upstream: &upstream,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) SetTimeoutsContext(ctx context.Context, expectedRevision string, timeouts ConfigurationTimeouts) (ConfigurationChangeResult, error) {
+	response, err := client.callContext(ctx, Request{
+		Version: Version, Operation: OperationSetTimeouts,
+		ExpectedRevision: &expectedRevision, Timeouts: &timeouts,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) PutConsumerContext(ctx context.Context, expectedRevision string, consumerID *string, consumer ConfigurationConsumerInput) (ConfigurationChangeResult, error) {
+	response, err := client.callContext(ctx, Request{
+		Version: Version, Operation: OperationPutConsumer,
+		ExpectedRevision: &expectedRevision, ConsumerID: consumerID, Consumer: &consumer,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) RetireConsumerContext(ctx context.Context, expectedRevision, consumerID string) (ConfigurationChangeResult, error) {
+	response, err := client.callContext(ctx, Request{
+		Version: Version, Operation: OperationRetireConsumer,
+		ExpectedRevision: &expectedRevision, ConsumerID: &consumerID,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}

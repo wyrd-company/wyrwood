@@ -1,19 +1,18 @@
-WYRWOOD  /  DIAGNOSTICS  /  DASHBOARD
-┌──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ UPSTREAM                                                                                                         │
-│ [!] DEGRADED  /tmp/example/source.sock                                                                           │
-│ available keys 2  ·  configuration READY  ·  [!] UNAPPLIED                                                       │
-└──────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+WYRWOOD  /  CONFIGURATION  /  CONSUMER
 ╔══════════════════════════════════════════════════════════════════╗  ┌──────────────────────────────────────────┐
-║ CONSUMERS [FOCUS]                                                ║  │ SELECTED CONSUMER                        │
-║   NAME                 LISTENER                  CONNECTIONS     ║  │ sample alpha                             │
-║ > sample alpha         [OK] HEALTHY              2               ║  │ socket /tmp/example/alpha/agent.sock     │
-║   sample beta          [--] STATUS NOT PROJECTED --              ║  │ fingerprints 1                           │
-║ [!] STATUS INCOMPLETE — configured consumers remain              ║  │   • SHA256:AAAAAAAAAAAA…                 │
-║ authoritative                                                    ║  │ [OK] HEALTHY  ·  2 active connections    │
+║ CONSUMER DETAIL [FOCUS]                                          ║  │ EVENTS                                   │
+║ name          sample alpha                                       ║  │ 04:05:06 [OK] sign             succeeded │
+║ socket        /tmp/example/alpha/agent.sock                      ║  │                                          │
+║ access group  none                                               ║  │                                          │
 ║                                                                  ║  │                                          │
-║                                                                  ║  │ RECENT EVENTS                            │
-║                                                                  ║  │ 04:05:06 [OK] sign             succeeded │
+║ EXPOSED FINGERPRINTS                                             ║  │                                          │
+║ [x] SHA256:AAAAAAAAAAAA…  sample primary                         ║  │                                          │
+║ [x] SHA256:BBBBBBBBBBBB…  sample alternate                       ║  │                                          │
+║                                                                  ║  │                                          │
+║ [OK] HEALTHY  ·  2 active connections                            ║  │                                          │
+║                                                                  ║  │                                          │
+║                                                                  ║  │                                          │
+║                                                                  ║  │                                          │
 ║                                                                  ║  │                                          │
 ║                                                                  ║  │                                          │
 ║                                                                  ║  │                                          │
@@ -31,4 +30,4 @@ WYRWOOD  /  DIAGNOSTICS  /  DASHBOARD
 ║                                                                  ║  │                                          │
 ║                                                                  ║  │                                          │
 ╚══════════════════════════════════════════════════════════════════╝  └──────────────────────────────────────────┘
-tab/shift+tab Focus   ↑/↓ Select   r Refresh   n New   a Apply   s Settings   ? Help   q Quit
+e Edit   x Retire   a Apply   s Settings   esc Back   r Refresh   ? Help   q Quit
