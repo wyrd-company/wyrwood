@@ -18,8 +18,7 @@ GO_MOD = ROOT / "go.mod"
 TASKFILE = ROOT / "Taskfile.yml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-GORELEASER_VERSION = "v2.17.0"
-GORELEASER_MINIMUM_GO = (1, 26, 4)
+SUPPORTED_GORELEASER = {"v2.17.0": (1, 26, 4)}
 SETUP_GO_ACTION = "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16"
 
 
@@ -35,46 +34,82 @@ def parse_version(value: str, label: str) -> tuple[int, int, int]:
 
 
 def module_go_version() -> tuple[int, int, int]:
-    matches = re.findall(r"^go\s+(\S+)\s*$", GO_MOD.read_text(encoding="utf-8"), re.MULTILINE)
+    contents = GO_MOD.read_text(encoding="utf-8")
+    if re.search(r"^\s*toolchain\b", contents, re.MULTILINE) is not None:
+        raise ContractError(
+            "go.mod must not contain a toolchain directive; its Go directive is the release source"
+        )
+    matches = re.findall(r"^go\s+(\S+)\s*$", contents, re.MULTILINE)
     if len(matches) != 1:
         raise ContractError("go.mod must contain exactly one Go directive")
     return parse_version(matches[0], "go.mod Go directive")
 
 
-def validate_goreleaser_pins() -> None:
+def workflow_step_blocks() -> list[tuple[Path, str]]:
+    blocks: list[tuple[Path, str]] = []
+    for workflow in sorted(WORKFLOWS.iterdir()):
+        if workflow.suffix not in {".yml", ".yaml"}:
+            continue
+        lines = workflow.read_text(encoding="utf-8").splitlines(keepends=True)
+        for index, line in enumerate(lines):
+            item = re.match(r"^(\s*)-\s+", line)
+            if item is None:
+                continue
+            indentation = len(item.group(1).expandtabs())
+            end = index + 1
+            while end < len(lines):
+                candidate = lines[end]
+                if candidate.strip() == "" or candidate.lstrip().startswith("#"):
+                    end += 1
+                    continue
+                candidate_indentation = len(candidate) - len(candidate.lstrip())
+                if candidate_indentation <= indentation:
+                    break
+                end += 1
+            blocks.append((workflow, "".join(lines[index:end])))
+    return blocks
+
+
+def action_steps(action: str) -> list[tuple[Path, str]]:
+    pattern = re.compile(rf"^\s*(?:-\s*)?uses:\s+{re.escape(action)}", re.MULTILINE)
+    return [(workflow, step) for workflow, step in workflow_step_blocks() if pattern.search(step)]
+
+
+def goreleaser_contract() -> tuple[str, tuple[int, int, int]]:
     taskfile = TASKFILE.read_text(encoding="utf-8")
     module_pins = set(
         re.findall(r"github\.com/goreleaser/goreleaser/v2@(v[0-9]+\.[0-9]+\.[0-9]+)", taskfile)
     )
-    if module_pins != {GORELEASER_VERSION}:
+    if len(module_pins) != 1:
         raise ContractError(
-            f"Taskfile GoReleaser pins must be exactly {GORELEASER_VERSION}, got {sorted(module_pins)}"
+            f"Taskfile must use one GoReleaser version, got {sorted(module_pins)}"
         )
+    version = next(iter(module_pins))
 
-    release_workflow = (WORKFLOWS / "release.yml").read_text(encoding="utf-8")
+    release_steps = action_steps("goreleaser/goreleaser-action@")
+    if len(release_steps) != 1:
+        raise ContractError(f"expected one hosted GoReleaser action step, found {len(release_steps)}")
+    _, release_step = release_steps[0]
     action_versions = set(
         re.findall(
             r"^\s+version:\s+(v[0-9]+\.[0-9]+\.[0-9]+)\s*$",
-            release_workflow,
+            release_step,
             re.MULTILINE,
         )
     )
-    if action_versions != {GORELEASER_VERSION}:
+    if action_versions != {version}:
         raise ContractError(
-            f"release workflow GoReleaser version must be exactly {GORELEASER_VERSION}, got {sorted(action_versions)}"
+            f"hosted and Taskfile GoReleaser versions must both be {version}, got {sorted(action_versions)}"
         )
+    if version not in SUPPORTED_GORELEASER:
+        raise ContractError(
+            f"GoReleaser {version} has no reviewed minimum Go version in SUPPORTED_GORELEASER"
+        )
+    return version, SUPPORTED_GORELEASER[version]
 
 
 def validate_setup_go_steps() -> None:
-    setup_steps: list[tuple[Path, str]] = []
-    for workflow in sorted(WORKFLOWS.iterdir()):
-        if workflow.suffix not in {".yml", ".yaml"}:
-            continue
-        text = workflow.read_text(encoding="utf-8")
-        steps = re.findall(r"(?ms)^      - name:.*?(?=^      - name:|\Z)", text)
-        for step in steps:
-            if "uses: actions/setup-go@" in step:
-                setup_steps.append((workflow, step))
+    setup_steps = action_steps("actions/setup-go@")
 
     if len(setup_steps) != 2:
         raise ContractError(f"expected two hosted setup-go steps, found {len(setup_steps)}")
@@ -94,13 +129,13 @@ def validate_setup_go_steps() -> None:
 def main() -> int:
     try:
         selected_go = module_go_version()
-        validate_goreleaser_pins()
+        goreleaser_version, minimum_go = goreleaser_contract()
         validate_setup_go_steps()
-        if selected_go < GORELEASER_MINIMUM_GO:
+        if selected_go < minimum_go:
             selected = ".".join(map(str, selected_go))
-            required = ".".join(map(str, GORELEASER_MINIMUM_GO))
+            required = ".".join(map(str, minimum_go))
             raise ContractError(
-                f"go.mod selects Go {selected}, but GoReleaser {GORELEASER_VERSION} requires Go >= {required}"
+                f"go.mod selects Go {selected}, but GoReleaser {goreleaser_version} requires Go >= {required}"
             )
     except (ContractError, OSError, UnicodeError) as error:
         print(f"check-release-toolchain: {error}", file=sys.stderr)
