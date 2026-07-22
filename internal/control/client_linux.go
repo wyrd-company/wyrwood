@@ -67,6 +67,64 @@ func (client *Client) Events(limit int) (EventsResult, error) {
 	return *response.Events, nil
 }
 
+// Configuration returns one coherent page. expectedRevision must be empty for
+// offset zero and must be the first page's revision for every later page.
+func (client *Client) Configuration(offset, limit int, expectedRevision string) (ConfigurationResult, error) {
+	request := Request{Version: Version, Operation: OperationConfiguration, Offset: &offset, Limit: &limit}
+	if expectedRevision != "" {
+		request.ExpectedRevision = &expectedRevision
+	}
+	response, err := client.call(request)
+	if err != nil {
+		return ConfigurationResult{}, err
+	}
+	return *response.Configuration, nil
+}
+
+func (client *Client) SetUpstream(expectedRevision, upstream string) (ConfigurationChangeResult, error) {
+	response, err := client.call(Request{
+		Version: Version, Operation: OperationSetUpstream,
+		ExpectedRevision: &expectedRevision, Upstream: &upstream,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) SetTimeouts(expectedRevision string, timeouts ConfigurationTimeouts) (ConfigurationChangeResult, error) {
+	response, err := client.call(Request{
+		Version: Version, Operation: OperationSetTimeouts,
+		ExpectedRevision: &expectedRevision, Timeouts: &timeouts,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) PutConsumer(expectedRevision string, consumerID *string, consumer ConfigurationConsumerInput) (ConfigurationChangeResult, error) {
+	response, err := client.call(Request{
+		Version: Version, Operation: OperationPutConsumer, ExpectedRevision: &expectedRevision,
+		ConsumerID: consumerID, Consumer: &consumer,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
+func (client *Client) RetireConsumer(expectedRevision, consumerID string) (ConfigurationChangeResult, error) {
+	response, err := client.call(Request{
+		Version: Version, Operation: OperationRetireConsumer,
+		ExpectedRevision: &expectedRevision, ConsumerID: &consumerID,
+	})
+	if err != nil {
+		return ConfigurationChangeResult{}, err
+	}
+	return *response.ConfigurationChange, nil
+}
+
 func (client *Client) call(request Request) (Response, error) {
 	deadline := time.Now().Add(client.timeout)
 	dialer := net.Dialer{Timeout: client.timeout, Deadline: deadline}

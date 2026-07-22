@@ -29,6 +29,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+const testConsumerID events.ConsumerID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 const sessionBindExtension = "session-bind@openssh.com"
 
 func TestObservedServeRecordsUpstreamConnectionAndReplayCategorically(t *testing.T) {
@@ -43,7 +45,7 @@ func TestObservedServeRecordsUpstreamConnectionAndReplayCategorically(t *testing
 	go func() {
 		done <- agentconn.ServeObserved(
 			context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
-			fixture.timeouts, serverConnection, "consumer-generic", func(event events.Event) {
+			fixture.timeouts, serverConnection, testConsumerID, func(event events.Event) {
 				recordMu.Lock()
 				recorded = append(recorded, event)
 				recordMu.Unlock()
@@ -216,7 +218,7 @@ func TestObservedServeCategorizesOperationDeadlineAsTimeout(t *testing.T) {
 	go func() {
 		done <- agentconn.ServeObserved(
 			context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
-			fixture.timeouts, serverConnection, "consumer-generic", func(event events.Event) {
+			fixture.timeouts, serverConnection, testConsumerID, func(event events.Event) {
 				recordMu.Lock()
 				recorded = append(recorded, event)
 				recordMu.Unlock()
@@ -531,7 +533,7 @@ func TestServeObservedRequiresEventRecorder(t *testing.T) {
 	defer server.Close()
 	if err := agentconn.ServeObserved(
 		context.Background(), fixture.store, fixture.consumerPath, fixture.upstreamPath,
-		fixture.timeouts, server, "consumer-generic", nil,
+		fixture.timeouts, server, testConsumerID, nil,
 	); err == nil || err.Error() != "operational event recorder is required" {
 		t.Fatalf("ServeObserved(nil recorder) error = %v", err)
 	}

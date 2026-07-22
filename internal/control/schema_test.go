@@ -11,7 +11,10 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
@@ -37,6 +40,9 @@ func TestControlSchemaIsClosedAndCarriesImplementationBounds(t *testing.T) {
 	}
 	request := definitions["request"].(map[string]any)
 	variants := request["oneOf"].([]any)
+	if len(variants) != 8 {
+		t.Fatalf("request variants = %d, want 8", len(variants))
+	}
 	for _, variant := range variants {
 		object := variant.(map[string]any)
 		if object["additionalProperties"] != false {
@@ -65,4 +71,90 @@ func TestControlSchemaIsClosedAndCarriesImplementationBounds(t *testing.T) {
 	if eventRequest["maximum"] != float64(MaximumEventLimit) {
 		t.Fatalf("event maximum = %v", eventRequest["maximum"])
 	}
+	configurationRequest := variants[2].(map[string]any)["properties"].(map[string]any)["limit"].(map[string]any)
+	if configurationRequest["maximum"] != float64(MaximumConfigurationPageSize) {
+		t.Fatalf("configuration page maximum = %v", configurationRequest["maximum"])
+	}
+	wantOperations := []string{"apply", "keys", "status", "events", "configuration", "configuration", "set-upstream", "set-timeouts", "put-consumer", "retire-consumer"}
+	var schemaOperations []string
+	for _, raw := range variants {
+		properties := raw.(map[string]any)["properties"].(map[string]any)
+		operation := properties["operation"].(map[string]any)
+		if constant, ok := operation["const"].(string); ok {
+			schemaOperations = append(schemaOperations, constant)
+		} else {
+			for _, value := range operation["enum"].([]any) {
+				schemaOperations = append(schemaOperations, value.(string))
+			}
+		}
+	}
+	if !reflect.DeepEqual(schemaOperations, wantOperations) {
+		t.Fatalf("request operations = %v, want %v", schemaOperations, wantOperations)
+	}
+
+	types := []struct {
+		definition string
+		typeOf     reflect.Type
+	}{
+		{"configuration-consumer-input", reflect.TypeFor[ConfigurationConsumerInput]()},
+		{"configuration-consumer", reflect.TypeFor[ConfigurationConsumer]()},
+	}
+	responseProperties := properties
+	types = append(types,
+		struct {
+			definition string
+			typeOf     reflect.Type
+		}{"apply", reflect.TypeFor[ApplyResult]()},
+		struct {
+			definition string
+			typeOf     reflect.Type
+		}{"status", reflect.TypeFor[StatusResult]()},
+		struct {
+			definition string
+			typeOf     reflect.Type
+		}{"configuration", reflect.TypeFor[ConfigurationResult]()},
+		struct {
+			definition string
+			typeOf     reflect.Type
+		}{"configuration_change", reflect.TypeFor[ConfigurationChangeResult]()},
+	)
+	for _, test := range types {
+		var definition map[string]any
+		if strings.Contains(test.definition, "-") {
+			definition = definitions[test.definition].(map[string]any)
+		} else {
+			definition = responseProperties[test.definition].(map[string]any)
+		}
+		got := sortedSchemaKeys(definition["properties"].(map[string]any))
+		want := jsonFields(test.typeOf)
+		if !reflect.DeepEqual(got, want) {
+			t.Fatalf("%s schema fields = %v, Go fields = %v", test.definition, got, want)
+		}
+	}
+}
+
+func sortedSchemaKeys(properties map[string]any) []string {
+	result := make([]string, 0, len(properties))
+	for field := range properties {
+		result = append(result, field)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func jsonFields(typeOf reflect.Type) []string {
+	var result []string
+	for index := 0; index < typeOf.NumField(); index++ {
+		field := typeOf.Field(index)
+		if field.Anonymous {
+			result = append(result, jsonFields(field.Type)...)
+			continue
+		}
+		name := strings.Split(field.Tag.Get("json"), ",")[0]
+		if name != "" && name != "-" {
+			result = append(result, name)
+		}
+	}
+	sort.Strings(result)
+	return result
 }

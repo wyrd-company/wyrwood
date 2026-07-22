@@ -14,12 +14,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -29,7 +29,6 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/endpoints"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/sys/unix"
 )
 
 const defaultEventRetention = 10_000
@@ -64,13 +63,16 @@ func DefaultOptions() (Options, error) {
 }
 
 type Service struct {
-	configPath string
-	uid        uint32
-	manager    *endpoints.Manager
-	events     *events.Store
-	control    *control.Server
-	closeOnce  sync.Once
-	closeErr   error
+	configPath      string
+	uid             uint32
+	manager         *endpoints.Manager
+	events          *events.Store
+	control         *control.Server
+	configurationMu sync.Mutex
+	publication     publicationDependencies
+	activeRevision  atomic.Value
+	closeOnce       sync.Once
+	closeErr        error
 }
 
 // Open restores configured consumer listeners without contacting the upstream
@@ -91,17 +93,18 @@ func Open(options Options) (*Service, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open operational events: %w", err)
 	}
-	configuration, err := loadConfiguration(options.ConfigPath, options.UID)
+	loaded, err := loadConfigurationDocument(options.ConfigPath, options.UID, nil)
 	if err != nil {
 		_ = store.Close()
 		return nil, errors.New("load daemon configuration")
 	}
-	manager, err := endpoints.Open(configuration, store)
+	manager, err := endpoints.Open(loaded.value, store)
 	if err != nil {
 		_ = store.Close()
 		return nil, fmt.Errorf("restore consumer listeners: %w", err)
 	}
-	service := &Service{configPath: options.ConfigPath, uid: options.UID, manager: manager, events: store}
+	service := &Service{configPath: options.ConfigPath, uid: options.UID, manager: manager, events: store, publication: defaultPublicationDependencies()}
+	service.activeRevision.Store(loaded.revision)
 	server, err := control.Listen(options.ControlPath, options.UID, service)
 	if err != nil {
 		_ = manager.Close()
@@ -134,21 +137,24 @@ func (service *Service) Close() error {
 }
 
 func (service *Service) Apply() (control.ApplyResult, control.ErrorCode) {
-	next, err := loadConfiguration(service.configPath, service.uid)
+	loaded, err := loadConfigurationDocument(service.configPath, service.uid, nil)
 	if err != nil {
 		return control.ApplyResult{}, control.ErrorApplyInvalid
 	}
-	result, err := service.manager.Apply(next)
+	result, err := service.manager.Apply(loaded.value)
 	projection := control.ApplyResult{
+		Revision:  loaded.revision,
 		Committed: result.Committed, Degraded: result.Degraded,
 		PendingCleanup: result.PendingCleanup, PendingPermissions: result.PendingPermissions,
 	}
 	if err != nil {
 		if result.Committed {
+			service.activeRevision.Store(loaded.revision)
 			return projection, control.ErrorNone
 		}
 		return control.ApplyResult{}, control.ErrorApplyFailed
 	}
+	service.activeRevision.Store(loaded.revision)
 	return projection, control.ErrorNone
 }
 
@@ -203,7 +209,7 @@ func (service *Service) Status() (control.StatusResult, control.ErrorCode) {
 			ID: status.ID, Name: status.Name, Listener: listener, ActiveConnections: status.ActiveConnections,
 		})
 	}
-	return control.StatusResult{Daemon: daemonHealth, Upstream: upstreamHealth, Consumers: consumers, Truncated: truncated}, control.ErrorNone
+	return control.StatusResult{ActiveRevision: service.activeRevision.Load().(string), Daemon: daemonHealth, Upstream: upstreamHealth, Consumers: consumers, Truncated: truncated}, control.ErrorNone
 }
 
 func (service *Service) Events(limit int) (control.EventsResult, control.ErrorCode) {
@@ -246,57 +252,4 @@ func ensureStateRoot(path string) error {
 		return errors.New("create state root")
 	}
 	return nil
-}
-
-func loadConfiguration(path string, uid uint32) (config.Config, error) {
-	return loadConfigurationWithHook(path, uid, nil)
-}
-
-func loadConfigurationWithHook(path string, uid uint32, afterFileOpen func()) (config.Config, error) {
-	if strings.IndexByte(path, 0) >= 0 || !filepath.IsAbs(path) || filepath.Clean(path) != path || filepath.Dir(path) == string(filepath.Separator) {
-		return config.Config{}, errors.New("configuration path must be canonical, absolute, and use a dedicated directory")
-	}
-	directoryDescriptor, err := unix.Open(
-		filepath.Dir(path),
-		unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC,
-		0,
-	)
-	if err != nil {
-		return config.Config{}, errors.New("open configuration directory")
-	}
-	defer unix.Close(directoryDescriptor)
-	var directoryStatus unix.Stat_t
-	if err := unix.Fstat(directoryDescriptor, &directoryStatus); err != nil ||
-		directoryStatus.Uid != uid || directoryStatus.Mode&unix.S_IFMT != unix.S_IFDIR || directoryStatus.Mode&0o7777 != 0o700 {
-		return config.Config{}, errors.New("configuration directory must be owner-only")
-	}
-
-	fileDescriptor, err := unix.Openat(
-		directoryDescriptor,
-		filepath.Base(path),
-		unix.O_RDONLY|unix.O_NONBLOCK|unix.O_NOFOLLOW|unix.O_CLOEXEC,
-		0,
-	)
-	if err != nil {
-		return config.Config{}, errors.New("open configuration file")
-	}
-	file := os.NewFile(uintptr(fileDescriptor), filepath.Base(path))
-	if file == nil {
-		_ = unix.Close(fileDescriptor)
-		return config.Config{}, errors.New("own configuration file descriptor")
-	}
-	defer file.Close()
-	var fileStatus unix.Stat_t
-	if err := unix.Fstat(fileDescriptor, &fileStatus); err != nil ||
-		fileStatus.Uid != uid || fileStatus.Mode&unix.S_IFMT != unix.S_IFREG || fileStatus.Mode&0o7777 != 0o600 {
-		return config.Config{}, errors.New("configuration file must be owner-only and regular")
-	}
-	if afterFileOpen != nil {
-		afterFileOpen()
-	}
-	data, err := io.ReadAll(io.LimitReader(file, config.MaximumDocumentBytes+1))
-	if err != nil {
-		return config.Config{}, errors.New("read configuration file")
-	}
-	return config.Parse(data)
 }

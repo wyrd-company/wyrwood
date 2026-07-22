@@ -13,6 +13,11 @@ const (
 	// MaximumConsumerNameCharacters keeps configured display data bounded while
 	// preserving accepted names exactly across management surfaces.
 	MaximumConsumerNameCharacters = 256
+	// MaximumSocketPathBytes matches Linux's AF_UNIX pathname payload bound.
+	MaximumSocketPathBytes = 107
+	// MaximumFingerprintsPerConsumer keeps one complete control mutation within
+	// the request frame bound.
+	MaximumFingerprintsPerConsumer = 1024
 
 	DefaultConnectTimeout = 5 * time.Second
 	DefaultListTimeout    = 5 * time.Second

@@ -176,13 +176,13 @@ func TestProjectionQueriesUseRetainedEvents(t *testing.T) {
 	t.Cleanup(func() { _ = store.Close() })
 
 	first := sampleEvent(1)
-	first.ConsumerID = "subject-alpha"
+	first.ConsumerID = ConsumerID(strings.Repeat("a", 64))
 	second := sampleEvent(2)
-	second.ConsumerID = "subject-beta"
+	second.ConsumerID = ConsumerID(strings.Repeat("b", 64))
 	second.Outcome = OutcomeDenied
 	second.ErrorCode = ErrorPolicyDenied
 	third := sampleEvent(3)
-	third.ConsumerID = "subject-alpha"
+	third.ConsumerID = ConsumerID(strings.Repeat("a", 64))
 	third.Outcome = OutcomeFailed
 	third.ErrorCode = ErrorUpstreamTimeout
 	for _, event := range []Event{first, second, third} {
@@ -196,14 +196,14 @@ func TestProjectionQueriesUseRetainedEvents(t *testing.T) {
 		t.Fatalf("Recent(2) = %#v", recent)
 	}
 	activity := store.LastConsumerActivity()
-	if got := activity["subject-alpha"]; !got.Equal(third.Timestamp) {
+	if got := activity[ConsumerID(strings.Repeat("a", 64))]; !got.Equal(third.Timestamp) {
 		t.Errorf("subject-alpha activity = %v, want %v", got, third.Timestamp)
 	}
 	if got := store.Health(); got.Category != HealthDegraded || got.ErrorCode != ErrorUpstreamTimeout {
 		t.Errorf("Health() = %#v", got)
 	}
 	health := store.ConsumerHealth()
-	if got := health["subject-beta"]; got.Category != HealthDenied || got.ErrorCode != ErrorPolicyDenied {
+	if got := health[ConsumerID(strings.Repeat("b", 64))]; got.Category != HealthDenied || got.ErrorCode != ErrorPolicyDenied {
 		t.Errorf("subject-beta health = %#v", got)
 	}
 }
@@ -211,7 +211,7 @@ func TestProjectionQueriesUseRetainedEvents(t *testing.T) {
 func sampleEvent(sequence int) Event {
 	return Event{
 		Timestamp:  time.Date(2025, 2, 3, 4, 5, sequence, 0, time.UTC),
-		ConsumerID: ConsumerID("subject-alpha"),
+		ConsumerID: ConsumerID(strings.Repeat("a", 64)),
 		Operation:  OperationListIdentities,
 		Outcome:    OutcomeSucceeded,
 		Latency:    time.Duration(sequence) * time.Millisecond,

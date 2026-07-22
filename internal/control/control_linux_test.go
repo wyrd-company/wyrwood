@@ -24,7 +24,7 @@ type testHandler struct{ calls atomic.Int64 }
 
 func (handler *testHandler) Apply() (ApplyResult, ErrorCode) {
 	handler.calls.Add(1)
-	return ApplyResult{Committed: true}, ErrorNone
+	return ApplyResult{Revision: strings.Repeat("a", 64), Committed: true}, ErrorNone
 }
 func (handler *testHandler) Keys() (KeysResult, ErrorCode) {
 	handler.calls.Add(1)
@@ -32,7 +32,29 @@ func (handler *testHandler) Keys() (KeysResult, ErrorCode) {
 }
 func (handler *testHandler) Status() (StatusResult, ErrorCode) {
 	handler.calls.Add(1)
-	return StatusResult{Daemon: HealthHealthy, Upstream: HealthUnavailable, Consumers: []ConsumerStatus{}}, ErrorNone
+	return StatusResult{ActiveRevision: strings.Repeat("a", 64), Daemon: HealthHealthy, Upstream: HealthUnavailable, Consumers: []ConsumerStatus{}}, ErrorNone
+}
+func (handler *testHandler) Configuration(offset, _ int, _ *string) (ConfigurationResult, ErrorCode) {
+	handler.calls.Add(1)
+	return ConfigurationResult{Revision: strings.Repeat("a", 64), Upstream: "/run/sample/agent.sock", Timeouts: ConfigurationTimeouts{Connect: "5s", List: "5s", Replay: "5s", Sign: "2m"}, Offset: offset, Consumers: []ConfigurationConsumer{}, Complete: true}, ErrorNone
+}
+func (handler *testHandler) SetUpstream(string, string) (ConfigurationChangeResult, ErrorCode) {
+	handler.calls.Add(1)
+	return ConfigurationChangeResult{Operation: OperationSetUpstream, Revision: strings.Repeat("a", 64)}, ErrorNone
+}
+func (handler *testHandler) SetTimeouts(string, ConfigurationTimeouts) (ConfigurationChangeResult, ErrorCode) {
+	handler.calls.Add(1)
+	return ConfigurationChangeResult{Operation: OperationSetTimeouts, Revision: strings.Repeat("a", 64)}, ErrorNone
+}
+func (handler *testHandler) PutConsumer(string, *string, ConfigurationConsumerInput) (ConfigurationChangeResult, ErrorCode) {
+	handler.calls.Add(1)
+	id := strings.Repeat("b", 64)
+	return ConfigurationChangeResult{Operation: OperationPutConsumer, Revision: strings.Repeat("a", 64), ConsumerID: &id}, ErrorNone
+}
+func (handler *testHandler) RetireConsumer(string, string) (ConfigurationChangeResult, ErrorCode) {
+	handler.calls.Add(1)
+	id := strings.Repeat("b", 64)
+	return ConfigurationChangeResult{Operation: OperationRetireConsumer, Revision: strings.Repeat("a", 64), ConsumerID: &id}, ErrorNone
 }
 func (handler *testHandler) Events(int) (EventsResult, ErrorCode) {
 	handler.calls.Add(1)
@@ -189,6 +211,7 @@ func TestControlProtocolRejectsMalformedOversizedUnknownAndMismatchedRequests(t 
 		{name: "malformed", body: []byte(`{"version":`), declared: 11, want: ErrorBadRequest},
 		{name: "unknown field", body: []byte(`{"version":1,"operation":"status","extra":true}`), want: ErrorBadRequest},
 		{name: "duplicate field", body: []byte(`{"version":1,"version":1,"operation":"status"}`), want: ErrorBadRequest},
+		{name: "duplicate nested field", body: []byte(`{"version":1,"operation":"put-consumer","expected_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","consumer":{"name":"sample","name":"replacement","socket":"/run/sample/agent.sock","fingerprints":[]}}`), want: ErrorBadRequest},
 		{name: "unknown operation", body: []byte(`{"version":1,"operation":"remove"}`), want: ErrorBadRequest},
 		{name: "version", body: []byte(`{"version":2,"operation":"status"}`), want: ErrorUnsupportedVersion},
 		{name: "oversized", declared: MaximumRequestBytes + 1, want: ErrorBadRequest},

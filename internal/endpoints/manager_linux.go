@@ -408,5 +408,5 @@ func (manager *Manager) record(event events.Event) {
 
 func consumerID(path string) events.ConsumerID {
 	digest := sha256.Sum256([]byte(path))
-	return events.ConsumerID("consumer-" + hex.EncodeToString(digest[:16]))
+	return events.ConsumerID(hex.EncodeToString(digest[:]))
 }

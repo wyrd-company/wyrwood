@@ -154,6 +154,33 @@ func TestParseRejectsOversizedDocumentBeforeYAMLDecoding(t *testing.T) {
 	}
 }
 
+func TestValidateEnforcesControlProtocolSocketAndFingerprintBounds(t *testing.T) {
+	t.Parallel()
+
+	configuration := Config{
+		Upstream: "/" + strings.Repeat("界", 36),
+		Timeouts: DefaultTimeouts(),
+	}
+	if err := Validate(configuration); err == nil || !strings.Contains(err.Error(), "107 bytes") {
+		t.Fatalf("Validate() error = %v, want socket byte bound", err)
+	}
+
+	configuration.Upstream = "/run/upstream/agent.sock"
+	configuration.Consumers = []Consumer{{
+		Name: "sample", Socket: "/run/consumers/sample/agent.sock",
+		Fingerprints: make([]string, MaximumFingerprintsPerConsumer+1),
+	}}
+	for index := range configuration.Consumers[0].Fingerprints {
+		digest := make([]byte, 32)
+		digest[0] = byte(index >> 8)
+		digest[1] = byte(index)
+		configuration.Consumers[0].Fingerprints[index] = "SHA256:" + base64.RawStdEncoding.EncodeToString(digest)
+	}
+	if err := Validate(configuration); err == nil || !strings.Contains(err.Error(), "at most 1024") {
+		t.Fatalf("Validate() error = %v, want fingerprint count bound", err)
+	}
+}
+
 func TestParseConsumerNameUnicodeLimit(t *testing.T) {
 	t.Parallel()
 

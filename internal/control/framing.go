@@ -156,15 +156,60 @@ func validateRequest(request Request) ErrorCode {
 	}
 	switch request.Operation {
 	case OperationApply, OperationKeys, OperationStatus:
-		if request.Limit != nil {
+		if requestHasFields(request) {
 			return ErrorBadRequest
 		}
 	case OperationEvents:
-		if request.Limit == nil || *request.Limit < 1 || *request.Limit > MaximumEventLimit {
+		if request.Limit == nil || *request.Limit < 1 || *request.Limit > MaximumEventLimit || requestHasOtherFields(request, "limit") {
+			return ErrorBadRequest
+		}
+	case OperationConfiguration:
+		if request.Offset == nil || request.Limit == nil || *request.Offset < 0 || *request.Limit < 1 || *request.Limit > MaximumConfigurationPageSize ||
+			requestHasOtherFields(request, "offset", "limit", "expected_revision") {
+			return ErrorBadRequest
+		}
+		if *request.Offset == 0 && request.ExpectedRevision != nil || *request.Offset > 0 && !validRevisionPointer(request.ExpectedRevision) {
+			return ErrorBadRequest
+		}
+	case OperationSetUpstream:
+		if !validRevisionPointer(request.ExpectedRevision) || request.Upstream == nil || !validWirePath(*request.Upstream) ||
+			requestHasOtherFields(request, "expected_revision", "upstream") {
+			return ErrorBadRequest
+		}
+	case OperationSetTimeouts:
+		if !validRevisionPointer(request.ExpectedRevision) || request.Timeouts == nil || !validWireTimeouts(*request.Timeouts) ||
+			requestHasOtherFields(request, "expected_revision", "timeouts") {
+			return ErrorBadRequest
+		}
+	case OperationPutConsumer:
+		if !validRevisionPointer(request.ExpectedRevision) || request.Consumer == nil || !validWireConsumer(*request.Consumer) ||
+			request.ConsumerID != nil && !validRevision(*request.ConsumerID) ||
+			requestHasOtherFields(request, "expected_revision", "consumer_id", "consumer") {
+			return ErrorBadRequest
+		}
+	case OperationRetireConsumer:
+		if !validRevisionPointer(request.ExpectedRevision) || !validRevisionPointer(request.ConsumerID) ||
+			requestHasOtherFields(request, "expected_revision", "consumer_id") {
 			return ErrorBadRequest
 		}
 	default:
 		return ErrorBadRequest
 	}
 	return ErrorNone
+}
+
+func requestHasFields(request Request) bool {
+	return request.Limit != nil || request.Offset != nil || request.ExpectedRevision != nil || request.Upstream != nil ||
+		request.Timeouts != nil || request.ConsumerID != nil || request.Consumer != nil
+}
+
+func requestHasOtherFields(request Request, allowed ...string) bool {
+	set := make(map[string]bool, len(allowed))
+	for _, field := range allowed {
+		set[field] = true
+	}
+	return request.Limit != nil && !set["limit"] || request.Offset != nil && !set["offset"] ||
+		request.ExpectedRevision != nil && !set["expected_revision"] || request.Upstream != nil && !set["upstream"] ||
+		request.Timeouts != nil && !set["timeouts"] || request.ConsumerID != nil && !set["consumer_id"] ||
+		request.Consumer != nil && !set["consumer"]
 }

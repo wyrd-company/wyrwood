@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -44,7 +46,7 @@ func initializeAt(path string, lookupEnv func(string) (string, bool), publishCon
 		return "", fmt.Errorf("initialize configuration: %w", err)
 	}
 
-	data, err := marshal(configuration)
+	data, err := MarshalCanonical(configuration)
 	if err != nil {
 		return "", fmt.Errorf("initialize configuration: %w", err)
 	}
@@ -59,7 +61,20 @@ func initializeAt(path string, lookupEnv func(string) (string, bool), publishCon
 	return path, nil
 }
 
-func marshal(configuration Config) ([]byte, error) {
+// MarshalCanonical validates and deterministically serializes the complete
+// modeled configuration. Comments and source formatting are intentionally not
+// part of this representation.
+func MarshalCanonical(configuration Config) ([]byte, error) {
+	if err := Validate(configuration); err != nil {
+		return nil, err
+	}
+	configuration = clone(configuration)
+	slices.SortFunc(configuration.Consumers, func(left, right Consumer) int {
+		return strings.Compare(left.Socket, right.Socket)
+	})
+	for index := range configuration.Consumers {
+		slices.Sort(configuration.Consumers[index].Fingerprints)
+	}
 	type persistedTimeouts struct {
 		Connect string `yaml:"connect"`
 		List    string `yaml:"list"`
@@ -81,6 +96,20 @@ func marshal(configuration Config) ([]byte, error) {
 			Sign:    configuration.Timeouts.Sign.String(),
 		},
 	})
+}
+
+func clone(configuration Config) Config {
+	result := configuration
+	result.Consumers = make([]Consumer, len(configuration.Consumers))
+	for index, consumer := range configuration.Consumers {
+		result.Consumers[index] = consumer
+		result.Consumers[index].Fingerprints = slices.Clone(consumer.Fingerprints)
+		if consumer.AccessGroup != nil {
+			group := *consumer.AccessGroup
+			result.Consumers[index].AccessGroup = &group
+		}
+	}
+	return result
 }
 
 type publicationOperations struct {

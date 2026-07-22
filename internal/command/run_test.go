@@ -218,9 +218,9 @@ func TestStructuredOutputGolden(t *testing.T) {
 		want   string
 	}{
 		{name: "init", args: []string{"init", "--output", "json"}, client: &fakeClient{}, want: `{"version":1,"command":"init","ok":true,"result":{"path":"/tmp/sample/config.yml"}}` + "\n"},
-		{name: "apply", args: []string{"apply", "--output=json"}, client: &fakeClient{applyResult: control.ApplyResult{Committed: true}}, want: `{"version":1,"command":"apply","ok":true,"result":{"committed":true,"degraded":false,"pending_cleanup":0,"pending_permissions":0}}` + "\n"},
+		{name: "apply", args: []string{"apply", "--output=json"}, client: &fakeClient{applyResult: control.ApplyResult{Revision: strings.Repeat("a", 64), Committed: true}}, want: `{"version":1,"command":"apply","ok":true,"result":{"revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","committed":true,"degraded":false,"pending_cleanup":0,"pending_permissions":0}}` + "\n"},
 		{name: "keys", args: []string{"keys", "--output", "json"}, client: &fakeClient{keysResult: control.KeysResult{Keys: []control.Key{{Fingerprint: sampleFingerprint, Display: "sample"}}}}, want: `{"version":1,"command":"keys","ok":true,"result":{"keys":[{"fingerprint":"` + sampleFingerprint + `","display":"sample"}]}}` + "\n"},
-		{name: "status", args: []string{"status", "--output", "json"}, client: &fakeClient{statusResult: control.StatusResult{Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}, Truncated: false}}, want: `{"version":1,"command":"status","ok":true,"result":{"daemon":"healthy","upstream":"unavailable","consumers":[],"truncated":false}}` + "\n"},
+		{name: "status", args: []string{"status", "--output", "json"}, client: &fakeClient{statusResult: control.StatusResult{ActiveRevision: strings.Repeat("a", 64), Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}, Truncated: false}}, want: `{"version":1,"command":"status","ok":true,"result":{"active_revision":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","daemon":"healthy","upstream":"unavailable","consumers":[],"truncated":false}}` + "\n"},
 		{name: "events", args: []string{"events", "--output", "json"}, client: &fakeClient{eventsResult: control.EventsResult{Events: []control.Event{{Timestamp: timestamp, ConsumerID: "unit", Operation: "sign", Fingerprint: &fingerprint, Outcome: "denied", LatencyNS: 12, ErrorCode: "policy-denied"}}}}, want: `{"version":1,"command":"events","ok":true,"result":{"events":[{"timestamp":"2026-01-02T03:04:05.000000006Z","consumer_id":"unit","operation":"sign","fingerprint":"` + sampleFingerprint + `","outcome":"denied","latency_ns":12,"error_code":"policy-denied"}]}}` + "\n"},
 	}
 	for _, test := range tests {
@@ -490,7 +490,7 @@ type commandHandler struct{ calls []string }
 
 func (handler *commandHandler) Apply() (control.ApplyResult, control.ErrorCode) {
 	handler.calls = append(handler.calls, "apply")
-	return control.ApplyResult{Committed: true}, control.ErrorNone
+	return control.ApplyResult{Revision: strings.Repeat("a", 64), Committed: true}, control.ErrorNone
 }
 
 func (handler *commandHandler) Keys() (control.KeysResult, control.ErrorCode) {
@@ -500,7 +500,23 @@ func (handler *commandHandler) Keys() (control.KeysResult, control.ErrorCode) {
 
 func (handler *commandHandler) Status() (control.StatusResult, control.ErrorCode) {
 	handler.calls = append(handler.calls, "status")
-	return control.StatusResult{Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}}, control.ErrorNone
+	return control.StatusResult{ActiveRevision: strings.Repeat("a", 64), Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}}, control.ErrorNone
+}
+
+func (handler *commandHandler) Configuration(offset, _ int, _ *string) (control.ConfigurationResult, control.ErrorCode) {
+	return control.ConfigurationResult{Revision: strings.Repeat("a", 64), Upstream: "/run/sample/agent.sock", Timeouts: control.ConfigurationTimeouts{Connect: "5s", List: "5s", Replay: "5s", Sign: "2m"}, Offset: offset, Consumers: []control.ConfigurationConsumer{}, Complete: true}, control.ErrorNone
+}
+func (handler *commandHandler) SetUpstream(string, string) (control.ConfigurationChangeResult, control.ErrorCode) {
+	return control.ConfigurationChangeResult{}, control.ErrorInternal
+}
+func (handler *commandHandler) SetTimeouts(string, control.ConfigurationTimeouts) (control.ConfigurationChangeResult, control.ErrorCode) {
+	return control.ConfigurationChangeResult{}, control.ErrorInternal
+}
+func (handler *commandHandler) PutConsumer(string, *string, control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, control.ErrorCode) {
+	return control.ConfigurationChangeResult{}, control.ErrorInternal
+}
+func (handler *commandHandler) RetireConsumer(string, string) (control.ConfigurationChangeResult, control.ErrorCode) {
+	return control.ConfigurationChangeResult{}, control.ErrorInternal
 }
 
 func (handler *commandHandler) Events(int) (control.EventsResult, control.ErrorCode) {
@@ -510,9 +526,9 @@ func (handler *commandHandler) Events(int) (control.EventsResult, control.ErrorC
 
 func successfulClient() *fakeClient {
 	return &fakeClient{
-		applyResult:  control.ApplyResult{Committed: true},
+		applyResult:  control.ApplyResult{Revision: strings.Repeat("a", 64), Committed: true},
 		keysResult:   control.KeysResult{Keys: []control.Key{}},
-		statusResult: control.StatusResult{Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}},
+		statusResult: control.StatusResult{ActiveRevision: strings.Repeat("a", 64), Daemon: control.HealthHealthy, Upstream: control.HealthUnavailable, Consumers: []control.ConsumerStatus{}},
 		eventsResult: control.EventsResult{Events: []control.Event{}},
 	}
 }

@@ -28,6 +28,8 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 )
 
+const testConsumerID events.ConsumerID = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
 const (
 	testSocket             = "/run/consumer/agent.sock"
 	sessionBindExtension   = "session-bind@openssh.com"
@@ -85,7 +87,7 @@ func TestObservedPolicyEmitsOnlyClosedCategoricalOperationRecords(t *testing.T) 
 	t.Parallel()
 
 	fixture := newFixture(t)
-	consumerID := events.ConsumerID("consumer-generic")
+	consumerID := testConsumerID
 	var recorded []events.Event
 	observed, err := agentpolicy.NewObserved(
 		fixture.store, testSocket, fixture.upstream, consumerID,
@@ -143,7 +145,7 @@ func TestObservedPolicyRequiresClosedEventIdentityAndRecorder(t *testing.T) {
 	if _, err := agentpolicy.NewObserved(fixture.store, testSocket, fixture.upstream, "invalid id with spaces", func(events.Event) {}); err == nil {
 		t.Fatal("NewObserved(invalid consumer ID) error = nil")
 	}
-	if _, err := agentpolicy.NewObserved(fixture.store, testSocket, fixture.upstream, "consumer-generic", nil); err == nil {
+	if _, err := agentpolicy.NewObserved(fixture.store, testSocket, fixture.upstream, testConsumerID, nil); err == nil {
 		t.Fatal("NewObserved(nil recorder) error = nil")
 	}
 }
@@ -158,7 +160,7 @@ func TestObservedPolicyRejectsOpenEndedUpstreamErrorCodes(t *testing.T) {
 	}
 	var recorded []events.Event
 	observed, err := agentpolicy.NewObserved(
-		fixture.store, testSocket, upstream, "consumer-generic",
+		fixture.store, testSocket, upstream, testConsumerID,
 		func(event events.Event) { recorded = append(recorded, event) },
 	)
 	if err != nil {

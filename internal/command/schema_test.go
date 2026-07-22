@@ -33,27 +33,44 @@ func TestCommandOutputSchemaIsClosedAndVersioned(t *testing.T) {
 		t.Fatalf("schema version = %v", version["const"])
 	}
 	variants := array(t, schema["oneOf"])
-	if len(variants) != 7 {
-		t.Fatalf("schema variants = %d, want 7", len(variants))
+	if len(variants) != 10 {
+		t.Fatalf("schema variants = %d, want 10", len(variants))
 	}
-	commands := []string{"init", "apply", "keys", "status", "events", "service"}
-	for index, command := range commands {
+	successes := []struct {
+		commands []string
+		result   string
+	}{
+		{[]string{"init"}, "init-result"}, {[]string{"apply"}, "apply-result"},
+		{[]string{"keys"}, "keys-result"}, {[]string{"status"}, "status-result"},
+		{[]string{"events"}, "events-result"}, {[]string{"configuration-show"}, "configuration-result"},
+		{[]string{"configuration-set-upstream", "configuration-set-timeouts"}, "configuration-change-result"},
+		{[]string{"consumer-put", "consumer-retire"}, "consumer-change-result"}, {[]string{"service"}, "service-result"},
+	}
+	for index, success := range successes {
 		variant := object(t, variants[index])
 		variantProperties := object(t, variant["properties"])
-		if object(t, variantProperties["command"])["const"] != command ||
-			object(t, variantProperties["result"])["$ref"] != "#/$defs/"+command+"-result" {
-			t.Fatalf("schema variant %d does not bind %s to its result", index, command)
+		commandSchema := object(t, variantProperties["command"])
+		var commands []string
+		if constant, ok := commandSchema["const"].(string); ok {
+			commands = []string{constant}
+		} else {
+			for _, value := range array(t, commandSchema["enum"]) {
+				commands = append(commands, value.(string))
+			}
+		}
+		if !reflect.DeepEqual(commands, success.commands) || object(t, variantProperties["result"])["$ref"] != "#/$defs/"+success.result {
+			t.Fatalf("schema variant %d = %v -> %v, want %v -> %s", index, commands, object(t, variantProperties["result"])["$ref"], success.commands, success.result)
 		}
 		if !reflect.DeepEqual(array(t, object(t, variant["not"])["required"]), []any{"error"}) {
-			t.Fatalf("schema success variant %s permits an error", command)
+			t.Fatalf("schema success variant %v permits an error", commands)
 		}
 	}
-	errorVariant := object(t, variants[6])
+	errorVariant := object(t, variants[9])
 	if !reflect.DeepEqual(array(t, object(t, errorVariant["not"])["required"]), []any{"result"}) {
 		t.Fatal("schema error variant permits a result")
 	}
 	definitions := object(t, schema["$defs"])
-	for _, name := range []string{"init-result", "apply-result", "key", "keys-result", "consumer-status", "status-result", "event", "events-result", "service-result", "error-result"} {
+	for _, name := range []string{"init-result", "apply-result", "key", "keys-result", "consumer-status", "status-result", "event", "events-result", "configuration-consumer", "configuration-result", "configuration-change-result", "consumer-change-result", "service-result", "error-result"} {
 		if object(t, definitions[name])["additionalProperties"] != false {
 			t.Fatalf("schema definition %s is not closed", name)
 		}
@@ -150,6 +167,7 @@ func TestCommandErrorSchemaContainsEveryEmittedCategory(t *testing.T) {
 	sort.Strings(actual)
 	want := []string{
 		"apply-failed", "apply-invalid", "daemon-failed", "daemon-unavailable",
+		"configuration-conflict", "configuration-durability-uncertain", "configuration-failed", "configuration-invalid", "configuration-not-found",
 		"durability-uncertain", "incompatible-daemon", "initialization-failed",
 		"request-rejected", "resource-limit", "upstream-unavailable", "usage",
 		"service-failed", "service-not-installed", "service-unavailable",

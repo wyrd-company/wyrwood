@@ -76,6 +76,9 @@ func Validate(configuration Config) error {
 		if consumer.AccessGroup != nil && *consumer.AccessGroup == math.MaxUint32 {
 			return fieldError(path+".access-group", "must be between 0 and 4294967294")
 		}
+		if len(consumer.Fingerprints) > MaximumFingerprintsPerConsumer {
+			return fieldError(path+".fingerprints", fmt.Sprintf("must contain at most %d fingerprints", MaximumFingerprintsPerConsumer))
+		}
 		fingerprints := make(map[string]int, len(consumer.Fingerprints))
 		for fingerprintIndex, fingerprint := range consumer.Fingerprints {
 			fingerprintPath := fmt.Sprintf("%s.fingerprints[%d]", path, fingerprintIndex)
@@ -97,6 +100,12 @@ func validateSocketPath(field, value string) error {
 	}
 	if strings.IndexByte(value, 0) >= 0 {
 		return fieldError(field, "must not contain a NUL byte")
+	}
+	if !utf8.ValidString(value) {
+		return fieldError(field, "must be valid UTF-8")
+	}
+	if utf8.RuneCountInString(value) > MaximumSocketPathBytes || len(value) > MaximumSocketPathBytes {
+		return fieldError(field, fmt.Sprintf("must contain at most %d characters and %d bytes", MaximumSocketPathBytes, MaximumSocketPathBytes))
 	}
 	if !filepath.IsAbs(value) {
 		return fieldError(field, "must be an absolute path")

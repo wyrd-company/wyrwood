@@ -137,7 +137,7 @@ func TestLatencyDecoderMatchesExactSchemaBounds(t *testing.T) {
 
 	payload := func(latency string) []byte {
 		return []byte(fmt.Sprintf(
-			`{"timestamp":"2025-02-03T04:05:06Z","consumer-id":"subject-alpha","operation":"sign","outcome":"succeeded","latency":%s,"error-code":"none"}`,
+			`{"timestamp":"2025-02-03T04:05:06Z","consumer-id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","operation":"sign","outcome":"succeeded","latency":%s,"error-code":"none"}`,
 			latency,
 		))
 	}

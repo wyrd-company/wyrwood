@@ -76,6 +76,20 @@ func TestAbsolutePathSchemaExcludesFilesystemRoot(t *testing.T) {
 	if minimum := absolutePath["minLength"]; minimum != float64(2) {
 		t.Fatalf("absoluteCanonicalPath minLength = %v, want 2", minimum)
 	}
+	if maximum := absolutePath["maxLength"]; maximum != float64(MaximumSocketPathBytes) {
+		t.Fatalf("absoluteCanonicalPath maxLength = %v, want %d", maximum, MaximumSocketPathBytes)
+	}
+}
+
+func TestConsumerFingerprintSchemaMatchesRuntimeBound(t *testing.T) {
+	t.Parallel()
+
+	definitions := loadConfigurationSchema(t)["$defs"].(map[string]any)
+	consumer := definitions["consumer"].(map[string]any)
+	fingerprints := consumer["properties"].(map[string]any)["fingerprints"].(map[string]any)
+	if fingerprints["maxItems"] != float64(MaximumFingerprintsPerConsumer) {
+		t.Fatalf("fingerprint maxItems = %v, want %d", fingerprints["maxItems"], MaximumFingerprintsPerConsumer)
+	}
 }
 
 func TestConsumerNameSchemaMatchesRuntimeUnicodeLimit(t *testing.T) {

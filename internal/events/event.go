@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	consumerIDPattern  = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$`)
+	consumerIDPattern  = regexp.MustCompile(`^[a-f0-9]{64}$`)
 	fingerprintPattern = regexp.MustCompile(`^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$`)
 )
 
@@ -85,7 +85,7 @@ func (event Event) Validate() error {
 		return err
 	}
 	if len(event.ConsumerID) > maximumConsumerIDBytes || !consumerIDPattern.MatchString(string(event.ConsumerID)) {
-		return fmt.Errorf("consumer identifier is not an opaque identifier")
+		return fmt.Errorf("consumer identifier is not a canonical socket-path digest")
 	}
 	if !validOperation(event.Operation) {
 		return fmt.Errorf("operation %q is not supported", event.Operation)
