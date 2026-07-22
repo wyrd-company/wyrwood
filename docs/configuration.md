@@ -54,11 +54,15 @@ Omit `--id` to create one; supply the opaque identifier returned by
 identifier:
 
 ```bash
+revision=$(wyrwood configuration show --output json |
+  jq -r '.result.revision')
+wyrwood configuration show
+read -r -p "Consumer ID to retire: " consumer_id
 wyrwood consumer retire --revision "$revision" --id "$consumer_id"
 ```
 
-Set `revision` and `consumer_id` from the current `configuration show --output
-json` result before running the command.
+The prompt keeps selection of the consumer deliberate; display names are not
+authorization identities.
 
 Managed writes serialize canonical YAML and do not preserve comments or custom
 formatting. Direct file edits remain supported, but they also change the
@@ -72,6 +76,13 @@ socket mode `0600`. Set a numeric supplementary group when the container must
 reach the endpoint through group access:
 
 ```bash
+revision=$(wyrwood configuration show --output json |
+  jq -r '.result.revision')
+wyrwood configuration show
+read -r -p "Consumer ID to replace: " consumer_id
+wyrwood keys
+read -r -p "Fingerprint to allow: " fingerprint
+
 wyrwood consumer put --revision "$revision" --id "$consumer_id" \
   --name teal --socket /run/user/1000/teal/agent.sock \
   --access-group 1001 --fingerprint "$fingerprint"

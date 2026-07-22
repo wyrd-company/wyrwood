@@ -6,6 +6,8 @@
 
 name: Publish docs
 
+# Releases created by a workflow's GITHUB_TOKEN cannot trigger another
+# workflow. Keep manual dispatch available for those automated releases.
 on:
   release:
     types: [ published ]

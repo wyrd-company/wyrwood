@@ -46,8 +46,8 @@ following example creates a consumer named `teal` with one allowed key:
 runtime_root="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 revision=$(wyrwood configuration show --output json |
   jq -r '.result.revision')
-fingerprint=$(wyrwood keys --output json |
-  jq -r '.result.keys[0].fingerprint')
+wyrwood keys
+read -r -p "Fingerprint to allow: " fingerprint
 
 wyrwood consumer put \
   --revision "$revision" \
