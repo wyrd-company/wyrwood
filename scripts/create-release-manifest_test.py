@@ -18,6 +18,7 @@ from pathlib import Path
 
 
 SCRIPT = Path(__file__).with_name("create-release-manifest.py")
+VERIFY_SCRIPT = Path(__file__).with_name("verify-release-handoff.py")
 SPEC = importlib.util.spec_from_file_location("create_release_manifest", SCRIPT)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -46,6 +47,25 @@ class ReleaseManifestTests(unittest.TestCase):
                 "0123456789abcdef0123456789abcdef01234567",
                 "--output",
                 str(self.directory / "release-manifest.json"),
+            ],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+
+    def run_verifier(
+        self, *, commit: str = "0123456789abcdef0123456789abcdef01234567", version: str = "1.2.3"
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [
+                sys.executable,
+                str(VERIFY_SCRIPT),
+                "--manifest",
+                str(self.directory / "release-manifest.json"),
+                "--commit",
+                commit,
+                "--expected-version",
+                version,
             ],
             check=False,
             text=True,
@@ -87,6 +107,24 @@ class ReleaseManifestTests(unittest.TestCase):
         result = self.run_generator(version="1.2.3-rc.1")
         self.assertEqual(result.returncode, 2)
         self.assertIn("bare stable SemVer", result.stderr)
+
+    def test_verifies_retained_handoff_identity(self) -> None:
+        self.assertEqual(self.run_generator().returncode, 0)
+        result = self.run_verifier()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "1.2.3\n")
+
+    def test_rejects_retained_handoff_for_another_tag(self) -> None:
+        self.assertEqual(self.run_generator().returncode, 0)
+        result = self.run_verifier(version="1.2.4")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("does not match requested tag", result.stderr)
+
+    def test_rejects_retained_handoff_for_another_run(self) -> None:
+        self.assertEqual(self.run_generator().returncode, 0)
+        result = self.run_verifier(commit="abcdef0123456789abcdef0123456789abcdef01")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("does not match the release workflow run", result.stderr)
 
 
 if __name__ == "__main__":

@@ -6,12 +6,18 @@
 
 name: Publish docs
 
-# Releases created by a workflow's GITHUB_TOKEN cannot trigger another
-# workflow. Keep manual dispatch available for those automated releases.
+# A release created by the Release workflow's GITHUB_TOKEN cannot trigger this
+# workflow. Manually dispatch Publish docs for every automated release unless
+# the release workflow is deliberately moved to different authentication.
 on:
   release:
     types: [ published ]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Automated bare stable SemVer release whose docs must publish
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -20,8 +26,26 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: wyrd-company/wyrd.foo/.github/actions/publish-docs@v1
+      - name: Validate documentation release tag
+        shell: bash
+        env:
+          DOCS_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$DOCS_TAG" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          then
+          echo "Documentation release tags must be bare stable SemVer values." >&2
+          exit 1
+          fi
+
+      - name: Check out released documentation
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
+
+      - name: Publish released documentation
+        # ryl disable-line rule:line-length
+        uses: wyrd-company/wyrd.foo/.github/actions/publish-docs@fdb54b12e88eaf51a2b22714db63c80aba2ed88a # v1
         with:
           app-id: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_APP_ID }}
           private-key: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY }}

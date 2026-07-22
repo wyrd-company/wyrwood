@@ -6,6 +6,9 @@ version: 2
 
 project_name: wyrwood
 
+snapshot:
+  version_template: "{{ .Env.RELEASE_VERSION }}"
+
 builds:
   - id: wyrwood
     main: ./cmd/wyrwood

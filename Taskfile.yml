@@ -47,6 +47,12 @@ tasks:
     cmds:
       - go vet ./...
 
+  scripts:check:
+    desc: Check release automation script syntax
+    cmds:
+      - bash -n scripts/*.sh
+      - python3 -m py_compile scripts/*.py
+
   docs:check:
     desc: Lint repository artifacts
     cmds:
@@ -76,14 +82,47 @@ tasks:
       - build
       - format:check
       - release:check
+      - scripts:check
       - test
       - test:release-manifest
       - vet
 
+  release:compatibility:
+    desc: Build packages and prove the pinned repository publisher contract
+    requires:
+      vars:
+        - PUBLISHER_ROOT
+        - PUBLISHER_COMMIT
+        - RELEASE_VERSION
+        - RELEASE_COMMIT
+    deps:
+      - release:ci
+    cmds:
+      - >-
+        RELEASE_VERSION="{{.RELEASE_VERSION}}"
+        go run github.com/goreleaser/goreleaser/v2@v2.17.0
+        release --snapshot --clean
+      - >-
+        scripts/create-release-manifest.py
+        --artifacts-dir dist
+        --version "{{.RELEASE_VERSION}}"
+        --commit "{{.RELEASE_COMMIT}}"
+        --output dist/release-manifest.json
+      - >-
+        scripts/validate-publisher-contract.sh
+        "{{.PUBLISHER_ROOT}}"
+        "{{.PUBLISHER_COMMIT}}"
+        dist/release-manifest.json
+        dist
+        dist/publisher-contract
+
   release:snapshot:
     desc: Build local release artifacts without publishing
     cmds:
-      - go run github.com/goreleaser/goreleaser/v2@v2.17.0 release --snapshot --clean
+      - >-
+        RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
+        go run github.com/goreleaser/goreleaser/v2@v2.17.0
+        release --snapshot --clean
 
   workflows:check:
     desc: Validate GitHub Actions workflows
@@ -97,6 +136,7 @@ tasks:
       - docs:check
       - format:check
       - release:check
+      - scripts:check
       - test
       - test:release-manifest
       - vet

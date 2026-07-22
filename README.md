@@ -141,6 +141,33 @@ The consumer endpoints are unavailable between those two commands. A new
 installation still requires the initialization and service commands in
 [Command-line use](#command-line-use).
 
+## Release operations
+
+A bare stable SemVer tag starts the package publisher compatibility preflight.
+The preflight builds real archive, DEB, and RPM snapshot artifacts with the tag's
+version, then validates the manifest, immutable inbox path, package staging, and
+AUR rendering through one full-commit-pinned checkout of `repo.wyrd.foo`. The
+GitHub Release job cannot start unless that contract passes.
+
+A successful Release workflow retains its exact package manifest for 90 days
+and automatically submits it to `repo.wyrd.foo`. Manual package recovery
+requires both the original successful Release workflow run ID and its tag. It
+downloads only that run's retained manifest and fails closed when the artifact
+has expired or is unavailable; it never recomputes digests from mutable GitHub
+Release assets. Package submission uses these product-repository secrets:
+
+- `REPO_WYRD_FOO_APP_CLIENT_ID`
+- `REPO_WYRD_FOO_APP_PRIVATE_KEY`
+
+GitHub does not emit a new workflow event for a release created with the Release
+workflow's `GITHUB_TOKEN`. After **every** automated release, manually dispatch
+the `Publish docs` workflow with the same tag. This remains required unless the
+release workflow deliberately adopts authentication that can trigger the
+release event. Documentation publishing uses these separate secrets:
+
+- `WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`
+- `WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`
+
 ## Project direction
 
 The [concept](docs/concepts/wyrwood.yml) defines the product, the

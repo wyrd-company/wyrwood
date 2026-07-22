@@ -10,17 +10,78 @@ on:
       - "*.*.*"
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and publish release
+  compatibility:
+    name: Prove package publisher compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Commit A must pin the reviewed inbox, allowlist, and package-stage contract.
+    # The non-SHA sentinel deliberately blocks every release until it is replaced.
+    env:
+      REPO_WYRD_FOO_PUBLISHER_COMMIT: REPLACE_WITH_REPO_WYRD_FOO_COMMIT_A_SHA
+    steps:
+      - name: Check out release commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          fetch-depth: 0
+
+      - name: Validate release and publisher pins
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          then
+          echo "Release tags must be bare stable SemVer values." >&2
+          exit 1
+          fi
+          if [[ ! "$REPO_WYRD_FOO_PUBLISHER_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          then
+          echo "Replace the repo.wyrd.foo publisher sentinel with Commit A before releasing." >&2
+          exit 1
+          fi
+
+      - name: Check out pinned package publisher contract
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          repository: wyrd-company/repo.wyrd.foo
+          ref: ${{ env.REPO_WYRD_FOO_PUBLISHER_COMMIT }}
+          path: .repo-wyrd-foo-contract
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install package inspectors
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm
+
+      - name: Build and stage through the publisher contract
+        shell: bash
+        run: >-
+          go run github.com/go-task/task/v3/cmd/task@v3.52.0
+          release:compatibility
+          PUBLISHER_ROOT=.repo-wyrd-foo-contract
+          PUBLISHER_COMMIT="$REPO_WYRD_FOO_PUBLISHER_COMMIT"
+          RELEASE_VERSION="$GITHUB_REF_NAME"
+          RELEASE_COMMIT="$(git rev-list -n 1 "refs/tags/$GITHUB_REF_NAME")"
+
+  release:
+    name: Build and publish release
+    needs: compatibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
       - name: Check out release commit
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
