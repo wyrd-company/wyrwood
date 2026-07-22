@@ -48,10 +48,11 @@ tasks:
       - go vet ./...
 
   scripts:check:
-    desc: Check release automation script syntax
+    desc: Check release automation scripts and publishing contracts
     cmds:
       - bash -n scripts/*.sh
       - python3 -m py_compile scripts/*.py
+      - cd scripts && ./check-publishing-secret-contract.sh
 
   docs:check:
     desc: Lint repository artifacts
@@ -128,7 +129,6 @@ tasks:
     desc: Validate GitHub Actions workflows
     cmds:
       - actionlint
-      - scripts/check-publishing-secret-contract.sh
 
   check:
     desc: Run all repository checks
