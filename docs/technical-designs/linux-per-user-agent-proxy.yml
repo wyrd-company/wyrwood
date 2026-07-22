@@ -112,13 +112,19 @@ proposed-design:
     Each accepted downstream connection owns one upstream connection; upstream
     streams are never shared or pooled. Accepted session-bind messages are kept
     in memory for the lifetime of that downstream connection. If the upstream
-    stream fails, Wyrwood makes a bounded connection attempt and replays those
-    bindings before forwarding the next request. Failure returns an agent
-    failure while the downstream listener remains available. Connecting,
-    identity listing, and binding replay use short configurable deadlines.
-    Signing uses a separate longer deadline for upstream human approval. Any
-    timed-out upstream stream is closed and rebuilt on the next request because
-    a delayed response would make that stream unsafe to reuse.
+    stream fails, Wyrwood fails that request without retrying it, closes the
+    stream, and makes a bounded connection attempt before the next request. A
+    reconstructed stream replays the connection's accepted bindings in their
+    original order before forwarding that next request. One replay deadline
+    bounds the complete replay sequence, and the same deadline bounds a newly
+    forwarded session-bind exchange. Connect and identity-list operations use
+    their short configurable deadlines for the complete operation. Signing
+    uses its separate longer deadline for the complete request and response so
+    an upstream application can wait for human approval. Connect, operation,
+    or replay failure returns an agent failure while the downstream listener
+    remains available. Every failed or timed-out protocol stream is closed and
+    rebuilt on a later request because a delayed response would make that
+    stream unsafe to reuse.
   control-interface: >-
     Wyrwood exposes a versioned request-response control API only through an
     owner-only Unix-domain socket. The Linux transport verifies the peer UID from
