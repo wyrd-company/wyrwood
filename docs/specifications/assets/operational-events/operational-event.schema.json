@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Wyrwood operational event",
+  "description": "One closed, non-sensitive Wyrwood operational event.",
+  "x-relationships": {},
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "timestamp",
+    "consumer-id",
+    "operation",
+    "outcome",
+    "latency",
+    "error-code"
+  ],
+  "properties": {
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "description": "RFC 3339 timestamp normalized to UTC by the durable writer."
+    },
+    "consumer-id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
+      "description": "Opaque consumer identifier with no filesystem semantics."
+    },
+    "operation": {
+      "enum": [
+        "consumer-connect",
+        "list-identities",
+        "sign",
+        "session-bind",
+        "upstream-connect",
+        "replay",
+        "reconcile"
+      ]
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$",
+      "description": "Optional canonical OpenSSH SHA-256 public-key fingerprint."
+    },
+    "outcome": {
+      "enum": ["succeeded", "denied", "failed"]
+    },
+    "latency": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Operation latency in nanoseconds."
+    },
+    "error-code": {
+      "enum": [
+        "none",
+        "policy-denied",
+        "upstream-unavailable",
+        "upstream-timeout",
+        "upstream-protocol",
+        "consumer-protocol",
+        "resource-limit",
+        "internal"
+      ]
+    }
+  }
+}

@@ -149,10 +149,10 @@ proposed-design:
     identifier, operation, key fingerprint when relevant, outcome, latency,
     and categorical error code. A fingerprint is retained as a stable key
     identifier and can correlate activity involving the same public key. Event
-    construction types contain no fields for signing payloads, signatures,
-    public-key bytes, agent comments, filesystem paths, destinations, raw client
-    messages, or raw upstream errors. Owner-only storage survives daemon restart
-    and compacts through an atomic replacement.
+    construction uses a closed type without open-ended attributes. Events contain
+    no signing payloads, signatures, public-key bytes, agent comments, filesystem
+    paths, destinations, raw client messages, or raw upstream errors. Owner-only
+    storage survives daemon restart and compacts through an atomic replacement.
   platform-lifecycle: >-
     The Linux adapter installs, removes, starts, stops, and inspects a systemd
     user service. It supplies Linux configuration, data, and runtime locations,

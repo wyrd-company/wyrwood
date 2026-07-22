@@ -29,7 +29,7 @@ properties:
   non-sensitive-history: >-
     Bounded per-user operational events contain categorical outcomes and
     timing. Events may retain a selected public-key fingerprint as a stable,
-    correlatable key identifier. They contain no signing payloads, signatures,
+    correlatable key identifier. Events contain no signing payloads, signatures,
     public-key bytes, agent comments, filesystem paths, destinations, raw client
     messages, or raw upstream errors.
 features:
