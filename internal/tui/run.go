@@ -13,6 +13,7 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/muesli/termenv"
 	"golang.org/x/term"
 )
 
@@ -32,8 +33,9 @@ func Run(input io.Reader, output io.Writer, client Client) error {
 		return ErrNotTerminal
 	}
 	_, noColor := os.LookupEnv("NO_COLOR")
-	colors := !noColor && os.Getenv("TERM") != "dumb"
-	model := NewModel(client, options{Colors: colors})
+	profile := termenv.NewOutput(output).ColorProfile()
+	colors := !noColor && os.Getenv("TERM") != "dumb" && profile != termenv.Ascii
+	model := NewModel(client, options{Colors: colors, ColorProfile: &profile})
 	defer model.close()
 	program := tea.NewProgram(
 		model,

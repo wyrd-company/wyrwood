@@ -29,10 +29,14 @@ type palette struct {
 	unfocused lipgloss.Style
 }
 
-func newPalette(colors bool) palette {
+func newPalette(colors bool, requestedProfile *termenv.Profile) palette {
 	renderer := lipgloss.NewRenderer(io.Discard)
 	if colors {
-		renderer.SetColorProfile(termenv.ANSI256)
+		profile := termenv.ANSI256
+		if requestedProfile != nil {
+			profile = *requestedProfile
+		}
+		renderer.SetColorProfile(profile)
 	} else {
 		renderer.SetColorProfile(termenv.Ascii)
 	}

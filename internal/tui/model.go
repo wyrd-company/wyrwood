@@ -15,6 +15,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/muesli/termenv"
 	"github.com/wyrd-company/wyrwood/internal/control"
 )
 
@@ -58,8 +59,9 @@ const (
 type scheduleFunc func(context.Context, time.Duration, uint64) tea.Cmd
 
 type options struct {
-	Colors   bool
-	Schedule scheduleFunc
+	Colors       bool
+	ColorProfile *termenv.Profile
+	Schedule     scheduleFunc
 }
 
 type consumerItem struct{ consumer Consumer }
@@ -146,7 +148,7 @@ func NewModel(client Client, opts options) *Model {
 		ctx:                ctx,
 		cancel:             cancel,
 		schedule:           opts.Schedule,
-		styles:             newPalette(opts.Colors),
+		styles:             newPalette(opts.Colors, opts.ColorProfile),
 		width:              referenceWidth,
 		height:             referenceHeight,
 		configurationState: loadLoading,
