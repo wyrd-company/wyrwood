@@ -26,14 +26,36 @@ start_daemon
 echo "-- after remount (rprivate):"; docker exec spike847 cat /secrets/gh/hosts.yml 2>&1 | head -3
 docker rm -f spike847 >/dev/null
 
-# Case B: shared propagation on the container bind mount.
+# Case B: shared propagation on the container bind mount of the FUSE subtree.
 stop_daemon
+if [ "$(findmnt -n -o PROPAGATION --target "$SPIKE_ROOT")" != shared ]; then
+  say "parent of the mountpoint is not shared; making $SPIKE_ROOT a shared bind mount (sudo)"
+  sudo mount --bind "$SPIKE_ROOT" "$SPIKE_ROOT" && sudo mount --make-rshared "$SPIKE_ROOT"
+fi
+findmnt -o TARGET,PROPAGATION --target "$SPIKE_ROOT"
 run_case B rshared
 kill "$DAEMON_PID"; sleep 0.5
 echo "-- after kill:"; docker exec spike847 cat /secrets/gh/hosts.yml 2>&1 | head -3
 start_daemon
 echo "-- after remount (rshared):"; docker exec spike847 cat /secrets/gh/hosts.yml 2>&1 | head -3
 echo "-- container mountinfo now:"; docker exec spike847 cat /proc/self/mountinfo | grep secrets
+docker rm -f spike847 >/dev/null
+
+# Case B2: container binds the PARENT of the mountpoint (rshared) so a new mount under it propagates in.
+stop_daemon
+say "CASE B2 (bind parent dir rshared, daemon mounts beneath it after container start)"
+docker rm -f spike847 >/dev/null 2>&1 || true
+docker run -d --rm --name spike847 -u 1000:1000 \
+  --mount "type=bind,src=$SPIKE_ROOT,dst=/secrets,bind-propagation=rshared" "$IMAGE" sleep 600 >/dev/null
+start_daemon
+echo "-- container read via propagated mount:"; docker exec spike847 cat /secrets/mnt/gh/hosts.yml 2>&1 | head -3
+echo "-- container mountinfo:"; docker exec spike847 grep secrets /proc/self/mountinfo
+kill "$DAEMON_PID"; sleep 0.5
+echo "-- after kill:"; docker exec spike847 cat /secrets/mnt/gh/hosts.yml 2>&1 | head -2
+start_daemon
+echo "-- after remount:"; docker exec spike847 cat /secrets/mnt/gh/hosts.yml 2>&1 | head -3
+echo "-- container mountinfo now:"; docker exec spike847 grep secrets /proc/self/mountinfo
+echo "-- does the propagated mount honour the gate (redacted for cat)?"; docker exec spike847 grep oauth /secrets/mnt/gh/hosts.yml | head -1
 docker rm -f spike847 >/dev/null
 
 # Case C: fd handoff. The daemon re-execs itself on SIGUSR1 passing the /dev/fuse fd.

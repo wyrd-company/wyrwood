@@ -302,14 +302,13 @@ func main() {
 				log.Printf("reexec: cannot find fuse fd")
 				return
 			}
-			args := []string{}
-			for _, a := range os.Args[1:] {
-				if strings.HasPrefix(a, "-mount") || strings.HasPrefix(a, "--mount") {
-					continue
-				}
-				args = append(args, a)
+			args := []string{"-backing", *backing, "-mount", "/dev/fd/3", "-log", *logPath, "-allow", *allow, "-allow-sha256", *allowHash, "-reexec-on-usr1"}
+			if *hashExe {
+				args = append(args, "-hash-exe")
 			}
-			args = append(args, "-mount=/dev/fd/3")
+			if *allowOther {
+				args = append(args, "-allow-other")
+			}
 			cmd := exec.Command(os.Args[0], args...)
 			cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 			cmd.ExtraFiles = []*os.File{os.NewFile(uintptr(fd), "fuse")}
