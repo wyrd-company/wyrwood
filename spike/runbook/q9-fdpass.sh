@@ -9,7 +9,7 @@ set -u
 
 TOOLS="$(cd "$(dirname "$0")/../tools" && pwd)"
 build
-CGO_ENABLED=0 go build -o "$SPIKE_ROOT/fdopener" "$TOOLS/fdopener" || exit 1
+(cd "$TOOLS/fdopener" && CGO_ENABLED=0 go build -o "$SPIKE_ROOT/fdopener" .) || exit 1
 
 rm -rf "$BACKING" "$MNT"; mkdir -p "$MNT"; seed
 # Allowlist ONLY fdopener by hash; head is not allowlisted.
@@ -23,8 +23,8 @@ run_case() {
   "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other -hash-exe \
     -allow-sha256 "$OPENERHASH" "$@" > "$SPIKE_ROOT/daemon.out" 2>&1 &
   for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
-  CID=$(docker run -d --rm \
-    -v "$MNT:/secrets:rshared" \
+  CID=$(docker run -d --rm --user "$(id -u):$(id -g)" \
+    -v "$MNT:/secrets:${PROP:-rshared}" \
     -v "$SPIKE_ROOT/fdopener:/usr/local/bin/fdopener:ro" \
     "$IMAGE" sleep 300)
   echo "-- baseline: fdopener reads it entirely (allowlisted) => expect REAL --"

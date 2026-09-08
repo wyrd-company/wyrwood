@@ -24,7 +24,7 @@ unmount_stale
 for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
 mountpoint "$MNT"
 
-CID=$(docker run -d --rm -v "$MNT:/secrets:rshared" "$IMAGE" sleep 600)
+CID=$(docker run -d --rm --user "$(id -u):$(id -g)" -v "$MNT:/secrets:${PROP:-rshared}" "$IMAGE" sleep 600)
 
 echo "== 1. allowlisted /bin/cat: expect real token =="
 docker exec "$CID" cat /secrets/gh/hosts.yml
@@ -32,8 +32,8 @@ echo "== 2. identical copy at /tmp/cat2: expect real (hash matches) =="
 docker exec "$CID" sh -c 'cp /bin/cat /tmp/cat2 && /tmp/cat2 /secrets/gh/hosts.yml'
 echo "== 3. different binary (head copied over a path): expect REDACTED =="
 docker exec "$CID" sh -c 'cp /usr/bin/head /tmp/notcat && /tmp/notcat /secrets/gh/hosts.yml'
-echo "== 4. replace allowlisted bytes at same path: expect REDACTED (hash changed) =="
-docker exec "$CID" sh -c 'cp /usr/bin/head /bin/cat && cat /secrets/gh/hosts.yml' || true
+echo "== 4. replace allowlisted bytes at a writable path: real -> REDACTED (hash+mtime change) =="
+docker exec "$CID" sh -c 'cp /bin/cat /tmp/mutable && /tmp/mutable /secrets/gh/hosts.yml | head -4; echo "-- now overwrite /tmp/mutable with head bytes --"; cp /usr/bin/head /tmp/mutable && /tmp/mutable -c 200 /secrets/gh/hosts.yml' || true
 
 echo "== 5. cache behaviour: repeated reads by the same stable binary =="
 docker exec "$CID" sh -c 'cp /tmp/cat2 /tmp/cat3; for i in 1 2 3; do /tmp/cat3 /secrets/gh/hosts.yml >/dev/null; done; echo done'

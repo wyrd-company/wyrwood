@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -26,9 +27,10 @@ func main() {
 		fmt.Println("read /proc/pid/mem:", rerr)
 		f.Close()
 	}
-	// Tested independently of the mem outcome (round 2, finding 3).
-	_, eerr := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	fmt.Println("read /proc/pid/environ:", eerr)
+	// Tested independently of the mem outcome (round 2, finding 3). Report
+	// whether the secret env value is actually recovered, not just the errno.
+	env, eerr := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+	fmt.Printf("read /proc/pid/environ: %v recovered_canary=%v\n", eerr, strings.Contains(string(env), "canary-1234"))
 	if ents, ferr := os.ReadDir(fmt.Sprintf("/proc/%d/fd", pid)); ferr != nil {
 		fmt.Println("list /proc/pid/fd:", ferr)
 	} else {

@@ -284,3 +284,124 @@ parent-child ptrace and `/proc/<pid>/fd` paths. The mechanism (FUSE origin
 detection, redaction, fail-closed, restart survival via parent-dir
 propagation) is sound enough to continue; the gate is not yet proven
 containing.
+
+## Round 2: closing review findings 1-8
+
+Round 2 landed format-aware redaction, a per-read gate, per-operation write
+guards, and a real hash cache, then ran five scripts (`q7`-`q11`). The reader
+containers run as uid 1000 (`--user`), matching both the daemon and the real
+`vscode` remoteUser; round 1 ran them as root, which made every
+`/proc/<pid>/exe` unreadable and masked the allow path. Runs were in the tools
+devcontainer's docker-in-docker on the host kernel; evidence under
+`spike/evidence/round2/`.
+
+### Finding 1 redaction: closed
+
+Redaction is now format-aware (`redact.go`): JSON is parsed and re-marshalled
+with secret-named values replaced (always valid JSON, no `access_token` leak),
+YAML/ini lines are matched key-wise, PEM bodies are stripped inside their
+envelope, and any content a redactor cannot parse collapses to a single
+`REDACTED` marker (fail closed). Every `q7`-`q11` transcript shows valid
+redacted output (`oauth_token: REDACTED`).
+
+### Finding 2 safe export topology: closed
+
+`q7` exports a parent (`export/`) that contains **only** the mountpoint
+(`export/secrets`); backing storage lives outside it. The container sees only
+`secrets`, `/export/backing` does not exist, and no path under `/export`
+reaches the real token. The round-1 layout that bound all of `$SPIKE_ROOT` is
+abandoned.
+
+### Finding 7 down-window under the safe topology: closed
+
+With the daemon down, container reads return `Transport endpoint is not
+connected` and the backing files are never exposed. B2 recovery works, with one
+required step round 1 missed: the dead mount must be cleared
+(`fusermount3 -uz`, which propagates the removal to the container) before the
+new mount is made, or the container keeps the dead endpoint. After that the new
+`fuse.secretfs` propagates in and reads recover (redacted for `cat`).
+
+### Finding 8 hash enforcement and cache: closed
+
+`q8` allowlists **only** by sha256 (no path rule). An allowlisted `/bin/cat`
+reads real bytes; a byte-identical copy at a different path also reads real
+(hash, not path); a different binary reads redacted; overwriting an allowlisted
+copy's bytes flips it to redacted. The per-(mnt-ns, dev, inode, mtime) cache
+works and invalidates on mtime change: `hashcache hits=16 misses=6 entries=6`.
+
+### Finding 5 per-read authorization and fd passing: closed
+
+`q9`: an allowlisted `fdopener` opens the file, then execs a non-allowlisted
+`head` that reads the inherited open file description via stdin (no re-open).
+
+- open-gating (round 1 handle): the inherited fd yields the **real** token.
+- `-gate-reads` (round 2): the same inherited fd yields `REDACTED`.
+Authorization must be per read, not per open. An fd opened by an allowlisted
+reader and passed or inherited by another process is a real leak unless every
+read re-authorizes.
+
+### Finding 6 per-operation write gate: mostly closed
+
+`q11`: from a non-allowlisted writer, hardlink, symlink, `rmdir`, and `mknod`
+(FIFO, no privilege needed so it reaches the gate) all return `Permission
+denied`, and the backing directory shows none of the artifacts. `setxattr`
+could not be exercised (`setfattr` absent from the base image); it is guarded
+in code but unverified at runtime.
+
+### Finding 4 content hash is not trusted execution: confirmed as a real defeat
+
+`q10`: `/bin/cat` is dynamically linked and allowlisted by hash. Running it with
+`LD_PRELOAD=/tmp/evil.so` (no sudo, no ptrace) injects a constructor that reads
+the file and exfiltrates the **real** token, while `/bin/cat`'s hash is
+unchanged and still allowlisted. Hashing the executable does not constrain what
+code runs inside it. A dynamically linked "native CLI" is not a security
+boundary. The design must either require self-contained/statically linked
+readers or constrain the loader environment (`LD_PRELOAD`, `LD_LIBRARY_PATH`,
+plugin dirs) for any reader it trusts.
+
+### Finding 3 process access: closed, with a new gap
+
+`q11`, uid 1000 throughout, Yama `ptrace_scope=1`:
+
+- same-UID non-descendant: `PTRACE_ATTACH` and `/proc/<pid>/mem` are denied,
+  but **`/proc/<pid>/environ` is readable and recovered the victim's secret env
+  value** (`recovered_canary=true`). Yama scope 1 gates `PTRACE_MODE_ATTACH`,
+  not `PTRACE_MODE_READ`, so same-UID environ (and the `fd` listing) leak. Any
+  secret a CLI carries in its environment is exposed to same-UID processes; the
+  file gate does not cover it.
+- parent-child (ancestor) tracing: an attacker that launches the allowlisted
+  CLI as its own child reads its environ, `/proc/<pid>/mem`, `process_vm_readv`,
+  and `PTRACE_ATTACH`/`GETREGS` all succeed. Launching the reader yourself
+  fully defeats memory isolation.
+- `/proc/<pid>/fd` as container root: the fd directory lists, but the symlink
+  targets are unreadable without `CAP_SYS_PTRACE` (`Permission denied`).
+
+Mitigations the design must carry: keep secrets out of reader environments;
+`prctl(PR_SET_DUMPABLE, 0)` on readers; and treat "launch the CLI and trace it"
+and "same-UID environ" as in-scope threats, which points again to running
+trusted readers under a distinct uid rather than the user's own.
+
+### Round 2 verdict
+
+Findings 1, 2, 5, 6 (bar setxattr at runtime), 7, and 8 are closed by code plus
+evidence. Findings 3 and 4 are confirmed and sharpened into design constraints
+rather than fixed: the gate protects the file bytes for an identified reader,
+but does **not** protect a secret once it enters a reader an attacker can
+influence (`LD_PRELOAD`), trace (self-launched or same-UID environ), or that
+copies it into its environment. The mechanism is sound for gating file reads;
+the remaining risk is the trust model for the reader process itself, which is
+the crux the design must resolve — most cleanly by running trusted readers
+under a dedicated uid, statically linked, with a constrained loader and
+`PR_SET_DUMPABLE=0`, and by keeping secrets out of environments.
+
+### Recommendation after round 2
+
+Ready to write the technical design, scoped to what the spike proved: a
+per-user FUSE gate that serves format-aware-redacted bytes to unidentified
+readers and real bytes to a small set of trusted readers, under the safe export
+topology, with per-read authorization and a per-operation write policy. The
+design's central section must be the reader trust model (dedicated uid, static
+linking or constrained loader, `PR_SET_DUMPABLE`, no secrets in env), because
+`LD_PRELOAD` and ancestor/environ access defeat hash-only trust. Interpreted
+CLIs and dynamically linked readers the attacker can influence stay outside the
+trusted set or move behind a native shim.

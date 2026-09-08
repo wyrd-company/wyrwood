@@ -1,0 +1,36 @@
+== export dir contents (must be only the mountpoint, no backing) ==
+total 0
+drwxr-xr-x 3 vscode vscode  60 Sep  8 09:48 .
+drwxr-xr-x 4 vscode vscode 160 Sep  8 09:48 ..
+drwxr-xr-x 2 vscode vscode  40 Sep  8 09:48 secrets
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round2/export/secrets is a mountpoint
+daemon pid 4090720
+== container view: /export must show only 'secrets', never 'backing' ==
+total 0
+drwxr-xr-x 3 ubuntu ubuntu 60 Sep  8 09:48 .
+drwxr-xr-x 1 root   root   12 Sep  8 09:48 ..
+drwxr-xr-x 4 ubuntu ubuntu 80 Sep  8 09:47 secrets
+== container read through FUSE (redacted for cat) ==
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh
+== direct-backing probe: no path under /export reaches real bytes ==
+ls: cannot access '/export/backing': No such file or directory
+cat: /export/backing/gh/hosts.yml: No such file or directory
+no real token reachable under /export
+== daemon-down window under the export topology ==
+-- container read while daemon down (must fail closed, not expose backing) --
+cat: /export/secrets/gh/hosts.yml: Transport endpoint is not connected
+ls: cannot access '/export/secrets': Transport endpoint is not connected
+== remount into the running container (B2 recovery) ==
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh

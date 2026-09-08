@@ -1,0 +1,35 @@
+allowlisted fdopener sha256 = ebcf99d7ca8b0d2d75da34c198f97786529feeec8b4faa11fb2d17702d85ea4d
+===== open-gating only (round 1 behaviour) =====
+-- baseline: fdopener reads it entirely (allowlisted) => expect REAL --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+-- fdopener opens, then non-allowlisted head reads inherited fd via stdin --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+===== per-read gating (-gate-reads, round 2) =====
+-- baseline: fdopener reads it entirely (allowlisted) => expect REAL --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+-- fdopener opens, then non-allowlisted head reads inherited fd via stdin --
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh

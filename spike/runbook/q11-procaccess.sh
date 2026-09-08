@@ -14,8 +14,8 @@ set -u
 
 TOOLS="$(cd "$(dirname "$0")/../tools" && pwd)"
 build
-CGO_ENABLED=0 go build -o "$SPIKE_ROOT/ptracetest" "$TOOLS/ptracetest" || exit 1
-CGO_ENABLED=0 go build -o "$SPIKE_ROOT/ancestorptrace" "$TOOLS/ancestorptrace" || exit 1
+(cd "$TOOLS/ptracetest" && CGO_ENABLED=0 go build -o "$SPIKE_ROOT/ptracetest" .) || exit 1
+(cd "$TOOLS/ancestorptrace" && CGO_ENABLED=0 go build -o "$SPIKE_ROOT/ancestorptrace" .) || exit 1
 
 rm -rf "$BACKING" "$MNT"; mkdir -p "$MNT"; seed
 unmount_stale
@@ -23,8 +23,8 @@ unmount_stale
 for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
 mountpoint "$MNT"
 
-CID=$(docker run -d --rm \
-  -v "$MNT:/secrets:rshared" \
+CID=$(docker run -d --rm --user "$(id -u):$(id -g)" \
+  -v "$MNT:/secrets:${PROP:-rshared}" \
   -v "$SPIKE_ROOT/ptracetest:/usr/local/bin/ptracetest:ro" \
   -v "$SPIKE_ROOT/ancestorptrace:/usr/local/bin/ancestorptrace:ro" \
   "$IMAGE" sleep 400)
@@ -46,7 +46,7 @@ docker exec "$CID" sh -c '
   echo "-- hardlink --";   ln    hosts.yml stolen.hardlink 2>&1
   echo "-- symlink --";    ln -s hosts.yml stolen.symlink  2>&1
   echo "-- rmdir --";      rmdir /secrets/codex            2>&1
-  echo "-- mknod --";      mknod /secrets/gh/dev c 1 3     2>&1
+  echo "-- mknod fifo (no priv needed; must hit the gate) --"; mknod /secrets/gh/fifo p 2>&1
   echo "-- setxattr --";   command -v setfattr >/dev/null && setfattr -n user.x -v y hosts.yml 2>&1 || echo "setfattr not installed"
 '
 echo "-- backing dir must show none of those artifacts --"

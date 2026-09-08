@@ -19,7 +19,7 @@ echo "== export dir contents (must be only the mountpoint, no backing) =="
 ls -la "$EXPORT"
 
 # Make the export dir a shared mount point so a new FUSE mount propagates.
-mount --bind "$EXPORT" "$EXPORT"; mount --make-rshared "$EXPORT"
+${SUDO:-} mount --bind "$EXPORT" "$EXPORT"; ${SUDO:-} mount --make-rshared "$EXPORT"
 
 unmount_stale
 "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other -hash-exe > "$SPIKE_ROOT/daemon.out" 2>&1 &
@@ -27,7 +27,7 @@ DAEMON_PID=$!
 for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
 mountpoint "$MNT"; echo "daemon pid $DAEMON_PID"
 
-CID=$(docker run -d --rm -v "$EXPORT:/export:rshared" "$IMAGE" sleep 600)
+CID=$(docker run -d --rm --user "$(id -u):$(id -g)" -v "$EXPORT:/export:rshared" "$IMAGE" sleep 600)
 echo "== container view: /export must show only 'secrets', never 'backing' =="
 docker exec "$CID" ls -la /export
 echo "== container read through FUSE (redacted for cat) =="
@@ -43,10 +43,13 @@ docker exec "$CID" sh -c 'cat /export/secrets/gh/hosts.yml 2>&1' || true
 docker exec "$CID" sh -c 'ls /export/secrets 2>&1' || true
 
 echo "== remount into the running container (B2 recovery) =="
+# Clearing the dead mount propagates its removal to the container peer; the new
+# mount then propagates in. Without this the container keeps the dead endpoint.
+unmount_stale
 "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other -hash-exe > "$SPIKE_ROOT/daemon.out" 2>&1 &
 for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
 docker exec "$CID" sh -c 'cat /export/secrets/gh/hosts.yml 2>&1' || true
 
 docker rm -f "$CID" >/dev/null 2>&1 || true
 stop_daemon
-umount -l "$EXPORT" 2>/dev/null || true
+${SUDO:-} umount -l "$EXPORT" 2>/dev/null || true

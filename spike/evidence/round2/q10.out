@@ -1,0 +1,53 @@
+allowlisted /bin/cat sha256 = a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179
+-- confirm /bin/cat is dynamically linked (LD_PRELOAD applies) --
+sh: 1: file: not found
+	linux-vdso.so.1 (0x00007fc5f3f22000)
+	libc.so.6 => /lib/x86_64-linux-gnu/libc.so.6 (0x00007fc5f3cfb000)
+	/lib64/ld-linux-x86-64.so.2 (0x00007fc5f3f24000)
+Unable to find image 'gcc:13' locally
+13: Pulling from library/gcc
+4dd435a6668c: Pulling fs layer
+c03282f09e48: Pulling fs layer
+dd602075af9b: Pulling fs layer
+a00ab39f8952: Pulling fs layer
+357b6d680b24: Download complete
+4dd435a6668c: Download complete
+79a44f30e499: Download complete
+dd602075af9b: Download complete
+a00ab39f8952: Download complete
+a00ab39f8952: Pull complete
+c03282f09e48: Download complete
+c03282f09e48: Pull complete
+4dd435a6668c: Pull complete
+dd602075af9b: Pull complete
+Digest: sha256:3617a214e52a25bde5375dc9503b5e67f01b6c7322a30137e2790aa8e6db5d1f
+Status: Downloaded newer image for gcc:13
+-rwxr-xr-x 1 root root 15496 Sep  8 09:49 /tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round2/evil.so
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round2/mnt is a mountpoint
+== sanity: allowlisted cat (uid 1000) reads REAL bytes ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+== run allowlisted cat with LD_PRELOAD=/tmp/evil.so ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+== attacker exfiltration target (expect REAL token, proving hash != trust) ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+RESULT: LEAKED real token via LD_PRELOAD while exe hash unchanged
+== exe hash of the preloaded cat (must equal the allowlisted hash) ==
+a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179  /bin/cat

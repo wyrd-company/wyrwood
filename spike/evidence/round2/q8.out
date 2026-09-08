@@ -1,0 +1,45 @@
+allowlisted sha256 = a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round2/mnt is a mountpoint
+== 1. allowlisted /bin/cat: expect real token ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+== 2. identical copy at /tmp/cat2: expect real (hash matches) ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+== 3. different binary (head copied over a path): expect REDACTED ==
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh
+== 4. replace allowlisted bytes at a writable path: real -> REDACTED (hash+mtime change) ==
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+-- now overwrite /tmp/mutable with head bytes --
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh
+== 5. cache behaviour: repeated reads by the same stable binary ==
+done
+-- daemon reports hits/misses on exit (SIGUSR2 dump not wired; grep log) --
+19
+== cache counters (hits should be > 0 after step 5) ==
+2026/09/08 09:49:24 hashcache hits=16 misses=6 entries=6

@@ -1,0 +1,38 @@
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round2/mnt is a mountpoint
+== 3a. same-UID non-descendant (victim holds a secret in env) ==
+PTRACE_ATTACH: operation not permitted
+open /proc/pid/mem: open /proc/7/mem: permission denied
+read /proc/pid/environ: <nil> recovered_canary=true
+list /proc/pid/fd: succeeded, entries = 3
+== 3b. parent-child ancestor tracing under Yama scope 1 ==
+read child environ: <nil> contains canary: true
+read child /proc/pid/mem: <nil>
+process_vm_readv on child: n = 16 errno = errno 0
+PTRACE_ATTACH child: <nil>
+PTRACE_GETREGS: <nil>
+== 3c. /proc/pid/fd as root in the container ==
+ls: cannot read symbolic link '/proc/7/fd/0': Permission denied
+ls: cannot read symbolic link '/proc/7/fd/1': Permission denied
+ls: cannot read symbolic link '/proc/7/fd/2': Permission denied
+total 0
+dr-x------ 2 ubuntu ubuntu  3 Sep  8 09:51 .
+dr-xr-xr-x 9 ubuntu ubuntu  0 Sep  8 09:51 ..
+lr-x------ 1 ubuntu ubuntu 64 Sep  8 09:51 0
+l-wx------ 1 ubuntu ubuntu 64 Sep  8 09:51 1
+l-wx------ 1 ubuntu ubuntu 64 Sep  8 09:51 2
+== 6. loopback mutations from a non-allowlisted writer (expect EACCES) ==
+-- hardlink --
+ln: failed to create hard link 'stolen.hardlink' => 'hosts.yml': Permission denied
+-- symlink --
+ln: failed to create symbolic link 'stolen.symlink': Permission denied
+-- rmdir --
+rmdir: failed to remove '/secrets/codex': Permission denied
+-- mknod fifo (no priv needed; must hit the gate) --
+mknod: /secrets/gh/fifo: Permission denied
+-- setxattr --
+setfattr not installed
+-- backing dir must show none of those artifacts --
+total 4
+drwxr-xr-x 2 vscode vscode  60 Sep  8 09:51 .
+drwxr-xr-x 4 vscode vscode  80 Sep  8 09:51 ..
+-rw-r--r-- 1 vscode vscode 214 Sep  8 09:51 hosts.yml
