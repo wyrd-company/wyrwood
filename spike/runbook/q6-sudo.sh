@@ -8,7 +8,7 @@ TMPD=$(mktemp -d); cp "$SPIKE_ROOT/ptracetest" "$TMPD/"
 cat > "$TMPD/Dockerfile" <<D
 FROM $IMAGE
 RUN apt-get update && apt-get install -y --no-install-recommends sudo && rm -rf /var/lib/apt/lists/* \
- && useradd -m -u 1000 -s /bin/bash vscode && echo 'vscode ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/vscode && chmod 0440 /etc/sudoers.d/vscode
+ && (userdel -r ubuntu || true) && useradd -m -u 1000 -s /bin/bash vscode && echo 'vscode ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/vscode && chmod 0440 /etc/sudoers.d/vscode
 COPY ptracetest /usr/local/bin/ptracetest
 D
 docker build -q -t spike847-ptrace "$TMPD" >/dev/null || exit 1

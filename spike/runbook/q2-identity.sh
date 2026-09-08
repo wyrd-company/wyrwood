@@ -37,7 +37,7 @@ say "exe dev/ino and sha256 for genuine vs spoofed cat from the log"; grep '"con
 say "Q3 interpreted CLI: node reader"
 docker run --rm -u 1000:1000 --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim node -e 'console.log(require("fs").readFileSync("/secrets/gh/hosts.yml","utf8").split("\n")[3])'; tail_log 1
 say "Q3: node with a spoofed script name and argv0"
-docker run --rm -u 1000:1000 --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim sh -c 'printf "console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])" > /tmp/gh; exec -a /usr/local/bin/gh node /tmp/gh'; tail_log 1
+docker run --rm -u 1000:1000 --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim bash -c 'printf "console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])" > /tmp/gh; exec -a /usr/local/bin/gh node /tmp/gh'; tail_log 1
 say "Q3: what the daemon logged for the node readers"; grep node "$LOG" | tail -2
 docker rm -f spike847 >/dev/null 2>&1 || true
 stop_daemon
