@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -64,6 +65,7 @@ type policy struct {
 	hashExe      bool
 	gateReads    bool
 	trustMtime   bool
+	secrets      [][]byte // exact known secret values (primary redaction)
 	hashCache    map[hashKey]string
 	cacheMu      sync.Mutex
 	hits, misses int
@@ -162,6 +164,20 @@ func (p *policy) record(id identity) {
 	fmt.Fprintln(p.logW, string(b))
 }
 
+// redact applies the primary, format-agnostic pass first: every known secret
+// VALUE is replaced wherever it appears (this is fail-closed for anything
+// Wyrwood knows). The structural allowlist pass is defense-in-depth for a value
+// that was never registered.
+func (p *policy) redact(path string, b []byte) []byte {
+	for _, sv := range p.secrets {
+		if len(sv) == 0 {
+			continue
+		}
+		b = bytes.ReplaceAll(b, sv, []byte(redactedValue))
+	}
+	return redactForFormat(path, b)
+}
+
 type node struct {
 	fs.LoopbackNode
 	pol *policy
@@ -218,7 +234,7 @@ func (n *node) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, s
 	if err != nil {
 		return nil, 0, fs.ToErrno(err)
 	}
-	return &redactedFile{data: redactForFormat(rel, real)}, fuse.FOPEN_DIRECT_IO, 0
+	return &redactedFile{data: n.pol.redact(rel, real)}, fuse.FOPEN_DIRECT_IO, 0
 }
 
 func (n *node) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -232,7 +248,7 @@ func (n *node) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) 
 	} else if out.Mode&syscall.S_IFMT == syscall.S_IFREG {
 		if id := n.pol.identify(ctx, "getattr", n.EmbeddedInode().Path(nil)); id.Decision != "real" {
 			if real, err := os.ReadFile(filepath.Join(n.RootData.Path, n.EmbeddedInode().Path(nil))); err == nil {
-				out.Size = uint64(len(redactForFormat(n.EmbeddedInode().Path(nil), real)))
+				out.Size = uint64(len(n.pol.redact(n.EmbeddedInode().Path(nil), real)))
 			}
 		}
 	}
@@ -359,7 +375,7 @@ func (g *gatedFile) Read(ctx context.Context, dest []byte, off int64) (fuse.Read
 	}
 	data := real
 	if id.Decision != "real" {
-		data = redactForFormat(g.rel, real)
+		data = g.node.pol.redact(g.rel, real)
 	}
 	if off >= int64(len(data)) {
 		return fuse.ReadResultData(nil), 0
@@ -428,6 +444,7 @@ func main() {
 	hashExe := flag.Bool("hash-exe", false, "hash /proc/<pid>/exe on every open")
 	gateReads := flag.Bool("gate-reads", false, "re-authorize on every read (fd-passing defence)")
 	trustMtime := flag.Bool("trust-mtime-cache", false, "gate on the (dev,ino,mtime) hash cache (UNSAFE: mtime is spoofable)")
+	secretsFile := flag.String("secrets-file", "", "file of exact secret values (one per line) Wyrwood knows and redacts everywhere")
 	allowOther := flag.Bool("allow-other", false, "pass allow_other (needs user_allow_other in /etc/fuse.conf)")
 	reexec := flag.Bool("reexec-on-usr1", false, "on SIGUSR1, re-exec self handing over the fuse fd (restart mitigation)")
 	flag.Parse()
@@ -443,6 +460,17 @@ func main() {
 	for _, a := range strings.Split(*allowHash, ",") {
 		if a != "" {
 			pol.allowHash[a] = true
+		}
+	}
+	if *secretsFile != "" {
+		if data, err := os.ReadFile(*secretsFile); err == nil {
+			for _, ln := range strings.Split(string(data), "\n") {
+				if v := strings.TrimRight(ln, "\r"); v != "" {
+					pol.secrets = append(pol.secrets, []byte(v))
+				}
+			}
+		} else {
+			log.Fatalf("read secrets-file: %v", err)
 		}
 	}
 	if *logPath != "" {
@@ -500,6 +528,9 @@ func main() {
 			}
 			if *trustMtime {
 				args = append(args, "-trust-mtime-cache")
+			}
+			if *secretsFile != "" {
+				args = append(args, "-secrets-file", *secretsFile)
 			}
 			if *allowOther {
 				args = append(args, "-allow-other")

@@ -1,0 +1,15 @@
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round4/mnt is a mountpoint
+daemon pid 116189
+== /secrets/gh/hosts.yml ==
+github.com:
+    REDACTED
+    user: example-user
+== /secrets/misc/state.json ==
+{
+  "weird_unmodeled_key": "REDACTED"
+}
+== /secrets/misc/audit.log ==
+REDACTED
+RESULT: all known secret values redacted across every format
+NOTE: redacted output is served ONLY to non-allowlisted readers and is not
+      guaranteed valid/complete; allowlisted readers get the real bytes.

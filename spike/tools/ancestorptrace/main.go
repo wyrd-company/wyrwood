@@ -72,6 +72,16 @@ func main() {
 	}
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	// Strip NEEDLE from the CHILD environment: a memory match must prove the
+	// child READ the credential, not merely inherited the needle in its env
+	// (round-3 review, R3-3 false-positive control).
+	var childEnv []string
+	for _, e := range os.Environ() {
+		if !strings.HasPrefix(e, "NEEDLE=") {
+			childEnv = append(childEnv, e)
+		}
+	}
+	cmd.Env = childEnv
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}

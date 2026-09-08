@@ -7,24 +7,34 @@ import (
 	"regexp"
 )
 
-// Format-aware redaction that FAILS CLOSED. Round 2's regex-only version leaked
-// on CRLF PEM, truncated PEM, and YAML block scalars. Round 3 normalizes line
-// endings, parses PEM with encoding/pem (whole-file redaction if the envelope
-// is incomplete), redacts YAML block scalars, and then runs a paranoia leak
-// scan: if anything secret-shaped survives the format pass, the whole file
-// collapses to REDACTED. The rule is: never emit bytes we are not sure about.
-
-var secretKey = regexp.MustCompile(`(?i)(token|secret|password|api[_-]?key|_authtoken|\bkey\b|credential|private[_-]?key|refresh|access|id_token|bearer|oauth)`)
+// Fail-closed redaction by ALLOWLIST. Rounds 2-3 redacted known secret key
+// NAMES (a denylist) and scanned for long runs; that structurally cannot fail
+// closed — an unmodeled key (`pin`, `session`) or a short value slips through.
+// Round 4 inverts it: a scalar value is emitted only when its key is on an
+// explicit safe list; every other value is REDACTED regardless of name or
+// length. Redacted output is only ever served to NON-allowlisted readers, who
+// are meant to fail; anyone who needs the real bytes is allowlisted and gets
+// the file unredacted. So the only contract on redacted output is "leaks
+// nothing" — validity and completeness are not promised, and this over-redacts
+// by design.
 
 const redactedValue = "REDACTED"
 
-// leaky matches things a redacted file must never still contain: PEM bodies,
-// and long opaque token-shaped runs. It is deliberately aggressive; a false
-// positive costs a whole-file redaction, which is the safe direction.
+// safeKeys are field names known to carry no secret in the inventoried config
+// files. Everything not listed is redacted. Keep this small and conservative:
+// a wrong entry here is the only way a secret leaks.
+var safeKeys = map[string]bool{
+	"user": true, "users": true, "git_protocol": true, "host": true,
+	"hosts": true, "registry": true, "prefix": true, "editor": true,
+	"version": true, "schema": true, "protocol": true, "provider": true,
+	"providers": true, "model": true, "theme": true, "email": true,
+}
+
+// leaky is a belt-and-suspenders scan for long opaque runs that survived. With
+// the allowlist it should never fire, but if it does the file collapses whole.
 var leaky = regexp.MustCompile(`[A-Za-z0-9+/_-]{32,}`)
 
 func redactForFormat(path string, b []byte) []byte {
-	// Normalize CRLF so \r\n cannot hide a PEM envelope or a key boundary.
 	b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
 	var out []byte
 	switch {
@@ -37,11 +47,10 @@ func redactForFormat(path string, b []byte) []byte {
 			return whole()
 		}
 	case looksYAML(path) || bytes.ContainsAny(b, "=:"):
-		out = redactYAMLLines(b)
+		out = redactKVLines(b)
 	default:
 		return whole()
 	}
-	// Paranoia gate: if any secret-shaped run survived, redact everything.
 	if leaks(out) {
 		return whole()
 	}
@@ -50,10 +59,6 @@ func redactForFormat(path string, b []byte) []byte {
 
 func whole() []byte { return []byte(redactedValue + "\n") }
 
-// leaks reports whether any token-shaped run survived that is not the REDACTED
-// marker itself. A surviving PEM body, JWT, or opaque token is 32+ chars and is
-// caught here; the cost of a false positive is a whole-file redaction. Fail
-// closed on doubt.
 func leaks(b []byte) bool {
 	for _, m := range leaky.FindAll(b, -1) {
 		if bytes.Equal(m, []byte(redactedValue)) {
@@ -83,6 +88,8 @@ func redactJSON(b []byte) ([]byte, bool) {
 	return append(out, '\n'), true
 }
 
+// walkJSON keeps a scalar only when its key is safe; every other scalar becomes
+// REDACTED. Output stays valid JSON.
 func walkJSON(key string, v any) any {
 	switch t := v.(type) {
 	case map[string]any:
@@ -98,16 +105,13 @@ func walkJSON(key string, v any) any {
 		}
 		return s
 	default:
-		if secretKey.MatchString(key) {
-			return redactedValue
+		if safeKeys[key] {
+			return v
 		}
-		return v
+		return redactedValue
 	}
 }
 
-// redactPEM parses with encoding/pem. Every decoded block is re-emitted with a
-// REDACTED body. If any bytes remain that still mention BEGIN (a truncated or
-// malformed envelope pem.Decode could not consume), the whole file is redacted.
 func redactPEM(b []byte) []byte {
 	var buf bytes.Buffer
 	rest := b
@@ -122,37 +126,50 @@ func redactPEM(b []byte) []byte {
 		rest = r
 	}
 	if bytes.Contains(rest, []byte("BEGIN")) || bytes.Contains(rest, []byte("END")) {
-		return whole() // incomplete envelope: do not risk it
+		return whole()
 	}
 	return buf.Bytes()
 }
 
-var kvLine = regexp.MustCompile(`(?i)^(\s*[^#\n].*(token|secret|password|api[_-]?key|_authtoken|key|credential|refresh|access|bearer|oauth)[^:=]*[:=]\s*)(.*)$`)
-var blockScalar = regexp.MustCompile(`^[|>][+-]?\s*$`)
+// keyOf extracts the field name from a `  key: value` or `key=value` line.
+var keyOf = regexp.MustCompile(`^(\s*)([^#\s:=][^:=]*?)\s*[:=]\s*(.*)$`)
 
-func redactYAMLLines(b []byte) []byte {
+// redactKVLines keeps a scalar value only for a safe key; any other key's value
+// is redacted, and a redacted key's block-scalar body (indented follow-on
+// lines) is redacted too. A `key:` with no inline value that is NOT safe also
+// has its following indented block redacted.
+func redactKVLines(b []byte) []byte {
 	lines := bytes.Split(b, []byte("\n"))
 	for i := 0; i < len(lines); i++ {
-		m := kvLine.FindSubmatch(lines[i])
+		m := keyOf.FindSubmatch(lines[i])
 		if m == nil {
 			continue
 		}
+		indent := len(m[1])
+		key := string(bytes.ToLower(bytes.TrimSpace(m[2])))
 		val := bytes.TrimSpace(m[3])
-		lines[i] = append(append([]byte{}, m[1]...), []byte(redactedValue)...)
-		// Block scalar (`key: |` / `key: >`): redact the indented body that
-		// follows, or the value would leak on the next lines.
-		if len(val) == 0 || blockScalar.Match(val) {
-			indent := leadingSpaces(m[1])
-			for j := i + 1; j < len(lines); j++ {
-				if len(bytes.TrimSpace(lines[j])) == 0 {
-					continue
-				}
-				if leadingSpaces(lines[j]) <= indent {
-					break
-				}
-				lines[j] = bytes.Repeat([]byte(" "), leadingSpaces(lines[j]))
-				lines[j] = append(lines[j], []byte(redactedValue)...)
+		if safeKeys[key] {
+			continue // safe scalar or safe mapping header: leave as-is
+		}
+		if len(val) > 0 {
+			// unsafe key with an inline value: redact the value, keep the key
+			lines[i] = append(append([]byte{}, m[1]...), append(bytes.TrimRight(m[2], " "), append([]byte(": "), []byte(redactedValue)...)...)...)
+		}
+		// Redact any deeper-indented body under this unsafe key (block scalar
+		// or nested mapping of unsafe fields), stopping at the next sibling.
+		for j := i + 1; j < len(lines); j++ {
+			if len(bytes.TrimSpace(lines[j])) == 0 {
+				continue
 			}
+			if leadingSpaces(lines[j]) <= indent {
+				break
+			}
+			// only redact scalar bodies (lines that are not safe mapping keys)
+			cm := keyOf.FindSubmatch(lines[j])
+			if cm != nil && safeKeys[string(bytes.ToLower(bytes.TrimSpace(cm[2])))] {
+				continue
+			}
+			lines[j] = append(bytes.Repeat([]byte(" "), leadingSpaces(lines[j])), []byte(redactedValue)...)
 		}
 	}
 	return bytes.Join(lines, []byte("\n"))

@@ -1,0 +1,22 @@
+===== open-gating only (round 1/2 handle) =====
+-- non-allowlisted reader reads AND writes the inherited O_RDWR handle (stdin=fd) --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_
+WRITE ACCEPTED (leak)
+===== per-read + per-write gating (-gate-reads) =====
+-- non-allowlisted reader reads AND writes the inherited O_RDWR handle (stdin=fd) --
+github.com:
+    users:
+        REDACTED
+            REDACTED
+    REDACTED
+    user: example-user
+    REDACTED
+ol: REDACTED
+
+write denied

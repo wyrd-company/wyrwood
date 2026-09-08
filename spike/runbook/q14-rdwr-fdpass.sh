@@ -25,8 +25,9 @@ run_case() {
     -v "$MNT:/secrets:${PROP:-rshared}" \
     -v "$SPIKE_ROOT/fdopener:/usr/local/bin/fdopener:ro" \
     "$IMAGE" sleep 300)
-  echo "-- non-allowlisted head reads the inherited O_RDWR handle via stdin --"
-  docker exec -e RDWR=1 "$CID" fdopener /secrets/gh/hosts.yml /usr/bin/head -c 400 || true
+  echo "-- non-allowlisted reader reads AND writes the inherited O_RDWR handle (stdin=fd) --"
+  docker exec -e RDWR=1 "$CID" fdopener /secrets/gh/hosts.yml \
+    /bin/sh -c 'head -c 200 <&0; echo; echo pwned 1>&0 2>/dev/null && echo "WRITE ACCEPTED (leak)" || echo "write denied"' || true
   docker rm -f "$CID" >/dev/null 2>&1; stop_daemon
 }
 

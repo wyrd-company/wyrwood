@@ -37,6 +37,9 @@ docker exec -d "$CID" sh -c 'SECRET_IN_ENV=canary-1234 exec sleep 300'
 VPID=$(docker exec "$CID" sh -c 'pgrep -f "SECRET_IN_ENV|sleep 300" | head -1')
 docker exec "$CID" sh -c "ptracetest ${VPID:-1}" || true
 
+echo "== 3b0. NEGATIVE control: ancestor of a credential-free child must NOT match =="
+docker exec -e NEEDLE=gho_FAKE "$CID" ancestorptrace /bin/sleep 5 || true
+
 echo "== 3b. ancestor recovers the REAL credential from an allowlisted reader =="
 # ancestorptrace launches credchild (allowlisted by hash), which loads the real
 # gho_ token into memory; the ancestor scans the child memory for it.

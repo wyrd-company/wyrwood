@@ -430,7 +430,7 @@ readable by an allowlisted reader (not over-redacted).
 `fdopener` opens the credential `O_RDWR` and execs a non-allowlisted `head`;
 open-gating yields the real token, `-gate-reads` yields `REDACTED`. `Getxattr`
 and `Readlink` are now gated on the node. `Fallocate`/`CopyFileRange` are not
-implemented on `gatedFile`, so under `-gate-reads` they return `ENOSYS`
+implemented on `gatedFile`, so under `-gate-reads` they return `ENOTSUP`
 (denied) rather than hitting the ungated loopback default. Bound: `-gate-reads`
 must always be on (it is the safe mode; the plain-handle path is the round-1
 baseline kept only for the `q9`/`q14` contrast), and `setxattr` write-gating is
@@ -489,3 +489,80 @@ trust), the safe export topology with parent-dir rshared propagation for
 restart survival, and fail-closed behavior while the daemon is down.
 Dynamically linked or interpreted CLIs the attacker can influence stay outside
 the trusted set or move behind a native, self-contained shim.
+
+## Independent review round 3 (Codex gpt-6-astra) and round 4
+
+Round-3 review returned REJECT: one P1 (redaction still failed open on
+`oauth_token: | # comment`, `|2`, and short JSON values like `pin`/`session`)
+and three P2s (over-redaction check used an allowlisted reader; the ancestor
+memory scan matched a needle inherited via the child's environment; `q14`
+tested reads only and the doc named the wrong errno). All accepted. Round 4
+changes the redaction model and closes the P2s. Evidence under
+`spike/evidence/round4/`.
+
+### R3-1 redaction model: value-based, with a structural backstop (P1, fixed)
+
+A denylist of secret key names or a length heuristic cannot fail closed: an
+unmodeled key or a short value always slips through. Round 4 adopts the model
+the owner accepted: Wyrwood is told the exact secret VALUES and redacts them
+wherever they appear, byte for byte, independent of format, key name, or
+length. `-secrets-file` carries the known values; `policy.redact` replaces each
+one first, then runs a structural allowlist pass (scalar values are kept only
+for an explicit safe-key list; everything else is redacted) as defense in depth
+for a value that was never registered. `q15`: the same short PIN is redacted
+under an unmodeled JSON key and in a freeform log with no key/value structure,
+and a `gho_` token is redacted in YAML. Unit vectors from the review
+(`| # comment`, `|2`, `{"pin":"1234"}`, `{"session":"ab12cd34"}`) are all
+redacted; a legitimate `gh` file keeps its safe `user`/`git_protocol` fields.
+
+Design consequence recorded: the source of truth for "what is secret" is the
+value, supplied by the tools that write it or by configuration; the file gate
+no longer has to recognize secret shapes. Redacted output is served ONLY to
+non-allowlisted readers, who are meant to fail, so it is deliberately
+over-redacted and not guaranteed valid or complete; any reader that needs the
+real bytes is allowlisted and never sees the redacted copy.
+
+### R3-2 over-redaction is by design, documented (P2, closed)
+
+The redacted copy is not contractually usable. `q15` records this explicitly.
+For parseable JSON the structural pass still emits valid JSON with non-safe
+values set to `REDACTED`; for anything else the fallback is a whole-file
+`REDACTED`, which a non-allowlisted reader is expected to reject.
+
+### R3-3 ancestor memory scan false-positive control (P2, fixed)
+
+`ancestorptrace` now strips `NEEDLE` from the child's environment, so a match
+proves the child READ the credential into memory rather than inherited the
+marker. `q11` adds a negative control: the ancestor of a credential-free child
+(`sleep`) reports `recovered ... false`, while the ancestor of the allowlisted
+`credchild` reports `true`. The memory-recovery finding stands, now controlled.
+
+### R3-4 write path and errno (P2, fixed)
+
+`q14` now has the non-allowlisted process both read AND write the inherited
+`O_RDWR` handle: open-gating yields the real token and `WRITE ACCEPTED (leak)`;
+`-gate-reads` yields `REDACTED` and `write denied`. The earlier doc error is
+corrected: `Fallocate` returns `ENOTSUP` and `CopyFileRange` reaches the node
+method and rejects the wrapped handle with `ENOTSUP` (not `ENOSYS`).
+
+### Round 4 verdict
+
+Redaction now fails closed on known secret values in any format, plus a
+structural backstop; per-operation read/write gating covers inherited and
+`O_RDWR` handles; identity does not trust spoofable metadata; the export
+topology and fail-closed down-window hold; and the process-access results are
+controlled. The residual is unchanged and is the design's subject: a secret
+that enters a reader an attacker can influence (`LD_PRELOAD`), launch and trace,
+or copy into its environment is beyond the file gate.
+
+### Recommendation after round 4
+
+Write the technical design. Redaction is value-based (Wyrwood knows the secret
+values; structural allowlist as backstop). Trusted readers run under a
+dedicated uid, statically linked or with a locked-down loader, with
+`PR_SET_DUMPABLE=0` and no secrets in their environment. The FUSE gate provides
+fail-closed redaction, per-operation read/write authorization by re-hashed
+executable identity, the safe export topology with parent-dir rshared
+propagation, and fail-closed behavior while the daemon is down. Dynamically
+linked or interpreted CLIs the attacker can influence stay outside the trusted
+set or move behind a native, self-contained shim.
