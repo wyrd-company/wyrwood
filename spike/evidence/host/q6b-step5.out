@@ -1,0 +1,18 @@
+-- probe visible / id / sudoers.d before:
+/workspaces/847-devcontainer/probe.sh
+uid=1000(vscode) gid=1000(vscode) groups=1000(vscode),997(caddy-config),999(nvm),1001(ssh)
+  [exit=1]
+-- sudo -n true BEFORE revoke:
+SUDO_OK
+  [exit=0]
+-- revoke:
+  [exit=0]
+-- sudo -n true AFTER revoke:
+sudo: a password is required
+  [exit=1]
+-- sudoers.d after / sudo -l:
+total 0
+drwxr-xr-x 1 root root 24 Sep  8 06:01 .
+drwxr-xr-x 1 root root 74 Sep  8 06:01 ..
+sudo: a password is required
+  [exit=0]

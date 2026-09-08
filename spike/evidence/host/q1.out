@@ -1,0 +1,149 @@
+
+### CASE A (mount propagation: rprivate)
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1851050
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2207 2198 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+mountpoint: /home/tinomen/Code/spikes/847/mnt: Transport endpoint is not connected
+host mountpoint gone
+-- after kill, before remount:
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1851498
+-- after remount (rprivate):
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+TARGET PROPAGATION
+/home  shared
+
+### CASE B (mount propagation: rshared)
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1854600
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2207 2198 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime shared:1034 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- after kill:
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1854992
+-- after remount (rshared):
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+-- container mountinfo now:
+2207 2198 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime shared:1034 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+
+### CASE B2 (bind parent dir rshared, daemon mounts beneath it after container start)
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1858220
+-- container read via propagated mount:
+github.com:
+    users:
+        example-user:
+-- container mountinfo:
+2196 2165 0:33 /@home/tinomen/Code/spikes/847 /secrets rw,noatime shared:205 - btrfs /dev/nvme0n1p2 rw,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=257,subvol=/@home
+1798 2196 0:198 / /secrets/mnt rw,nosuid,nodev,relatime shared:1099 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- after kill:
+cat: /secrets/mnt/gh/hosts.yml: Transport endpoint is not connected
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1858499
+-- after remount:
+github.com:
+    users:
+        example-user:
+-- container mountinfo now:
+2196 2165 0:33 /@home/tinomen/Code/spikes/847 /secrets rw,noatime shared:205 - btrfs /dev/nvme0n1p2 rw,compress=zstd:1,ssd,discard=async,space_cache=v2,subvolid=257,subvol=/@home
+1798 2196 0:198 / /secrets/mnt rw,nosuid,nodev,relatime shared:1099 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- does the propagated mount honour the gate (redacted for cat)?
+            oauth_token: REDACTED
+
+### CASE C (mount propagation: rprivate)
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1861679
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2207 2198 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- daemon processes now:
+1861909 /home/tinomen/Code/spikes/847/secretfs -backing /home/tinomen/Code/spikes/847/backing -mount /dev/fd/3 -log /home/tinomen/Code/spikes/847/identity.log -allow  -allow-sha256  -reexec-on-usr1 -allow-other
+old pid 1861679 alive? no
+-- after fd handoff:
+cat: /secrets/gh/hosts.yml: Input/output error
+-- host read after handoff:
+github.com:
+    users:
+        example-user:
+-- daemon.out:
+2026/09/07 23:03:37 secretfs pid=1861679 mounted /home/tinomen/Code/spikes/847/backing -> /home/tinomen/Code/spikes/847/mnt (self mnt ns mnt:[4026531832])
+2026/09/07 23:03:37 reexec: handed fuse fd to pid 1861909, old pid 1861679 exiting without unmount
+2026/09/07 23:03:38 unknown node 2
+2026/09/07 23:03:38 panic in FS handler: unknown node 2
+goroutine 1 [running]:
+github.com/hanwen/go-fuse/v2/fuse.defaultPanicHandler(0x3d32180a2390, {0x799ec0, 0x3d32180a4310})
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:200 +0x50
+github.com/hanwen/go-fuse/v2/fuse.(*MountOptions).setDefaults.func1({0x799ec0?, 0x3d32180a4310?})
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:179 +0x2a
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1.1()
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:53 +0x42
+panic({0x799ec0?, 0x3d32180a4310?})
+	/usr/lib/go/src/runtime/panic.go:859 +0x125
+log.Panicf({0x5cb329?, 0x3d32180df6e8?}, {0x3d32180df720?, 0x3d32180df738?, 0x4204fb?})
+	/usr/lib/go/src/log/log.go:460 +0x74
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).inode(0x3d32180d81a0, 0x2, 0x0)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:353 +0x147
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).GetAttr(0x3d32180d81a0, 0x3d321809a0e0, 0x3d32180f64e8, 0x3d32180f63c8)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:549 +0x4c
+github.com/hanwen/go-fuse/v2/fuse.doGetAttr(0x38?, 0x3d32180f62c8)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/opcode.go:308 +0x3e
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1(0x3d32180d8340?, 0x3d32180f62c8?, 0x7f68514309e8?)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:59 +0x51
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest(0x3d32180d8340, 0x3d32180b04e0, 0x3d32180f62c8)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:60 +0x205
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleRequest(0x3d32180d8340, 0x3d32180f62c8)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:520 +0x3b9
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleInit(0x3d32180d8340)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:423 +0x65
+github.com/hanwen/go-fuse/v2/fuse.NewServer({0x7c7da8, 0x3d32180d81a0}, {0x7ffe8360776b, 0x9}, 0x3d32180a42b0?)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:275 +0x465
+github.com/hanwen/go-fuse/v2/fs.Mount({0x7ffe8360776b, 0x9}, {0x7c7150?, 0x3d32180c40c0?}, 0x3d32180dfd90)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/mount.go:21 +0x56
+main.main()
+	/home/tinomen/Code/spikes/wyrwood/spike/secretfs/main.go:288 +0x6e9
+2026/09/07 23:03:38 secretfs pid=1861909 mounted /home/tinomen/Code/spikes/847/backing -> /dev/fd/3 (self mnt ns mnt:[4026531832])
+2026/09/07 23:03:38 unknown node 8
+2026/09/07 23:03:38 panic in FS handler: unknown node 8
+goroutine 20 [running]:
+github.com/hanwen/go-fuse/v2/fuse.defaultPanicHandler(0x3d32180a2390, {0x799ec0, 0x3d32181e0160})
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:200 +0x50
+github.com/hanwen/go-fuse/v2/fuse.(*MountOptions).setDefaults.func1({0x799ec0?, 0x3d32181e0160?})
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:179 +0x2a
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1.1()
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:53 +0x42
+panic({0x799ec0?, 0x3d32181e0160?})
+	/usr/lib/go/src/runtime/panic.go:859 +0x125
+log.Panicf({0x5cb329?, 0x0?}, {0x3d321804fbb0?, 0x0?, 0x3d3218084960?})
+	/usr/lib/go/src/log/log.go:460 +0x74
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).inode(0x3d32180d81a0, 0x8, 0x0)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:353 +0x147
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).Forget(0x3d32180d81a0, 0x0?, 0x1)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:502 +0x1f
+github.com/hanwen/go-fuse/v2/fuse.doForget(0x30?, 0x3d321804fc70?)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/opcode.go:315 +0x3c
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1(0x3d32180d8340?, 0x3d321805e008?, 0x7f68513af408?)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:59 +0x51
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest(0x3d32180d8340, 0x3d32180b0480, 0x3d321805e008)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:60 +0x205
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleRequest(0x3d32180d8340, 0x3d321805e008)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:520 +0x3b9
+github.com/hanwen/go-fuse/v2/fuse.(*Server).loop(0x3d32180d8340)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:494 +0x13d
+github.com/hanwen/go-fuse/v2/fuse.(*Server).Serve(0x3d32180d8340)
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:381 +0x7d
+created by github.com/hanwen/go-fuse/v2/fs.Mount in goroutine 1
+	/home/tinomen/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/mount.go:26 +0xa6

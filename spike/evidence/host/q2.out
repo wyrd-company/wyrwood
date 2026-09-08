@@ -1,0 +1,127 @@
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1869466
+
+### host reader
+github.com:
+    users:
+{"time":"2026-09-07T23:03:48.850449293-07:00","op":"open","path":"gh/hosts.yml","pid":1869776,"uid":1000,"gid":1000,"exe":"/usr/bin/head","exe_dev":36,"exe_ino":73269058,"exe_sha256":"fad6bbc442634330acd40c3580ca420b9ff9c1d3d7d38b05c17f65c58f6a9edd","cmdline":"head -2 /home/tinomen/Code/spikes/847/mnt/gh/hosts.yml","comm":"head","mnt_ns":"mnt:[4026531832]","pid_ns":"pid:[4026531836]","origin":"host","decision":"real"}
+
+### container cat (redacted expected)
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh
+{"time":"2026-09-07T23:03:48.885955673-07:00","op":"open","path":"gh/hosts.yml","pid":1869809,"uid":1000,"gid":1000,"exe":"/usr/bin/cat","exe_dev":195,"exe_ino":114156814,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179","cmdline":"cat /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### container cp of /bin/cat to /tmp/cat2, then read
+{"OPENAI_API_KEY": "REDACTED", "tokens": REDACTED "eyFAKE.FAKE.FAKE", "refresh_token": "REDACTED"}}
+{"time":"2026-09-07T23:03:48.926418358-07:00","op":"open","path":"codex/auth.json","pid":1869848,"uid":1000,"gid":1000,"exe":"/tmp/cat2","exe_dev":195,"exe_ino":114311906,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179","cmdline":"/tmp/cat2 /secrets/codex/auth.json","comm":"cat2","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### container: sh -c with exec (identity of the reading process)
+github.com:
+{"time":"2026-09-07T23:03:48.965269127-07:00","op":"open","path":"gh/hosts.yml","pid":1869888,"uid":1000,"gid":1000,"exe":"/usr/bin/head","exe_dev":195,"exe_ino":114156893,"exe_sha256":"bba6734ebc053fef547ec4a0bcd824011e80c81f8a67f5b83b0fccf7617ce959","cmdline":"head -1 /secrets/gh/hosts.yml","comm":"head","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### container: shell builtin read (identity is the shell)
+github.com:
+{"time":"2026-09-07T23:03:49.002682082-07:00","op":"open","path":"gh/hosts.yml","pid":1869925,"uid":1000,"gid":1000,"exe":"/usr/bin/dash","exe_dev":195,"exe_ino":114156833,"exe_sha256":"86d31f6fb799e91fa21bad341484564510ca287703a16e9e46c53338776f4f42","cmdline":"sh -c read -r l \u003c /secrets/gh/hosts.yml; echo \"$l\"","comm":"sh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### container: write attempt (denied expected)
+sh: 1: cannot create /secrets/gh/hosts.yml: Permission denied
+exit=2
+{"time":"2026-09-07T23:03:49.037367757-07:00","op":"open","path":"gh/hosts.yml","pid":1869959,"uid":1000,"gid":1000,"exe":"/usr/bin/dash","exe_dev":195,"exe_ino":114156833,"exe_sha256":"86d31f6fb799e91fa21bad341484564510ca287703a16e9e46c53338776f4f42","cmdline":"sh -c echo x \u003e\u003e /secrets/gh/hosts.yml; echo exit=$?","comm":"sh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"denied"}
+
+### container: pid namespace and exe for a reader
+pid:[4026534522]
+mnt:[4026534506]
+/usr/bin/readlink
+
+### host view of the same: what /proc/<pid>/exe resolved to in the log
+{"time":"2026-09-07T23:03:48.965269127-07:00","op":"open","path":"gh/hosts.yml","pid":1869888,"uid":1000,"gid":1000,"exe":"/usr/bin/head","exe_dev":195,"exe_ino":114156893,"exe_sha256":"bba6734ebc053fef547ec4a0bcd824011e80c81f8a67f5b83b0fccf7617ce959","cmdline":"head -1 /secrets/gh/hosts.yml","comm":"head","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+{"time":"2026-09-07T23:03:49.002682082-07:00","op":"open","path":"gh/hosts.yml","pid":1869925,"uid":1000,"gid":1000,"exe":"/usr/bin/dash","exe_dev":195,"exe_ino":114156833,"exe_sha256":"86d31f6fb799e91fa21bad341484564510ca287703a16e9e46c53338776f4f42","cmdline":"sh -c read -r l \u003c /secrets/gh/hosts.yml; echo \"$l\"","comm":"sh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+{"time":"2026-09-07T23:03:49.037367757-07:00","op":"open","path":"gh/hosts.yml","pid":1869959,"uid":1000,"gid":1000,"exe":"/usr/bin/dash","exe_dev":195,"exe_ino":114156833,"exe_sha256":"86d31f6fb799e91fa21bad341484564510ca287703a16e9e46c53338776f4f42","cmdline":"sh -c echo x \u003e\u003e /secrets/gh/hosts.yml; echo exit=$?","comm":"sh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"denied"}
+
+### container root (uid 0) reader
+github.com:
+    users:
+{"time":"2026-09-07T23:03:49.106889576-07:00","op":"open","path":"gh/hosts.yml","pid":1870033,"uid":0,"gid":0,"exe":"ERR:readlink /proc/1870033/exe: permission denied","exe_dev":0,"exe_ino":0,"cmdline":"cat /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"ERR:readlink /proc/1870033/ns/mnt: permission denied","pid_ns":"ERR:readlink /proc/1870033/ns/pid: permission denied","origin":"container","decision":"redacted"}
+
+### allowlist by exe path: restart with /usr/bin/cat allowed
+/home/tinomen/Code/spikes/847/mnt is a mountpoint
+daemon pid 1873079
+
+### container cat (real expected)
+github.com:
+    users:
+{"time":"2026-09-07T23:03:51.465681827-07:00","op":"open","path":"gh/hosts.yml","pid":1873384,"uid":1000,"gid":1000,"exe":"/usr/bin/cat","exe_dev":177,"exe_ino":114156814,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179","cmdline":"cat /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### container /tmp/cat2 copy (redacted expected: path differs)
+github.com:
+    users:
+{"time":"2026-09-07T23:03:51.50619166-07:00","op":"open","path":"gh/hosts.yml","pid":1873426,"uid":1000,"gid":1000,"exe":"/tmp/cat2","exe_dev":177,"exe_ino":114311967,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179","cmdline":"/tmp/cat2 /secrets/gh/hosts.yml","comm":"cat2","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### spoof: bind-mount a different binary over /usr/bin/cat inside the container (needs root in container)
+mount: /usr/bin/cat: permission denied.
+       dmesg(1) may have more information after failed mount system call.
+cat: 1: No such file or directory
+     1	github.com:
+{"time":"2026-09-07T23:03:51.546848245-07:00","op":"open","path":"gh/hosts.yml","pid":1873463,"uid":0,"gid":0,"exe":"ERR:readlink /proc/1873463/exe: permission denied","exe_dev":0,"exe_ino":0,"cmdline":"cat -n 1 /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"ERR:readlink /proc/1873463/ns/mnt: permission denied","pid_ns":"ERR:readlink /proc/1873463/ns/pid: permission denied","origin":"container","decision":"redacted"}
+
+### spoof: attacker-built image where /usr/bin/cat is a different binary
+github.com:
+    users:
+{"time":"2026-09-07T23:03:52.645487067-07:00","op":"open","path":"gh/hosts.yml","pid":1873722,"uid":1000,"gid":1000,"exe":"/usr/bin/cat","exe_dev":177,"exe_ino":114160098,"exe_sha256":"bba6734ebc053fef547ec4a0bcd824011e80c81f8a67f5b83b0fccf7617ce959","cmdline":"cat -n 2 /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### exe dev/ino and sha256 for genuine vs spoofed cat from the log
+      1 "exe":"/tmp/cat2","exe_dev":177,"exe_ino":114311967,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179"
+      1 "exe":"/tmp/cat2","exe_dev":195,"exe_ino":114311906,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179"
+      1 "exe":"/usr/bin/cat","exe_dev":177,"exe_ino":114156814,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179"
+      1 "exe":"/usr/bin/cat","exe_dev":177,"exe_ino":114160098,"exe_sha256":"bba6734ebc053fef547ec4a0bcd824011e80c81f8a67f5b83b0fccf7617ce959"
+      1 "exe":"/usr/bin/cat","exe_dev":195,"exe_ino":114156814,"exe_sha256":"a63158e6e5bce20616425f5d61e5bd7374bb5bccf15bbb93ae2e40238248f179"
+      2 "exe":"/usr/bin/dash","exe_dev":195,"exe_ino":114156833,"exe_sha256":"86d31f6fb799e91fa21bad341484564510ca287703a16e9e46c53338776f4f42"
+      1 "exe":"/usr/bin/head","exe_dev":195,"exe_ino":114156893,"exe_sha256":"bba6734ebc053fef547ec4a0bcd824011e80c81f8a67f5b83b0fccf7617ce959"
+
+### Q3 interpreted CLI: node reader
+Unable to find image 'node:24-slim' locally
+24-slim: Pulling from library/node
+2254049a7d77: Pulling fs layer
+9803e0ff8c3d: Pulling fs layer
+013634040cec: Pulling fs layer
+a82db95c0192: Pulling fs layer
+2254049a7d77: Download complete
+9803e0ff8c3d: Download complete
+013634040cec: Download complete
+013634040cec: Pull complete
+a82db95c0192: Download complete
+f71591d3af46: Download complete
+77ee43dec873: Download complete
+a82db95c0192: Pull complete
+2254049a7d77: Pull complete
+9803e0ff8c3d: Pull complete
+Digest: sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e
+Status: Downloaded newer image for node:24-slim
+            oauth_token: REDACTED
+{"time":"2026-09-07T23:03:56.915323014-07:00","op":"open","path":"gh/hosts.yml","pid":1874472,"uid":1000,"gid":1000,"exe":"/usr/local/bin/node","exe_dev":177,"exe_ino":114312196,"exe_sha256":"89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7","cmdline":"node -e console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])","comm":"MainThread","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### Q3: node with a spoofed script name and argv0
+/tmp/gh:1
+console.log(require("fs").readFileSync("/secrets/gh/hosts.yml","utf8").split("
+                                                                             ^
+
+SyntaxError: Invalid or unexpected token
+    at wrapSafe (node:internal/modules/cjs/loader:1861:18)
+    at Module._compile (node:internal/modules/cjs/loader:1903:20)
+    at Object..js (node:internal/modules/cjs/loader:2060:10)
+    at Module.load (node:internal/modules/cjs/loader:1651:32)
+    at Module._load (node:internal/modules/cjs/loader:1443:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:261:19)
+    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)
+    at node:internal/main/run_main_module:33:47
+
+Node.js v24.20.0
+{"time":"2026-09-07T23:03:56.915323014-07:00","op":"open","path":"gh/hosts.yml","pid":1874472,"uid":1000,"gid":1000,"exe":"/usr/local/bin/node","exe_dev":177,"exe_ino":114312196,"exe_sha256":"89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7","cmdline":"node -e console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])","comm":"MainThread","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+
+### Q3: what the daemon logged for the node readers
+{"time":"2026-09-07T23:03:56.915323014-07:00","op":"open","path":"gh/hosts.yml","pid":1874472,"uid":1000,"gid":1000,"exe":"/usr/local/bin/node","exe_dev":177,"exe_ino":114312196,"exe_sha256":"89af8424dd53e560b1933f87ba650d8bf57c83ca5a04600eefb31f416aabbae7","cmdline":"node -e console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])","comm":"MainThread","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}

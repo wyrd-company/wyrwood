@@ -1,0 +1,64 @@
+
+$ brew install jq
+exit=0
+==> Downloading bottle manifests
+✔︎ Bottle Manifest jq (1.8.2)
+==> Would install 1 formula:
+
+$ npm i -g cowsay
+exit=0
+
+added 41 packages in 714ms
+
+
+$ docker ps
+exit=127
+bash: line 1: docker: command not found
+
+$ apt-get install -y jq
+exit=100
+E: Could not open lock file /var/lib/dpkg/lock-frontend - open (13: Permission denied)
+E: Unable to acquire the dpkg frontend lock (/var/lib/dpkg/lock-frontend), are you root?
+
+$ mkdir -p /tmp/x && chown -R vscode:vscode /tmp/x
+exit=0
+
+
+$ chown -R vscode:vscode /home/vscode/.local/share
+exit=0
+
+
+$ task --version
+exit=0
+3.53.1
+
+$ gh --version
+exit=0
+gh version 2.99.0 (2026-09-01)
+https://github.com/cli/cli/releases/tag/v2.99.0
+
+$ claude --version
+exit=0
+2.1.263 (Claude Code)
+
+$ codex --version
+exit=0
+codex-cli 0.153.4
+
+$ cursor-agent --version
+exit=0
+2026.09.02-c22c1a3
+
+$ pip3 install --user requests
+exit=127
+bash: line 1: pip3: command not found
+
+$ cat /etc/sudoers.d/* 2>&1
+exit=1
+cat: '/etc/sudoers.d/*': No such file or directory
+
+$ id
+exit=0
+uid=1000(vscode) gid=1000(vscode) groups=1000(vscode),997(caddy-config),999(nvm),1001(ssh)
+
+$ grep -rl sudo /home/vscode/.local/bin /home/vscode/.claude/*.sh 2>/dev/null | head

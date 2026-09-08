@@ -1,0 +1,15 @@
+-- did brew jq actually install?
+/home/linuxbrew/.linuxbrew/bin/jq
+jq-1.8.2
+-- cowsay installed where?
+/home/vscode/.npm-global/bin/cowsay
+-- /home/vscode/.local/bin contents:
+agent
+claude
+codex
+cursor-agent
+-- scripts calling sudo (feature-installed, /usr/local/bin + wrappers):
+-- /etc/sudoers NOPASSWD remaining:
+grep: /etc/sudoers: Permission denied
+-- s6 / init:
+sh

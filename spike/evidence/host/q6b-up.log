@@ -1,0 +1,2590 @@
+[2026-09-08T05:55:37.372Z] @devcontainers/cli 0.87.0. Node.js v20.20.2. linux 7.2.2-1-cachyos x64.
+[2026-09-08T05:55:37.487Z] Resolving Feature dependencies for './common-feature'...
+[2026-09-08T05:55:37.488Z] Resolving Feature dependencies for 'ghcr.io/meaningful-ooo/devcontainer-features/fish:2'...
+[2026-09-08T05:55:37.998Z] Resolving Feature dependencies for 'ghcr.io/devcontainers/features/common-utils:2'...
+[2026-09-08T05:55:38.129Z] Resolving Feature dependencies for 'ghcr.io/meaningful-ooo/devcontainer-features/homebrew:2'...
+[2026-09-08T05:55:38.524Z] Resolving Feature dependencies for 'ghcr.io/devcontainers/features/node:2'...
+[2026-09-08T05:55:38.788Z] Resolving Feature dependencies for 'ghcr.io/devcontainers/features/github-cli:1'...
+[2026-09-08T05:55:39.226Z] Resolving Feature dependencies for 'ghcr.io/wyrd-company/devcontainers/sshd:1'...
+[2026-09-08T05:55:39.478Z] Resolving Feature dependencies for 'ghcr.io/wyrd-company/devcontainers/claude-code-cli:1'...
+[2026-09-08T05:55:39.738Z] Resolving Feature dependencies for 'ghcr.io/wyrd-company/devcontainers/codex-cli:1'...
+[2026-09-08T05:55:39.988Z] Resolving Feature dependencies for 'ghcr.io/wyrd-company/devcontainers/cursor-agent-cli:1'...
+[2026-09-08T05:55:40.253Z] Resolving Feature dependencies for 'ghcr.io/wyrd-company/devcontainers/caddy:1'...
+[2026-09-08T05:55:40.604Z] Resolving Feature dependencies for 'ghcr.io/devcontainers/features/node:2'...
+[2026-09-08T05:55:40.719Z] Soft-dependency 'ghcr.io/devcontainers/features/git' is not required.  Removing from installation order...
+[2026-09-08T05:55:40.923Z] Files to omit: ''
+[2026-09-08T05:55:41.072Z] Files to omit: ''
+[2026-09-08T05:55:41.265Z] Files to omit: ''
+[2026-09-08T05:55:41.467Z] Files to omit: ''
+[2026-09-08T05:55:41.675Z] Files to omit: ''
+[2026-09-08T05:55:41.893Z] Files to omit: ''
+[2026-09-08T05:55:42.089Z] Files to omit: ''
+[2026-09-08T05:55:42.401Z] Files to omit: ''
+[2026-09-08T05:55:42.609Z] Files to omit: ''
+[2026-09-08T05:55:42.802Z] Files to omit: ''
+[2026-09-08T05:55:42.844Z] Start: Run: docker buildx build --load --build-arg BUILDKIT_INLINE_CACHE=1 --build-context dev_containers_feature_content_source=/tmp/devcontainercli-tinomen/container-features/0.87.0-1788846937486 --build-arg _DEV_CONTAINERS_BASE_IMAGE=ghcr.io/wyrd-company/devcontainers/base:resolute --build-arg _DEV_CONTAINERS_IMAGE_USER=root --build-arg _DEV_CONTAINERS_FEATURE_CONTENT_SOURCE=dev_container_feature_content_temp --target dev_containers_target_stage -f /tmp/devcontainercli-tinomen/container-features/0.87.0-1788846937486/Dockerfile.extended -t vsc-847-devcontainer-8ec89d7a1218d7f4c11bde484ef2860254f3dc78dc6808e168f21c662293cab4-features /tmp/devcontainercli-tinomen/empty-folder
+[2026-09-08T05:55:43.030Z] #0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile.extended
+#1 transferring dockerfile: 10.95kB done
+#1 DONE 0.0s
+
+#2 [context dev_containers_feature_content_source] load .dockerignore
+
+[2026-09-08T05:55:43.030Z] #2 transferring dev_containers_feature_content_source: 2B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for ghcr.io/wyrd-company/devcontainers/base:resolute
+#3 DONE 0.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+[2026-09-08T05:55:43.146Z] 
+#5 [dev_containers_feature_content_normalize 1/3] FROM ghcr.io/wyrd-company/devcontainers/base:resolute@sha256:04b87c6e5445e0884bb3ef0cb2da1bde913f05982c404ebb59a494e94f355ed4
+#5 resolve ghcr.io/wyrd-company/devcontainers/base:resolute@sha256:04b87c6e5445e0884bb3ef0cb2da1bde913f05982c404ebb59a494e94f355ed4 0.1s done
+#5 DONE 0.1s
+
+#6 [context dev_containers_feature_content_source] load from client
+#6 transferring dev_containers_feature_content_source: 5.94kB done
+#6 DONE 0.1s
+
+[2026-09-08T05:55:43.146Z] 
+#7 [context dev_containers_feature_content_source] load from client
+
+[2026-09-08T05:55:43.563Z] #7 transferring dev_containers_feature_content_source: 5.19kB done
+
+[2026-09-08T05:55:43.673Z] #7 ...
+
+#8 [context dev_containers_feature_content_source] load from client
+#8 transferring dev_containers_feature_content_source: 101B done
+#8 DONE 0.5s
+
+[2026-09-08T05:55:43.778Z] 
+#9 [context dev_containers_feature_content_source] load from client
+#9 transferring dev_containers_feature_content_source: 6.29kB done
+
+[2026-09-08T05:55:43.778Z] #9 DONE 0.6s
+
+#10 [context dev_containers_feature_content_source] load from client
+#10 transferring dev_containers_feature_content_source: 12.74kB done
+#10 DONE 0.6s
+
+#11 [context dev_containers_feature_content_source] load from client
+#11 transferring dev_containers_feature_content_source: 5.39kB done
+#11 DONE 0.6s
+
+#12 [context dev_containers_feature_content_source] load from client
+#12 transferring dev_containers_feature_content_source: 31.47kB done
+#12 DONE 0.6s
+
+#7 [context dev_containers_feature_content_source] load from client
+#7 DONE 0.7s
+
+#13 [context dev_containers_feature_content_source] load from client
+#13 transferring dev_containers_feature_content_source: 17.42kB done
+#13 DONE 0.7s
+
+#14 [context dev_containers_feature_content_source] load from client
+#14 transferring dev_containers_feature_content_source: 20.57kB done
+
+[2026-09-08T05:55:43.884Z] #14 DONE 0.8s
+
+#15 [context dev_containers_feature_content_source] load from client
+#15 transferring dev_containers_feature_content_source: 4.65kB done
+
+[2026-09-08T05:55:43.884Z] #15 DONE 0.7s
+
+#16 [context dev_containers_feature_content_source] load from client
+#16 transferring dev_containers_feature_content_source: 42.64kB done
+#16 DONE 0.7s
+
+#17 [context dev_containers_feature_content_source] load from client
+#17 transferring dev_containers_feature_content_source: 7.15kB done
+#17 DONE 0.7s
+
+#18 [dev_containers_target_stage  2/15] RUN mkdir -p /tmp/dev-container-features
+#18 CACHED
+
+#19 [dev_containers_target_stage  5/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=common-utils_0,target=/tmp/build-features-src/common-utils_0     cp -ar /tmp/build-features-src/common-utils_0 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/common-utils_0  && cd /tmp/dev-container-features/common-utils_0  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/common-utils_0
+#19 CACHED
+
+#20 [dev_containers_target_stage  3/15] COPY --from=dev_containers_feature_content_normalize /tmp/build-features/ /tmp/dev-container-features
+#20 CACHED
+
+#21 [dev_containers_target_stage  6/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=github-cli_1,target=/tmp/build-features-src/github-cli_1     cp -ar /tmp/build-features-src/github-cli_1 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/github-cli_1  && cd /tmp/dev-container-features/github-cli_1  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/github-cli_1
+#21 CACHED
+
+#22 [dev_containers_feature_content_normalize 2/3] COPY --from=dev_containers_feature_content_source devcontainer-features.builtin.env /tmp/build-features/
+#22 CACHED
+
+#23 [dev_containers_feature_content_normalize 3/3] RUN chmod -R 0755 /tmp/build-features/
+#23 CACHED
+
+#24 [dev_containers_target_stage  4/15] RUN echo "_CONTAINER_USER_HOME=$( (command -v getent >/dev/null 2>&1 && getent passwd 'root' || grep -E '^root|^[^:]*:[^:]*:root:' /etc/passwd || true) | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env && echo "_REMOTE_USER_HOME=$( (command -v getent >/dev/null 2>&1 && getent passwd 'vscode' || grep -E '^vscode|^[^:]*:[^:]*:vscode:' /etc/passwd || true) | cut -d: -f6)" >> /tmp/dev-container-features/devcontainer-features.builtin.env
+#24 CACHED
+
+#25 [dev_containers_target_stage  7/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=node_2,target=/tmp/build-features-src/node_2     cp -ar /tmp/build-features-src/node_2 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/node_2  && cd /tmp/dev-container-features/node_2  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/node_2
+#25 CACHED
+
+[2026-09-08T05:55:44.035Z] 
+#26 [dev_containers_target_stage  8/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=fish_3,target=/tmp/build-features-src/fish_3     cp -ar /tmp/build-features-src/fish_3 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/fish_3  && cd /tmp/dev-container-features/fish_3  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/fish_3
+
+[2026-09-08T05:55:44.128Z] #26 0.243 ===========================================================================
+#26 0.243 Feature       : fish
+#26 0.243 Description   : Installs fish shell and Fisher plugin manager (optionally)
+#26 0.243 Id            : ghcr.io/meaningful-ooo/devcontainer-features/fish
+#26 0.243 Version       : 2.0.0
+#26 0.243 Documentation : https://github.com/meaningful-ooo/devcontainer-features/tree/main/src/fish
+#26 0.243 Options       :
+#26 0.243     FISHER="true"
+#26 0.243 ===========================================================================
+
+[2026-09-08T05:55:44.308Z] #26 0.273 Installing fish shell...
+
+[2026-09-08T05:55:45.185Z] #26 1.301 Get:1 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+
+[2026-09-08T05:55:45.450Z] #26 1.566 Get:2 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+
+[2026-09-08T05:55:45.563Z] #26 1.679 Get:3 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease [20.0 kB]
+
+[2026-09-08T05:55:45.773Z] #26 1.889 Get:4 http://security.ubuntu.com/ubuntu resolute-security/restricted amd64 Packages [489 kB]
+
+[2026-09-08T05:55:45.938Z] #26 1.903 Get:5 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 Packages [579 B]
+
+[2026-09-08T05:55:46.052Z] #26 2.168 Get:6 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+
+[2026-09-08T05:55:46.195Z] #26 2.311 Get:7 http://security.ubuntu.com/ubuntu resolute-security/universe amd64 Packages [212 kB]
+
+[2026-09-08T05:55:46.437Z] #26 2.343 Get:8 http://security.ubuntu.com/ubuntu resolute-security/multiverse amd64 Packages [11.2 kB]
+#26 2.345 Get:9 http://security.ubuntu.com/ubuntu resolute-security/main amd64 Packages [578 kB]
+#26 2.403 Get:10 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+
+[2026-09-08T05:55:46.501Z] #26 2.617 Get:11 http://archive.ubuntu.com/ubuntu resolute/multiverse amd64 Packages [352 kB]
+
+[2026-09-08T05:55:46.693Z] #26 2.809 Get:12 http://archive.ubuntu.com/ubuntu resolute/main amd64 Packages [1874 kB]
+
+[2026-09-08T05:55:47.018Z] #26 3.134 Get:13 http://archive.ubuntu.com/ubuntu resolute/universe amd64 Packages [20.1 MB]
+
+[2026-09-08T05:55:47.621Z] #26 3.737 Get:14 http://archive.ubuntu.com/ubuntu resolute/restricted amd64 Packages [189 kB]
+
+[2026-09-08T05:55:47.729Z] #26 3.739 Get:15 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64 Packages [14.6 kB]
+#26 3.739 Get:16 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [743 kB]
+#26 3.744 Get:17 http://archive.ubuntu.com/ubuntu resolute-updates/restricted amd64 Packages [505 kB]
+#26 3.748 Get:18 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [338 kB]
+#26 3.845 Get:19 http://archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Packages [3306 B]
+
+[2026-09-08T05:55:48.062Z] #26 4.178 Fetched 26.0 MB in 3s (7632 kB/s)
+#26 4.178 Reading package lists...
+[2026-09-08T05:55:48.461Z] 
+
+[2026-09-08T05:55:48.626Z] #26 4.592 Reading package lists...
+[2026-09-08T05:55:48.894Z] 
+
+[2026-09-08T05:55:49.018Z] #26 5.017 Building dependency tree...
+#26 5.134 Reading state information...
+[2026-09-08T05:55:49.132Z] 
+#26 5.151 Solving dependencies...
+#26 5.248 The following additional packages will be installed:
+
+[2026-09-08T05:55:49.307Z] #26 5.248   file libmagic-mgc libmagic1t64 libpython3-stdlib libpython3.14-stdlib
+#26 5.249   media-types python3 python3.14
+#26 5.249 Suggested packages:
+#26 5.249   xdg-utils python3-doc python3-tk python3-venv python3.14-venv python3.14-doc
+#26 5.249 Recommended packages:
+#26 5.249   xsel
+#26 5.271 The following NEW packages will be installed:
+#26 5.272   file fish libmagic-mgc libmagic1t64 libpython3-stdlib libpython3.14-stdlib
+[2026-09-08T05:55:49.307Z] 
+#26 5.272   media-types python3 python3.14
+
+[2026-09-08T05:55:49.444Z] #26 5.560 0 upgraded, 9 newly installed, 0 to remove and 20 not upgraded.
+#26 5.560 Need to get 7650 kB of archives.
+#26 5.560 After this operation, 41.2 MB of additional disk space will be used.
+#26 5.560 Get:1 http://archive.ubuntu.com/ubuntu resolute/main amd64 media-types all 14.0.0build1 [31.4 kB]
+
+[2026-09-08T05:55:49.752Z] #26 5.868 Get:2 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libpython3.14-stdlib amd64 3.14.4-1ubuntu0.1 [2414 kB]
+
+[2026-09-08T05:55:49.913Z] #26 5.878 Get:3 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 fish amd64 4.8.1-1~resolute [3894 kB]
+
+[2026-09-08T05:55:50.595Z] #26 6.711 Get:4 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 python3.14 amd64 3.14.4-1ubuntu0.1 [830 kB]
+
+[2026-09-08T05:55:50.826Z] #26 6.766 Get:5 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpython3-stdlib amd64 3.14.3-0ubuntu2 [8476 B]
+#26 6.767 Get:6 http://archive.ubuntu.com/ubuntu resolute/main amd64 python3 amd64 3.14.3-0ubuntu2 [22.9 kB]
+#26 6.768 Get:7 http://archive.ubuntu.com/ubuntu resolute/main amd64 libmagic-mgc amd64 1:5.46-5build2 [337 kB]
+#26 6.788 Get:8 http://archive.ubuntu.com/ubuntu resolute/main amd64 libmagic1t64 amd64 1:5.46-5build2 [90.8 kB]
+#26 6.792 Get:9 http://archive.ubuntu.com/ubuntu resolute/main amd64 file amd64 1:5.46-5build2 [22.0 kB]
+
+[2026-09-08T05:55:51.325Z] #26 7.441 Fetched 7650 kB in 2s (4725 kB/s)
+
+[2026-09-08T05:55:51.508Z] #26 7.459 Selecting previously unselected package media-types.
+#26 7.459 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 26945 files and directories currently installed.)
+#26 7.473 Preparing to unpack .../0-media-types_14.0.0build1_all.deb ...
+
+[2026-09-08T05:55:51.543Z] #26 7.659 Unpacking media-types (14.0.0build1) ...
+
+[2026-09-08T05:55:51.646Z] #26 7.753 Selecting previously unselected package libpython3.14-stdlib:amd64.
+#26 7.757 Preparing to unpack .../1-libpython3.14-stdlib_3.14.4-1ubuntu0.1_amd64.deb ...
+#26 7.762 Unpacking libpython3.14-stdlib:amd64 (3.14.4-1ubuntu0.1) ...
+
+[2026-09-08T05:55:51.782Z] #26 7.847 Selecting previously unselected package python3.14.
+#26 7.852 Preparing to unpack .../2-python3.14_3.14.4-1ubuntu0.1_amd64.deb ...
+#26 7.856 Unpacking python3.14 (3.14.4-1ubuntu0.1) ...
+#26 7.898 Selecting previously unselected package libpython3-stdlib:amd64.
+
+[2026-09-08T05:55:51.882Z] #26 7.903 Preparing to unpack .../3-libpython3-stdlib_3.14.3-0ubuntu2_amd64.deb ...
+#26 7.907 Unpacking libpython3-stdlib:amd64 (3.14.3-0ubuntu2) ...
+#26 7.946 Selecting previously unselected package python3.
+#26 7.951 Preparing to unpack .../4-python3_3.14.3-0ubuntu2_amd64.deb ...
+#26 7.958 Unpacking python3 (3.14.3-0ubuntu2) ...
+#26 7.989 Selecting previously unselected package libmagic-mgc.
+#26 7.994 Preparing to unpack .../5-libmagic-mgc_1%3a5.46-5build2_amd64.deb ...
+
+[2026-09-08T05:55:51.883Z] #26 7.998 Unpacking libmagic-mgc (1:5.46-5build2) ...
+
+[2026-09-08T05:55:51.985Z] #26 8.052 Selecting previously unselected package libmagic1t64:amd64.
+
+[2026-09-08T05:55:51.985Z] #26 8.056 Preparing to unpack .../6-libmagic1t64_1%3a5.46-5build2_amd64.deb ...
+#26 8.065 Unpacking libmagic1t64:amd64 (1:5.46-5build2) ...
+#26 8.097 Selecting previously unselected package file.
+#26 8.101 Preparing to unpack .../7-file_1%3a5.46-5build2_amd64.deb ...
+
+[2026-09-08T05:55:52.127Z] #26 8.106 Unpacking file (1:5.46-5build2) ...
+#26 8.142 Selecting previously unselected package fish.
+#26 8.146 Preparing to unpack .../8-fish_4.8.1-1~resolute_amd64.deb ...
+#26 8.151 Unpacking fish (4.8.1-1~resolute) ...
+#26 8.243 Setting up media-types (14.0.0build1) ...
+
+[2026-09-08T05:55:52.358Z] #26 8.262 Setting up libmagic-mgc (1:5.46-5build2) ...
+#26 8.276 Setting up libpython3.14-stdlib:amd64 (3.14.4-1ubuntu0.1) ...
+#26 8.289 Setting up libmagic1t64:amd64 (1:5.46-5build2) ...
+#26 8.310 Setting up file (1:5.46-5build2) ...
+#26 8.324 Setting up python3.14 (3.14.4-1ubuntu0.1) ...
+
+[2026-09-08T05:55:52.727Z] #26 8.843 Setting up libpython3-stdlib:amd64 (3.14.3-0ubuntu2) ...
+
+[2026-09-08T05:55:52.828Z] #26 8.856 Setting up python3 (3.14.3-0ubuntu2) ...
+#26 8.944 Setting up fish (4.8.1-1~resolute) ...
+
+[2026-09-08T05:55:53.013Z] #26 8.977 Processing triggers for man-db (2.13.1-1build1) ...
+#26 9.034 Processing triggers for libc-bin (2.43-2ubuntu2.3) ...
+#26 9.129 fish, version 4.8.1
+
+[2026-09-08T05:55:53.204Z] #26 9.129 Installing Fisher...
+#26 9.160 fisher install version 4.4.8
+#26 9.169 Fetching https://api.github.com/repos/jorgebucaran/fisher/tarball/HEAD
+
+[2026-09-08T05:55:53.432Z] #26 9.548 Installing jorgebucaran/fisher
+#26 9.548            /root/.config/fish/functions/fisher.fish
+#26 9.548            /root/.config/fish/completions/fisher.fish
+
+[2026-09-08T05:55:53.634Z] #26 9.551 Installed 1 plugin/s
+#26 9.589 fisher install version 4.4.8
+#26 9.599 Fetching https://api.github.com/repos/jorgebucaran/fisher/tarball/HEAD
+
+[2026-09-08T05:55:53.774Z] #26 9.890 Installing jorgebucaran/fisher
+#26 9.890            /home/vscode/.config/fish/functions/fisher.fish
+#26 9.890            /home/vscode/.config/fish/completions/fisher.fish
+
+[2026-09-08T05:55:53.917Z] #26 9.892 Installed 1 plugin/s
+#26 9.896 fisher, version 4.4.8
+#26 9.901 Done!
+#26 DONE 10.0s
+
+[2026-09-08T05:55:54.073Z] 
+#27 [dev_containers_target_stage  9/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=caddy_4,target=/tmp/build-features-src/caddy_4     cp -ar /tmp/build-features-src/caddy_4 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/caddy_4  && cd /tmp/dev-container-features/caddy_4  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/caddy_4
+
+[2026-09-08T05:55:54.124Z] #27 0.201 ===========================================================================
+#27 0.201 Feature       : Caddy Reverse Proxy
+#27 0.201 Description   : Installs Caddy with an s6-supervised config watcher for dynamically managed development reverse proxies.
+#27 0.201 Id            : ghcr.io/wyrd-company/devcontainers/caddy
+#27 0.201 Version       : 1.0.0
+#27 0.201 Documentation : https://github.com/wyrd-company/devcontainers/tree/main/src/features/caddy
+#27 0.201 Options       :
+#27 0.201     VERSION="latest"
+#27 0.201     ACMECA="https://acme.tinomen-dev.wyrd.team/acme/local/directory"
+#27 0.201     ACMECAROOT="/usr/local/share/ca-certificates/caddy-root.crt"
+#27 0.201     CONFIGUSER="automatic"
+#27 0.201 ===========================================================================
+
+[2026-09-08T05:55:54.489Z] #27 0.566 Get:1 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+
+[2026-09-08T05:55:54.651Z] #27 0.577 Get:2 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+
+[2026-09-08T05:55:54.725Z] #27 0.801 Get:3 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease [20.0 kB]
+
+[2026-09-08T05:55:54.886Z] #27 0.962 Get:4 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 Packages [579 B]
+
+[2026-09-08T05:55:55.250Z] #27 1.327 Get:5 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+
+[2026-09-08T05:55:55.457Z] #27 1.382 Get:6 http://security.ubuntu.com/ubuntu resolute-security/main amd64 Packages [578 kB]
+
+[2026-09-08T05:55:55.547Z] #27 1.624 Get:7 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+
+[2026-09-08T05:55:55.817Z] #27 1.894 Get:8 http://archive.ubuntu.com/ubuntu resolute/universe amd64 Packages [20.1 MB]
+
+[2026-09-08T05:55:55.918Z] #27 1.994 Get:9 http://security.ubuntu.com/ubuntu resolute-security/universe amd64 Packages [212 kB]
+
+[2026-09-08T05:55:56.109Z] #27 2.033 Get:10 http://security.ubuntu.com/ubuntu resolute-security/multiverse amd64 Packages [11.2 kB]
+#27 2.035 Get:11 http://security.ubuntu.com/ubuntu resolute-security/restricted amd64 Packages [489 kB]
+
+[2026-09-08T05:55:57.003Z] #27 3.080 Get:12 http://archive.ubuntu.com/ubuntu resolute/restricted amd64 Packages [189 kB]
+
+[2026-09-08T05:55:57.172Z] #27 3.083 Get:13 http://archive.ubuntu.com/ubuntu resolute/main amd64 Packages [1874 kB]
+#27 3.108 Get:14 http://archive.ubuntu.com/ubuntu resolute/multiverse amd64 Packages [352 kB]
+#27 3.113 Get:15 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [338 kB]
+#27 3.117 Get:16 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64 Packages [14.6 kB]
+#27 3.117 Get:17 http://archive.ubuntu.com/ubuntu resolute-updates/restricted amd64 Packages [505 kB]
+#27 3.124 Get:18 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [743 kB]
+#27 3.249 Get:19 http://archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Packages [3306 B]
+
+[2026-09-08T05:55:57.504Z] #27 3.581 Fetched 26.0 MB in 3s (7757 kB/s)
+#27 3.581 Reading package lists...
+[2026-09-08T05:55:57.950Z] 
+
+[2026-09-08T05:55:58.114Z] #27 4.040 Reading package lists...
+[2026-09-08T05:55:58.367Z] 
+
+[2026-09-08T05:55:58.490Z] #27 4.450 Building dependency tree...
+#27 4.567 Reading state information...
+[2026-09-08T05:55:58.592Z] 
+#27 4.585 apt-transport-https is already the newest version (3.2.0).
+#27 4.585 ca-certificates is already the newest version (20260601~26.04.1).
+#27 4.585 curl is already the newest version (8.18.0-1ubuntu2.4).
+#27 4.585 Solving dependencies...
+#27 4.668 The following additional packages will be installed:
+
+[2026-09-08T05:55:58.772Z] #27 4.670   dirmngr gnupg2 gpg gpg-agent gpgconf gpgsm libinotifytools0
+#27 4.695 The following NEW packages will be installed:
+#27 4.696   debian-archive-keyring debian-keyring inotify-tools libinotifytools0
+#27 4.697 The following packages will be upgraded:
+#27 4.698   dirmngr gnupg gnupg2 gpg gpg-agent gpgconf gpgsm
+
+[2026-09-08T05:55:58.775Z] #27 4.852 7 upgraded, 4 newly installed, 0 to remove and 13 not upgraded.
+#27 4.852 Need to get 35.5 MB of archives.
+#27 4.852 After this operation, 36.1 MB of additional disk space will be used.
+
+[2026-09-08T05:55:58.775Z] #27 4.852 Get:1 http://archive.ubuntu.com/ubuntu resolute/universe amd64 debian-archive-keyring all 2025.1ubuntu1 [187 kB]
+
+[2026-09-08T05:55:59.126Z] #27 5.203 Get:2 http://archive.ubuntu.com/ubuntu resolute/universe amd64 debian-keyring all 2026.03.25 [33.4 MB]
+
+[2026-09-08T05:55:59.939Z] #27 6.016 Get:3 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 dirmngr amd64 2.4.8-4ubuntu3.1 [327 kB]
+
+[2026-09-08T05:56:00.097Z] #27 6.017 Get:4 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gpg-agent amd64 2.4.8-4ubuntu3.1 [236 kB]
+#27 6.018 Get:5 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gpg amd64 2.4.8-4ubuntu3.1 [637 kB]
+#27 6.021 Get:6 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gpgconf amd64 2.4.8-4ubuntu3.1 [106 kB]
+#27 6.021 Get:7 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gnupg all 2.4.8-4ubuntu3.1 [311 kB]
+#27 6.022 Get:8 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gpgsm amd64 2.4.8-4ubuntu3.1 [239 kB]
+#27 6.023 Get:9 http://archive.ubuntu.com/ubuntu resolute/universe amd64 libinotifytools0 amd64 4.25.9.0-1 [24.3 kB]
+#27 6.023 Get:10 http://archive.ubuntu.com/ubuntu resolute/universe amd64 inotify-tools amd64 4.25.9.0-1 [26.3 kB]
+#27 6.024 Get:11 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 gnupg2 all 2.4.8-4ubuntu3.1 [4834 B]
+
+[2026-09-08T05:56:00.452Z] #27 6.528 Fetched 35.5 MB in 1s (26.9 MB/s)
+
+[2026-09-08T05:56:00.638Z] #27 6.553 Selecting previously unselected package debian-archive-keyring.
+#27 6.553 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27771 files and directories currently installed.)
+#27 6.564 Preparing to unpack .../00-debian-archive-keyring_2025.1ubuntu1_all.deb ...
+
+[2026-09-08T05:56:00.779Z] #27 6.856 Unpacking debian-archive-keyring (2025.1ubuntu1) ...
+
+[2026-09-08T05:56:00.980Z] #27 6.947 Selecting previously unselected package debian-keyring.
+#27 6.951 Preparing to unpack .../01-debian-keyring_2026.03.25_all.deb ...
+#27 6.956 Unpacking debian-keyring (2026.03.25) ...
+#27 7.057 Preparing to unpack .../02-dirmngr_2.4.8-4ubuntu3.1_amd64.deb ...
+
+[2026-09-08T05:56:01.094Z] #27 7.100 Unpacking dirmngr (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.171 Preparing to unpack .../03-gpg-agent_2.4.8-4ubuntu3.1_amd64.deb ...
+
+[2026-09-08T05:56:01.233Z] #27 7.184 Unpacking gpg-agent (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.245 Preparing to unpack .../04-gpg_2.4.8-4ubuntu3.1_amd64.deb ...
+#27 7.258 Unpacking gpg (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.310 Preparing to unpack .../05-gpgconf_2.4.8-4ubuntu3.1_amd64.deb ...
+
+[2026-09-08T05:56:01.347Z] #27 7.323 Unpacking gpgconf (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.366 Preparing to unpack .../06-gnupg_2.4.8-4ubuntu3.1_all.deb ...
+#27 7.379 Unpacking gnupg (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.424 Preparing to unpack .../07-gpgsm_2.4.8-4ubuntu3.1_amd64.deb ...
+
+[2026-09-08T05:56:01.453Z] #27 7.438 Unpacking gpgsm (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.483 Selecting previously unselected package libinotifytools0:amd64.
+#27 7.488 Preparing to unpack .../08-libinotifytools0_4.25.9.0-1_amd64.deb ...
+#27 7.497 Unpacking libinotifytools0:amd64 (4.25.9.0-1) ...
+#27 7.529 Selecting previously unselected package inotify-tools.
+
+[2026-09-08T05:56:01.594Z] #27 7.534 Preparing to unpack .../09-inotify-tools_4.25.9.0-1_amd64.deb ...
+#27 7.539 Unpacking inotify-tools (4.25.9.0-1) ...
+#27 7.574 Preparing to unpack .../10-gnupg2_2.4.8-4ubuntu3.1_all.deb ...
+#27 7.603 Unpacking gnupg2 (2.4.8-4ubuntu3.1) over (2.4.8-4ubuntu3) ...
+#27 7.671 Setting up libinotifytools0:amd64 (4.25.9.0-1) ...
+
+[2026-09-08T05:56:01.772Z] #27 7.685 Setting up debian-archive-keyring (2025.1ubuntu1) ...
+#27 7.740 Setting up inotify-tools (4.25.9.0-1) ...
+#27 7.754 Setting up gpgconf (2.4.8-4ubuntu3.1) ...
+#27 7.768 Setting up gpg (2.4.8-4ubuntu3.1) ...
+#27 7.849 Setting up debian-keyring (2026.03.25) ...
+
+[2026-09-08T05:56:01.937Z] #27 7.863 Setting up gpg-agent (2.4.8-4ubuntu3.1) ...
+
+[2026-09-08T05:56:02.052Z] #27 8.128 Setting up gpgsm (2.4.8-4ubuntu3.1) ...
+
+[2026-09-08T05:56:02.161Z] #27 8.145 Setting up dirmngr (2.4.8-4ubuntu3.1) ...
+#27 8.238 Setting up gnupg (2.4.8-4ubuntu3.1) ...
+
+[2026-09-08T05:56:02.409Z] #27 8.259 Setting up gnupg2 (2.4.8-4ubuntu3.1) ...
+#27 8.273 Processing triggers for man-db (2.13.1-1build1) ...
+#27 8.336 Processing triggers for libc-bin (2.43-2ubuntu2.3) ...
+
+[2026-09-08T05:56:03.382Z] #27 9.459 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+
+[2026-09-08T05:56:03.499Z] #27 9.547 Hit:2 http://archive.ubuntu.com/ubuntu resolute InRelease
+#27 9.576 Get:3 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version/main amd64 Packages [4823 B]
+
+[2026-09-08T05:56:03.610Z] #27 9.617 Hit:4 http://archive.ubuntu.com/ubuntu resolute-updates InRelease
+#27 9.687 Hit:5 http://archive.ubuntu.com/ubuntu resolute-backports InRelease
+
+[2026-09-08T05:56:03.820Z] #27 9.746 Hit:6 http://security.ubuntu.com/ubuntu resolute-security InRelease
+
+[2026-09-08T05:56:03.955Z] #27 10.03 Hit:7 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease
+
+[2026-09-08T05:56:04.116Z] #27 10.04 Fetched 19.6 kB in 1s (30.6 kB/s)
+#27 10.04 Reading package lists...
+[2026-09-08T05:56:04.371Z] 
+
+[2026-09-08T05:56:04.536Z] #27 10.46 Reading package lists...
+[2026-09-08T05:56:04.830Z] 
+
+[2026-09-08T05:56:04.951Z] #27 10.91 Building dependency tree...
+#27 11.03 Reading state information...
+[2026-09-08T05:56:05.062Z] 
+#27 11.04 Solving dependencies...
+#27 11.14 The following NEW packages will be installed:
+
+[2026-09-08T05:56:05.269Z] #27 11.14   caddy
+#27 11.20 0 upgraded, 1 newly installed, 0 to remove and 13 not upgraded.
+#27 11.20 Need to get 17.3 MB of archives.
+#27 11.20 After this operation, 48.6 MB of additional disk space will be used.
+#27 11.20 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version/main amd64 caddy amd64 2.11.4 [17.3 MB]
+
+[2026-09-08T05:56:05.881Z] #27 11.96 Fetched 17.3 MB in 0s (63.5 MB/s)
+
+[2026-09-08T05:56:06.116Z] #27 12.02 Selecting previously unselected package caddy.
+#27 12.02 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27836 files and directories currently installed.)
+#27 12.03 Preparing to unpack .../caddy_2.11.4_amd64v1.deb ...
+#27 12.04 Unpacking caddy (2.11.4) ...
+
+[2026-09-08T05:56:06.132Z] #27 12.21 Setting up caddy (2.11.4) ...
+
+[2026-09-08T05:56:06.573Z] #27 12.65 /usr/sbin/policy-rc.d returned 101, not running 'start caddy.service'
+
+[2026-09-08T05:56:06.729Z] #27 12.66 Processing triggers for man-db (2.13.1-1build1) ...
+
+[2026-09-08T05:56:06.799Z] #27 12.88 {"level":"warn","ts":1788846966.7988327,"msg":"No files matching import glob pattern","pattern":"/etc/caddy/conf.d/*.caddy"}
+
+[2026-09-08T05:56:07.002Z] #27 12.90 [caddy] Installed v2.11.4 h1:XKxkMTgNSizEvKG6QHue6cAsFOteU2qA61w2tKkCWi0= with writable fragments for vscode.
+#27 DONE 12.9s
+
+#28 [dev_containers_target_stage 10/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=claude-code-cli_5,target=/tmp/build-features-src/claude-code-cli_5     cp -ar /tmp/build-features-src/claude-code-cli_5 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/claude-code-cli_5  && cd /tmp/dev-container-features/claude-code-cli_5  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/claude-code-cli_5
+
+[2026-09-08T05:56:07.278Z] #28 0.427 ===========================================================================
+#28 0.427 Feature       : Claude Code CLI
+#28 0.427 Description   : Installs Claude Code for the Dev Container user using Anthropic's native installer and ensures `claude` is on the PATH.
+#28 0.427 Id            : ghcr.io/wyrd-company/devcontainers/claude-code-cli
+#28 0.427 Version       : 1.0.0
+#28 0.427 Documentation : https://github.com/wyrd-company/devcontainers/tree/main/src/features/claude-code-cli
+#28 0.427 Options       :
+#28 0.427     VERSION="latest"
+#28 0.427 ===========================================================================
+
+[2026-09-08T05:56:07.444Z] #28 0.493 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+#28 0.513 Get:2 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version/main amd64 Packages [4823 B]
+#28 0.593 Get:3 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+
+[2026-09-08T05:56:07.667Z] #28 0.816 Get:4 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+
+[2026-09-08T05:56:07.903Z] #28 0.901 Get:5 http://security.ubuntu.com/ubuntu resolute-security/main amd64 Packages [578 kB]
+
+[2026-09-08T05:56:07.938Z] #28 1.087 Get:6 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease [20.0 kB]
+
+[2026-09-08T05:56:08.049Z] #28 1.131 Get:7 http://security.ubuntu.com/ubuntu resolute-security/restricted amd64 Packages [489 kB]
+#28 1.165 Get:8 http://security.ubuntu.com/ubuntu resolute-security/universe amd64 Packages [212 kB]
+#28 1.198 Get:9 http://security.ubuntu.com/ubuntu resolute-security/multiverse amd64 Packages [11.2 kB]
+
+[2026-09-08T05:56:08.254Z] #28 1.252 Get:10 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 Packages [579 B]
+
+[2026-09-08T05:56:08.466Z] #28 1.615 Get:11 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+
+[2026-09-08T05:56:08.776Z] #28 1.925 Get:12 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+
+[2026-09-08T05:56:09.059Z] #28 2.208 Get:13 http://archive.ubuntu.com/ubuntu resolute/restricted amd64 Packages [189 kB]
+
+[2026-09-08T05:56:09.193Z] #28 2.342 Get:14 http://archive.ubuntu.com/ubuntu resolute/multiverse amd64 Packages [352 kB]
+
+[2026-09-08T05:56:09.422Z] #28 2.571 Get:15 http://archive.ubuntu.com/ubuntu resolute/universe amd64 Packages [20.1 MB]
+
+[2026-09-08T05:56:10.323Z] #28 3.471 Get:16 http://archive.ubuntu.com/ubuntu resolute/main amd64 Packages [1874 kB]
+
+[2026-09-08T05:56:10.512Z] #28 3.501 Get:17 http://archive.ubuntu.com/ubuntu resolute-updates/restricted amd64 Packages [505 kB]
+#28 3.509 Get:18 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64 Packages [14.6 kB]
+#28 3.510 Get:19 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [743 kB]
+
+[2026-09-08T05:56:10.550Z] #28 3.699 Get:20 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [338 kB]
+
+[2026-09-08T05:56:10.704Z] #28 3.702 Get:21 http://archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Packages [3306 B]
+
+[2026-09-08T05:56:10.823Z] #28 3.972 Fetched 26.0 MB in 4s (7409 kB/s)
+#28 3.972 Reading package lists...
+[2026-09-08T05:56:11.243Z] 
+
+[2026-09-08T05:56:11.408Z] #28 4.407 Reading package lists...
+[2026-09-08T05:56:11.635Z] 
+
+[2026-09-08T05:56:11.764Z] #28 4.791 Building dependency tree...
+#28 4.912 Reading state information...
+[2026-09-08T05:56:11.878Z] 
+#28 4.928 ca-certificates is already the newest version (20260601~26.04.1).
+#28 4.928 curl is already the newest version (8.18.0-1ubuntu2.4).
+#28 4.928 Solving dependencies...
+#28 5.026 0 upgraded, 0 newly installed, 0 to remove and 13 not upgraded.
+
+[2026-09-08T05:56:12.022Z] #28 5.170 [install.sh] Installing Claude Code latest for vscode
+
+[2026-09-08T05:56:16.292Z] #28 9.441 Setting up Claude Code...
+
+[2026-09-08T05:56:16.432Z] #28 9.580 
+#28 9.580 Checking installation status...
+[2026-09-08T05:56:16.596Z] 
+#28 9.594 Installing Claude Code native build latest...
+[2026-09-08T05:56:17.908Z] 
+#28 11.06 Setting up launcher and shell integration...
+[2026-09-08T05:56:18.202Z] 
+#28 11.35 ⚠ Setup notes:
+#28 11.35   ● Native installation exists but ~/.local/bin is not in your PATH. Run:
+#28 11.35 
+#28 11.35     echo 'export PATH="$HOME/.local/bin:$PATH"' >> your shell config file && source your shell config file
+
+[2026-09-08T05:56:20.205Z] #28 13.35 
+#28 13.35 ✔ Claude Code successfully installed!
+#28 13.35 
+#28 13.35   Version: 2.1.263
+#28 13.35 
+#28 13.35   Location: ~/.local/bin/claude
+#28 13.35 
+#28 13.35 
+#28 13.35   Next: Run claude --help to get started
+[2026-09-08T05:56:20.205Z] 
+#28 13.35 
+#28 13.35 ⚠ Setup notes:
+#28 13.35   ● Native installation exists but ~/.local/bin is not in your PATH. Run:
+#28 13.35 
+#28 13.35     echo 'export PATH="$HOME/.local/bin:$PATH"' >> your shell config file && source your shell config file
+
+[2026-09-08T05:56:22.206Z] #28 15.35 
+
+[2026-09-08T05:56:22.370Z] #28 15.52 
+#28 15.52 ✅ Installation complete!
+#28 15.52 
+
+[2026-09-08T05:56:22.538Z] #28 15.54 [install.sh] Installed Claude Code 2.1.263 (Claude Code)
+
+[2026-09-08T05:56:22.765Z] #28 DONE 15.9s
+
+[2026-09-08T05:56:22.924Z] 
+#29 [dev_containers_target_stage 11/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=cursor-agent-cli_6,target=/tmp/build-features-src/cursor-agent-cli_6     cp -ar /tmp/build-features-src/cursor-agent-cli_6 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/cursor-agent-cli_6  && cd /tmp/dev-container-features/cursor-agent-cli_6  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/cursor-agent-cli_6
+
+[2026-09-08T05:56:22.989Z] #29 0.216 ===========================================================================
+#29 0.216 Feature       : Cursor Agent CLI
+#29 0.216 Description   : Installs the Cursor Agent CLI for the Dev Container user using Cursor's native installer and ensures `agent` and `cursor-agent` are on the PATH.
+#29 0.216 Id            : ghcr.io/wyrd-company/devcontainers/cursor-agent-cli
+#29 0.216 Version       : 1.0.0
+#29 0.216 Documentation : https://github.com/wyrd-company/devcontainers/tree/main/src/features/cursor-agent-cli
+#29 0.216 Options       :
+#29 0.216 
+#29 0.216 ===========================================================================
+
+[2026-09-08T05:56:23.161Z] #29 0.287 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+#29 0.388 Hit:2 http://archive.ubuntu.com/ubuntu resolute InRelease
+
+[2026-09-08T05:56:23.297Z] #29 0.456 Hit:3 http://archive.ubuntu.com/ubuntu resolute-updates InRelease
+#29 0.524 Hit:4 http://archive.ubuntu.com/ubuntu resolute-backports InRelease
+
+[2026-09-08T05:56:23.521Z] #29 0.597 Hit:5 http://security.ubuntu.com/ubuntu resolute-security InRelease
+
+[2026-09-08T05:56:23.567Z] #29 0.794 Hit:6 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease
+
+[2026-09-08T05:56:23.729Z] #29 0.805 Fetched 14.8 kB in 1s (26.4 kB/s)
+#29 0.805 Reading package lists...
+[2026-09-08T05:56:23.963Z] 
+
+[2026-09-08T05:56:24.128Z] #29 1.204 Reading package lists...
+[2026-09-08T05:56:24.386Z] 
+
+[2026-09-08T05:56:24.508Z] #29 1.620 Building dependency tree...
+#29 1.735 Reading state information...
+[2026-09-08T05:56:24.627Z] 
+#29 1.752 ca-certificates is already the newest version (20260601~26.04.1).
+#29 1.752 curl is already the newest version (8.18.0-1ubuntu2.4).
+#29 1.752 Solving dependencies...
+#29 1.854 0 upgraded, 0 newly installed, 0 to remove and 13 not upgraded.
+
+[2026-09-08T05:56:24.967Z] #29 2.194 [install.sh] Installing Cursor Agent CLI for vscode
+
+[2026-09-08T05:56:25.090Z] #29 2.199 
+#29 2.199 Cursor Agent Installer
+#29 2.199 
+#29 2.199 ▸ Detecting system architecture...
+#29 2.203 ✓ Detected linux/x64
+#29 2.203 ▸ Creating installation directory...
+#29 2.209 ✓ Directory created
+#29 2.209 ▸ Downloading Cursor Agent package...
+#29 2.209   Download URL: https://downloads.cursor.com/lab/2026.09.02-c22c1a3/linux/x64/agent-cli-package.tar.gz
+#29 2.317 #=#=#                                                                          
+[2026-09-08T05:56:25.190Z]                                                                          
+[2026-09-08T05:56:25.336Z]   0.7%##                                                                         3.6%
+[2026-09-08T05:56:25.438Z] ######                                                                     8.3%
+[2026-09-08T05:56:25.541Z] #########                                                                 12.9%
+[2026-09-08T05:56:25.643Z] ###########                                                               15.5%
+[2026-09-08T05:56:25.744Z] ##############                                                            20.3%
+[2026-09-08T05:56:25.846Z] #################                                                         24.7%
+[2026-09-08T05:56:25.946Z] ####################                                                      28.8%
+[2026-09-08T05:56:26.049Z] #######################                                                   33.2%
+[2026-09-08T05:56:26.160Z] #########################                                                 35.3%
+[2026-09-08T05:56:26.263Z] ############################                                              39.1%
+[2026-09-08T05:56:26.363Z] ###############################                                           43.4%
+[2026-09-08T05:56:26.464Z] #################################                                         46.7%
+[2026-09-08T05:56:26.564Z] ####################################                                      51.1%
+[2026-09-08T05:56:26.665Z] #######################################                                   54.5%
+[2026-09-08T05:56:26.765Z] ##########################################                                58.9%
+[2026-09-08T05:56:26.866Z] #############################################                             63.1%
+[2026-09-08T05:56:26.967Z] ################################################                          68.0%
+[2026-09-08T05:56:27.067Z] ###################################################                       71.9%
+[2026-09-08T05:56:27.170Z] ######################################################                    
+[2026-09-08T05:56:27.272Z] 75.6%#########################################################                
+[2026-09-08T05:56:27.374Z]  79.4%###########################################################               83.1%
+[2026-09-08T05:56:27.476Z] ##############################################################            87.3%
+[2026-09-08T05:56:27.578Z] ##################################################################        92.0%
+[2026-09-08T05:56:27.678Z] ####################################################################      94.9%
+[2026-09-08T05:56:27.811Z] #######################################################################   98.7%######################################################################## 
+[2026-09-08T05:56:27.977Z] 100.0%
+#29 5.042 ✓ Package downloaded and extracted
+#29 5.042 ▸ Finalizing installation...
+#29 5.045 ✓ Package installed successfully
+#29 5.045 ▸ Creating bin directory...
+#29 5.047 ✓ Bin directory ready
+#29 5.047 ▸ Creating symlinks to agent executable...
+#29 5.052 ✓ Symlink created
+#29 5.052 
+#29 5.052 ✨ Installation Complete! 
+
+[2026-09-08T05:56:27.978Z] #29 5.052 
+#29 5.052 
+#29 5.054 Next Steps
+#29 5.054 
+#29 5.054 1. Add ~/.local/bin to your PATH:
+#29 5.054    For bash:
+#29 5.054    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+#29 5.054    source ~/.bashrc
+#29 5.054 
+#29 5.054    For zsh:
+#29 5.054    echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
+#29 5.054    source ~/.zshrc
+#29 5.054 
+#29 5.054    For fish:
+#29 5.054    mkdir -p $HOME/.config/fish
+#29 5.054    echo 'fish_add_path $HOME/.local/bin' >> $HOME/.config/fish/config.fish
+#29 5.054    source $HOME/.config/fish/config.fish
+#29 5.054 
+#29 5.054 2. Start using Cursor Agent:
+#29 5.054    agent
+#29 5.054 
+#29 5.054 
+#29 5.054 Happy coding! 🚀
+#29 5.054 
+
+[2026-09-08T05:56:28.258Z] #29 5.485 [install.sh] Installed Cursor Agent CLI 2026.09.02-c22c1a3
+
+[2026-09-08T05:56:28.575Z] #29 DONE 5.8s
+
+[2026-09-08T05:56:28.731Z] 
+#30 [dev_containers_target_stage 12/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=sshd_7,target=/tmp/build-features-src/sshd_7     cp -ar /tmp/build-features-src/sshd_7 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/sshd_7  && cd /tmp/dev-container-features/sshd_7  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/sshd_7
+
+[2026-09-08T05:56:28.786Z] #30 0.206 ===========================================================================
+#30 0.206 Feature       : SSH server
+#30 0.206 Description   : Adds an SSH server supervised as a native s6-overlay service.
+#30 0.206 Id            : ghcr.io/wyrd-company/devcontainers/sshd
+#30 0.206 Version       : 1.1.0
+#30 0.206 Documentation : https://github.com/wyrd-company/devcontainers/tree/main/src/features/sshd
+#30 0.206 Options       :
+#30 0.206     VERSION="latest"
+#30 0.206     GATEWAYPORTS="no"
+#30 0.206 ===========================================================================
+
+[2026-09-08T05:56:28.892Z] #30 0.223 find: ‘/var/lib/apt/lists/*’: No such file or directory
+#30 0.225 Running apt-get update...
+#30 0.287 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+#30 0.311 Get:2 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version/main amd64 Packages [4823 B]
+
+[2026-09-08T05:56:29.141Z] #30 0.410 Get:3 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+
+[2026-09-08T05:56:29.171Z] #30 0.591 Get:4 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+
+[2026-09-08T05:56:29.337Z] #30 0.757 Get:5 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+
+[2026-09-08T05:56:29.472Z] #30 0.837 Get:6 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease [20.0 kB]
+#30 0.892 Get:7 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+
+[2026-09-08T05:56:29.573Z] #30 0.992 Get:8 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 Packages [579 B]
+
+[2026-09-08T05:56:29.746Z] #30 1.014 Get:9 http://archive.ubuntu.com/ubuntu resolute/universe amd64 Packages [20.1 MB]
+
+[2026-09-08T05:56:29.942Z] #30 1.362 Get:10 http://security.ubuntu.com/ubuntu resolute-security/main amd64 Packages [578 kB]
+
+[2026-09-08T05:56:30.279Z] #30 1.698 Get:11 http://archive.ubuntu.com/ubuntu resolute/restricted amd64 Packages [189 kB]
+
+[2026-09-08T05:56:30.507Z] #30 1.700 Get:12 http://archive.ubuntu.com/ubuntu resolute/multiverse amd64 Packages [352 kB]
+#30 1.702 Get:13 http://archive.ubuntu.com/ubuntu resolute/main amd64 Packages [1874 kB]
+#30 1.715 Get:14 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64 Packages [14.6 kB]
+#30 1.715 Get:15 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [338 kB]
+#30 1.718 Get:16 http://archive.ubuntu.com/ubuntu resolute-updates/restricted amd64 Packages [505 kB]
+#30 1.721 Get:17 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [743 kB]
+#30 1.776 Get:18 http://archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Packages [3306 B]
+
+[2026-09-08T05:56:30.529Z] #30 1.949 Get:19 http://security.ubuntu.com/ubuntu resolute-security/universe amd64 Packages [212 kB]
+
+[2026-09-08T05:56:30.700Z] #30 1.987 Get:20 http://security.ubuntu.com/ubuntu resolute-security/restricted amd64 Packages [489 kB]
+#30 2.120 Get:21 http://security.ubuntu.com/ubuntu resolute-security/multiverse amd64 Packages [11.2 kB]
+
+[2026-09-08T05:56:30.806Z] #30 2.225 Fetched 26.0 MB in 2s (13.2 MB/s)
+#30 2.225 Reading package lists...
+[2026-09-08T05:56:31.227Z] 
+
+[2026-09-08T05:56:31.392Z] #30 2.661 Reading package lists...
+[2026-09-08T05:56:31.636Z] 
+
+[2026-09-08T05:56:31.769Z] #30 3.062 Building dependency tree...
+#30 3.188 Reading state information...
+[2026-09-08T05:56:31.878Z] 
+#30 3.205 lsof is already the newest version (4.99.4+dfsg-2build2).
+#30 3.205 Solving dependencies...
+#30 3.298 The following additional packages will be installed:
+
+[2026-09-08T05:56:32.046Z] #30 3.298   libsystemd-shared libtext-charwidth-perl libtext-wrapi18n-perl
+#30 3.298   openssh-sftp-server systemd ucf
+#30 3.298 Suggested packages:
+#30 3.298   libarchive13t64 libcryptsetup12 libdw1t64 libpwquality1 libqrencode4
+#30 3.298   libtss2-esys-3.0.2-0t64 libtss2-mu-4.0.1-0t64 libtss2-rc0t64 molly-guard
+#30 3.298   monkeysphere ssh-askpass ufw systemd-container systemd-homed systemd-userdbd
+#30 3.298   systemd-boot systemd-repart libtss2-tcti-device0 polkitd
+#30 3.298 Recommended packages:
+#30 3.298   libkmod2 default-logind | logind | libpam-systemd ncurses-term xauth
+#30 3.298   ssh-import-id default-dbus-system-bus | dbus-system-bus
+#30 3.298   linux-sysctl-defaults systemd-timesyncd | time-daemon systemd-resolved
+#30 3.298   systemd-cryptsetup
+#30 3.317 The following NEW packages will be installed:
+[2026-09-08T05:56:32.046Z] 
+#30 3.318   libsystemd-shared libtext-charwidth-perl libtext-wrapi18n-perl
+#30 3.318   openssh-server openssh-sftp-server systemd ucf
+#30 3.318 The following packages will be upgraded:
+#30 3.318   openssh-client
+#30 3.466 1 upgraded, 7 newly installed, 0 to remove and 12 not upgraded.
+#30 3.466 Need to get 7247 kB of archives.
+#30 3.466 After this operation, 22.0 MB of additional disk space will be used.
+#30 3.466 Get:1 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libsystemd-shared amd64 259.5-0ubuntu3.4 [2462 kB]
+
+[2026-09-08T05:56:32.644Z] #30 4.064 Get:2 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 systemd amd64 259.5-0ubuntu3.4 [3129 kB]
+
+[2026-09-08T05:56:32.894Z] #30 4.143 Get:3 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtext-charwidth-perl amd64 0.04-11build4 [9530 B]
+#30 4.143 Get:4 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtext-wrapi18n-perl all 0.06-10 [7694 B]
+#30 4.143 Get:5 http://archive.ubuntu.com/ubuntu resolute/main amd64 ucf all 3.0052ubuntu1 [44.3 kB]
+#30 4.144 Get:6 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 openssh-client amd64 1:10.2p1-2ubuntu3.6 [935 kB]
+#30 4.162 Get:7 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 openssh-sftp-server amd64 1:10.2p1-2ubuntu3.6 [37.4 kB]
+#30 4.163 Get:8 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 openssh-server amd64 1:10.2p1-2ubuntu3.6 [622 kB]
+
+[2026-09-08T05:56:33.202Z] #30 4.621 Preconfiguring packages ...
+
+[2026-09-08T05:56:33.420Z] #30 4.661 Fetched 7247 kB in 1s (8527 kB/s)
+#30 4.678 Selecting previously unselected package libsystemd-shared:amd64.
+#30 4.678 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27873 files and directories currently installed.)
+#30 4.689 Preparing to unpack .../libsystemd-shared_259.5-0ubuntu3.4_amd64.deb ...
+
+[2026-09-08T05:56:33.464Z] #30 4.883 Unpacking libsystemd-shared:amd64 (259.5-0ubuntu3.4) ...
+
+[2026-09-08T05:56:33.575Z] #30 4.945 Setting up libsystemd-shared:amd64 (259.5-0ubuntu3.4) ...
+#30 4.994 Selecting previously unselected package systemd.
+#30 4.994 (Reading database ... 
+[2026-09-08T05:56:33.734Z] (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 27881 files and directories currently installed.)
+#30 5.005 Preparing to unpack .../0-systemd_259.5-0ubuntu3.4_amd64.deb ...
+#30 5.014 Unpacking systemd (259.5-0ubuntu3.4) ...
+#30 5.153 Selecting previously unselected package libtext-charwidth-perl:amd64.
+
+[2026-09-08T05:56:33.834Z] #30 5.158 Preparing to unpack .../1-libtext-charwidth-perl_0.04-11build4_amd64.deb ...
+#30 5.163 Unpacking libtext-charwidth-perl:amd64 (0.04-11build4) ...
+#30 5.193 Selecting previously unselected package libtext-wrapi18n-perl.
+#30 5.198 Preparing to unpack .../2-libtext-wrapi18n-perl_0.06-10_all.deb ...
+#30 5.202 Unpacking libtext-wrapi18n-perl (0.06-10) ...
+#30 5.244 Selecting previously unselected package ucf.
+#30 5.249 Preparing to unpack .../3-ucf_3.0052ubuntu1_all.deb ...
+#30 5.254 Moving old data out of the way
+
+[2026-09-08T05:56:33.969Z] #30 5.256 Unpacking ucf (3.0052ubuntu1) ...
+#30 5.304 Preparing to unpack .../4-openssh-client_1%3a10.2p1-2ubuntu3.6_amd64.deb ...
+#30 5.326 Unpacking openssh-client (1:10.2p1-2ubuntu3.6) over (1:10.2p1-2ubuntu3.5) ...
+#30 5.388 Selecting previously unselected package openssh-sftp-server.
+
+[2026-09-08T05:56:34.083Z] #30 5.393 Preparing to unpack .../5-openssh-sftp-server_1%3a10.2p1-2ubuntu3.6_amd64.deb ...
+#30 5.397 Unpacking openssh-sftp-server (1:10.2p1-2ubuntu3.6) ...
+#30 5.443 Selecting previously unselected package openssh-server.
+#30 5.448 Preparing to unpack .../6-openssh-server_1%3a10.2p1-2ubuntu3.6_amd64.deb ...
+#30 5.457 Unpacking openssh-server (1:10.2p1-2ubuntu3.6) ...
+#30 5.503 Setting up libtext-charwidth-perl:amd64 (0.04-11build4) ...
+
+[2026-09-08T05:56:34.192Z] #30 5.517 Setting up openssh-client (1:10.2p1-2ubuntu3.6) ...
+#30 5.611 Setting up systemd (259.5-0ubuntu3.4) ...
+
+[2026-09-08T05:56:34.296Z] #30 5.662 Created symlink '/etc/systemd/system/getty.target.wants/getty@tty1.service' → '/usr/lib/systemd/system/getty@.service'.
+#30 5.664 Created symlink '/etc/systemd/system/multi-user.target.wants/remote-fs.target' → '/usr/lib/systemd/system/remote-fs.target'.
+#30 5.666 Created symlink '/etc/systemd/system/sysinit.target.wants/systemd-pstore.service' → '/usr/lib/systemd/system/systemd-pstore.service'.
+#30 5.668 Initializing machine ID from random generator.
+#30 5.716 Creating group 'systemd-journal' with GID 996.
+
+[2026-09-08T05:56:34.409Z] #30 5.716 Creating group 'systemd-network' with GID 995.
+#30 5.716 Creating user 'systemd-network' (systemd Network Management) with UID 995 and GID 995.
+#30 5.815 Setting up libtext-wrapi18n-perl (0.06-10) ...
+#30 5.829 Setting up ucf (3.0052ubuntu1) ...
+
+[2026-09-08T05:56:34.553Z] #30 5.852 Setting up openssh-sftp-server (1:10.2p1-2ubuntu3.6) ...
+#30 5.868 Setting up openssh-server (1:10.2p1-2ubuntu3.6) ...
+#30 5.973 Creating config file /etc/ssh/sshd_config with new version
+
+[2026-09-08T05:56:34.683Z] #30 6.000 Creating SSH2 RSA key; this may take some time ...
+
+[2026-09-08T05:56:34.803Z] #30 6.105 3072 SHA256:CZ3g03+Jo1pUVt8oLwP+a49SQw3AGxPY7YhQHVJI9ms root@buildkitsandbox (RSA)
+#30 6.106 Creating SSH2 ECDSA key; this may take some time ...
+#30 6.111 256 SHA256:D3Ia2JR8B7tZpLO5mDPTCE77syNWDJEN1Nce6qF9a14 root@buildkitsandbox (ECDSA)
+#30 6.112 Creating SSH2 ED25519 key; this may take some time ...
+#30 6.116 256 SHA256:kP+Y1uk8zNw7FMNs6AB2m/UP0V8tOY8r+34Bw8Qdy8I root@buildkitsandbox (ED25519)
+#30 6.119 Creating user 'sshd' (sshd user) with UID 994 and GID 65534.
+#30 6.154 invoke-rc.d: could not determine current runlevel
+#30 6.157 invoke-rc.d: policy-rc.d denied execution of start.
+#30 6.223 Created symlink '/etc/systemd/system/sockets.target.wants/ssh.socket' → '/usr/lib/systemd/system/ssh.socket'.
+#30 6.223 Created symlink '/etc/systemd/system/ssh.service.requires/ssh.socket' → '/usr/lib/systemd/system/ssh.socket'.
+
+[2026-09-08T05:56:34.912Z] #30 6.332 Created symlink '/etc/systemd/system/ssh.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+#30 6.332 Created symlink '/etc/systemd/system/sshd.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+#30 6.332 Created symlink '/etc/systemd/system/sshd@.service.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+#30 6.332 Created symlink '/etc/systemd/system/ssh.socket.wants/sshd-keygen.service' → '/usr/lib/systemd/system/sshd-keygen.service'.
+
+[2026-09-08T05:56:35.022Z] #30 6.350 Processing triggers for procps (2:4.0.4-9ubuntu1) ...
+#30 6.357 procps: Applying updated sysctl configuration
+#30 6.358 sysctl: setting key "kernel.core_pattern", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "kernel.pid_max", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "kernel.printk", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "net.ipv6.conf.all.use_tempaddr", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "net.ipv6.conf.default.use_tempaddr", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "kernel.kptr_restrict", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "kernel.sysrq", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "vm.max_map_count", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "net.ipv4.conf.default.rp_filter", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "net.ipv4.conf.all.rp_filter", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "kernel.yama.ptrace_scope", ignoring: Read-only file system
+#30 6.358 sysctl: setting key "vm.mmap_min_addr", ignoring: Read-only file system
+
+[2026-09-08T05:56:35.022Z] #30 6.364 Processing triggers for man-db (2.13.1-1build1) ...
+#30 6.442 adding 'ssh' group, as it does not already exist.
+
+[2026-09-08T05:56:35.216Z] #30 6.513 Done!
+#30 6.513 
+#30 6.513 - Port: 2222
+#30 6.513 - User: vscode
+#30 6.513 - Authentication: public key only
+#30 DONE 6.6s
+
+[2026-09-08T05:56:35.372Z] 
+#31 [dev_containers_target_stage 13/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=homebrew_8,target=/tmp/build-features-src/homebrew_8     cp -ar /tmp/build-features-src/homebrew_8 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/homebrew_8  && cd /tmp/dev-container-features/homebrew_8  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/homebrew_8
+
+[2026-09-08T05:56:35.423Z] #31 0.201 ===========================================================================
+#31 0.201 Feature       : Homebrew
+#31 0.201 Description   : Installs Homebrew
+#31 0.201 Id            : ghcr.io/meaningful-ooo/devcontainer-features/homebrew
+#31 0.201 Version       : 2.0.5
+#31 0.201 Documentation : https://github.com/meaningful-ooo/devcontainer-features/tree/main/src/homebrew
+#31 0.201 Options       :
+#31 0.201     SHALLOWCLONE="false"
+#31 0.201 ===========================================================================
+
+[2026-09-08T05:56:35.616Z] #31 0.223 find: ‘/var/lib/apt/lists/*’: No such file or directory
+#31 0.225 Running apt-get update...
+#31 0.290 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+#31 0.395 Get:2 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version/main amd64 Packages [4823 B]
+
+[2026-09-08T05:56:35.741Z] #31 0.520 Get:3 http://security.ubuntu.com/ubuntu resolute-security InRelease [137 kB]
+
+[2026-09-08T05:56:35.961Z] #31 0.590 Get:4 http://archive.ubuntu.com/ubuntu resolute InRelease [136 kB]
+
+[2026-09-08T05:56:36.070Z] #31 0.849 Get:5 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease [20.0 kB]
+
+[2026-09-08T05:56:36.237Z] #31 1.016 Get:6 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute/main amd64 Packages [579 B]
+
+[2026-09-08T05:56:36.354Z] #31 1.132 Get:7 http://security.ubuntu.com/ubuntu resolute-security/universe amd64 Packages [212 kB]
+
+[2026-09-08T05:56:36.570Z] #31 1.349 Get:8 http://archive.ubuntu.com/ubuntu resolute-updates InRelease [137 kB]
+
+[2026-09-08T05:56:36.812Z] #31 1.440 Get:9 http://security.ubuntu.com/ubuntu resolute-security/restricted amd64 Packages [489 kB]
+
+[2026-09-08T05:56:36.845Z] #31 1.624 Get:10 http://security.ubuntu.com/ubuntu resolute-security/main amd64 Packages [578 kB]
+
+[2026-09-08T05:56:36.967Z] #31 1.640 Get:11 http://archive.ubuntu.com/ubuntu resolute-backports InRelease [137 kB]
+#31 1.746 Get:12 http://security.ubuntu.com/ubuntu resolute-security/multiverse amd64 Packages [11.2 kB]
+
+[2026-09-08T05:56:37.130Z] #31 1.908 Get:13 http://archive.ubuntu.com/ubuntu resolute/universe amd64 Packages [20.1 MB]
+
+[2026-09-08T05:56:38.314Z] #31 3.093 Get:14 http://archive.ubuntu.com/ubuntu resolute/multiverse amd64 Packages [352 kB]
+
+[2026-09-08T05:56:38.483Z] #31 3.097 Get:15 http://archive.ubuntu.com/ubuntu resolute/restricted amd64 Packages [189 kB]
+#31 3.100 Get:16 http://archive.ubuntu.com/ubuntu resolute/main amd64 Packages [1874 kB]
+#31 3.125 Get:17 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 Packages [743 kB]
+#31 3.135 Get:18 http://archive.ubuntu.com/ubuntu resolute-updates/universe amd64 Packages [338 kB]
+#31 3.140 Get:19 http://archive.ubuntu.com/ubuntu resolute-updates/restricted amd64 Packages [505 kB]
+#31 3.147 Get:20 http://archive.ubuntu.com/ubuntu resolute-updates/multiverse amd64 Packages [14.6 kB]
+#31 3.262 Get:21 http://archive.ubuntu.com/ubuntu resolute-backports/universe amd64 Packages [3306 B]
+
+[2026-09-08T05:56:38.814Z] #31 3.592 Fetched 26.0 MB in 3s (7789 kB/s)
+#31 3.592 Reading package lists...
+[2026-09-08T05:56:39.196Z] 
+
+[2026-09-08T05:56:39.361Z] #31 3.989 Reading package lists...
+[2026-09-08T05:56:39.580Z] 
+
+[2026-09-08T05:56:39.693Z] #31 4.365 Building dependency tree...
+#31 4.472 Reading state information...
+[2026-09-08T05:56:39.811Z] 
+#31 4.486 bzip2 is already the newest version (1.0.8-6ubuntu0.1).
+#31 4.486 ca-certificates is already the newest version (20260601~26.04.1).
+#31 4.486 curl is already the newest version (8.18.0-1ubuntu2.4).
+#31 4.486 file is already the newest version (1:5.46-5build2).
+#31 4.486 file set to manually installed.
+#31 4.486 g++ is already the newest version (4:15.2.0-5ubuntu1).
+#31 4.486 g++ set to manually installed.
+#31 4.486 git is already the newest version (1:2.53.0-1ubuntu1).
+[2026-09-08T05:56:39.811Z] 
+#31 4.486 less is already the newest version (668-1build1).
+#31 4.486 zlib1g-dev is already the newest version (1:1.3.dfsg+really1.3.1-1ubuntu3.1).
+#31 4.486 locales is already the newest version (2.43-2ubuntu2.3).
+#31 4.486 make is already the newest version (4.4.1-3).
+#31 4.486 make set to manually installed.
+#31 4.486 netbase is already the newest version (6.5build1).
+#31 4.486 openssh-client is already the newest version (1:10.2p1-2ubuntu3.6).
+#31 4.486 patch is already the newest version (2.8-2build1).
+#31 4.486 patch set to manually installed.
+#31 4.486 sudo is already the newest version (1.9.17p2-1ubuntu3).
+#31 4.486 tzdata is already the newest version (2026c-0ubuntu0.26.04.1).
+#31 4.486 Solving dependencies...
+#31 4.590 The following additional packages will be installed:
+
+[2026-09-08T05:56:39.976Z] #31 4.591   fonts-dejavu-mono
+#31 4.605 The following NEW packages will be installed:
+#31 4.606   fonts-dejavu-core fonts-dejavu-mono uuid-runtime
+#31 4.754 0 upgraded, 3 newly installed, 0 to remove and 12 not upgraded.
+#31 4.754 Need to get 1385 kB of archives.
+#31 4.754 After this operation, 3826 kB of additional disk space will be used.
+#31 4.754 Get:1 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 uuid-runtime amd64 2.41.3-3ubuntu2.2 [48.5 kB]
+
+[2026-09-08T05:56:40.178Z] #31 4.957 Get:2 http://archive.ubuntu.com/ubuntu resolute/main amd64 fonts-dejavu-mono all 2.37-8build1 [502 kB]
+
+[2026-09-08T05:56:40.413Z] #31 5.192 Get:3 http://archive.ubuntu.com/ubuntu resolute/main amd64 fonts-dejavu-core all 2.37-8build1 [834 kB]
+
+[2026-09-08T05:56:41.019Z] #31 5.798 Fetched 1385 kB in 1s (2061 kB/s)
+
+[2026-09-08T05:56:41.145Z] #31 5.825 Selecting previously unselected package uuid-runtime.
+#31 5.825 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 28932 files and directories currently installed.)
+#31 5.837 Preparing to unpack .../uuid-runtime_2.41.3-3ubuntu2.2_amd64.deb ...
+#31 5.923 Unpacking uuid-runtime (2.41.3-3ubuntu2.2) ...
+
+[2026-09-08T05:56:41.246Z] #31 5.965 Selecting previously unselected package fonts-dejavu-mono.
+#31 5.970 Preparing to unpack .../fonts-dejavu-mono_2.37-8build1_all.deb ...
+#31 5.975 Unpacking fonts-dejavu-mono (2.37-8build1) ...
+#31 6.020 Selecting previously unselected package fonts-dejavu-core.
+#31 6.025 Preparing to unpack .../fonts-dejavu-core_2.37-8build1_all.deb ...
+
+[2026-09-08T05:56:41.397Z] #31 6.043 Unpacking fonts-dejavu-core (2.37-8build1) ...
+#31 6.083 Setting up fonts-dejavu-mono (2.37-8build1) ...
+#31 6.113 Setting up fonts-dejavu-core (2.37-8build1) ...
+#31 6.175 Setting up uuid-runtime (2.41.3-3ubuntu2.2) ...
+
+[2026-09-08T05:56:41.527Z] #31 6.305 invoke-rc.d: could not determine current runlevel
+
+[2026-09-08T05:56:41.664Z] #31 6.309 invoke-rc.d: policy-rc.d denied execution of start.
+#31 6.372 Created symlink '/etc/systemd/system/sockets.target.wants/uuidd.socket' → '/usr/lib/systemd/system/uuidd.socket'.
+#31 6.443 Processing triggers for man-db (2.13.1-1build1) ...
+
+[2026-09-08T05:56:41.892Z] #31 6.518 Installing Homebrew...
+#31 6.520 Cloning into '/home/linuxbrew/.linuxbrew/Homebrew'...
+
+[2026-09-08T05:56:46.237Z] #31 11.02 Cloning into '/home/linuxbrew/.linuxbrew/Homebrew/Library/Taps/homebrew/homebrew-core'...
+
+[2026-09-08T05:58:49.399Z] #31 134.2 Error: 
+[2026-09-08T05:58:49.626Z] Running Homebrew as root is extremely dangerous and no longer supported.
+#31 134.2 As Homebrew does not drop privileges on installation you would be giving all
+#31 134.2 build scripts full access to your system.
+#31 134.3 Done!
+
+[2026-09-08T05:58:49.864Z] #31 DONE 134.6s
+
+[2026-09-08T05:58:50.023Z] 
+#32 [dev_containers_target_stage 14/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=codex-cli_9,target=/tmp/build-features-src/codex-cli_9     cp -ar /tmp/build-features-src/codex-cli_9 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/codex-cli_9  && cd /tmp/dev-container-features/codex-cli_9  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/codex-cli_9
+
+[2026-09-08T05:58:50.119Z] #32 0.247 ===========================================================================
+#32 0.247 Feature       : Codex CLI
+#32 0.247 Description   : Installs the Codex CLI for the Dev Container user and ensures `codex` is on the PATH.
+#32 0.247 Id            : ghcr.io/wyrd-company/devcontainers/codex-cli
+#32 0.247 Version       : 1.0.0
+#32 0.247 Documentation : https://github.com/wyrd-company/devcontainers/tree/main/src/features/codex-cli
+#32 0.247 Options       :
+#32 0.247     VERSION="latest"
+#32 0.247 ===========================================================================
+
+[2026-09-08T05:58:50.289Z] #32 0.266 [install.sh] Installing @openai/codex@latest for vscode
+
+[2026-09-08T05:58:53.444Z] #32 3.572 
+#32 3.572 added 2 packages in 3s
+
+[2026-09-08T05:58:53.685Z] #32 3.635 [install.sh] Installed Codex CLI codex-cli 0.153.4
+#32 DONE 3.7s
+
+#33 [dev_containers_target_stage 15/15] RUN --mount=type=bind,from=dev_containers_feature_content_source,source=common-feature_10,target=/tmp/build-features-src/common-feature_10     cp -ar /tmp/build-features-src/common-feature_10 /tmp/dev-container-features  && chmod -R 0755 /tmp/dev-container-features/common-feature_10  && cd /tmp/dev-container-features/common-feature_10  && chmod +x ./devcontainer-features-install.sh  && ./devcontainer-features-install.sh  && rm -rf /tmp/dev-container-features/common-feature_10
+
+[2026-09-08T05:58:53.897Z] #33 0.362 ===========================================================================
+#33 0.362 Feature       : Common Feature
+#33 0.362 Description   : 
+#33 0.362 Id            : Unknown
+#33 0.362 Version       : 10.3.0
+#33 0.362 Documentation : 
+#33 0.362 Options       :
+#33 0.362 
+#33 0.362 ===========================================================================
+
+[2026-09-08T05:58:54.125Z] #33 0.440 Get:1 https://dl.cloudsmith.io/public/caddy/stable/deb/debian any-version InRelease [14.8 kB]
+
+[2026-09-08T05:58:54.326Z] #33 0.791 Hit:2 http://archive.ubuntu.com/ubuntu resolute InRelease
+
+[2026-09-08T05:58:54.459Z] #33 0.925 Hit:3 http://archive.ubuntu.com/ubuntu resolute-updates InRelease
+
+[2026-09-08T05:58:54.592Z] #33 1.058 Hit:4 http://archive.ubuntu.com/ubuntu resolute-backports InRelease
+
+[2026-09-08T05:58:54.761Z] #33 1.076 Hit:5 https://ppa.launchpadcontent.net/fish-shell/release-4/ubuntu resolute InRelease
+
+[2026-09-08T05:58:54.934Z] #33 1.399 Hit:6 http://security.ubuntu.com/ubuntu resolute-security InRelease
+
+[2026-09-08T05:58:55.101Z] #33 1.417 Fetched 14.8 kB in 1s (14.3 kB/s)
+#33 1.417 Reading package lists...
+[2026-09-08T05:58:55.342Z] 
+
+[2026-09-08T05:58:55.508Z] #33 1.823 Reading package lists...
+[2026-09-08T05:58:55.761Z] 
+
+[2026-09-08T05:58:55.889Z] #33 2.234 Building dependency tree...
+#33 2.354 Reading state information...
+[2026-09-08T05:58:56.020Z] 
+#33 2.373 ca-certificates is already the newest version (20260601~26.04.1).
+#33 2.373 Solving dependencies...
+#33 2.486 0 upgraded, 0 newly installed, 0 to remove and 12 not upgraded.
+
+[2026-09-08T05:58:56.178Z] #33 2.493 Reading package lists...
+[2026-09-08T05:58:56.441Z] 
+
+[2026-09-08T05:58:56.558Z] #33 2.915 Building dependency tree...
+#33 3.024 Reading state information...
+[2026-09-08T05:58:56.671Z] 
+#33 3.041 inotify-tools is already the newest version (4.25.9.0-1).
+#33 3.041 Solving dependencies...
+#33 3.137 The following additional packages will be installed:
+#33 3.137   adwaita-icon-theme alacritty alsa-topology-conf alsa-ucm-conf at-spi2-common
+#33 3.137   at-spi2-core dbus dbus-bin dbus-daemon dbus-session-bus-common
+#33 3.137   dbus-system-bus-common dbus-user-session dconf-gsettings-backend
+
+[2026-09-08T05:58:56.788Z] #33 3.137   dconf-service fontconfig fontconfig-config glycin-loaders
+#33 3.137   glycin-thumbnailers gsettings-desktop-schemas gtk-update-icon-cache
+#33 3.137   hicolor-icon-theme ibus-gtk3 libaom3 libasound2-data libatspi2.0-0t64
+#33 3.137   libauthen-sasl-perl libavahi-client3 libavahi-common-data libavahi-common3
+#33 3.137   libcairo-gobject2 libclone-perl libcolord2 libcrypt-urandom-perl
+#33 3.137   libdata-dump-perl libdatrie1 libdbus-1-3 libdconf1 libdisplay-info3
+#33 3.137   libdrm-amdgpu1 libdrm-common libdrm-intel1 libdrm2 libencode-locale-perl
+#33 3.137   libepoxy0 libfile-basedir-perl libfile-desktopentry-perl
+#33 3.137   libfile-listing-perl libfile-mimeinfo-perl libfont-afm-perl libfontconfig1
+
+[2026-09-08T05:58:56.789Z] #33 3.137   libfreetype6 libfribidi0 libgdk-pixbuf-2.0-0 libgdk-pixbuf2.0-common libgl1
+#33 3.137   libgl1-mesa-dri libglib2.0-data libglvnd0 libglx-mesa0 libglx0 libglycin-2-0
+#33 3.137   libgraphite2-3 libgtk-3-bin libgtk-3-common libharfbuzz0b
+#33 3.137   libheif-plugin-aomdec libheif-plugin-aomenc libheif1 libhtml-form-perl
+#33 3.137   libhtml-format-perl libhtml-parser-perl libhtml-tagset-perl
+#33 3.137   libhtml-tree-perl libhttp-cookies-perl libhttp-daemon-perl libhttp-date-perl
+#33 3.137   libhttp-message-perl libhttp-negotiate-perl libhwy1t64 libibus-1.0-5 libice6
+#33 3.137   libio-html-perl libio-socket-ssl-perl libio-stringy-perl
+#33 3.137   libipc-system-simple-perl libjxl0.11 liblcms2-2 libllvm21
+#33 3.137   liblwp-mediatypes-perl liblwp-protocol-https-perl libmailtools-perl
+#33 3.137   libnet-dbus-perl libnet-http-perl libnet-smtp-ssl-perl libnet-ssleay-perl
+#33 3.137   libnspr4 libnss-systemd libpam-systemd libpangocairo-1.0-0 libpangoft2-1.0-0
+#33 3.137   libpciaccess0 libpixman-1-0 libpng16-16t64 libqrencode4 librsvg2-2
+#33 3.138   librsvg2-common libsensors-config libsensors5 libsharpyuv0 libsm6
+#33 3.138   libtext-iconv-perl libthai-data libthai0 libtie-ixhash-perl libtimedate-perl
+#33 3.138   libtry-tiny-perl liburi-perl libvulkan1 libwayland-client0
+#33 3.138   libwayland-cursor0 libwayland-egl1 libwww-perl libwww-robotrules-perl
+#33 3.138   libx11-6 libx11-data libx11-protocol-perl libx11-xcb1 libxau6 libxaw7
+#33 3.138   libxcb-dri3-0 libxcb-glx0 libxcb-present0 libxcb-randr0 libxcb-render0
+#33 3.138   libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb1
+#33 3.138   libxcursor1 libxdmcp6 libxext6 libxfixes3 libxft2 libxi6 libxinerama1
+#33 3.138   libxkbcommon-x11-0 libxkbfile1 libxml-parser-perl libxml-twig-perl
+#33 3.138   libxml-xpathengine-perl libxmu6 libxmuu1 libxpm4 libxrender1 libxres1
+#33 3.138   libxshmfence1 libxt6t64 libxtst6 libxv1 libxxf86dga1 libxxf86vm1 luit
+#33 3.138   mesa-libgallium mesa-vulkan-drivers ncurses-term perl-openssl-defaults
+#33 3.138   qrencode shared-mime-info systemd-sysv user-session-migration wl-clipboard
+#33 3.138   x11-common x11-utils x11-xserver-utils xauth xclip xdg-user-dirs xdg-utils
+#33 3.138   xkb-data
+#33 3.138 Suggested packages:
+#33 3.138   adwaita-icon-theme-legacy libheif-plugin-x265 | libheif-plugin-kvazaar
+#33 3.138   alsa-utils libasound2-plugins libdigest-hmac-perl libgssapi-perl colord
+#33 3.138   cups-common low-memory-monitor gvfs libheif-plugin-libde265
+#33 3.138   libheif-plugin-x265 libheif-plugin-ffmpegdec libheif-plugin-jpegdec
+#33 3.138   libheif-plugin-jpegenc libheif-plugin-j2kdec libheif-plugin-j2kenc
+#33 3.138   libheif-plugin-kvazaar libheif-plugin-rav1e libheif-plugin-svtenc
+#33 3.138   libio-compress-brotli-perl liblcms2-utils libcrypt-ssleay-perl
+#33 3.138   libcryptsetup12 libtss2-esys-3.0.2-0t64 libtss2-mu-4.0.1-0t64 libtss2-rc0t64
+#33 3.138   systemd-userdbd pciutils librsvg2-bin lm-sensors libsub-name-perl
+#33 3.138   libbusiness-isbn-perl libmime-base32-perl libregexp-ipv6-perl
+#33 3.138   libauthen-ntlm-perl libunicode-map8-perl libunicode-string-perl
+#33 3.138   xml-twig-tools libxml-simple-perl python ruby debhelper mesa-utils nickle
+#33 3.138   cairo-5c xorg-docs-core
+#33 3.254 The following NEW packages will be installed:
+#33 3.254   adwaita-icon-theme alacritty alsa-topology-conf alsa-ucm-conf at-spi2-common
+
+[2026-09-08T05:58:56.941Z] #33 3.254   at-spi2-core dbus dbus-bin dbus-daemon dbus-session-bus-common
+#33 3.254   dbus-system-bus-common dbus-user-session dconf-gsettings-backend
+#33 3.254   dconf-service fontconfig fontconfig-config glycin-loaders
+#33 3.254   glycin-thumbnailers gsettings-desktop-schemas gtk-update-icon-cache
+#33 3.254   hicolor-icon-theme ibus-gtk3 libaom3 libasound2-data libasound2t64
+#33 3.254   libatk-bridge2.0-0t64 libatk1.0-0t64 libatspi2.0-0t64 libauthen-sasl-perl
+#33 3.254   libavahi-client3 libavahi-common-data libavahi-common3 libcairo-gobject2
+#33 3.254   libcairo2 libclone-perl libcolord2 libcrypt-urandom-perl libcups2t64
+
+[2026-09-08T05:58:56.941Z] #33 3.254   libdata-dump-perl libdatrie1 libdbus-1-3 libdconf1 libdisplay-info3
+#33 3.254   libdrm-amdgpu1 libdrm-common libdrm-intel1 libdrm2 libencode-locale-perl
+#33 3.254   libepoxy0 libfile-basedir-perl libfile-desktopentry-perl
+#33 3.254   libfile-listing-perl libfile-mimeinfo-perl libfont-afm-perl libfontconfig1
+#33 3.254   libfreetype6 libfribidi0 libgbm1 libgdk-pixbuf-2.0-0 libgdk-pixbuf2.0-common
+#33 3.254   libgl1 libgl1-mesa-dri libglib2.0-0t64 libglib2.0-data libglvnd0
+#33 3.254   libglx-mesa0 libglx0 libglycin-2-0 libgraphite2-3 libgtk-3-0t64 libgtk-3-bin
+#33 3.254   libgtk-3-common libharfbuzz0b libheif-plugin-aomdec libheif-plugin-aomenc
+#33 3.254   libheif1 libhtml-form-perl libhtml-format-perl libhtml-parser-perl
+#33 3.254   libhtml-tagset-perl libhtml-tree-perl libhttp-cookies-perl
+#33 3.254   libhttp-daemon-perl libhttp-date-perl libhttp-message-perl
+#33 3.254   libhttp-negotiate-perl libhwy1t64 libibus-1.0-5 libice6 libio-html-perl
+#33 3.254   libio-socket-ssl-perl libio-stringy-perl libipc-system-simple-perl
+#33 3.254   libjxl0.11 liblcms2-2 libllvm21 liblwp-mediatypes-perl
+#33 3.254   liblwp-protocol-https-perl libmailtools-perl libnet-dbus-perl
+#33 3.254   libnet-http-perl libnet-smtp-ssl-perl libnet-ssleay-perl libnspr4
+#33 3.254   libnss-systemd libnss3 libpam-systemd libpango-1.0-0 libpangocairo-1.0-0
+#33 3.254   libpangoft2-1.0-0 libpciaccess0 libpixman-1-0 libpng16-16t64 libqrencode4
+#33 3.255   librsvg2-2 librsvg2-common libsensors-config libsensors5 libsharpyuv0 libsm6
+#33 3.255   libtext-iconv-perl libthai-data libthai0 libtie-ixhash-perl libtimedate-perl
+#33 3.255   libtry-tiny-perl liburi-perl libvulkan1 libwayland-client0
+#33 3.255   libwayland-cursor0 libwayland-egl1 libwww-perl libwww-robotrules-perl
+#33 3.255   libx11-6 libx11-data libx11-protocol-perl libx11-xcb1 libxau6 libxaw7
+#33 3.255   libxcb-dri3-0 libxcb-glx0 libxcb-present0 libxcb-randr0 libxcb-render0
+#33 3.255   libxcb-shape0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxcb-xkb1 libxcb1
+#33 3.255   libxcomposite1 libxcursor1 libxdamage1 libxdmcp6 libxext6 libxfixes3 libxft2
+#33 3.255   libxi6 libxinerama1 libxkbcommon-x11-0 libxkbcommon0 libxkbfile1
+#33 3.255   libxml-parser-perl libxml-twig-perl libxml-xpathengine-perl libxmu6 libxmuu1
+#33 3.255   libxpm4 libxrandr2 libxrender1 libxres1 libxshmfence1 libxt6t64 libxtst6
+#33 3.255   libxv1 libxxf86dga1 libxxf86vm1 luit mesa-libgallium mesa-vulkan-drivers
+#33 3.255   ncurses-term pass perl-openssl-defaults qrencode shared-mime-info
+#33 3.255   systemd-sysv user-session-migration wl-clipboard x11-common x11-utils
+#33 3.255   x11-xserver-utils xauth xclip xdg-user-dirs xdg-utils xkb-data
+
+[2026-09-08T05:58:56.960Z] #33 3.426 0 upgraded, 196 newly installed, 0 to remove and 12 not upgraded.
+#33 3.426 Need to get 97.0 MB of archives.
+#33 3.426 After this operation, 440 MB of additional disk space will be used.
+#33 3.426 Get:1 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 systemd-sysv amd64 259.5-0ubuntu3.4 [9250 B]
+
+[2026-09-08T05:58:57.178Z] #33 3.493 Get:2 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdbus-1-3 amd64 1.16.2-2ubuntu4 [186 kB]
+
+[2026-09-08T05:58:57.253Z] #33 3.718 Get:3 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus-bin amd64 1.16.2-2ubuntu4 [40.1 kB]
+
+[2026-09-08T05:58:57.385Z] #33 3.734 Get:4 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus-session-bus-common all 1.16.2-2ubuntu4 [54.5 kB]
+#33 3.755 Get:5 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus-daemon amd64 1.16.2-2ubuntu4 [119 kB]
+#33 3.791 Get:6 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus-system-bus-common all 1.16.2-2ubuntu4 [55.9 kB]
+#33 3.804 Get:7 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus amd64 1.16.2-2ubuntu4 [24.2 kB]
+#33 3.809 Get:8 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libpam-systemd amd64 259.5-0ubuntu3.4 [274 kB]
+#33 3.851 Get:9 http://archive.ubuntu.com/ubuntu resolute/main amd64 dbus-user-session amd64 1.16.2-2ubuntu4 [9682 B]
+
+[2026-09-08T05:58:57.496Z] #33 3.852 Get:10 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfribidi0 amd64 1.0.16-5 [26.6 kB]
+#33 3.856 Get:11 http://archive.ubuntu.com/ubuntu resolute/main amd64 libglib2.0-0t64 amd64 2.88.0-1 [1597 kB]
+#33 3.962 Get:12 http://archive.ubuntu.com/ubuntu resolute/main amd64 libglib2.0-data all 2.88.0-1 [37.8 kB]
+
+[2026-09-08T05:58:57.657Z] #33 3.963 Get:13 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libnss-systemd amd64 259.5-0ubuntu3.4 [227 kB]
+#33 3.972 Get:14 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtext-iconv-perl amd64 1.7-8.1 [13.6 kB]
+#33 3.972 Get:15 http://archive.ubuntu.com/ubuntu resolute/main amd64 shared-mime-info amd64 2.4-5build3 [476 kB]
+#33 3.988 Get:16 http://archive.ubuntu.com/ubuntu resolute/main amd64 xdg-user-dirs amd64 0.19-1 [19.3 kB]
+#33 3.989 Get:17 http://archive.ubuntu.com/ubuntu resolute/main amd64 xkb-data all 2.46-2 [393 kB]
+#33 4.000 Get:18 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdrm-common all 2.4.131-1 [9774 B]
+#33 4.001 Get:19 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdrm2 amd64 2.4.131-1 [42.3 kB]
+#33 4.002 Get:20 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpng16-16t64 amd64 1.6.57-1 [194 kB]
+#33 4.056 Get:21 http://archive.ubuntu.com/ubuntu resolute/main amd64 libsensors-config all 1:3.6.2-2build1 [6862 B]
+
+[2026-09-08T05:58:57.657Z] #33 4.056 Get:22 http://archive.ubuntu.com/ubuntu resolute/main amd64 libsensors5 amd64 1:3.6.2-2build1 [28.9 kB]
+#33 4.057 Get:23 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxau6 amd64 1:1.0.11-1build2 [7502 B]
+#33 4.057 Get:24 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxdmcp6 amd64 1:1.1.5-2 [10.8 kB]
+#33 4.057 Get:25 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb1 amd64 1.17.0-2ubuntu1 [49.0 kB]
+#33 4.058 Get:26 http://archive.ubuntu.com/ubuntu resolute/main amd64 libx11-data all 2:1.8.13-1 [114 kB]
+#33 4.123 Get:27 http://archive.ubuntu.com/ubuntu resolute/main amd64 libx11-6 amd64 2:1.8.13-1 [657 kB]
+
+[2026-09-08T05:58:57.790Z] #33 4.131 Get:28 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxext6 amd64 2:1.3.4-1build3 [30.8 kB]
+#33 4.132 Get:29 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxkbcommon0 amd64 1.13.1-1 [159 kB]
+#33 4.134 Get:30 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxmuu1 amd64 2:1.1.3-4 [9450 B]
+#33 4.190 Get:31 http://archive.ubuntu.com/ubuntu resolute/main amd64 xauth amd64 1:1.1.2-1.1build1 [25.7 kB]
+#33 4.190 Get:32 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libfreetype6 amd64 2.14.2+dfsg-1ubuntu0.1 [409 kB]
+#33 4.195 Get:33 http://archive.ubuntu.com/ubuntu resolute/main amd64 fontconfig-config amd64 2.17.1-3ubuntu1 [38.5 kB]
+#33 4.196 Get:34 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfontconfig1 amd64 2.17.1-3ubuntu1 [144 kB]
+#33 4.198 Get:35 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpixman-1-0 amd64 0.46.4-1 [287 kB]
+#33 4.202 Get:36 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-render0 amd64 1.17.0-2ubuntu1 [16.2 kB]
+#33 4.256 Get:37 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-shm0 amd64 1.17.0-2ubuntu1 [5808 B]
+
+[2026-09-08T05:58:57.891Z] #33 4.256 Get:38 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxrender1 amd64 1:0.9.12-1build1 [19.2 kB]
+#33 4.256 Get:39 http://archive.ubuntu.com/ubuntu resolute/main amd64 libcairo2 amd64 1.18.4-3 [579 kB]
+#33 4.264 Get:40 http://archive.ubuntu.com/ubuntu resolute/main amd64 libsharpyuv0 amd64 1.5.0-0.1build1 [17.6 kB]
+#33 4.322 Get:41 http://archive.ubuntu.com/ubuntu resolute/main amd64 libaom3 amd64 3.13.1-2 [1970 kB]
+#33 4.349 Get:42 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libheif-plugin-aomdec amd64 1.21.2-3ubuntu0.4 [14.7 kB]
+#33 4.349 Get:43 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libheif1 amd64 1.21.2-3ubuntu0.4 [546 kB]
+#33 4.357 Get:44 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhwy1t64 amd64 1.3.0-2 [768 kB]
+
+[2026-09-08T05:58:57.991Z] #33 4.367 Get:45 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 liblcms2-2 amd64 2.17-1ubuntu0.2 [169 kB]
+#33 4.369 Get:46 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libjxl0.11 amd64 0.11.1-6ubuntu4.2 [1269 kB]
+#33 4.388 Get:47 http://archive.ubuntu.com/ubuntu resolute/main amd64 libcairo-gobject2 amd64 1.18.4-3 [127 kB]
+#33 4.390 Get:48 http://archive.ubuntu.com/ubuntu resolute/main amd64 fontconfig amd64 2.17.1-3ubuntu1 [180 kB]
+#33 4.393 Get:49 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libgraphite2-3 amd64 1.3.14-11ubuntu1.1 [72.9 kB]
+#33 4.394 Get:50 http://archive.ubuntu.com/ubuntu resolute/main amd64 libharfbuzz0b amd64 12.3.2-2 [519 kB]
+#33 4.455 Get:51 http://archive.ubuntu.com/ubuntu resolute/main amd64 libthai-data all 0.1.30-1 [155 kB]
+
+[2026-09-08T05:58:57.992Z] #33 4.457 Get:52 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdatrie1 amd64 0.2.14-1 [19.8 kB]
+
+[2026-09-08T05:58:58.191Z] #33 4.457 Get:53 http://archive.ubuntu.com/ubuntu resolute/main amd64 libthai0 amd64 0.1.30-1 [19.2 kB]
+#33 4.457 Get:54 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpango-1.0-0 amd64 1.57.0-1 [241 kB]
+#33 4.461 Get:55 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpangoft2-1.0-0 amd64 1.57.0-1 [53.3 kB]
+#33 4.462 Get:56 http://archive.ubuntu.com/ubuntu resolute/main amd64 libpangocairo-1.0-0 amd64 1.57.0-1 [29.0 kB]
+#33 4.522 Get:57 http://archive.ubuntu.com/ubuntu resolute/main amd64 librsvg2-2 amd64 2.61.3+dfsg-3 [1865 kB]
+#33 4.546 Get:58 http://archive.ubuntu.com/ubuntu resolute/main amd64 glycin-loaders amd64 2.1.1+ds-0ubuntu1 [2979 kB]
+#33 4.656 Get:59 http://archive.ubuntu.com/ubuntu resolute/main amd64 libglycin-2-0 amd64 2.1.1+ds-0ubuntu1 [1484 kB]
+
+[2026-09-08T05:58:58.324Z] #33 4.691 Get:60 http://archive.ubuntu.com/ubuntu resolute/main amd64 glycin-thumbnailers amd64 2.1.1+ds-0ubuntu1 [223 kB]
+#33 4.693 Get:61 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgdk-pixbuf2.0-common all 2.44.5+dfsg-4ubuntu1 [5754 B]
+#33 4.693 Get:62 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgdk-pixbuf-2.0-0 amd64 2.44.5+dfsg-4ubuntu1 [101 kB]
+#33 4.693 Get:63 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 gtk-update-icon-cache amd64 4.22.4+ds-0ubuntu0.1 [42.7 kB]
+#33 4.693 Get:64 http://archive.ubuntu.com/ubuntu resolute/main amd64 hicolor-icon-theme all 0.18-2build1 [13.2 kB]
+#33 4.694 Get:65 http://archive.ubuntu.com/ubuntu resolute/main amd64 adwaita-icon-theme all 50.0-1 [580 kB]
+#33 4.696 Get:66 http://archive.ubuntu.com/ubuntu resolute/main amd64 libwayland-client0 amd64 1.24.0-2 [28.5 kB]
+#33 4.696 Get:67 http://archive.ubuntu.com/ubuntu resolute/main amd64 libwayland-egl1 amd64 1.24.0-2 [6248 B]
+#33 4.724 Get:68 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-xkb1 amd64 1.17.0-2ubuntu1 [32.7 kB]
+#33 4.790 Get:69 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxkbcommon-x11-0 amd64 1.13.1-1 [15.0 kB]
+
+[2026-09-08T05:58:58.429Z] #33 4.790 Get:70 http://archive.ubuntu.com/ubuntu resolute/main amd64 ncurses-term all 6.6+20251231-1 [280 kB]
+#33 4.794 Get:71 http://archive.ubuntu.com/ubuntu resolute/universe amd64 alacritty amd64 0.16.1-2ubuntu1 [2664 kB]
+#33 4.894 Get:72 http://archive.ubuntu.com/ubuntu resolute/main amd64 alsa-topology-conf all 1.2.5.1-3build1 [15.6 kB]
+
+[2026-09-08T05:58:58.592Z] #33 4.894 Get:73 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libasound2-data all 1.2.15.3-1ubuntu1.1 [19.6 kB]
+#33 4.895 Get:74 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libasound2t64 amd64 1.2.15.3-1ubuntu1.1 [416 kB]
+#33 4.958 Get:75 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 alsa-ucm-conf all 1.2.15.3-1ubuntu1.5 [106 kB]
+#33 4.959 Get:76 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 at-spi2-common all 2.60.4-0ubuntu0.1 [6604 B]
+#33 4.959 Get:77 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxi6 amd64 2:1.8.2-2 [33.1 kB]
+#33 4.959 Get:78 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxres1 amd64 2:1.2.1-1build2 [7036 B]
+#33 4.960 Get:79 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libatspi2.0-0t64 amd64 2.60.4-0ubuntu0.1 [85.5 kB]
+#33 4.961 Get:80 http://archive.ubuntu.com/ubuntu resolute/main amd64 x11-common all 1:7.7+26ubuntu1 [22.5 kB]
+#33 4.991 Get:81 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxtst6 amd64 2:1.2.5-1build1 [13.1 kB]
+#33 4.991 Get:82 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdconf1 amd64 0.49.0-4 [40.5 kB]
+#33 4.991 Get:83 http://archive.ubuntu.com/ubuntu resolute/main amd64 dconf-service amd64 0.49.0-4 [27.7 kB]
+#33 5.058 Get:84 http://archive.ubuntu.com/ubuntu resolute/main amd64 dconf-gsettings-backend amd64 0.49.0-4 [22.2 kB]
+
+[2026-09-08T05:58:58.725Z] #33 5.058 Get:85 http://archive.ubuntu.com/ubuntu resolute/main amd64 user-session-migration amd64 0.5.1 [10.7 kB]
+#33 5.059 Get:86 http://archive.ubuntu.com/ubuntu resolute/main amd64 gsettings-desktop-schemas all 50.0-1ubuntu2 [37.8 kB]
+#33 5.059 Get:87 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 at-spi2-core amd64 2.60.4-0ubuntu0.1 [59.6 kB]
+#33 5.059 Get:88 http://archive.ubuntu.com/ubuntu resolute/main amd64 libibus-1.0-5 amd64 1.5.34~rc2-1 [181 kB]
+#33 5.062 Get:89 http://archive.ubuntu.com/ubuntu resolute/main amd64 ibus-gtk3 amd64 1.5.34~rc2-1 [19.7 kB]
+#33 5.062 Get:90 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libatk1.0-0t64 amd64 2.60.4-0ubuntu0.1 [53.5 kB]
+#33 5.124 Get:91 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libatk-bridge2.0-0t64 amd64 2.60.4-0ubuntu0.1 [67.2 kB]
+#33 5.125 Get:92 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libavahi-common-data amd64 0.8-18ubuntu1.1 [27.2 kB]
+#33 5.126 Get:93 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libavahi-common3 amd64 0.8-18ubuntu1.1 [23.6 kB]
+#33 5.191 Get:94 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libavahi-client3 amd64 0.8-18ubuntu1.1 [27.2 kB]
+
+[2026-09-08T05:58:58.929Z] #33 5.191 Get:95 http://archive.ubuntu.com/ubuntu resolute/main amd64 libclone-perl amd64 0.47-1 [10.7 kB]
+#33 5.191 Get:96 http://archive.ubuntu.com/ubuntu resolute/main amd64 libcolord2 amd64 1.4.8-3 [150 kB]
+#33 5.193 Get:97 http://archive.ubuntu.com/ubuntu resolute/main amd64 libcrypt-urandom-perl amd64 0.55-1 [14.8 kB]
+#33 5.193 Get:98 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libcups2t64 amd64 2.4.16-1ubuntu1.3 [269 kB]
+#33 5.197 Get:99 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdata-dump-perl all 1.25-1 [25.9 kB]
+#33 5.198 Get:100 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdisplay-info3 amd64 0.3.0-1 [87.8 kB]
+#33 5.258 Get:101 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdrm-amdgpu1 amd64 2.4.131-1 [23.2 kB]
+#33 5.394 Get:102 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libpciaccess0 amd64 0.18.1-1ubuntu4.1 [19.0 kB]
+
+[2026-09-08T05:58:59.065Z] #33 5.531 Get:103 http://archive.ubuntu.com/ubuntu resolute/main amd64 libdrm-intel1 amd64 2.4.131-1 [66.7 kB]
+
+[2026-09-08T05:58:59.176Z] #33 5.642 Get:104 http://archive.ubuntu.com/ubuntu resolute/main amd64 libencode-locale-perl all 1.05-3 [11.6 kB]
+
+[2026-09-08T05:58:59.315Z] #33 5.655 Get:105 http://archive.ubuntu.com/ubuntu resolute/main amd64 libepoxy0 amd64 1.5.10-2build1 [226 kB]
+#33 5.780 Get:106 http://archive.ubuntu.com/ubuntu resolute/main amd64 libipc-system-simple-perl all 1.30-2 [22.3 kB]
+
+[2026-09-08T05:58:59.533Z] #33 5.786 Get:107 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfile-basedir-perl all 0.09-2 [14.4 kB]
+#33 5.791 Get:108 http://archive.ubuntu.com/ubuntu resolute/main amd64 liburi-perl all 5.34-2build1 [100 kB]
+#33 5.815 Get:109 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfile-desktopentry-perl all 0.23-1 [16.9 kB]
+#33 5.819 Get:110 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtimedate-perl all 2.3300-2 [34.0 kB]
+#33 5.826 Get:111 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libhttp-date-perl all 6.06-1ubuntu0.26.04.1 [10.6 kB]
+#33 5.828 Get:112 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfile-listing-perl all 6.16-1 [11.3 kB]
+#33 5.830 Get:113 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfile-mimeinfo-perl all 0.36-2 [40.6 kB]
+#33 5.838 Get:114 http://archive.ubuntu.com/ubuntu resolute/main amd64 libfont-afm-perl all 1.20-4 [13.0 kB]
+#33 5.848 Get:115 http://archive.ubuntu.com/ubuntu resolute/main amd64 libllvm21 amd64 1:21.1.8-6ubuntu1 [30.7 MB]
+
+[2026-09-08T05:59:00.015Z] #33 6.481 Get:116 http://archive.ubuntu.com/ubuntu resolute/main amd64 libx11-xcb1 amd64 2:1.8.13-1 [7960 B]
+
+[2026-09-08T05:59:00.167Z] #33 6.481 Get:117 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-dri3-0 amd64 1.17.0-2ubuntu1 [7540 B]
+#33 6.481 Get:118 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-present0 amd64 1.17.0-2ubuntu1 [6112 B]
+#33 6.481 Get:119 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-randr0 amd64 1.17.0-2ubuntu1 [17.9 kB]
+#33 6.482 Get:120 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-sync1 amd64 1.17.0-2ubuntu1 [9348 B]
+#33 6.482 Get:121 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-xfixes0 amd64 1.17.0-2ubuntu1 [10.2 kB]
+#33 6.482 Get:122 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxshmfence1 amd64 1.3.3-1build1 [5284 B]
+#33 6.482 Get:123 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 mesa-libgallium amd64 26.0.8-1ubuntu0.3 [11.2 MB]
+
+[2026-09-08T05:59:00.204Z] #33 6.670 Get:124 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libgbm1 amd64 26.0.8-1ubuntu0.3 [49.2 kB]
+
+[2026-09-08T05:59:00.340Z] #33 6.670 Get:125 http://archive.ubuntu.com/ubuntu resolute/main amd64 libvulkan1 amd64 1.4.341.0-1 [157 kB]
+#33 6.671 Get:126 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libgl1-mesa-dri amd64 26.0.8-1ubuntu0.3 [38.2 kB]
+#33 6.671 Get:127 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-glx0 amd64 1.17.0-2ubuntu1 [24.7 kB]
+#33 6.671 Get:128 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxxf86vm1 amd64 1:1.1.4-2 [10.6 kB]
+#33 6.672 Get:129 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libglx-mesa0 amd64 26.0.8-1ubuntu0.3 [126 kB]
+#33 6.673 Get:130 http://archive.ubuntu.com/ubuntu resolute/main amd64 libwayland-cursor0 amd64 1.24.0-2 [10.8 kB]
+
+[2026-09-08T05:59:00.340Z] #33 6.673 Get:131 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcomposite1 amd64 1:0.4.6-1build1 [6664 B]
+#33 6.673 Get:132 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxfixes3 amd64 1:6.0.0-2build2 [11.1 kB]
+#33 6.738 Get:133 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcursor1 amd64 1:1.2.3-1build1 [22.1 kB]
+#33 6.806 Get:134 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxdamage1 amd64 1:1.1.7-1 [6582 B]
+
+[2026-09-08T05:59:00.510Z] #33 6.806 Get:135 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxinerama1 amd64 2:1.1.4-3build2 [6472 B]
+#33 6.806 Get:136 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxrandr2 amd64 2:1.5.4-1build1 [19.6 kB]
+#33 6.806 Get:137 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgtk-3-common all 3.24.52-0ubuntu1 [1424 kB]
+#33 6.824 Get:138 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgtk-3-0t64 amd64 3.24.52-0ubuntu1 [3072 kB]
+
+[2026-09-08T05:59:00.510Z] #33 6.976 Get:139 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgtk-3-bin amd64 3.24.52-0ubuntu1 [73.9 kB]
+
+[2026-09-08T05:59:00.646Z] #33 6.976 Get:140 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libheif-plugin-aomenc amd64 1.21.2-3ubuntu0.4 [21.0 kB]
+#33 6.977 Get:141 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhtml-tagset-perl all 3.24-1 [14.1 kB]
+#33 6.977 Get:142 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libhtml-parser-perl amd64 3.83-1ubuntu0.1 [85.7 kB]
+#33 6.978 Get:143 http://archive.ubuntu.com/ubuntu resolute/main amd64 libio-html-perl all 1.004-3 [15.9 kB]
+#33 6.978 Get:144 http://archive.ubuntu.com/ubuntu resolute/main amd64 liblwp-mediatypes-perl all 6.04-2 [20.1 kB]
+#33 6.978 Get:145 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhttp-message-perl all 7.01-1ubuntu1 [76.1 kB]
+#33 6.978 Get:146 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhtml-form-perl all 6.13-1build1 [31.3 kB]
+#33 6.979 Get:147 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhtml-tree-perl all 5.07-3 [200 kB]
+#33 7.043 Get:148 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhtml-format-perl all 2.16-2 [36.9 kB]
+#33 7.048 Get:149 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhttp-cookies-perl all 6.11-1 [18.2 kB]
+#33 7.049 Get:150 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libhttp-daemon-perl all 6.16-1ubuntu0.26.04.1 [22.1 kB]
+#33 7.049 Get:151 http://archive.ubuntu.com/ubuntu resolute/main amd64 libhttp-negotiate-perl all 6.01-2 [12.4 kB]
+
+[2026-09-08T05:59:00.646Z] #33 7.049 Get:152 http://archive.ubuntu.com/ubuntu resolute/main amd64 libice6 amd64 2:1.1.1-1build1 [44.0 kB]
+#33 7.050 Get:153 http://archive.ubuntu.com/ubuntu resolute/main amd64 perl-openssl-defaults amd64 7build4 [6710 B]
+#33 7.050 Get:154 http://archive.ubuntu.com/ubuntu resolute/main amd64 libnet-ssleay-perl amd64 1.94-3 [318 kB]
+#33 7.054 Get:155 http://archive.ubuntu.com/ubuntu resolute/main amd64 libio-socket-ssl-perl all 2.098-1 [205 kB]
+#33 7.111 Get:156 http://archive.ubuntu.com/ubuntu resolute/main amd64 libio-stringy-perl all 2.113-2 [45.3 kB]
+
+[2026-09-08T05:59:00.780Z] #33 7.112 Get:157 http://archive.ubuntu.com/ubuntu resolute/main amd64 libnet-http-perl all 6.24-1build1 [21.7 kB]
+#33 7.178 Get:158 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtry-tiny-perl all 0.32-1 [21.2 kB]
+#33 7.178 Get:159 http://archive.ubuntu.com/ubuntu resolute/main amd64 libwww-robotrules-perl all 6.02-1build1 [12.4 kB]
+#33 7.179 Get:160 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libwww-perl all 6.81-1ubuntu0.1 [140 kB]
+#33 7.180 Get:161 http://archive.ubuntu.com/ubuntu resolute/main amd64 liblwp-protocol-https-perl all 6.14-1 [9040 B]
+#33 7.181 Get:162 http://archive.ubuntu.com/ubuntu resolute/main amd64 libnet-smtp-ssl-perl all 1.04-2 [6218 B]
+#33 7.181 Get:163 http://archive.ubuntu.com/ubuntu resolute/main amd64 libmailtools-perl all 2.22-1 [77.1 kB]
+#33 7.182 Get:164 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxml-parser-perl amd64 2.47-1ubuntu1 [201 kB]
+#33 7.245 Get:165 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxml-twig-perl all 1:3.54-1build1 [157 kB]
+[2026-09-08T05:59:00.780Z] 
+
+[2026-09-08T05:59:00.915Z] #33 7.247 Get:166 http://archive.ubuntu.com/ubuntu resolute/main amd64 libnet-dbus-perl amd64 1.2.0-2build4 [165 kB]
+#33 7.249 Get:167 http://archive.ubuntu.com/ubuntu resolute/main amd64 libnspr4 amd64 2:4.38.2-1ubuntu1 [118 kB]
+#33 7.313 Get:168 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libnss3 amd64 2:3.120-1ubuntu2.1 [1515 kB]
+#33 7.333 Get:169 http://archive.ubuntu.com/ubuntu resolute/universe amd64 libqrencode4 amd64 4.1.1-2build1 [25.9 kB]
+#33 7.333 Get:170 http://archive.ubuntu.com/ubuntu resolute/main amd64 librsvg2-common amd64 2.61.3+dfsg-3 [153 kB]
+#33 7.336 Get:171 http://archive.ubuntu.com/ubuntu resolute/main amd64 libsm6 amd64 2:1.2.6-1build1 [16.9 kB]
+#33 7.336 Get:172 http://archive.ubuntu.com/ubuntu resolute/main amd64 libtie-ixhash-perl all 1.23-4 [11.3 kB]
+#33 7.336 Get:173 http://archive.ubuntu.com/ubuntu resolute/main amd64 libx11-protocol-perl all 0.56-9 [122 kB]
+#33 7.338 Get:174 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxt6t64 amd64 1:1.2.1-1.3build1 [173 kB]
+#33 7.380 Get:175 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxmu6 amd64 2:1.1.3-4 [48.9 kB]
+
+[2026-09-08T05:59:01.049Z] #33 7.381 Get:176 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 libxpm4 amd64 1:3.5.17-1ubuntu0.26.04.1 [37.2 kB]
+#33 7.382 Get:177 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxaw7 amd64 2:1.0.16-1build1 [190 kB]
+#33 7.448 Get:178 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxcb-shape0 amd64 1.17.0-2ubuntu1 [6172 B]
+#33 7.448 Get:179 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxft2 amd64 2.3.6-1build2 [45.1 kB]
+#33 7.448 Get:180 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxkbfile1 amd64 1:1.1.0-1build5 [70.1 kB]
+#33 7.449 Get:181 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxml-xpathengine-perl all 0.14-2 [32.6 kB]
+#33 7.450 Get:182 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxv1 amd64 2:1.0.13-1 [10.8 kB]
+#33 7.450 Get:183 http://archive.ubuntu.com/ubuntu resolute/main amd64 libxxf86dga1 amd64 2:1.1.5-1build2 [11.9 kB]
+#33 7.450 Get:184 http://archive.ubuntu.com/ubuntu resolute/main amd64 luit amd64 2.0.20250912-1 [41.6 kB]
+#33 7.514 Get:185 http://archive.ubuntu.com/ubuntu resolute-updates/main amd64 mesa-vulkan-drivers amd64 26.0.8-1ubuntu0.3 [19.1 MB]
+
+[2026-09-08T05:59:01.308Z] #33 7.774 Get:186 http://archive.ubuntu.com/ubuntu resolute/universe amd64 pass all 1.7.4-8 [34.7 kB]
+
+[2026-09-08T05:59:01.443Z] #33 7.774 Get:187 http://archive.ubuntu.com/ubuntu resolute/universe amd64 qrencode amd64 4.1.1-2build1 [26.2 kB]
+#33 7.774 Get:188 http://archive.ubuntu.com/ubuntu resolute/universe amd64 wl-clipboard amd64 2.2.1-2build1 [33.8 kB]
+#33 7.775 Get:189 http://archive.ubuntu.com/ubuntu resolute/main amd64 libglvnd0 amd64 1.7.0-3 [64.1 kB]
+#33 7.775 Get:190 http://archive.ubuntu.com/ubuntu resolute/main amd64 libglx0 amd64 1.7.0-3 [38.9 kB]
+#33 7.775 Get:191 http://archive.ubuntu.com/ubuntu resolute/main amd64 libgl1 amd64 1.7.0-3 [98.3 kB]
+#33 7.775 Get:192 http://archive.ubuntu.com/ubuntu resolute/main amd64 x11-utils amd64 7.7+7build1 [191 kB]
+#33 7.776 Get:193 http://archive.ubuntu.com/ubuntu resolute/main amd64 x11-xserver-utils amd64 7.7+11build1 [171 kB]
+#33 7.777 Get:194 http://archive.ubuntu.com/ubuntu resolute/main amd64 xclip amd64 0.13-4build1 [17.2 kB]
+#33 7.842 Get:195 http://archive.ubuntu.com/ubuntu resolute/main amd64 xdg-utils all 1.2.1-2ubuntu2 [66.1 kB]
+#33 7.908 Get:196 http://archive.ubuntu.com/ubuntu resolute/main amd64 libauthen-sasl-perl all 2.2000-1 [47.8 kB]
+
+[2026-09-08T05:59:04.498Z] #33 10.96 Fetched 97.0 MB in 5s (21.0 MB/s)
+
+[2026-09-08T05:59:04.689Z] #33 10.99 Selecting previously unselected package systemd-sysv.
+#33 10.99 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 29006 files and directories currently installed.)
+#33 11.00 Preparing to unpack .../000-systemd-sysv_259.5-0ubuntu3.4_amd64.deb ...
+
+[2026-09-08T05:59:04.733Z] #33 11.20 Unpacking systemd-sysv (259.5-0ubuntu3.4) ...
+
+[2026-09-08T05:59:04.863Z] #33 11.27 Selecting previously unselected package libdbus-1-3:amd64.
+#33 11.28 Preparing to unpack .../001-libdbus-1-3_1.16.2-2ubuntu4_amd64.deb ...
+#33 11.30 Unpacking libdbus-1-3:amd64 (1.16.2-2ubuntu4) ...
+#33 11.33 Selecting previously unselected package dbus-bin.
+
+[2026-09-08T05:59:04.967Z] #33 11.33 Preparing to unpack .../002-dbus-bin_1.16.2-2ubuntu4_amd64.deb ...
+#33 11.34 Unpacking dbus-bin (1.16.2-2ubuntu4) ...
+#33 11.37 Selecting previously unselected package dbus-session-bus-common.
+#33 11.38 Preparing to unpack .../003-dbus-session-bus-common_1.16.2-2ubuntu4_all.deb ...
+#33 11.38 Unpacking dbus-session-bus-common (1.16.2-2ubuntu4) ...
+[2026-09-08T05:59:04.967Z] 
+#33 11.43 Selecting previously unselected package dbus-daemon.
+#33 11.43 Preparing to unpack .../004-dbus-daemon_1.16.2-2ubuntu4_amd64.deb ...
+
+[2026-09-08T05:59:05.071Z] #33 11.44 Unpacking dbus-daemon (1.16.2-2ubuntu4) ...
+#33 11.47 Selecting previously unselected package dbus-system-bus-common.
+#33 11.48 Preparing to unpack .../005-dbus-system-bus-common_1.16.2-2ubuntu4_all.deb ...
+#33 11.48 Unpacking dbus-system-bus-common (1.16.2-2ubuntu4) ...
+#33 11.53 Selecting previously unselected package dbus.
+#33 11.53 Preparing to unpack .../006-dbus_1.16.2-2ubuntu4_amd64.deb ...
+#33 11.54 Unpacking dbus (1.16.2-2ubuntu4) ...
+
+[2026-09-08T05:59:05.175Z] #33 11.58 Selecting previously unselected package libpam-systemd:amd64.
+#33 11.59 Preparing to unpack .../007-libpam-systemd_259.5-0ubuntu3.4_amd64.deb ...
+#33 11.59 Unpacking libpam-systemd:amd64 (259.5-0ubuntu3.4) ...
+#33 11.63 Selecting previously unselected package dbus-user-session.
+#33 11.63 Preparing to unpack .../008-dbus-user-session_1.16.2-2ubuntu4_amd64.deb ...
+#33 11.64 Unpacking dbus-user-session (1.16.2-2ubuntu4) ...
+
+[2026-09-08T05:59:05.275Z] #33 11.68 Selecting previously unselected package libfribidi0:amd64.
+#33 11.69 Preparing to unpack .../009-libfribidi0_1.0.16-5_amd64.deb ...
+#33 11.69 Unpacking libfribidi0:amd64 (1.0.16-5) ...
+#33 11.74 Selecting previously unselected package libglib2.0-0t64:amd64.
+#33 11.74 Preparing to unpack .../010-libglib2.0-0t64_2.88.0-1_amd64.deb ...
+
+[2026-09-08T05:59:05.387Z] #33 11.75 Unpacking libglib2.0-0t64:amd64 (2.88.0-1) ...
+#33 11.80 Selecting previously unselected package libglib2.0-data.
+#33 11.80 Preparing to unpack .../011-libglib2.0-data_2.88.0-1_all.deb ...
+#33 11.81 Unpacking libglib2.0-data (2.88.0-1) ...
+#33 11.85 Selecting previously unselected package libnss-systemd:amd64.
+
+[2026-09-08T05:59:05.492Z] #33 11.86 Preparing to unpack .../012-libnss-systemd_259.5-0ubuntu3.4_amd64.deb ...
+#33 11.87 Unpacking libnss-systemd:amd64 (259.5-0ubuntu3.4) ...
+#33 11.90 Selecting previously unselected package libtext-iconv-perl:amd64.
+#33 11.90 Preparing to unpack .../013-libtext-iconv-perl_1.7-8.1_amd64.deb ...
+#33 11.91 Unpacking libtext-iconv-perl:amd64 (1.7-8.1) ...
+#33 11.95 Selecting previously unselected package shared-mime-info.
+#33 11.95 Preparing to unpack .../014-shared-mime-info_2.4-5build3_amd64.deb ...
+#33 11.96 Unpacking shared-mime-info (2.4-5build3) ...
+
+[2026-09-08T05:59:05.603Z] #33 12.01 Selecting previously unselected package xdg-user-dirs.
+#33 12.02 Preparing to unpack .../015-xdg-user-dirs_0.19-1_amd64.deb ...
+#33 12.03 Unpacking xdg-user-dirs (0.19-1) ...
+#33 12.07 Selecting previously unselected package xkb-data.
+
+[2026-09-08T05:59:05.732Z] #33 12.07 Preparing to unpack .../016-xkb-data_2.46-2_all.deb ...
+#33 12.08 Unpacking xkb-data (2.46-2) ...
+#33 12.15 Selecting previously unselected package libdrm-common.
+#33 12.15 Preparing to unpack .../017-libdrm-common_2.4.131-1_all.deb ...
+#33 12.16 Unpacking libdrm-common (2.4.131-1) ...
+#33 12.20 Selecting previously unselected package libdrm2:amd64.
+
+[2026-09-08T05:59:05.835Z] #33 12.20 Preparing to unpack .../018-libdrm2_2.4.131-1_amd64.deb ...
+#33 12.21 Unpacking libdrm2:amd64 (2.4.131-1) ...
+#33 12.25 Selecting previously unselected package libpng16-16t64:amd64.
+#33 12.26 Preparing to unpack .../019-libpng16-16t64_1.6.57-1_amd64.deb ...
+#33 12.26 Unpacking libpng16-16t64:amd64 (1.6.57-1) ...
+#33 12.30 Selecting previously unselected package libsensors-config.
+#33 12.30 Preparing to unpack .../020-libsensors-config_1%3a3.6.2-2build1_all.deb ...
+
+[2026-09-08T05:59:05.936Z] #33 12.31 Unpacking libsensors-config (1:3.6.2-2build1) ...
+#33 12.35 Selecting previously unselected package libsensors5:amd64.
+#33 12.35 Preparing to unpack .../021-libsensors5_1%3a3.6.2-2build1_amd64.deb ...
+#33 12.36 Unpacking libsensors5:amd64 (1:3.6.2-2build1) ...
+#33 12.39 Selecting previously unselected package libxau6:amd64.
+#33 12.40 Preparing to unpack .../022-libxau6_1%3a1.0.11-1build2_amd64.deb ...
+#33 12.40 Unpacking libxau6:amd64 (1:1.0.11-1build2) ...
+
+[2026-09-08T05:59:06.065Z] #33 12.44 Selecting previously unselected package libxdmcp6:amd64.
+#33 12.44 Preparing to unpack .../023-libxdmcp6_1%3a1.1.5-2_amd64.deb ...
+#33 12.45 Unpacking libxdmcp6:amd64 (1:1.1.5-2) ...
+#33 12.49 Selecting previously unselected package libxcb1:amd64.
+#33 12.49 Preparing to unpack .../024-libxcb1_1.17.0-2ubuntu1_amd64.deb ...
+#33 12.50 Unpacking libxcb1:amd64 (1.17.0-2ubuntu1) ...
+#33 12.53 Selecting previously unselected package libx11-data.
+
+[2026-09-08T05:59:06.192Z] #33 12.54 Preparing to unpack .../025-libx11-data_2%3a1.8.13-1_all.deb ...
+#33 12.54 Unpacking libx11-data (2:1.8.13-1) ...
+#33 12.61 Selecting previously unselected package libx11-6:amd64.
+#33 12.61 Preparing to unpack .../026-libx11-6_2%3a1.8.13-1_amd64.deb ...
+#33 12.62 Unpacking libx11-6:amd64 (2:1.8.13-1) ...
+#33 12.66 Selecting previously unselected package libxext6:amd64.
+
+[2026-09-08T05:59:06.293Z] #33 12.66 Preparing to unpack .../027-libxext6_2%3a1.3.4-1build3_amd64.deb ...
+#33 12.67 Unpacking libxext6:amd64 (2:1.3.4-1build3) ...
+#33 12.71 Selecting previously unselected package libxkbcommon0:amd64.
+#33 12.71 Preparing to unpack .../028-libxkbcommon0_1.13.1-1_amd64.deb ...
+#33 12.72 Unpacking libxkbcommon0:amd64 (1.13.1-1) ...
+#33 12.75 Selecting previously unselected package libxmuu1:amd64.
+#33 12.76 Preparing to unpack .../029-libxmuu1_2%3a1.1.3-4_amd64.deb ...
+
+[2026-09-08T05:59:06.393Z] #33 12.76 Unpacking libxmuu1:amd64 (2:1.1.3-4) ...
+#33 12.80 Selecting previously unselected package xauth.
+#33 12.80 Preparing to unpack .../030-xauth_1%3a1.1.2-1.1build1_amd64.deb ...
+#33 12.81 Unpacking xauth (1:1.1.2-1.1build1) ...
+#33 12.85 Selecting previously unselected package libfreetype6:amd64.
+#33 12.85 Preparing to unpack .../031-libfreetype6_2.14.2+dfsg-1ubuntu0.1_amd64.deb ...
+#33 12.86 Unpacking libfreetype6:amd64 (2.14.2+dfsg-1ubuntu0.1) ...
+
+[2026-09-08T05:59:06.592Z] #33 12.91 Selecting previously unselected package fontconfig-config.
+#33 12.91 Preparing to unpack .../032-fontconfig-config_2.17.1-3ubuntu1_amd64.deb ...
+#33 13.06 Unpacking fontconfig-config (2.17.1-3ubuntu1) ...
+
+[2026-09-08T05:59:06.695Z] #33 13.15 Selecting previously unselected package libfontconfig1:amd64.
+#33 13.15 Preparing to unpack .../033-libfontconfig1_2.17.1-3ubuntu1_amd64.deb ...
+#33 13.16 Unpacking libfontconfig1:amd64 (2.17.1-3ubuntu1) ...
+
+[2026-09-08T05:59:06.798Z] #33 13.20 Selecting previously unselected package libpixman-1-0:amd64.
+#33 13.21 Preparing to unpack .../034-libpixman-1-0_0.46.4-1_amd64.deb ...
+#33 13.21 Unpacking libpixman-1-0:amd64 (0.46.4-1) ...
+#33 13.26 Selecting previously unselected package libxcb-render0:amd64.
+#33 13.26 Preparing to unpack .../035-libxcb-render0_1.17.0-2ubuntu1_amd64.deb ...
+
+[2026-09-08T05:59:06.902Z] #33 13.27 Unpacking libxcb-render0:amd64 (1.17.0-2ubuntu1) ...
+#33 13.32 Selecting previously unselected package libxcb-shm0:amd64.
+#33 13.32 Preparing to unpack .../036-libxcb-shm0_1.17.0-2ubuntu1_amd64.deb ...
+#33 13.33 Unpacking libxcb-shm0:amd64 (1.17.0-2ubuntu1) ...
+#33 13.36 Selecting previously unselected package libxrender1:amd64.
+#33 13.37 Preparing to unpack .../037-libxrender1_1%3a0.9.12-1build1_amd64.deb ...
+
+[2026-09-08T05:59:07.006Z] #33 13.37 Unpacking libxrender1:amd64 (1:0.9.12-1build1) ...
+#33 13.41 Selecting previously unselected package libcairo2:amd64.
+#33 13.42 Preparing to unpack .../038-libcairo2_1.18.4-3_amd64.deb ...
+#33 13.42 Unpacking libcairo2:amd64 (1.18.4-3) ...
+#33 13.47 Selecting previously unselected package libsharpyuv0:amd64.
+#33 13.47 Preparing to unpack .../039-libsharpyuv0_1.5.0-0.1build1_amd64.deb ...
+
+[2026-09-08T05:59:07.140Z] #33 13.48 Unpacking libsharpyuv0:amd64 (1.5.0-0.1build1) ...
+#33 13.55 Selecting previously unselected package libaom3:amd64.
+#33 13.56 Preparing to unpack .../040-libaom3_3.13.1-2_amd64.deb ...
+#33 13.56 Unpacking libaom3:amd64 (3.13.1-2) ...
+#33 13.61 Selecting previously unselected package libheif-plugin-aomdec:amd64.
+
+[2026-09-08T05:59:07.248Z] #33 13.61 Preparing to unpack .../041-libheif-plugin-aomdec_1.21.2-3ubuntu0.4_amd64.deb ...
+#33 13.62 Unpacking libheif-plugin-aomdec:amd64 (1.21.2-3ubuntu0.4) ...
+#33 13.66 Selecting previously unselected package libheif1:amd64.
+#33 13.67 Preparing to unpack .../042-libheif1_1.21.2-3ubuntu0.4_amd64.deb ...
+#33 13.67 Unpacking libheif1:amd64 (1.21.2-3ubuntu0.4) ...
+#33 13.71 Selecting previously unselected package libhwy1t64:amd64.
+
+[2026-09-08T05:59:07.383Z] #33 13.72 Preparing to unpack .../043-libhwy1t64_1.3.0-2_amd64.deb ...
+#33 13.72 Unpacking libhwy1t64:amd64 (1.3.0-2) ...
+#33 13.80 Selecting previously unselected package liblcms2-2:amd64.
+#33 13.80 Preparing to unpack .../044-liblcms2-2_2.17-1ubuntu0.2_amd64.deb ...
+#33 13.81 Unpacking liblcms2-2:amd64 (2.17-1ubuntu0.2) ...
+#33 13.85 Selecting previously unselected package libjxl0.11:amd64.
+
+[2026-09-08T05:59:07.532Z] #33 13.85 Preparing to unpack .../045-libjxl0.11_0.11.1-6ubuntu4.2_amd64.deb ...
+#33 13.86 Unpacking libjxl0.11:amd64 (0.11.1-6ubuntu4.2) ...
+#33 13.92 Selecting previously unselected package libcairo-gobject2:amd64.
+#33 13.92 Preparing to unpack .../046-libcairo-gobject2_1.18.4-3_amd64.deb ...
+#33 13.93 Unpacking libcairo-gobject2:amd64 (1.18.4-3) ...
+#33 14.00 Selecting previously unselected package fontconfig.
+
+[2026-09-08T05:59:07.644Z] #33 14.00 Preparing to unpack .../047-fontconfig_2.17.1-3ubuntu1_amd64.deb ...
+#33 14.02 Unpacking fontconfig (2.17.1-3ubuntu1) ...
+#33 14.06 Selecting previously unselected package libgraphite2-3:amd64.
+#33 14.07 Preparing to unpack .../048-libgraphite2-3_1.3.14-11ubuntu1.1_amd64.deb ...
+#33 14.07 Unpacking libgraphite2-3:amd64 (1.3.14-11ubuntu1.1) ...
+#33 14.11 Selecting previously unselected package libharfbuzz0b:amd64.
+
+[2026-09-08T05:59:07.746Z] #33 14.11 Preparing to unpack .../049-libharfbuzz0b_12.3.2-2_amd64.deb ...
+#33 14.12 Unpacking libharfbuzz0b:amd64 (12.3.2-2) ...
+#33 14.16 Selecting previously unselected package libthai-data.
+#33 14.16 Preparing to unpack .../050-libthai-data_0.1.30-1_all.deb ...
+#33 14.17 Unpacking libthai-data (0.1.30-1) ...
+#33 14.21 Selecting previously unselected package libdatrie1:amd64.
+#33 14.21 Preparing to unpack .../051-libdatrie1_0.2.14-1_amd64.deb ...
+
+[2026-09-08T05:59:07.929Z] #33 14.22 Unpacking libdatrie1:amd64 (0.2.14-1) ...
+#33 14.29 Selecting previously unselected package libthai0:amd64.
+#33 14.29 Preparing to unpack .../052-libthai0_0.1.30-1_amd64.deb ...
+#33 14.30 Unpacking libthai0:amd64 (0.1.30-1) ...
+#33 14.39 Selecting previously unselected package libpango-1.0-0:amd64.
+
+[2026-09-08T05:59:08.034Z] #33 14.40 Preparing to unpack .../053-libpango-1.0-0_1.57.0-1_amd64.deb ...
+#33 14.41 Unpacking libpango-1.0-0:amd64 (1.57.0-1) ...
+#33 14.45 Selecting previously unselected package libpangoft2-1.0-0:amd64.
+#33 14.45 Preparing to unpack .../054-libpangoft2-1.0-0_1.57.0-1_amd64.deb ...
+#33 14.46 Unpacking libpangoft2-1.0-0:amd64 (1.57.0-1) ...
+#33 14.50 Selecting previously unselected package libpangocairo-1.0-0:amd64.
+
+[2026-09-08T05:59:08.147Z] #33 14.50 Preparing to unpack .../055-libpangocairo-1.0-0_1.57.0-1_amd64.deb ...
+#33 14.51 Unpacking libpangocairo-1.0-0:amd64 (1.57.0-1) ...
+#33 14.55 Selecting previously unselected package librsvg2-2:amd64.
+#33 14.56 Preparing to unpack .../056-librsvg2-2_2.61.3+dfsg-3_amd64.deb ...
+#33 14.56 Unpacking librsvg2-2:amd64 (2.61.3+dfsg-3) ...
+#33 14.61 Selecting previously unselected package glycin-loaders.
+
+[2026-09-08T05:59:08.304Z] #33 14.62 Preparing to unpack .../057-glycin-loaders_2.1.1+ds-0ubuntu1_amd64.deb ...
+#33 14.62 Unpacking glycin-loaders (2.1.1+ds-0ubuntu1) ...
+#33 14.70 Selecting previously unselected package libglycin-2-0:amd64.
+#33 14.70 Preparing to unpack .../058-libglycin-2-0_2.1.1+ds-0ubuntu1_amd64.deb ...
+#33 14.71 Unpacking libglycin-2-0:amd64 (2.1.1+ds-0ubuntu1) ...
+#33 14.77 Selecting previously unselected package glycin-thumbnailers.
+
+[2026-09-08T05:59:08.408Z] #33 14.78 Preparing to unpack .../059-glycin-thumbnailers_2.1.1+ds-0ubuntu1_amd64.deb ...
+#33 14.78 Unpacking glycin-thumbnailers (2.1.1+ds-0ubuntu1) ...
+#33 14.81 Selecting previously unselected package libgdk-pixbuf2.0-common.
+#33 14.82 Preparing to unpack .../060-libgdk-pixbuf2.0-common_2.44.5+dfsg-4ubuntu1_all.deb ...
+#33 14.82 Unpacking libgdk-pixbuf2.0-common (2.44.5+dfsg-4ubuntu1) ...
+#33 14.86 Selecting previously unselected package libgdk-pixbuf-2.0-0:amd64.
+#33 14.87 Preparing to unpack .../061-libgdk-pixbuf-2.0-0_2.44.5+dfsg-4ubuntu1_amd64.deb ...
+#33 14.87 Unpacking libgdk-pixbuf-2.0-0:amd64 (2.44.5+dfsg-4ubuntu1) ...
+
+[2026-09-08T05:59:08.561Z] #33 14.94 Selecting previously unselected package gtk-update-icon-cache.
+#33 14.95 Preparing to unpack .../062-gtk-update-icon-cache_4.22.4+ds-0ubuntu0.1_amd64.deb ...
+#33 14.97 No diversion 'diversion of /usr/sbin/update-icon-caches to /usr/sbin/update-icon-caches.gtk2 by libgtk-3-bin', none removed.
+#33 14.97 No diversion 'diversion of /usr/share/man/man8/update-icon-caches.8.gz to /usr/share/man/man8/update-icon-caches.gtk2.8.gz by libgtk-3-bin', none removed.
+#33 14.97 Unpacking gtk-update-icon-cache (4.22.4+ds-0ubuntu0.1) ...
+#33 15.03 Selecting previously unselected package hicolor-icon-theme.
+
+[2026-09-08T05:59:08.664Z] #33 15.03 Preparing to unpack .../063-hicolor-icon-theme_0.18-2build1_all.deb ...
+#33 15.04 Unpacking hicolor-icon-theme (0.18-2build1) ...
+#33 15.13 Selecting previously unselected package adwaita-icon-theme.
+
+[2026-09-08T05:59:08.806Z] #33 15.14 Preparing to unpack .../064-adwaita-icon-theme_50.0-1_all.deb ...
+#33 15.14 Unpacking adwaita-icon-theme (50.0-1) ...
+#33 15.27 Selecting previously unselected package libwayland-client0:amd64.
+
+[2026-09-08T05:59:08.919Z] #33 15.28 Preparing to unpack .../065-libwayland-client0_1.24.0-2_amd64.deb ...
+#33 15.28 Unpacking libwayland-client0:amd64 (1.24.0-2) ...
+#33 15.33 Selecting previously unselected package libwayland-egl1:amd64.
+#33 15.34 Preparing to unpack .../066-libwayland-egl1_1.24.0-2_amd64.deb ...
+#33 15.34 Unpacking libwayland-egl1:amd64 (1.24.0-2) ...
+#33 15.38 Selecting previously unselected package libxcb-xkb1:amd64.
+
+[2026-09-08T05:59:09.025Z] #33 15.39 Preparing to unpack .../067-libxcb-xkb1_1.17.0-2ubuntu1_amd64.deb ...
+#33 15.40 Unpacking libxcb-xkb1:amd64 (1.17.0-2ubuntu1) ...
+#33 15.47 Selecting previously unselected package libxkbcommon-x11-0:amd64.
+#33 15.47 Preparing to unpack .../068-libxkbcommon-x11-0_1.13.1-1_amd64.deb ...
+#33 15.49 Unpacking libxkbcommon-x11-0:amd64 (1.13.1-1) ...
+
+[2026-09-08T05:59:09.126Z] #33 15.57 Selecting previously unselected package ncurses-term.
+#33 15.58 Preparing to unpack .../069-ncurses-term_6.6+20251231-1_all.deb ...
+#33 15.59 Unpacking ncurses-term (6.6+20251231-1) ...
+
+[2026-09-08T05:59:09.389Z] #33 15.85 Selecting previously unselected package alacritty.
+
+[2026-09-08T05:59:09.491Z] #33 15.86 Preparing to unpack .../070-alacritty_0.16.1-2ubuntu1_amd64.deb ...
+#33 15.87 Unpacking alacritty (0.16.1-2ubuntu1) ...
+#33 15.96 Selecting previously unselected package alsa-topology-conf.
+
+[2026-09-08T05:59:09.598Z] #33 15.96 Preparing to unpack .../071-alsa-topology-conf_1.2.5.1-3build1_all.deb ...
+#33 15.97 Unpacking alsa-topology-conf (1.2.5.1-3build1) ...
+#33 16.01 Selecting previously unselected package libasound2-data.
+#33 16.01 Preparing to unpack .../072-libasound2-data_1.2.15.3-1ubuntu1.1_all.deb ...
+#33 16.02 Unpacking libasound2-data (1.2.15.3-1ubuntu1.1) ...
+#33 16.06 Selecting previously unselected package libasound2t64:amd64.
+
+[2026-09-08T05:59:09.808Z] #33 16.07 Preparing to unpack .../073-libasound2t64_1.2.15.3-1ubuntu1.1_amd64.deb ...
+#33 16.07 Unpacking libasound2t64:amd64 (1.2.15.3-1ubuntu1.1) ...
+#33 16.11 Selecting previously unselected package alsa-ucm-conf.
+#33 16.12 Preparing to unpack .../074-alsa-ucm-conf_1.2.15.3-1ubuntu1.5_all.deb ...
+#33 16.12 Unpacking alsa-ucm-conf (1.2.15.3-1ubuntu1.5) ...
+
+[2026-09-08T05:59:09.820Z] #33 16.29 Selecting previously unselected package at-spi2-common.
+
+[2026-09-08T05:59:09.923Z] #33 16.29 Preparing to unpack .../075-at-spi2-common_2.60.4-0ubuntu0.1_all.deb ...
+#33 16.30 Unpacking at-spi2-common (2.60.4-0ubuntu0.1) ...
+#33 16.34 Selecting previously unselected package libxi6:amd64.
+#33 16.34 Preparing to unpack .../076-libxi6_2%3a1.8.2-2_amd64.deb ...
+#33 16.35 Unpacking libxi6:amd64 (2:1.8.2-2) ...
+#33 16.39 Selecting previously unselected package libxres1:amd64.
+
+[2026-09-08T05:59:10.027Z] #33 16.39 Preparing to unpack .../077-libxres1_2%3a1.2.1-1build2_amd64.deb ...
+#33 16.40 Unpacking libxres1:amd64 (2:1.2.1-1build2) ...
+#33 16.44 Selecting previously unselected package libatspi2.0-0t64:amd64.
+#33 16.44 Preparing to unpack .../078-libatspi2.0-0t64_2.60.4-0ubuntu0.1_amd64.deb ...
+#33 16.45 Unpacking libatspi2.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+#33 16.49 Selecting previously unselected package x11-common.
+
+[2026-09-08T05:59:10.133Z] #33 16.50 Preparing to unpack .../079-x11-common_1%3a7.7+26ubuntu1_all.deb ...
+#33 16.50 Unpacking x11-common (1:7.7+26ubuntu1) ...
+#33 16.55 Selecting previously unselected package libxtst6:amd64.
+#33 16.55 Preparing to unpack .../080-libxtst6_2%3a1.2.5-1build1_amd64.deb ...
+#33 16.56 Unpacking libxtst6:amd64 (2:1.2.5-1build1) ...
+#33 16.60 Selecting previously unselected package libdconf1:amd64.
+
+[2026-09-08T05:59:10.247Z] #33 16.60 Preparing to unpack .../081-libdconf1_0.49.0-4_amd64.deb ...
+#33 16.61 Unpacking libdconf1:amd64 (0.49.0-4) ...
+#33 16.64 Selecting previously unselected package dconf-service.
+#33 16.65 Preparing to unpack .../082-dconf-service_0.49.0-4_amd64.deb ...
+#33 16.65 Unpacking dconf-service (0.49.0-4) ...
+#33 16.71 Selecting previously unselected package dconf-gsettings-backend:amd64.
+
+[2026-09-08T05:59:10.347Z] #33 16.72 Preparing to unpack .../083-dconf-gsettings-backend_0.49.0-4_amd64.deb ...
+#33 16.72 Unpacking dconf-gsettings-backend:amd64 (0.49.0-4) ...
+#33 16.76 Selecting previously unselected package user-session-migration.
+#33 16.77 Preparing to unpack .../084-user-session-migration_0.5.1_amd64.deb ...
+#33 16.77 Unpacking user-session-migration (0.5.1) ...
+#33 16.80 Selecting previously unselected package gsettings-desktop-schemas.
+#33 16.81 Preparing to unpack .../085-gsettings-desktop-schemas_50.0-1ubuntu2_all.deb ...
+#33 16.81 Unpacking gsettings-desktop-schemas (50.0-1ubuntu2) ...
+
+[2026-09-08T05:59:10.449Z] #33 16.85 Selecting previously unselected package at-spi2-core.
+#33 16.86 Preparing to unpack .../086-at-spi2-core_2.60.4-0ubuntu0.1_amd64.deb ...
+#33 16.86 Unpacking at-spi2-core (2.60.4-0ubuntu0.1) ...
+#33 16.91 Selecting previously unselected package libibus-1.0-5:amd64.
+#33 16.91 Preparing to unpack .../087-libibus-1.0-5_1.5.34~rc2-1_amd64.deb ...
+
+[2026-09-08T05:59:10.553Z] #33 16.92 Unpacking libibus-1.0-5:amd64 (1.5.34~rc2-1) ...
+#33 16.95 Selecting previously unselected package ibus-gtk3:amd64.
+#33 16.96 Preparing to unpack .../088-ibus-gtk3_1.5.34~rc2-1_amd64.deb ...
+#33 16.97 Unpacking ibus-gtk3:amd64 (1.5.34~rc2-1) ...
+#33 17.02 Selecting previously unselected package libatk1.0-0t64:amd64.
+
+[2026-09-08T05:59:10.655Z] #33 17.02 Preparing to unpack .../089-libatk1.0-0t64_2.60.4-0ubuntu0.1_amd64.deb ...
+#33 17.04 Unpacking libatk1.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+#33 17.11 Selecting previously unselected package libatk-bridge2.0-0t64:amd64.
+#33 17.11 Preparing to unpack .../090-libatk-bridge2.0-0t64_2.60.4-0ubuntu0.1_amd64.deb ...
+#33 17.12 Unpacking libatk-bridge2.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+
+[2026-09-08T05:59:10.808Z] #33 17.16 Selecting previously unselected package libavahi-common-data:amd64.
+#33 17.16 Preparing to unpack .../091-libavahi-common-data_0.8-18ubuntu1.1_amd64.deb ...
+#33 17.17 Unpacking libavahi-common-data:amd64 (0.8-18ubuntu1.1) ...
+#33 17.20 Selecting previously unselected package libavahi-common3:amd64.
+#33 17.21 Preparing to unpack .../092-libavahi-common3_0.8-18ubuntu1.1_amd64.deb ...
+#33 17.22 Unpacking libavahi-common3:amd64 (0.8-18ubuntu1.1) ...
+#33 17.27 Selecting previously unselected package libavahi-client3:amd64.
+
+[2026-09-08T05:59:10.927Z] #33 17.28 Preparing to unpack .../093-libavahi-client3_0.8-18ubuntu1.1_amd64.deb ...
+#33 17.29 Unpacking libavahi-client3:amd64 (0.8-18ubuntu1.1) ...
+#33 17.32 Selecting previously unselected package libclone-perl:amd64.
+#33 17.33 Preparing to unpack .../094-libclone-perl_0.47-1_amd64.deb ...
+#33 17.34 Unpacking libclone-perl:amd64 (0.47-1) ...
+#33 17.39 Selecting previously unselected package libcolord2:amd64.
+
+[2026-09-08T05:59:11.039Z] #33 17.40 Preparing to unpack .../095-libcolord2_1.4.8-3_amd64.deb ...
+#33 17.41 Unpacking libcolord2:amd64 (1.4.8-3) ...
+#33 17.45 Selecting previously unselected package libcrypt-urandom-perl.
+#33 17.46 Preparing to unpack .../096-libcrypt-urandom-perl_0.55-1_amd64.deb ...
+#33 17.47 Unpacking libcrypt-urandom-perl (0.55-1) ...
+#33 17.50 Selecting previously unselected package libcups2t64:amd64.
+
+[2026-09-08T05:59:11.152Z] #33 17.51 Preparing to unpack .../097-libcups2t64_2.4.16-1ubuntu1.3_amd64.deb ...
+#33 17.52 Unpacking libcups2t64:amd64 (2.4.16-1ubuntu1.3) ...
+#33 17.55 Selecting previously unselected package libdata-dump-perl.
+#33 17.56 Preparing to unpack .../098-libdata-dump-perl_1.25-1_all.deb ...
+#33 17.56 Unpacking libdata-dump-perl (1.25-1) ...
+#33 17.62 Selecting previously unselected package libdisplay-info3:amd64.
+
+[2026-09-08T05:59:11.255Z] #33 17.62 Preparing to unpack .../099-libdisplay-info3_0.3.0-1_amd64.deb ...
+#33 17.63 Unpacking libdisplay-info3:amd64 (0.3.0-1) ...
+#33 17.67 Selecting previously unselected package libdrm-amdgpu1:amd64.
+#33 17.68 Preparing to unpack .../100-libdrm-amdgpu1_2.4.131-1_amd64.deb ...
+#33 17.68 Unpacking libdrm-amdgpu1:amd64 (2.4.131-1) ...
+#33 17.72 Selecting previously unselected package libpciaccess0:amd64.
+
+[2026-09-08T05:59:11.382Z] #33 17.73 Preparing to unpack .../101-libpciaccess0_0.18.1-1ubuntu4.1_amd64.deb ...
+#33 17.73 Unpacking libpciaccess0:amd64 (0.18.1-1ubuntu4.1) ...
+#33 17.79 Selecting previously unselected package libdrm-intel1:amd64.
+#33 17.80 Preparing to unpack .../102-libdrm-intel1_2.4.131-1_amd64.deb ...
+#33 17.80 Unpacking libdrm-intel1:amd64 (2.4.131-1) ...
+#33 17.85 Selecting previously unselected package libencode-locale-perl.
+
+[2026-09-08T05:59:11.493Z] #33 17.85 Preparing to unpack .../103-libencode-locale-perl_1.05-3_all.deb ...
+#33 17.86 Unpacking libencode-locale-perl (1.05-3) ...
+#33 17.91 Selecting previously unselected package libepoxy0:amd64.
+#33 17.91 Preparing to unpack .../104-libepoxy0_1.5.10-2build1_amd64.deb ...
+#33 17.92 Unpacking libepoxy0:amd64 (1.5.10-2build1) ...
+#33 17.96 Selecting previously unselected package libipc-system-simple-perl.
+
+[2026-09-08T05:59:11.603Z] #33 17.96 Preparing to unpack .../105-libipc-system-simple-perl_1.30-2_all.deb ...
+#33 17.97 Unpacking libipc-system-simple-perl (1.30-2) ...
+#33 18.05 Selecting previously unselected package libfile-basedir-perl.
+#33 18.06 Preparing to unpack .../106-libfile-basedir-perl_0.09-2_all.deb ...
+#33 18.07 Unpacking libfile-basedir-perl (0.09-2) ...
+
+[2026-09-08T05:59:11.730Z] #33 18.15 Selecting previously unselected package liburi-perl.
+#33 18.15 Preparing to unpack .../107-liburi-perl_5.34-2build1_all.deb ...
+#33 18.16 Unpacking liburi-perl (5.34-2build1) ...
+#33 18.20 Selecting previously unselected package libfile-desktopentry-perl.
+
+[2026-09-08T05:59:11.832Z] #33 18.20 Preparing to unpack .../108-libfile-desktopentry-perl_0.23-1_all.deb ...
+#33 18.21 Unpacking libfile-desktopentry-perl (0.23-1) ...
+#33 18.24 Selecting previously unselected package libtimedate-perl.
+#33 18.25 Preparing to unpack .../109-libtimedate-perl_2.3300-2_all.deb ...
+#33 18.25 Unpacking libtimedate-perl (2.3300-2) ...
+#33 18.29 Selecting previously unselected package libhttp-date-perl.
+#33 18.30 Preparing to unpack .../110-libhttp-date-perl_6.06-1ubuntu0.26.04.1_all.deb ...
+
+[2026-09-08T05:59:11.954Z] #33 18.30 Unpacking libhttp-date-perl (6.06-1ubuntu0.26.04.1) ...
+#33 18.34 Selecting previously unselected package libfile-listing-perl.
+#33 18.34 Preparing to unpack .../111-libfile-listing-perl_6.16-1_all.deb ...
+#33 18.35 Unpacking libfile-listing-perl (6.16-1) ...
+#33 18.38 Selecting previously unselected package libfile-mimeinfo-perl.
+#33 18.38 Preparing to unpack .../112-libfile-mimeinfo-perl_0.36-2_all.deb ...
+#33 18.39 Unpacking libfile-mimeinfo-perl (0.36-2) ...
+#33 18.42 Selecting previously unselected package libfont-afm-perl.
+
+[2026-09-08T05:59:12.162Z] #33 18.43 Preparing to unpack .../113-libfont-afm-perl_1.20-4_all.deb ...
+#33 18.43 Unpacking libfont-afm-perl (1.20-4) ...
+#33 18.47 Selecting previously unselected package libllvm21:amd64.
+#33 18.47 Preparing to unpack .../114-libllvm21_1%3a21.1.8-6ubuntu1_amd64.deb ...
+#33 18.48 Unpacking libllvm21:amd64 (1:21.1.8-6ubuntu1) ...
+
+[2026-09-08T05:59:12.358Z] #33 18.82 Selecting previously unselected package libx11-xcb1:amd64.
+
+[2026-09-08T05:59:12.474Z] #33 18.83 Preparing to unpack .../115-libx11-xcb1_2%3a1.8.13-1_amd64.deb ...
+#33 18.83 Unpacking libx11-xcb1:amd64 (2:1.8.13-1) ...
+#33 18.89 Selecting previously unselected package libxcb-dri3-0:amd64.
+#33 18.89 Preparing to unpack .../116-libxcb-dri3-0_1.17.0-2ubuntu1_amd64.deb ...
+#33 18.90 Unpacking libxcb-dri3-0:amd64 (1.17.0-2ubuntu1) ...
+#33 18.94 Selecting previously unselected package libxcb-present0:amd64.
+
+[2026-09-08T05:59:12.577Z] #33 18.95 Preparing to unpack .../117-libxcb-present0_1.17.0-2ubuntu1_amd64.deb ...
+#33 18.95 Unpacking libxcb-present0:amd64 (1.17.0-2ubuntu1) ...
+#33 18.99 Selecting previously unselected package libxcb-randr0:amd64.
+#33 19.00 Preparing to unpack .../118-libxcb-randr0_1.17.0-2ubuntu1_amd64.deb ...
+#33 19.00 Unpacking libxcb-randr0:amd64 (1.17.0-2ubuntu1) ...
+#33 19.04 Selecting previously unselected package libxcb-sync1:amd64.
+
+[2026-09-08T05:59:12.683Z] #33 19.05 Preparing to unpack .../119-libxcb-sync1_1.17.0-2ubuntu1_amd64.deb ...
+#33 19.05 Unpacking libxcb-sync1:amd64 (1.17.0-2ubuntu1) ...
+#33 19.09 Selecting previously unselected package libxcb-xfixes0:amd64.
+#33 19.10 Preparing to unpack .../120-libxcb-xfixes0_1.17.0-2ubuntu1_amd64.deb ...
+#33 19.11 Unpacking libxcb-xfixes0:amd64 (1.17.0-2ubuntu1) ...
+#33 19.15 Selecting previously unselected package libxshmfence1:amd64.
+
+[2026-09-08T05:59:12.889Z] #33 19.15 Preparing to unpack .../121-libxshmfence1_1.3.3-1build1_amd64.deb ...
+#33 19.16 Unpacking libxshmfence1:amd64 (1.3.3-1build1) ...
+#33 19.20 Selecting previously unselected package mesa-libgallium:amd64.
+#33 19.20 Preparing to unpack .../122-mesa-libgallium_26.0.8-1ubuntu0.3_amd64.deb ...
+#33 19.21 Unpacking mesa-libgallium:amd64 (26.0.8-1ubuntu0.3) ...
+#33 19.35 Selecting previously unselected package libgbm1:amd64.
+
+[2026-09-08T05:59:12.992Z] #33 19.36 Preparing to unpack .../123-libgbm1_26.0.8-1ubuntu0.3_amd64.deb ...
+#33 19.37 Unpacking libgbm1:amd64 (26.0.8-1ubuntu0.3) ...
+#33 19.41 Selecting previously unselected package libvulkan1:amd64.
+#33 19.41 Preparing to unpack .../124-libvulkan1_1.4.341.0-1_amd64.deb ...
+#33 19.42 Unpacking libvulkan1:amd64 (1.4.341.0-1) ...
+#33 19.46 Selecting previously unselected package libgl1-mesa-dri:amd64.
+
+[2026-09-08T05:59:13.098Z] #33 19.46 Preparing to unpack .../125-libgl1-mesa-dri_26.0.8-1ubuntu0.3_amd64.deb ...
+#33 19.47 Unpacking libgl1-mesa-dri:amd64 (26.0.8-1ubuntu0.3) ...
+#33 19.52 Selecting previously unselected package libxcb-glx0:amd64.
+#33 19.52 Preparing to unpack .../126-libxcb-glx0_1.17.0-2ubuntu1_amd64.deb ...
+#33 19.53 Unpacking libxcb-glx0:amd64 (1.17.0-2ubuntu1) ...
+#33 19.56 Selecting previously unselected package libxxf86vm1:amd64.
+
+[2026-09-08T05:59:13.202Z] #33 19.57 Preparing to unpack .../127-libxxf86vm1_1%3a1.1.4-2_amd64.deb ...
+#33 19.57 Unpacking libxxf86vm1:amd64 (1:1.1.4-2) ...
+#33 19.61 Selecting previously unselected package libglx-mesa0:amd64.
+#33 19.62 Preparing to unpack .../128-libglx-mesa0_26.0.8-1ubuntu0.3_amd64.deb ...
+#33 19.62 Unpacking libglx-mesa0:amd64 (26.0.8-1ubuntu0.3) ...
+#33 19.66 Selecting previously unselected package libwayland-cursor0:amd64.
+#33 19.67 Preparing to unpack .../129-libwayland-cursor0_1.24.0-2_amd64.deb ...
+
+[2026-09-08T05:59:13.302Z] #33 19.67 Unpacking libwayland-cursor0:amd64 (1.24.0-2) ...
+#33 19.71 Selecting previously unselected package libxcomposite1:amd64.
+#33 19.71 Preparing to unpack .../130-libxcomposite1_1%3a0.4.6-1build1_amd64.deb ...
+#33 19.72 Unpacking libxcomposite1:amd64 (1:0.4.6-1build1) ...
+#33 19.76 Selecting previously unselected package libxfixes3:amd64.
+#33 19.76 Preparing to unpack .../131-libxfixes3_1%3a6.0.0-2build2_amd64.deb ...
+#33 19.77 Unpacking libxfixes3:amd64 (1:6.0.0-2build2) ...
+
+[2026-09-08T05:59:13.433Z] #33 19.81 Selecting previously unselected package libxcursor1:amd64.
+#33 19.81 Preparing to unpack .../132-libxcursor1_1%3a1.2.3-1build1_amd64.deb ...
+#33 19.82 Unpacking libxcursor1:amd64 (1:1.2.3-1build1) ...
+#33 19.85 Selecting previously unselected package libxdamage1:amd64.
+#33 19.86 Preparing to unpack .../133-libxdamage1_1%3a1.1.7-1_amd64.deb ...
+#33 19.86 Unpacking libxdamage1:amd64 (1:1.1.7-1) ...
+#33 19.90 Selecting previously unselected package libxinerama1:amd64.
+
+[2026-09-08T05:59:13.536Z] #33 19.90 Preparing to unpack .../134-libxinerama1_2%3a1.1.4-3build2_amd64.deb ...
+#33 19.91 Unpacking libxinerama1:amd64 (2:1.1.4-3build2) ...
+#33 19.95 Selecting previously unselected package libxrandr2:amd64.
+#33 19.95 Preparing to unpack .../135-libxrandr2_2%3a1.5.4-1build1_amd64.deb ...
+#33 19.96 Unpacking libxrandr2:amd64 (2:1.5.4-1build1) ...
+#33 19.99 Selecting previously unselected package libgtk-3-common.
+#33 20.00 Preparing to unpack .../136-libgtk-3-common_3.24.52-0ubuntu1_all.deb ...
+#33 20.00 Unpacking libgtk-3-common (3.24.52-0ubuntu1) ...
+
+[2026-09-08T05:59:13.679Z] #33 20.07 Selecting previously unselected package libgtk-3-0t64:amd64.
+#33 20.07 Preparing to unpack .../137-libgtk-3-0t64_3.24.52-0ubuntu1_amd64.deb ...
+#33 20.08 Unpacking libgtk-3-0t64:amd64 (3.24.52-0ubuntu1) ...
+#33 20.14 Selecting previously unselected package libgtk-3-bin.
+
+[2026-09-08T05:59:13.810Z] #33 20.15 Preparing to unpack .../138-libgtk-3-bin_3.24.52-0ubuntu1_amd64.deb ...
+#33 20.16 Unpacking libgtk-3-bin (3.24.52-0ubuntu1) ...
+#33 20.19 Selecting previously unselected package libheif-plugin-aomenc:amd64.
+#33 20.20 Preparing to unpack .../139-libheif-plugin-aomenc_1.21.2-3ubuntu0.4_amd64.deb ...
+#33 20.20 Unpacking libheif-plugin-aomenc:amd64 (1.21.2-3ubuntu0.4) ...
+#33 20.23 Selecting previously unselected package libhtml-tagset-perl.
+#33 20.24 Preparing to unpack .../140-libhtml-tagset-perl_3.24-1_all.deb ...
+#33 20.24 Unpacking libhtml-tagset-perl (3.24-1) ...
+#33 20.28 Selecting previously unselected package libhtml-parser-perl:amd64.
+
+[2026-09-08T05:59:13.913Z] #33 20.28 Preparing to unpack .../141-libhtml-parser-perl_3.83-1ubuntu0.1_amd64.deb ...
+#33 20.29 Unpacking libhtml-parser-perl:amd64 (3.83-1ubuntu0.1) ...
+#33 20.32 Selecting previously unselected package libio-html-perl.
+#33 20.33 Preparing to unpack .../142-libio-html-perl_1.004-3_all.deb ...
+#33 20.33 Unpacking libio-html-perl (1.004-3) ...
+#33 20.37 Selecting previously unselected package liblwp-mediatypes-perl.
+#33 20.37 Preparing to unpack .../143-liblwp-mediatypes-perl_6.04-2_all.deb ...
+#33 20.38 Unpacking liblwp-mediatypes-perl (6.04-2) ...
+
+[2026-09-08T05:59:14.032Z] #33 20.41 Selecting previously unselected package libhttp-message-perl.
+#33 20.42 Preparing to unpack .../144-libhttp-message-perl_7.01-1ubuntu1_all.deb ...
+#33 20.42 Unpacking libhttp-message-perl (7.01-1ubuntu1) ...
+#33 20.45 Selecting previously unselected package libhtml-form-perl.
+#33 20.46 Preparing to unpack .../145-libhtml-form-perl_6.13-1build1_all.deb ...
+#33 20.47 Unpacking libhtml-form-perl (6.13-1build1) ...
+#33 20.50 Selecting previously unselected package libhtml-tree-perl.
+
+[2026-09-08T05:59:14.133Z] #33 20.50 Preparing to unpack .../146-libhtml-tree-perl_5.07-3_all.deb ...
+#33 20.51 Unpacking libhtml-tree-perl (5.07-3) ...
+#33 20.54 Selecting previously unselected package libhtml-format-perl.
+#33 20.55 Preparing to unpack .../147-libhtml-format-perl_2.16-2_all.deb ...
+#33 20.55 Unpacking libhtml-format-perl (2.16-2) ...
+#33 20.59 Selecting previously unselected package libhttp-cookies-perl.
+#33 20.59 Preparing to unpack .../148-libhttp-cookies-perl_6.11-1_all.deb ...
+#33 20.60 Unpacking libhttp-cookies-perl (6.11-1) ...
+
+[2026-09-08T05:59:14.255Z] #33 20.63 Selecting previously unselected package libhttp-daemon-perl.
+#33 20.64 Preparing to unpack .../149-libhttp-daemon-perl_6.16-1ubuntu0.26.04.1_all.deb ...
+#33 20.64 Unpacking libhttp-daemon-perl (6.16-1ubuntu0.26.04.1) ...
+#33 20.67 Selecting previously unselected package libhttp-negotiate-perl.
+#33 20.68 Preparing to unpack .../150-libhttp-negotiate-perl_6.01-2_all.deb ...
+#33 20.68 Unpacking libhttp-negotiate-perl (6.01-2) ...
+#33 20.72 Selecting previously unselected package libice6:amd64.
+
+[2026-09-08T05:59:14.355Z] #33 20.73 Preparing to unpack .../151-libice6_2%3a1.1.1-1build1_amd64.deb ...
+#33 20.73 Unpacking libice6:amd64 (2:1.1.1-1build1) ...
+#33 20.77 Selecting previously unselected package perl-openssl-defaults:amd64.
+#33 20.77 Preparing to unpack .../152-perl-openssl-defaults_7build4_amd64.deb ...
+#33 20.78 Unpacking perl-openssl-defaults:amd64 (7build4) ...
+#33 20.81 Selecting previously unselected package libnet-ssleay-perl:amd64.
+#33 20.82 Preparing to unpack .../153-libnet-ssleay-perl_1.94-3_amd64.deb ...
+#33 20.82 Unpacking libnet-ssleay-perl:amd64 (1.94-3) ...
+
+[2026-09-08T05:59:14.460Z] #33 20.87 Selecting previously unselected package libio-socket-ssl-perl.
+#33 20.87 Preparing to unpack .../154-libio-socket-ssl-perl_2.098-1_all.deb ...
+#33 20.88 Unpacking libio-socket-ssl-perl (2.098-1) ...
+#33 20.91 Selecting previously unselected package libio-stringy-perl.
+#33 20.92 Preparing to unpack .../155-libio-stringy-perl_2.113-2_all.deb ...
+#33 20.93 Unpacking libio-stringy-perl (2.113-2) ...
+
+[2026-09-08T05:59:14.578Z] #33 20.96 Selecting previously unselected package libnet-http-perl.
+#33 20.97 Preparing to unpack .../156-libnet-http-perl_6.24-1build1_all.deb ...
+#33 20.97 Unpacking libnet-http-perl (6.24-1build1) ...
+#33 21.00 Selecting previously unselected package libtry-tiny-perl.
+#33 21.01 Preparing to unpack .../157-libtry-tiny-perl_0.32-1_all.deb ...
+#33 21.01 Unpacking libtry-tiny-perl (0.32-1) ...
+#33 21.04 Selecting previously unselected package libwww-robotrules-perl.
+
+[2026-09-08T05:59:14.711Z] #33 21.05 Preparing to unpack .../158-libwww-robotrules-perl_6.02-1build1_all.deb ...
+#33 21.05 Unpacking libwww-robotrules-perl (6.02-1build1) ...
+#33 21.09 Selecting previously unselected package libwww-perl.
+#33 21.09 Preparing to unpack .../159-libwww-perl_6.81-1ubuntu0.1_all.deb ...
+#33 21.10 Unpacking libwww-perl (6.81-1ubuntu0.1) ...
+#33 21.13 Selecting previously unselected package liblwp-protocol-https-perl.
+#33 21.14 Preparing to unpack .../160-liblwp-protocol-https-perl_6.14-1_all.deb ...
+#33 21.14 Unpacking liblwp-protocol-https-perl (6.14-1) ...
+#33 21.18 Selecting previously unselected package libnet-smtp-ssl-perl.
+
+[2026-09-08T05:59:14.814Z] #33 21.18 Preparing to unpack .../161-libnet-smtp-ssl-perl_1.04-2_all.deb ...
+#33 21.19 Unpacking libnet-smtp-ssl-perl (1.04-2) ...
+#33 21.22 Selecting previously unselected package libmailtools-perl.
+#33 21.23 Preparing to unpack .../162-libmailtools-perl_2.22-1_all.deb ...
+#33 21.23 Unpacking libmailtools-perl (2.22-1) ...
+#33 21.27 Selecting previously unselected package libxml-parser-perl.
+#33 21.28 Preparing to unpack .../163-libxml-parser-perl_2.47-1ubuntu1_amd64.deb ...
+
+[2026-09-08T05:59:14.914Z] #33 21.28 Unpacking libxml-parser-perl (2.47-1ubuntu1) ...
+#33 21.32 Selecting previously unselected package libxml-twig-perl.
+#33 21.33 Preparing to unpack .../164-libxml-twig-perl_1%3a3.54-1build1_all.deb ...
+#33 21.33 Unpacking libxml-twig-perl (1:3.54-1build1) ...
+#33 21.37 Selecting previously unselected package libnet-dbus-perl.
+#33 21.37 Preparing to unpack .../165-libnet-dbus-perl_1.2.0-2build4_amd64.deb ...
+#33 21.38 Unpacking libnet-dbus-perl (1.2.0-2build4) ...
+
+[2026-09-08T05:59:15.030Z] #33 21.42 Selecting previously unselected package libnspr4:amd64.
+#33 21.43 Preparing to unpack .../166-libnspr4_2%3a4.38.2-1ubuntu1_amd64.deb ...
+#33 21.43 Unpacking libnspr4:amd64 (2:4.38.2-1ubuntu1) ...
+#33 21.50 Selecting previously unselected package libnss3:amd64.
+
+[2026-09-08T05:59:15.147Z] #33 21.50 Preparing to unpack .../167-libnss3_2%3a3.120-1ubuntu2.1_amd64.deb ...
+#33 21.51 Unpacking libnss3:amd64 (2:3.120-1ubuntu2.1) ...
+#33 21.61 Selecting previously unselected package libqrencode4:amd64.
+
+[2026-09-08T05:59:15.269Z] #33 21.62 Preparing to unpack .../168-libqrencode4_4.1.1-2build1_amd64.deb ...
+#33 21.63 Unpacking libqrencode4:amd64 (4.1.1-2build1) ...
+#33 21.69 Selecting previously unselected package librsvg2-common:amd64.
+#33 21.69 Preparing to unpack .../169-librsvg2-common_2.61.3+dfsg-3_amd64.deb ...
+#33 21.70 Unpacking librsvg2-common:amd64 (2.61.3+dfsg-3) ...
+#33 21.74 Selecting previously unselected package libsm6:amd64.
+
+[2026-09-08T05:59:15.407Z] #33 21.74 Preparing to unpack .../170-libsm6_2%3a1.2.6-1build1_amd64.deb ...
+#33 21.75 Unpacking libsm6:amd64 (2:1.2.6-1build1) ...
+#33 21.78 Selecting previously unselected package libtie-ixhash-perl.
+#33 21.78 Preparing to unpack .../171-libtie-ixhash-perl_1.23-4_all.deb ...
+#33 21.79 Unpacking libtie-ixhash-perl (1.23-4) ...
+#33 21.82 Selecting previously unselected package libx11-protocol-perl.
+#33 21.83 Preparing to unpack .../172-libx11-protocol-perl_0.56-9_all.deb ...
+#33 21.83 Unpacking libx11-protocol-perl (0.56-9) ...
+#33 21.87 Selecting previously unselected package libxt6t64:amd64.
+
+[2026-09-08T05:59:15.510Z] #33 21.88 Preparing to unpack .../173-libxt6t64_1%3a1.2.1-1.3build1_amd64.deb ...
+#33 21.88 Unpacking libxt6t64:amd64 (1:1.2.1-1.3build1) ...
+#33 21.92 Selecting previously unselected package libxmu6:amd64.
+#33 21.93 Preparing to unpack .../174-libxmu6_2%3a1.1.3-4_amd64.deb ...
+#33 21.93 Unpacking libxmu6:amd64 (2:1.1.3-4) ...
+#33 21.97 Selecting previously unselected package libxpm4:amd64.
+#33 21.98 Preparing to unpack .../175-libxpm4_1%3a3.5.17-1ubuntu0.26.04.1_amd64.deb ...
+
+[2026-09-08T05:59:15.614Z] #33 21.98 Unpacking libxpm4:amd64 (1:3.5.17-1ubuntu0.26.04.1) ...
+#33 22.02 Selecting previously unselected package libxaw7:amd64.
+#33 22.02 Preparing to unpack .../176-libxaw7_2%3a1.0.16-1build1_amd64.deb ...
+#33 22.03 Unpacking libxaw7:amd64 (2:1.0.16-1build1) ...
+#33 22.07 Selecting previously unselected package libxcb-shape0:amd64.
+#33 22.07 Preparing to unpack .../177-libxcb-shape0_1.17.0-2ubuntu1_amd64.deb ...
+#33 22.08 Unpacking libxcb-shape0:amd64 (1.17.0-2ubuntu1) ...
+
+[2026-09-08T05:59:15.748Z] #33 22.12 Selecting previously unselected package libxft2:amd64.
+#33 22.12 Preparing to unpack .../178-libxft2_2.3.6-1build2_amd64.deb ...
+#33 22.13 Unpacking libxft2:amd64 (2.3.6-1build2) ...
+#33 22.17 Selecting previously unselected package libxkbfile1:amd64.
+#33 22.17 Preparing to unpack .../179-libxkbfile1_1%3a1.1.0-1build5_amd64.deb ...
+[2026-09-08T05:59:15.748Z] 
+#33 22.18 Unpacking libxkbfile1:amd64 (1:1.1.0-1build5) ...
+#33 22.21 Selecting previously unselected package libxml-xpathengine-perl.
+
+[2026-09-08T05:59:15.851Z] #33 22.22 Preparing to unpack .../180-libxml-xpathengine-perl_0.14-2_all.deb ...
+#33 22.23 Unpacking libxml-xpathengine-perl (0.14-2) ...
+#33 22.27 Selecting previously unselected package libxv1:amd64.
+#33 22.27 Preparing to unpack .../181-libxv1_2%3a1.0.13-1_amd64.deb ...
+#33 22.28 Unpacking libxv1:amd64 (2:1.0.13-1) ...
+#33 22.32 Selecting previously unselected package libxxf86dga1:amd64.
+
+[2026-09-08T05:59:15.970Z] #33 22.32 Preparing to unpack .../182-libxxf86dga1_2%3a1.1.5-1build2_amd64.deb ...
+#33 22.33 Unpacking libxxf86dga1:amd64 (2:1.1.5-1build2) ...
+#33 22.37 Selecting previously unselected package luit.
+#33 22.38 Preparing to unpack .../183-luit_2.0.20250912-1_amd64.deb ...
+#33 22.39 Adding 'diversion of /usr/bin/luit to /usr/bin/luit.x11-utils by luit'
+#33 22.40 Adding 'diversion of /usr/share/man/man1/luit.1.gz to /usr/share/man/man1/luit.x11-utils.1.gz by luit'
+#33 22.40 Unpacking luit (2.0.20250912-1) ...
+#33 22.44 Selecting previously unselected package mesa-vulkan-drivers:amd64.
+
+[2026-09-08T05:59:16.132Z] #33 22.44 Preparing to unpack .../184-mesa-vulkan-drivers_26.0.8-1ubuntu0.3_amd64.deb ...
+#33 22.45 Unpacking mesa-vulkan-drivers:amd64 (26.0.8-1ubuntu0.3) ...
+
+[2026-09-08T05:59:16.221Z] #33 22.69 Selecting previously unselected package pass.
+
+[2026-09-08T05:59:16.325Z] #33 22.69 Preparing to unpack .../185-pass_1.7.4-8_all.deb ...
+#33 22.70 Unpacking pass (1.7.4-8) ...
+#33 22.73 Selecting previously unselected package qrencode.
+#33 22.74 Preparing to unpack .../186-qrencode_4.1.1-2build1_amd64.deb ...
+#33 22.75 Unpacking qrencode (4.1.1-2build1) ...
+#33 22.78 Selecting previously unselected package wl-clipboard.
+#33 22.79 Preparing to unpack .../187-wl-clipboard_2.2.1-2build1_amd64.deb ...
+#33 22.79 Unpacking wl-clipboard (2.2.1-2build1) ...
+
+[2026-09-08T05:59:16.431Z] #33 22.84 Selecting previously unselected package libglvnd0:amd64.
+#33 22.84 Preparing to unpack .../188-libglvnd0_1.7.0-3_amd64.deb ...
+#33 22.85 Unpacking libglvnd0:amd64 (1.7.0-3) ...
+#33 22.90 Selecting previously unselected package libglx0:amd64.
+
+[2026-09-08T05:59:16.534Z] #33 22.90 Preparing to unpack .../189-libglx0_1.7.0-3_amd64.deb ...
+#33 22.91 Unpacking libglx0:amd64 (1.7.0-3) ...
+#33 22.95 Selecting previously unselected package libgl1:amd64.
+#33 22.96 Preparing to unpack .../190-libgl1_1.7.0-3_amd64.deb ...
+#33 22.96 Unpacking libgl1:amd64 (1.7.0-3) ...
+#33 23.00 Selecting previously unselected package x11-utils.
+
+[2026-09-08T05:59:16.637Z] #33 23.01 Preparing to unpack .../191-x11-utils_7.7+7build1_amd64.deb ...
+#33 23.01 Unpacking x11-utils (7.7+7build1) ...
+#33 23.05 Selecting previously unselected package x11-xserver-utils.
+#33 23.06 Preparing to unpack .../192-x11-xserver-utils_7.7+11build1_amd64.deb ...
+#33 23.07 Unpacking x11-xserver-utils (7.7+11build1) ...
+#33 23.10 Selecting previously unselected package xclip.
+
+[2026-09-08T05:59:16.744Z] #33 23.11 Preparing to unpack .../193-xclip_0.13-4build1_amd64.deb ...
+#33 23.11 Unpacking xclip (0.13-4build1) ...
+#33 23.15 Selecting previously unselected package xdg-utils.
+#33 23.16 Preparing to unpack .../194-xdg-utils_1.2.1-2ubuntu2_all.deb ...
+#33 23.17 Unpacking xdg-utils (1.2.1-2ubuntu2) ...
+#33 23.20 Selecting previously unselected package libauthen-sasl-perl.
+#33 23.21 Preparing to unpack .../195-libauthen-sasl-perl_2.2000-1_all.deb ...
+
+[2026-09-08T05:59:16.853Z] #33 23.21 Unpacking libauthen-sasl-perl (2.2000-1) ...
+#33 23.27 Setting up libhwy1t64:amd64 (1.3.0-2) ...
+#33 23.29 Setting up libtext-iconv-perl:amd64 (1.7-8.1) ...
+#33 23.30 Setting up libgraphite2-3:amd64 (1.3.14-11ubuntu1.1) ...
+#33 23.32 Setting up liblcms2-2:amd64 (2.17-1ubuntu0.2) ...
+
+[2026-09-08T05:59:16.964Z] #33 23.33 Setting up libpixman-1-0:amd64 (0.46.4-1) ...
+#33 23.35 Setting up libsharpyuv0:amd64 (1.5.0-0.1build1) ...
+#33 23.36 Setting up libaom3:amd64 (3.13.1-2) ...
+#33 23.38 Setting up libpciaccess0:amd64 (0.18.1-1ubuntu4.1) ...
+#33 23.40 Setting up luit (2.0.20250912-1) ...
+#33 23.41 Setting up systemd-sysv (259.5-0ubuntu3.4) ...
+#33 23.43 Setting up libxau6:amd64 (1:1.0.11-1build2) ...
+
+[2026-09-08T05:59:17.080Z] #33 23.45 Setting up libxdmcp6:amd64 (1:1.1.5-2) ...
+#33 23.47 Setting up libxcb1:amd64 (1.17.0-2ubuntu1) ...
+#33 23.48 Setting up libtie-ixhash-perl (1.23-4) ...
+#33 23.50 Setting up libxcb-xfixes0:amd64 (1.17.0-2ubuntu1) ...
+#33 23.52 Setting up hicolor-icon-theme (0.18-2build1) ...
+#33 23.55 Setting up libfont-afm-perl (1.20-4) ...
+
+[2026-09-08T05:59:17.212Z] #33 23.56 Setting up libqrencode4:amd64 (4.1.1-2build1) ...
+#33 23.57 Setting up libdatrie1:amd64 (0.2.14-1) ...
+#33 23.59 Setting up xdg-user-dirs (0.19-1) ...
+#33 23.68 Created symlink '/etc/systemd/user/graphical-session-pre.target.wants/xdg-user-dirs.service' → '/usr/lib/systemd/user/xdg-user-dirs.service'.
+
+[2026-09-08T05:59:17.400Z] #33 23.69 Setting up libxcb-render0:amd64 (1.17.0-2ubuntu1) ...
+#33 23.70 Setting up libclone-perl:amd64 (0.47-1) ...
+#33 23.71 Setting up fontconfig-config (2.17.1-3ubuntu1) ...
+
+[2026-09-08T05:59:17.410Z] #33 23.88 Setting up libglvnd0:amd64 (1.7.0-3) ...
+
+[2026-09-08T05:59:17.523Z] #33 23.89 Setting up libio-stringy-perl (2.113-2) ...
+#33 23.90 Setting up libdisplay-info3:amd64 (0.3.0-1) ...
+#33 23.92 Setting up libhtml-tagset-perl (3.24-1) ...
+#33 23.93 Setting up libxcb-glx0:amd64 (1.17.0-2ubuntu1) ...
+#33 23.95 Setting up liblwp-mediatypes-perl (6.04-2) ...
+#33 23.96 Setting up libgdk-pixbuf2.0-common (2.44.5+dfsg-4ubuntu1) ...
+#33 23.97 Setting up libcrypt-urandom-perl (0.55-1) ...
+#33 23.99 Setting up libxcb-shape0:amd64 (1.17.0-2ubuntu1) ...
+
+[2026-09-08T05:59:17.663Z] #33 24.00 Setting up x11-common (1:7.7+26ubuntu1) ...
+#33 24.13 invoke-rc.d: could not determine current runlevel
+
+[2026-09-08T05:59:17.777Z] #33 24.13 invoke-rc.d: policy-rc.d denied execution of start.
+#33 24.14 Setting up libtry-tiny-perl (0.32-1) ...
+#33 24.16 Setting up libsensors-config (1:3.6.2-2build1) ...
+#33 24.18 Setting up perl-openssl-defaults:amd64 (7build4) ...
+#33 24.20 Setting up libnss-systemd:amd64 (259.5-0ubuntu3.4) ...
+#33 24.22 Setting up xkb-data (2.46-2) ...
+#33 24.24 Setting up libencode-locale-perl (1.05-3) ...
+
+[2026-09-08T05:59:17.881Z] #33 24.26 Setting up libxcb-shm0:amd64 (1.17.0-2ubuntu1) ...
+#33 24.27 Setting up libxcb-xkb1:amd64 (1.17.0-2ubuntu1) ...
+#33 24.28 Setting up libxcb-present0:amd64 (1.17.0-2ubuntu1) ...
+#33 24.30 Setting up libasound2-data (1.2.15.3-1ubuntu1.1) ...
+#33 24.31 Setting up libglib2.0-0t64:amd64 (2.88.0-1) ...
+#33 24.33 Setting up libglib2.0-data (2.88.0-1) ...
+#33 24.35 Setting up libasound2t64:amd64 (1.2.15.3-1ubuntu1.1) ...
+
+[2026-09-08T05:59:17.994Z] #33 24.36 Setting up libdata-dump-perl (1.25-1) ...
+#33 24.38 Setting up libx11-data (2:1.8.13-1) ...
+#33 24.39 Setting up libepoxy0:amd64 (1.5.10-2build1) ...
+#33 24.40 Setting up libnspr4:amd64 (2:4.38.2-1ubuntu1) ...
+#33 24.42 Setting up libxcb-sync1:amd64 (1.17.0-2ubuntu1) ...
+#33 24.43 Setting up libipc-system-simple-perl (1.30-2) ...
+#33 24.45 Setting up libxml-xpathengine-perl (0.14-2) ...
+#33 24.46 Setting up libllvm21:amd64 (1:21.1.8-6ubuntu1) ...
+
+[2026-09-08T05:59:18.200Z] #33 24.47 Setting up libavahi-common-data:amd64 (0.8-18ubuntu1.1) ...
+#33 24.49 Setting up libdbus-1-3:amd64 (1.16.2-2ubuntu4) ...
+#33 24.50 Setting up libfribidi0:amd64 (1.0.16-5) ...
+#33 24.51 Setting up shared-mime-info (2.4-5build3) ...
+
+[2026-09-08T05:59:20.577Z] #33 27.04 Setting up libpng16-16t64:amd64 (1.6.57-1) ...
+
+[2026-09-08T05:59:20.686Z] #33 27.06 Setting up libio-html-perl (1.004-3) ...
+#33 27.08 Setting up libsensors5:amd64 (1:3.6.2-2build1) ...
+#33 27.10 Setting up pass (1.7.4-8) ...
+#33 27.11 Setting up libvulkan1:amd64 (1.4.341.0-1) ...
+#33 27.12 Setting up libtimedate-perl (2.3300-2) ...
+#33 27.14 Setting up alsa-topology-conf (1.2.5.1-3build1) ...
+#33 27.15 Setting up libxshmfence1:amd64 (1.3.3-1build1) ...
+
+[2026-09-08T05:59:20.802Z] #33 27.17 Setting up at-spi2-common (2.60.4-0ubuntu0.1) ...
+#33 27.18 Setting up libxcb-randr0:amd64 (1.17.0-2ubuntu1) ...
+#33 27.20 Setting up dbus-session-bus-common (1.16.2-2ubuntu4) ...
+#33 27.22 Setting up libx11-6:amd64 (2:1.8.13-1) ...
+#33 27.23 Setting up libthai-data (0.1.30-1) ...
+#33 27.25 Setting up libwayland-egl1:amd64 (1.24.0-2) ...
+#33 27.27 Setting up libxkbfile1:amd64 (1:1.1.0-1build5) ...
+
+[2026-09-08T05:59:20.986Z] #33 27.28 Setting up dbus-system-bus-common (1.16.2-2ubuntu4) ...
+#33 27.30 Creating group 'messagebus' with GID 993.
+#33 27.30 Creating user 'messagebus' (System Message Bus) with UID 993 and GID 993.
+
+[2026-09-08T05:59:21.196Z] #33 27.66 Setting up libdrm-common (2.4.131-1) ...
+
+[2026-09-08T05:59:21.308Z] #33 27.68 Setting up libxcomposite1:amd64 (1:0.4.6-1build1) ...
+#33 27.69 Setting up libjxl0.11:amd64 (0.11.1-6ubuntu4.2) ...
+#33 27.73 Setting up xdg-utils (1.2.1-2ubuntu2) ...
+#33 27.74 update-alternatives: using /usr/bin/xdg-open to provide /usr/bin/open (open) in auto mode
+#33 27.74 update-alternatives: warning: skip creation of /usr/share/man/man1/open.1.gz because associated file /usr/share/man/man1/xdg-open.1.gz (of link group open) does not exist
+#33 27.74 Setting up liburi-perl (5.34-2build1) ...
+#33 27.76 Setting up libxmuu1:amd64 (2:1.1.3-4) ...
+#33 27.77 Setting up dbus-bin (1.16.2-2ubuntu4) ...
+
+[2026-09-08T05:59:21.408Z] #33 27.79 Setting up libx11-protocol-perl (0.56-9) ...
+#33 27.80 Setting up ncurses-term (6.6+20251231-1) ...
+#33 27.82 Setting up libxkbcommon0:amd64 (1.13.1-1) ...
+#33 27.83 Setting up libwayland-client0:amd64 (1.24.0-2) ...
+#33 27.85 Setting up libnet-ssleay-perl:amd64 (1.94-3) ...
+#33 27.86 Setting up wl-clipboard (2.2.1-2build1) ...
+#33 27.87 Setting up libxcb-dri3-0:amd64 (1.17.0-2ubuntu1) ...
+
+[2026-09-08T05:59:21.519Z] #33 27.89 Setting up libx11-xcb1:amd64 (2:1.8.13-1) ...
+#33 27.90 Setting up libice6:amd64 (2:1.1.1-1build1) ...
+#33 27.92 Setting up libhttp-date-perl (6.06-1ubuntu0.26.04.1) ...
+#33 27.93 Setting up libfile-basedir-perl (0.09-2) ...
+#33 27.94 Setting up libxdamage1:amd64 (1:1.1.7-1) ...
+#33 27.96 Setting up libatk1.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+#33 27.97 Setting up libfile-listing-perl (6.16-1) ...
+#33 27.98 Setting up user-session-migration (0.5.1) ...
+[2026-09-08T05:59:21.519Z] 
+
+[2026-09-08T05:59:21.628Z] #33 28.06 Created symlink '/etc/systemd/user/graphical-session-pre.target.wants/user-session-migration.service' → '/usr/lib/systemd/user/user-session-migration.service'.
+#33 28.07 Setting up libxpm4:amd64 (1:3.5.17-1ubuntu0.26.04.1) ...
+#33 28.08 Setting up libxrender1:amd64 (1:0.9.12-1build1) ...
+#33 28.09 Setting up alsa-ucm-conf (1.2.15.3-1ubuntu1.5) ...
+
+[2026-09-08T05:59:21.742Z] #33 28.11 Setting up qrencode (4.1.1-2build1) ...
+#33 28.12 Setting up libauthen-sasl-perl (2.2000-1) ...
+#33 28.14 Setting up libibus-1.0-5:amd64 (1.5.34~rc2-1) ...
+#33 28.15 Setting up libavahi-common3:amd64 (0.8-18ubuntu1.1) ...
+#33 28.17 Setting up libxext6:amd64 (2:1.3.4-1build3) ...
+#33 28.18 Setting up libnet-http-perl (6.24-1build1) ...
+#33 28.19 Setting up libnss3:amd64 (2:3.120-1ubuntu2.1) ...
+#33 28.21 Setting up dbus-daemon (1.16.2-2ubuntu4) ...
+
+[2026-09-08T05:59:21.854Z] #33 28.23 Setting up libcolord2:amd64 (1.4.8-3) ...
+#33 28.25 Setting up libxxf86vm1:amd64 (1:1.1.4-2) ...
+#33 28.26 Setting up libdconf1:amd64 (0.49.0-4) ...
+#33 28.27 Setting up libthai0:amd64 (0.1.30-1) ...
+#33 28.29 Setting up libfreetype6:amd64 (2.14.2+dfsg-1ubuntu0.1) ...
+#33 28.30 Setting up libxfixes3:amd64 (1:6.0.0-2build2) ...
+#33 28.32 Setting up dbus (1.16.2-2ubuntu4) ...
+
+[2026-09-08T05:59:21.955Z] #33 28.36 Setting up libxinerama1:amd64 (2:1.1.4-3build2) ...
+#33 28.37 Setting up libxkbcommon-x11-0:amd64 (1.13.1-1) ...
+#33 28.39 Setting up libxv1:amd64 (2:1.0.13-1) ...
+#33 28.40 Setting up libxrandr2:amd64 (2:1.5.4-1build1) ...
+#33 28.42 Setting up libfile-desktopentry-perl (0.23-1) ...
+
+[2026-09-08T05:59:22.136Z] #33 28.44 Setting up libwww-robotrules-perl (6.02-1build1) ...
+#33 28.45 Setting up libdrm2:amd64 (2.4.131-1) ...
+#33 28.47 Setting up xauth (1:1.1.2-1.1build1) ...
+#33 28.48 Setting up libwayland-cursor0:amd64 (1.24.0-2) ...
+#33 28.50 Setting up libhtml-parser-perl:amd64 (3.83-1ubuntu0.1) ...
+#33 28.51 Setting up libpam-systemd:amd64 (259.5-0ubuntu3.4) ...
+#33 28.60 Setting up libharfbuzz0b:amd64 (12.3.2-2) ...
+
+[2026-09-08T05:59:22.243Z] #33 28.62 Setting up libfontconfig1:amd64 (2.17.1-3ubuntu1) ...
+#33 28.63 Setting up libsm6:amd64 (2:1.2.6-1build1) ...
+#33 28.65 Setting up libavahi-client3:amd64 (0.8-18ubuntu1.1) ...
+#33 28.66 Setting up libio-socket-ssl-perl (2.098-1) ...
+#33 28.68 Setting up libxres1:amd64 (2:1.2.1-1build2) ...
+#33 28.69 Setting up libhttp-message-perl (7.01-1ubuntu1) ...
+#33 28.71 Setting up libdrm-amdgpu1:amd64 (2.4.131-1) ...
+
+[2026-09-08T05:59:22.481Z] #33 28.72 Setting up libhtml-form-perl (6.13-1build1) ...
+#33 28.74 Setting up mesa-vulkan-drivers:amd64 (26.0.8-1ubuntu0.3) ...
+#33 28.75 Setting up libfile-mimeinfo-perl (0.36-2) ...
+#33 28.77 Setting up libhttp-negotiate-perl (6.01-2) ...
+#33 28.78 Setting up fontconfig (2.17.1-3ubuntu1) ...
+#33 28.80 Regenerating fonts cache... 
+[2026-09-08T05:59:24.343Z] done.
+
+[2026-09-08T05:59:24.447Z] #33 30.81 Setting up libxft2:amd64 (2.3.6-1build2) ...
+#33 30.83 Setting up libxi6:amd64 (2:1.8.2-2) ...
+#33 30.84 Setting up libhttp-cookies-perl (6.11-1) ...
+#33 30.86 Setting up libxtst6:amd64 (2:1.2.5-1build1) ...
+#33 30.87 Setting up libhtml-tree-perl (5.07-3) ...
+#33 30.89 Setting up libxcursor1:amd64 (1:1.2.3-1build1) ...
+#33 30.90 Setting up libpango-1.0-0:amd64 (1.57.0-1) ...
+#33 30.91 Setting up libdrm-intel1:amd64 (2.4.131-1) ...
+
+[2026-09-08T05:59:24.554Z] #33 30.93 Setting up libxxf86dga1:amd64 (2:1.1.5-1build2) ...
+#33 30.94 Setting up libhtml-format-perl (2.16-2) ...
+#33 30.96 Setting up libcairo2:amd64 (1.18.4-3) ...
+#33 30.97 Setting up dbus-user-session (1.16.2-2ubuntu4) ...
+#33 30.99 Setting up libnet-smtp-ssl-perl (1.04-2) ...
+#33 31.00 Setting up libmailtools-perl (2.22-1) ...
+#33 31.02 Setting up libatspi2.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+
+[2026-09-08T05:59:24.679Z] #33 31.03 Setting up libxt6t64:amd64 (1:1.2.1-1.3build1) ...
+#33 31.05 Setting up libhttp-daemon-perl (6.16-1ubuntu0.26.04.1) ...
+#33 31.06 Setting up alacritty (0.16.1-2ubuntu1) ...
+#33 31.07 update-alternatives: using /usr/bin/alacritty to provide /usr/bin/x-terminal-emulator (x-terminal-emulator) in auto mode
+#33 31.07 update-alternatives: warning: skip creation of /usr/share/man/man1/x-terminal-emulator.1.gz because associated file /usr/share/man/man1/alacritty.1.gz (of link group x-terminal-emulator) does not exist
+#33 31.08 Setting up libcairo-gobject2:amd64 (1.18.4-3) ...
+#33 31.09 Setting up libpangoft2-1.0-0:amd64 (1.57.0-1) ...
+#33 31.11 Setting up ibus-gtk3:amd64 (1.5.34~rc2-1) ...
+#33 31.14 Setting up libcups2t64:amd64 (2.4.16-1ubuntu1.3) ...
+
+[2026-09-08T05:59:24.789Z] #33 31.16 Setting up libpangocairo-1.0-0:amd64 (1.57.0-1) ...
+#33 31.17 Setting up libatk-bridge2.0-0t64:amd64 (2.60.4-0ubuntu0.1) ...
+#33 31.19 Setting up mesa-libgallium:amd64 (26.0.8-1ubuntu0.3) ...
+#33 31.21 Setting up libxmu6:amd64 (2:1.1.3-4) ...
+#33 31.22 Setting up libgbm1:amd64 (26.0.8-1ubuntu0.3) ...
+#33 31.23 Setting up libgl1-mesa-dri:amd64 (26.0.8-1ubuntu0.3) ...
+[2026-09-08T05:59:24.789Z] 
+#33 31.25 Setting up dconf-service (0.49.0-4) ...
+
+[2026-09-08T05:59:24.894Z] #33 31.27 Setting up libxaw7:amd64 (2:1.0.16-1build1) ...
+#33 31.31 Setting up x11-xserver-utils (7.7+11build1) ...
+#33 31.33 Setting up xclip (0.13-4build1) ...
+#33 31.35 Setting up libglx-mesa0:amd64 (26.0.8-1ubuntu0.3) ...
+#33 31.36 Setting up libglx0:amd64 (1.7.0-3) ...
+
+[2026-09-08T05:59:25.004Z] #33 31.37 Setting up dconf-gsettings-backend:amd64 (0.49.0-4) ...
+#33 31.39 Setting up libgl1:amd64 (1.7.0-3) ...
+#33 31.40 Setting up x11-utils (7.7+7build1) ...
+#33 31.45 Setting up libgtk-3-common (3.24.52-0ubuntu1) ...
+#33 31.47 Setting up gsettings-desktop-schemas (50.0-1ubuntu2) ...
+
+[2026-09-08T05:59:25.113Z] #33 31.48 Setting up at-spi2-core (2.60.4-0ubuntu0.1) ...
+#33 31.52 Setting up libheif-plugin-aomdec:amd64 (1.21.2-3ubuntu0.4) ...
+#33 31.53 Setting up libheif1:amd64 (1.21.2-3ubuntu0.4) ...
+#33 31.55 Setting up librsvg2-2:amd64 (2.61.3+dfsg-3) ...
+#33 31.56 Setting up glycin-loaders (2.1.1+ds-0ubuntu1) ...
+#33 31.58 Setting up libglycin-2-0:amd64 (2.1.1+ds-0ubuntu1) ...
+
+[2026-09-08T05:59:25.230Z] #33 31.59 Setting up liblwp-protocol-https-perl (6.14-1) ...
+#33 31.61 Setting up libwww-perl (6.81-1ubuntu0.1) ...
+#33 31.62 Setting up libheif-plugin-aomenc:amd64 (1.21.2-3ubuntu0.4) ...
+#33 31.64 Setting up glycin-thumbnailers (2.1.1+ds-0ubuntu1) ...
+#33 31.65 Setting up libgdk-pixbuf-2.0-0:amd64 (2.44.5+dfsg-4ubuntu1) ...
+#33 31.68 Setting up gtk-update-icon-cache (4.22.4+ds-0ubuntu0.1) ...
+#33 31.70 Setting up libxml-parser-perl (2.47-1ubuntu1) ...
+
+[2026-09-08T05:59:25.335Z] #33 31.72 Setting up libxml-twig-perl (1:3.54-1build1) ...
+#33 31.73 Setting up libnet-dbus-perl (1.2.0-2build4) ...
+#33 31.74 Setting up adwaita-icon-theme (50.0-1) ...
+#33 31.77 update-alternatives: using /usr/share/icons/Adwaita/cursor.theme to provide /usr/share/icons/default/index.theme (x-cursor-theme) in auto mode
+#33 31.77 Setting up libgtk-3-0t64:amd64 (3.24.52-0ubuntu1) ...
+#33 31.80 Setting up librsvg2-common:amd64 (2.61.3+dfsg-3) ...
+
+[2026-09-08T05:59:25.439Z] #33 31.83 Setting up libgtk-3-bin (3.24.52-0ubuntu1) ...
+#33 31.84 Processing triggers for man-db (2.13.1-1build1) ...
+#33 31.90 Processing triggers for libc-bin (2.43-2ubuntu2.3) ...
+
+[2026-09-08T05:59:25.616Z] #33 31.98 Processing triggers for libgdk-pixbuf-2.0-0:amd64 (2.44.5+dfsg-4ubuntu1) ...
+#33 32.08 fisher install version 4.4.8
+
+[2026-09-08T05:59:25.777Z] #33 32.09 Fetching https://api.github.com/repos/jorgebucaran/fisher/tarball/HEAD
+
+[2026-09-08T05:59:26.269Z] #33 32.73 Installing jorgebucaran/fisher
+#33 32.73            /root/.config/fish/functions/fisher.fish
+#33 32.73            /root/.config/fish/completions/fisher.fish
+
+[2026-09-08T05:59:26.432Z] #33 32.74 Updated 1 plugin/s
+#33 32.74 fisher install version 4.4.8
+#33 32.75 Fetching https://api.github.com/repos/meaningful-ooo/sponge/tarball/HEAD
+
+[2026-09-08T05:59:26.715Z] #33 33.18 Installing meaningful-ooo/sponge
+#33 33.18            /root/.config/fish/functions/_sponge_clear_state.fish
+#33 33.18            /root/.config/fish/functions/_sponge_on_exit.fish
+#33 33.18            /root/.config/fish/functions/_sponge_on_postexec.fish
+#33 33.18            /root/.config/fish/functions/_sponge_on_preexec.fish
+#33 33.18            /root/.config/fish/functions/_sponge_on_prompt.fish
+#33 33.18            /root/.config/fish/functions/_sponge_remove_from_history.fish
+#33 33.18            /root/.config/fish/functions/sponge_filter_failed.fish
+[2026-09-08T05:59:26.715Z] 
+#33 33.18            /root/.config/fish/functions/sponge_filter_matched.fish
+#33 33.18            /root/.config/fish/conf.d/sponge.fish
+
+[2026-09-08T05:59:26.888Z] #33 33.20 Installed 1 plugin/s
+
+[2026-09-08T05:59:27.005Z] #33 DONE 33.5s
+
+[2026-09-08T05:59:27.167Z] 
+#34 exporting to image
+#34 exporting layers
+
+[2026-09-08T05:59:54.908Z] #34 exporting layers 27.9s done
+#34 preparing layers for inline cache
+
+[2026-09-08T05:59:55.183Z] #34 preparing layers for inline cache 0.3s done
+
+[2026-09-08T05:59:55.304Z] #34 exporting manifest sha256:8e5c56f1506e659b69cc7b2f476ee74506e6e4e746556ea971b988247855431a 0.0s done
+#34 exporting config sha256:dd1b0e57670539624042dc579fe04ed8dd20a8ff8ec65bdd098aac3caad9642d 0.0s done
+#34 exporting attestation manifest sha256:93412db1952c0ff61746581f3981246e72a89094256e90b31d2b98f0f181686d 0.1s done
+#34 exporting manifest list sha256:c9d6087126890115062d444fa4db82c112e708e2d54acc9ce66003fef5707f73
+
+[2026-09-08T05:59:55.480Z] #34 exporting manifest list sha256:c9d6087126890115062d444fa4db82c112e708e2d54acc9ce66003fef5707f73 0.0s done
+#34 naming to docker.io/library/vsc-847-devcontainer-8ec89d7a1218d7f4c11bde484ef2860254f3dc78dc6808e168f21c662293cab4-features:latest done
+#34 unpacking to docker.io/library/vsc-847-devcontainer-8ec89d7a1218d7f4c11bde484ef2860254f3dc78dc6808e168f21c662293cab4-features:latest
+
+[2026-09-08T06:00:12.427Z] #34 unpacking to docker.io/library/vsc-847-devcontainer-8ec89d7a1218d7f4c11bde484ef2860254f3dc78dc6808e168f21c662293cab4-features:latest 17.1s done
+
+[2026-09-08T06:00:12.596Z] #34 DONE 45.4s
+
+[2026-09-08T06:00:12.602Z] 
+ 3 warnings found (use docker --debug to expand):
+ - SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for sensitive data (ENV "SSH_AUTH_SOCK") (line 123)
+ - UndefinedVar: Usage of undefined variable '$MANPATH' (line 101)
+ - UndefinedVar: Usage of undefined variable '$INFOPATH' (line 102)
+
+[2026-09-08T06:00:14.373Z] Start: Run: docker run --sig-proxy=false -a STDOUT -a STDERR --mount type=bind,source=/home/tinomen/Code/spikes/847-devcontainer,target=/workspaces/847-devcontainer --mount type=volume,src=sshd-etc-ssh-host-keys-1738up908tnde25d0rarke4hqumps6f3dmiu7i14sfeji5uf316k,dst=/etc/ssh/keys -l devcontainer.local_folder=/home/tinomen/Code/spikes/847-devcontainer -l devcontainer.config_file=/home/tinomen/Code/spikes/847-devcontainer/.devcontainer/devcontainer.json --entrypoint /bin/sh vsc-847-devcontainer-8ec89d7a1218d7f4c11bde484ef2860254f3dc78dc6808e168f21c662293cab4-features-uid -c echo Container started
+[2026-09-08T06:00:14.793Z] Container started
+[2026-09-08T06:00:14.950Z] Running the postCreateCommand from Feature './common-feature'...
+
+(node:1770326) MaxListenersExceededWarning: Possible EventEmitter memory leak detected. 11 event listeners added to [EventEmitter]. MaxListeners is 10. Use emitter.setMaxListeners() to increase limit
+(Use `node --trace-warnings ...` to show where the warning was created)
+[2026-09-08T06:00:15.181Z] Running own-agent-browser of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.181Z] Running own-cache of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.181Z] Running own-local-bin of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.182Z] Running own-config of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.182Z] Running own-pi of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.191Z] Running own-npm of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.225Z] Running own-local-share of postCreateCommand from Feature './common-feature'...
+
+[2026-09-08T06:00:15.913Z] Running lefthook of postCreateCommand from Feature './common-feature'...
+
+added 2 packages in 672ms
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   lefthook@2.1.12 (postinstall: node postinstall.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install -g --allow-scripts=lefthook` to allow these scripts once, or `npm config set allow-scripts=lefthook --location=user` to allow them for all global installs.
+
+[2026-09-08T06:00:15.918Z] Running skills of postCreateCommand from Feature './common-feature'...
+
+added 8 packages in 678ms
+
+1 package is looking for funding
+  run `npm fund` for details
+
+[2026-09-08T06:00:16.599Z] 
+
+added 1 package in 1s
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   agent-browser@0.37.0 (postinstall: node scripts/postinstall.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install -g --allow-scripts=agent-browser` to allow these scripts once, or `npm config set allow-scripts=agent-browser --location=user` to allow them for all global installs.
+/bin/sh: 1: agent-browser: not found
+
+
+[2026-09-08T06:00:16.599Z] agent-browser of postCreateCommand from Feature './common-feature' failed with exit code 127. Skipping any further user-provided commands.
+[2026-09-08T06:00:18.330Z] Running openobserve-cli of postCreateCommand from Feature './common-feature'...
+
+added 1 package in 3s
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   @angelmsger/openobserve-cli@0.11.2 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install -g --allow-scripts=@angelmsger/openobserve-cli` to allow these scripts once, or `npm config set allow-scripts=@angelmsger/openobserve-cli --location=user` to allow them for all global installs.
+
+[2026-09-08T06:00:18.621Z] Running task of postCreateCommand from Feature './common-feature'...
+
+added 48 packages in 3s
+npm warn install-scripts 1 package has install scripts not yet covered by allowScripts:
+npm warn install-scripts   @go-task/cli@3.53.1 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install -g --allow-scripts=@go-task/cli` to allow these scripts once, or `npm config set allow-scripts=@go-task/cli --location=user` to allow them for all global installs.
+
+[2026-09-08T06:00:18.648Z] Running mnemonic of postCreateCommand from Feature './common-feature'...
+
+added 114 packages in 3s
+
+77 packages are looking for funding
+  run `npm fund` for details
+
+[2026-09-08T06:00:18.765Z] Running pi of postCreateCommand from Feature './common-feature'...
+npm warn deprecated node-domexception@1.0.0: Use your platform's native DOMException instead
+
+added 165 packages in 4s
+
+15 packages are looking for funding
+  run `npm fund` for details
+
+[2026-09-08T06:00:19.954Z] Running cursor of postCreateCommand from Feature './common-feature'...
+
+Cursor Agent Installer
+
+▸ Detecting system architecture...
+✓ Detected linux/x64
+▸ Creating installation directory...
+✓ Directory created
+▸ Downloading Cursor Agent package...
+  Download URL: https://downloads.cursor.com/lab/2026.09.02-c22c1a3/linux/x64/agent-cli-package.tar.gz
+                                                                           0.0%                                                                           0.3%                                                                           1.1%##                                                                         2.9%###                                                                        5.2%#####                                                                      7.7%########                                                                  11.1%##########                                                                14.7%############                                                              17.3%##############                                                            20.3%################                                                          22.5%##################                                                        25.3%##################                                                        25.9%##################                                                        26.3%####################                                                      28.4%#####################                                                     30.4%######################                                                    31.3%######################                                                    31.5%#########################                                                 34.9%#########################                                                 35.0%#########################                                                 35.3%############################                                              39.1%##############################                                            42.8%################################                                          45.1%##################################                                        48.5%#####################################                                     52.3%########################################                                  56.2%##########################################                                59.7%##############################################                            64.4%##################################################                        69.5%###################################################                       72.1%#####################################################                     74.5%########################################################                  79.0%############################################################              84.1%##############################################################            86.3%#################################################################         91.6%#####################################################################     96.6%######################################################################## 100.0%
+✓ Package downloaded and extracted
+▸ Finalizing installation...
+✓ Package installed successfully
+▸ Creating bin directory...
+✓ Bin directory ready
+▸ Creating symlinks to agent executable...
+✓ Symlink created
+
+✨ Installation Complete! 
+
+
+Start using Cursor Agent:
+   agent
+
+
+Happy coding! 🚀
+
+
+[2026-09-08T06:00:21.444Z] 
+==> Downloading https://ghcr.io/v2/homebrew/core/portable-ruby/blobs/sha256:01c1adce6394bcb5b1daa0921e5b0b5c64ec90641abd4678681ea7df7445791a
+#=#=#                                                                          #####                                                                      8.1%##############################                                            42.5%###############################################                           66.5%###############################################################           88.8%######################################################################## 100.0%
+==> Pouring portable-ruby-4.0.6_2.x86_64_linux.bottle.tar.gz
+==> Downloading Homebrew API data
+✔︎ JSON API packages.x86_64_linux.jws.json
+Trusted tap: thoughtbot/formulae
+Trusted tap: wyrd-company/tools
+Trusted tap: charmbracelet/tap
+==> Auto-updating Homebrew...
+Adjust how often this is run with `$HOMEBREW_AUTO_UPDATE_SECS` or disable with
+`$HOMEBREW_NO_AUTO_UPDATE=1`. Hide these hints with `$HOMEBREW_NO_ENV_HINTS=1` (see `man brew`).
+==> Homebrew collects anonymous analytics.
+Read the analytics documentation (and how to opt-out) here:
+  https://docs.brew.sh/Analytics
+No analytics have been recorded yet (nor will be during this `brew` run).
+
+==> Homebrew is run entirely by unpaid volunteers. Please consider donating:
+  https://github.com/Homebrew/brew#-donations
+
+Installing from the API is now the default behaviour!
+You can save space and time by running:
+  brew untap homebrew/core
+Error: No Brewfile found
+
+
+[2026-09-08T06:00:21.445Z] homebrew of postCreateCommand from Feature './common-feature' failed with exit code 1. Skipping any further user-provided commands.
+Error: Command failed: /bin/sh -c npm install -g agent-browser && agent-browser install --with-deps
+    at Q (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:233:157)
+    at async Promise.allSettled (index 7)
+    at async sq (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:235:119)
+    at async Yd (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:224:4668)
+    at async Jd (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:224:4013)
+    at async Hd (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:224:3217)
+    at async Cg (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:224:2623)
+    at async A9 (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:467:1550)
+    at async fG (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:467:984)
+    at async f9 (/home/tinomen/.devcontainers/cli/0.87.0/package/dist/spec-node/devContainersSpecCLI.js:485:4649)
+{"outcome":"error","message":"Command failed: /bin/sh -c npm install -g agent-browser && agent-browser install --with-deps","description":"agent-browser of postCreateCommand from Feature './common-feature' failed.","containerId":"60ef61b2eb3e8aae9556dc6c78961349b114438b423fc36d141c16bbefe61a16"}
+EXIT=1
