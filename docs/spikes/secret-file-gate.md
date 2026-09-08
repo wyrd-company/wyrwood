@@ -145,7 +145,7 @@ and did not error on the unreadable `.npmrc`. Lazy unmount on the host did
 not change what the running container saw (still the dead mount, per Q1
 A). Evidence: `q5.out`.
 
-## Q6 Sudo removal and ptrace: holds (part A); part B pending host run
+## Q6 Sudo removal and ptrace: holds
 
 Part A, plain Ubuntu container, default Docker profile, Yama
 `ptrace_scope=1`, container user `vscode` uid 1000 with and without
@@ -159,9 +159,25 @@ the user, and sudo removal matters for the root path: `sudo su vscode -c
 <allowlisted cli>` or reading `/proc/<pid>/fd` as root remains open while
 passwordless sudo exists. Evidence: `q6.out`.
 
-Part B (real devcontainer built from a copy of the common feature, sudoers
-removed after post-create, day-to-day commands exercised) was dispatched to
-the host session; its record is appended below when it arrives.
+Part B, on the host: a throwaway devcontainer built from a copy of the
+common feature (mounts and customizations removed) on
+`ghcr.io/wyrd-company/devcontainers/base:resolute`, `postCreateCommand`
+run, then `/etc/sudoers.d/*` removed and `NOPASSWD` stripped from
+`/etc/sudoers`. `sudo -n true` went from exit 0 to `a password is
+required`. Without sudo: `brew install jq`, `npm i -g cowsay`, `chown -R`
+of already-owned trees, `task`, `gh`, `claude`, `codex`, `cursor-agent`
+all worked; only `apt-get install` broke (dpkg lock, `are you root?`).
+The feature's only sudo callers are the `own-*` post-create chowns, each
+wrapped in `|| true`. No script under `~/.local/bin` or the CLI bin dirs
+calls sudo. Verdict: holds; revoking passwordless sudo after post-create
+costs apt only, and a root-owned late-arriving mount.
+
+Side findings from the build: common-feature 10.3.0 depended on
+`ghcr.io/wyrd-company/devcontainers/cursor-cli:1`, which was never
+published (the feature is `cursor-agent-cli`; the user approved the fix on
+the host); the caddy feature refuses non-s6 base images; `npm` 11 blocks
+the `agent-browser` postinstall script, so that post-create step fails on
+current npm regardless of mounts.
 
 ## Accepted assumptions
 
@@ -189,5 +205,5 @@ design constraints carried in from the evidence:
 4. Direct IO on every open; per-requester size in getattr.
 5. Interpreted CLIs (`cursor-agent`, `npm`, `pi`) stay outside the gate or
    get a native shim.
-6. Root in the container is always redacted; passwordless sudo removal is
-   part of the deployment, pending the Q6 part B record.
+6. Root in the container is always redacted; passwordless sudo removal
+   after post-create is part of the deployment and costs only apt.
