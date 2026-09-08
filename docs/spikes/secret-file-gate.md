@@ -566,3 +566,63 @@ executable identity, the safe export topology with parent-dir rshared
 propagation, and fail-closed behavior while the daemon is down. Dynamically
 linked or interpreted CLIs the attacker can influence stay outside the trusted
 set or move behind a native, self-contained shim.
+
+## Independent review round 4 (Codex gpt-6-astra)
+
+Round-4 review returned REJECT: 1 P1 + 2 P2. The value-based model is accepted
+in principle, but the "fails closed in any format" claim is over-stated and does
+not hold. All three accepted; they are recorded here as design constraints, not
+as closed. R3-2, R3-3, and R3-4 were verified fixed, and no read-boundary bypass
+was found.
+
+### R4-1 encoding defeats raw-byte value replacement (P1, open — design input)
+
+`policy.redact` replaces the literal secret bytes, then the structural pass may
+re-serialize. `{"user":"pin4931"}` does not contain the bytes `pin4931`,
+so value replacement misses it; `json.Unmarshal` then decodes `p` to `p`
+and re-emits plaintext `pin4931`. Base64, hex, and URL-encoded forms under safe
+keys survive the same way. Learning: redaction must run on the CANONICAL
+decoded form the consumer will see, not the raw bytes, and must cover every
+encoding of a known value; a pass that decodes or re-serializes after
+replacement can re-materialize the secret. The "any format" guarantee must be
+narrowed to declared, canonicalized representations.
+
+### R4-2 structural backstop leaks block-scalar bodies (P2, open)
+
+In `redactKVLines`, a block-scalar body line that looks like `user: <secret>`
+is treated as a safe mapping field and kept. Inside a block scalar the body is
+opaque text, not YAML; the backstop must redact the entire unsafe scalar or
+subtree wholesale rather than re-parsing its lines. An indentless YAML sequence
+under an unsafe key also survives.
+
+### R4-3 q15 did not isolate value replacement (P2, methodology)
+
+All three `q15` fixtures are also masked by the structural pass, so the run does
+not prove value replacement did anything. A correct test needs a fixture whose
+known value sits under a SAFE key (so the structural pass keeps it) and shows
+that it is redacted with `-secrets-file` and leaks without it. Same class as the
+round-3 needle-in-environment control failure: isolate the mechanism under test.
+
+### Round 4 verdict (honest)
+
+The gate mechanism is well understood and sound: FUSE origin detection,
+per-operation read/write authorization by re-hashed executable identity, the
+safe export topology with parent-dir rshared propagation, fail-closed behavior
+while the daemon is down, and per-read/-write gating of inherited and O_RDWR
+handles. Redaction is the one property that resisted a clean fail-closed result
+across four rounds, and round 4 established WHY: value-based redaction is the
+right model but only when it operates on the consumer's canonical decoded form
+and covers all encodings, and any structural backstop must treat opaque bodies
+wholesale. That is the redaction section's design mandate.
+
+### Recommendation after round 4 (honest)
+
+The design can be written now for everything except a fail-closed redactor,
+which needs the canonicalization rule above proven before it is trusted as a
+sole control. The safe framing the spike actually supports: the STRONG
+guarantee comes from the reader trust model (dedicated uid, locked-down loader,
+`PR_SET_DUMPABLE=0`, no secrets in env) plus the fact that redacted output is
+only ever served to non-allowlisted readers meant to fail; redaction is a
+best-effort second layer, not a proven-complete control, until the encoding
+canonicalization is designed and tested. Do not claim the gate redacts "any
+format" fail-closed.
