@@ -29,18 +29,25 @@ J
 }
 
 # start_daemon [extra flags...]
+unmount_stale() {
+  # mountpoint -q fails on a dead FUSE mount, so unmount unconditionally.
+  fusermount3 -uz "$MNT" 2>/dev/null || true
+}
+
 start_daemon() {
-  mountpoint -q "$MNT" && fusermount3 -u "$MNT"
-  "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" "$@" > "$SPIKE_ROOT/daemon.out" 2>&1 &
+  unmount_stale
+  "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other "$@" > "$SPIKE_ROOT/daemon.out" 2>&1 &
   DAEMON_PID=$!
   for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
   mountpoint "$MNT"; echo "daemon pid $DAEMON_PID"
 }
 
 stop_daemon() {
-  pkill -f "$BIN" || true
+  for p in /proc/[0-9]*; do
+    [ "$(readlink "$p/exe" 2>/dev/null)" = "$BIN" ] && kill "${p#/proc/}" 2>/dev/null
+  done
   sleep 0.5
-  mountpoint -q "$MNT" && fusermount3 -u "$MNT" || true
+  unmount_stale
 }
 
 tail_log() { tail -n "${1:-5}" "$LOG"; }
