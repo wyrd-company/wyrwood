@@ -1,0 +1,31 @@
+
+### yama inside container
+1
+
+### capabilities of container user
+CapInh:	0000000000000000
+CapPrm:	0000000000000000
+CapEff:	0000000000000000
+CapBnd:	00000000a80425fb
+CapAmb:	0000000000000000
+
+### same-uid non-descendant ptrace (default profile), target pid 20
+PTRACE_ATTACH: operation not permitted
+open /proc/pid/mem: open /proc/20/mem: permission denied
+
+### with sudo still present: sudo cat /proc/pid/environ
+head: cannot open '/proc/20/environ' for reading: Permission denied
+
+
+### revoke sudo
+sudo: a password is required
+
+### same-uid ptrace after sudo removal
+PTRACE_ATTACH: operation not permitted
+open /proc/pid/mem: open /proc/20/mem: permission denied
+
+### with --cap-add SYS_PTRACE (what a devcontainer.json capAdd would grant)
+PTRACE_ATTACH: operation not permitted
+open /proc/pid/mem: open /proc/7/mem: permission denied
+
+### with ptrace_scope=0 semantics: not testable without host change; recorded as-is

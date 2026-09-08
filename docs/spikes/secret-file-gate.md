@@ -202,8 +202,8 @@ current npm regardless of mounts.
 
 ## Recommendation
 
-Write the technical design, with the gate narrowed to native CLIs and these
-design constraints carried in from the evidence:
+Superseded by review round 1 below: a second spike round must close the
+containment gaps before the design is written. Original constraints:
 
 1. `user_allow_other` is a host prerequisite; `allow_other` plus explicit
    uid checks on both origins.
@@ -216,3 +216,71 @@ design constraints carried in from the evidence:
    get a native shim.
 6. Root in the container is always redacted; passwordless sudo removal
    after post-create is part of the deployment and costs only apt.
+
+## Independent review round 1 (Codex gpt-6-astra, low)
+
+An independent reviewer read the findings, the spike code, and the raw
+outputs and returned reject. The findings are largely valid and are
+themselves spike learning. Dispositions:
+
+1. Redaction leaks (P1, accepted). The placeholder regex left
+   `access_token` in `codex/auth.json` (`"tokens": REDACTED "eyFAKE..."`)
+   and produced invalid JSON. It does not cover bare `key` fields or PEM
+   keys. The spike's redaction was a stand-in, but the Q2/Q5 "redacted
+   baseline" is contaminated. A real gate needs format-aware redaction that
+   refuses unsupported content. Q2's cache-leak result (direct IO) still
+   holds; the redaction *content* does not.
+2. B2 exposes the backing files (P1, accepted; corrects Q1). The B2 script
+   bound all of `$SPIKE_ROOT`, which also holds `backing/`, so the container
+   could read the real files at `/secrets/backing/...` without FUSE. Mount
+   propagation still works, but the tested topology is not a safe layout.
+   Corrected constraint: the exported parent must contain only the
+   mountpoint, backing storage lives outside it, and direct-backing denial
+   must be tested.
+3. Q6 process-access not fully closed (P1, accepted). `ptracetest` returns
+   after the `mem` failure, so it never tested `environ` independently, and
+   the sibling setup never exercised Yama scope 1's ancestor-tracing
+   allowance. An attacker who launches an allowlisted CLI as its own child
+   can trace it. Q6 verdict narrows to: same-UID non-descendant ptrace is
+   blocked; parent-child tracing and `/proc/<pid>/fd` are untested.
+4. Hash identity is not trusted execution (P1, accepted; changes the
+   recommendation). Hashing `/proc/<pid>/exe` ignores shared libraries,
+   `LD_PRELOAD`, and plugins, so a dynamically linked allowlisted CLI can
+   keep its approved hash while running attacker code, with no sudo or
+   ptrace. "Native CLIs" is not by itself a security boundary; the design
+   must separate self-contained readers from those with attacker-controlled
+   code-loading, and constrain the loader environment.
+5. Authorization is at open, not per read (P1, accepted). An allowed open
+   returns a plain loopback handle; an inherited or `SCM_RIGHTS`-passed fd
+   keeps access after the process changes exe or hands it to a
+   non-allowlisted process. The design must decide whether it gates opens or
+   every read; fd passing needs a test.
+6. Inherited loopback mutations bypass the write gate (P1, accepted;
+   narrows Q4). `Symlink`, `Link`, `Rmdir`, `Mknod`, and xattr ops are not
+   wrapped in `check()`, so a same-UID caller can hardlink a credential out
+   before a rewrite or plant a symlink. Q4 proved only open/create/rename/
+   unlink/setattr; the gate needs an operation-by-operation policy.
+7. Q5 used the rejected topology (P1, accepted). Q5 bound FUSE subpaths, so
+   post-unmount it only re-observed the dead mount; it never tested B2's
+   underlying directory between unmount and remount, nor successful
+   login/refresh writes, nor every inventoried CLI. Q5 narrows to: while the
+   daemon is down under a subpath bind, reads fail closed and the sampled
+   CLIs wrote nothing.
+8. Hash enforcement never exercised (P2, accepted). The runs used path
+   allowlists; `-allow-sha256` was logged but never the deciding factor, and
+   the mtime cache is unbuilt. Hash enforcement, copy/replacement, and
+   metadata restoration need a dedicated experiment.
+9. Evidence hygiene (P2, accepted). The saved `q2.out`/`q6.out` do not
+   contain the `process.title`, vendored-node, or Q6 part B transcripts even
+   though those runs happened in-session. The raw transcripts should be
+   attached to the spike record.
+
+Revised recommendation: do not write the technical design yet. Run a second
+spike round that closes findings 1-8 first: safe export topology with
+direct-backing denial, per-operation write policy with link tests,
+open-versus-read authorization and fd-passing, the code-loading boundary for
+dynamically linked readers, real hash enforcement with the cache, and the
+parent-child ptrace and `/proc/<pid>/fd` paths. The mechanism (FUSE origin
+detection, redaction, fail-closed, restart survival via parent-dir
+propagation) is sound enough to continue; the gate is not yet proven
+containing.

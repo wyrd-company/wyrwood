@@ -1,0 +1,152 @@
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2436648
+
+### === STATE: daemon up (baseline; readers not allowlisted so they see redacted values) ===
+
+### gh auth status
+github.com
+  X github.com: authentication failed
+  - The github.com token in /home/u/.config/gh/hosts.yml is no longer valid.
+  - To re-authenticate, run: gh auth login -h github.com
+exit=1
+
+### codex login status
+WARNING: proceeding, even though we could not create PATH aliases: Permission denied (os error 13)
+Error checking login status: expected value at line 1 column 42
+exit=1
+
+### claude auth status (non-interactive)
+{
+  "loggedIn": false,
+  "authMethod": "none",
+  "apiProvider": "firstParty",
+exit=141
+
+### npm config get authToken
+npm error The //registry.npmjs.org/:_authToken option is protected, and cannot be retrieved in this way
+npm error A complete log of this run can be found in: /home/u/.npm/_logs/2026-09-08T05_49_14_393Z-debug-0.log
+exit=1
+
+### files as the container sees them
+/home/u/.claude:
+total 4
+drwxr-xr-x 1 node node 34 Sep  8 05:49 .
+drwxr-xr-x 1 node node 84 Sep  8 05:49 ..
+-rw-r--r-- 1 node node 97 Sep  8 05:49 .credentials.json
+
+/home/u/.codex:
+total 4
+drwxr-xr-x 1 node node  18 Sep  8 05:45 .
+drwxr-xr-x 1 node node  84 Sep  8 05:49 ..
+-rw-r--r-- 1 node node 100 Sep  8 05:48 auth.json
+
+/home/u/.config/gh:
+total 8
+drwxr-xr-x 1 node node  38 Sep  8 05:48 .
+drwxr-xr-x 1 root root   4 Sep  8 05:49 ..
+-rw------- 1 node node  33 Sep  8 05:48 config.yml
+-rw------- 1 node node 150 Sep  8 05:48 hosts.yml
+//registry.npmjs.org/:_authToken=REDACTED
+
+### === STATE: daemon killed, mount left dangling ===
+mountpoint: /home/vscode/spike847/mnt: Transport endpoint is not connected
+ls: unknown io error: '/home/vscode/spike847/mnt', 'Os { code: 107, kind: NotConnected, message: "Transport endpoint is not connected" }'
+spike/runbook/q5-failure.sh: line 42: 2436648 Killed                     "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other "$@" > "$SPIKE_ROOT/daemon.out" 2>&1
+
+### gh auth status
+failed to read configuration:  open /home/u/.config/gh/config.yml: transport endpoint is not connected
+exit=1
+
+### codex login status
+WARNING: proceeding, even though we could not create PATH aliases: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+Error loading configuration: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+exit=1
+
+### claude auth status (non-interactive)
+{
+  "loggedIn": false,
+  "authMethod": "none",
+  "apiProvider": "firstParty",
+exit=141
+
+### npm config get authToken
+npm error The //registry.npmjs.org/:_authToken option is protected, and cannot be retrieved in this way
+npm error A complete log of this run can be found in: /home/u/.npm/_logs/2026-09-08T05_49_15_695Z-debug-0.log
+exit=1
+
+### files as the container sees them
+ls: cannot access '/home/u/.config/gh': Transport endpoint is not connected
+ls: cannot access '/home/u/.codex': Transport endpoint is not connected
+ls: cannot access '/home/u/.claude': Transport endpoint is not connected
+cat: /home/u/.npmrc: Transport endpoint is not connected
+
+### === does a login attempt overwrite? gh auth login --with-token while dangling ===
+failed to read configuration:  open /home/u/.config/gh/config.yml: transport endpoint is not connected
+
+### === STATE: cleanly unmounted (container bind now points at the empty mountpoint dir) ===
+total 0
+drwxr-xr-x 1 vscode vscode   0 Sep  8 05:45 .
+drwxr-xr-x 1 vscode vscode 196 Sep  8 05:48 ..
+
+### gh auth status
+failed to read configuration:  open /home/u/.config/gh/config.yml: transport endpoint is not connected
+exit=1
+
+### codex login status
+WARNING: proceeding, even though we could not create PATH aliases: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+Error loading configuration: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+exit=1
+
+### claude auth status (non-interactive)
+{
+  "loggedIn": false,
+  "authMethod": "none",
+  "apiProvider": "firstParty",
+exit=141
+
+### npm config get authToken
+npm error The //registry.npmjs.org/:_authToken option is protected, and cannot be retrieved in this way
+npm error A complete log of this run can be found in: /home/u/.npm/_logs/2026-09-08T05_49_16_179Z-debug-0.log
+exit=1
+
+### files as the container sees them
+ls: cannot access '/home/u/.config/gh': Transport endpoint is not connected
+ls: cannot access '/home/u/.codex': Transport endpoint is not connected
+ls: cannot access '/home/u/.claude': Transport endpoint is not connected
+cat: /home/u/.npmrc: Transport endpoint is not connected
+
+### === does a login attempt overwrite/create? gh auth login --with-token while unmounted ===
+failed to read configuration:  open /home/u/.config/gh/config.yml: transport endpoint is not connected
+ls: cannot access '/home/u/.config/gh': Transport endpoint is not connected
+ls: cannot access '/home/vscode/spike847/mnt/gh': No such file or directory
+
+### === STATE: daemon restarted (new mount on host); what does the running container see? ===
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2437822
+
+### gh auth status
+failed to read configuration:  open /home/u/.config/gh/config.yml: transport endpoint is not connected
+exit=1
+
+### codex login status
+WARNING: proceeding, even though we could not create PATH aliases: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+Error loading configuration: failed to read CODEX_HOME "/home/u/.codex": Socket not connected (os error 107)
+exit=1
+
+### claude auth status (non-interactive)
+{
+  "loggedIn": false,
+  "authMethod": "none",
+  "apiProvider": "firstParty",
+exit=141
+
+### npm config get authToken
+npm error The //registry.npmjs.org/:_authToken option is protected, and cannot be retrieved in this way
+npm error A complete log of this run can be found in: /home/u/.npm/_logs/2026-09-08T05_49_16_709Z-debug-0.log
+exit=1
+
+### files as the container sees them
+ls: cannot access '/home/u/.config/gh': Transport endpoint is not connected
+ls: cannot access '/home/u/.codex': Transport endpoint is not connected
+ls: cannot access '/home/u/.claude': Transport endpoint is not connected
+cat: /home/u/.npmrc: Transport endpoint is not connected

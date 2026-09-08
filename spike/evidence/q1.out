@@ -1,0 +1,149 @@
+
+### CASE A (mount propagation: rprivate)
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2404298
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2213 2204 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+mountpoint: /home/vscode/spike847/mnt: Transport endpoint is not connected
+host mountpoint gone
+-- after kill, before remount:
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2404510
+-- after remount (rprivate):
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+
+### parent of the mountpoint is not shared; making /home/vscode/spike847 a shared bind mount (sudo)
+TARGET                PROPAGATION
+/home/vscode/spike847 shared
+
+### CASE B (mount propagation: rshared)
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2405323
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2215 2206 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime shared:1035 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- after kill:
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2405643
+-- after remount (rshared):
+cat: /secrets/gh/hosts.yml: Transport endpoint is not connected
+-- container mountinfo now:
+2215 2206 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime shared:1035 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+
+### CASE B2 (bind parent dir rshared, daemon mounts beneath it after container start)
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2406431
+-- container read via propagated mount:
+github.com:
+    users:
+        example-user:
+-- container mountinfo:
+2213 2204 0:71 /home/vscode/spike847 /secrets rw,relatime shared:1034 - overlay overlay rw,lowerdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18148/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18129/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18125/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18124/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18123/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18122/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18121/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18120/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18119/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18118/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18117/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18116/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18115/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18114/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18113/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18112/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17963/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17962/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17961/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17960/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17920/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17919/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17918/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17917/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17916/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17915/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17914/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17913/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17912/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17911/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17910/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17909/fs,upperdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18149/fs,workdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18149/work,index=off
+1349 2213 0:198 / /secrets/mnt rw,nosuid,nodev,relatime shared:1036 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- after kill:
+cat: /secrets/mnt/gh/hosts.yml: Transport endpoint is not connected
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2406673
+-- after remount:
+github.com:
+    users:
+        example-user:
+-- container mountinfo now:
+2213 2204 0:71 /home/vscode/spike847 /secrets rw,relatime shared:1034 - overlay overlay rw,lowerdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18148/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18129/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18125/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18124/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18123/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18122/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18121/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18120/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18119/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18118/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18117/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18116/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18115/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18114/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18113/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18112/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17963/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17962/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17961/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17960/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17920/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17919/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17918/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17917/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17916/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17915/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17914/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17913/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17912/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17911/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17910/fs:/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/17909/fs,upperdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18149/fs,workdir=/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/snapshots/18149/work,index=off
+1349 2213 0:198 / /secrets/mnt rw,nosuid,nodev,relatime shared:1036 - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- does the propagated mount honour the gate (redacted for cat)?
+            oauth_token: REDACTED
+
+### CASE C (mount propagation: rprivate)
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2407421
+-- before restart:
+github.com:
+    users:
+        example-user:
+-- findmnt inside container:
+2215 2206 0:177 /gh /secrets/gh rw,nosuid,nodev,relatime - fuse.secretfs secretfs rw,user_id=1000,group_id=1000,default_permissions,allow_other,max_read=131072
+-- daemon processes now:
+2407711 /home/vscode/spike847/secretfs -backing /home/vscode/spike847/backing -mount /dev/fd/3 -log /home/vscode/spike847/identity.log -allow  -allow-sha256  -reexec-on-usr1 -allow-other
+old pid 2407421 alive? no
+-- after fd handoff:
+cat: /secrets/gh/hosts.yml: Input/output error
+-- host read after handoff:
+github.com:
+    users:
+        example-user:
+-- daemon.out:
+2026/09/08 05:46:42 secretfs pid=2407421 mounted /home/vscode/spike847/backing -> /home/vscode/spike847/mnt (self mnt ns mnt:[4026534121])
+2026/09/08 05:46:42 reexec: handed fuse fd to pid 2407711, old pid 2407421 exiting without unmount
+2026/09/08 05:46:43 unknown node 2
+2026/09/08 05:46:43 panic in FS handler: unknown node 2
+goroutine 1 [running]:
+github.com/hanwen/go-fuse/v2/fuse.defaultPanicHandler(0x18c4faa2390, {0x799f60, 0x18c4faa4310})
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:200 +0x50
+github.com/hanwen/go-fuse/v2/fuse.(*MountOptions).setDefaults.func1({0x799f60?, 0x18c4faa4310?})
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:179 +0x2a
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1.1()
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:53 +0x42
+panic({0x799f60?, 0x18c4faa4310?})
+	/usr/local/go/src/runtime/panic.go:859 +0x125
+log.Panicf({0x5cb329?, 0x18c4fae16e8?}, {0x18c4fae1720?, 0x18c4fae1738?, 0x4204fb?})
+	/usr/local/go/src/log/log.go:460 +0x74
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).inode(0x18c4fada1a0, 0x2, 0x0)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:353 +0x147
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).GetAttr(0x18c4fada1a0, 0x18c4fa9a0e0, 0x18c4faf84e8, 0x18c4faf83c8)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:549 +0x4c
+github.com/hanwen/go-fuse/v2/fuse.doGetAttr(0x38?, 0x18c4faf82c8)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/opcode.go:308 +0x3e
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1(0x18c4fada340?, 0x18c4faf82c8?, 0x7f7afdc62bc8?)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:59 +0x51
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest(0x18c4fada340, 0x18c4fab24e0, 0x18c4faf82c8)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:60 +0x205
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleRequest(0x18c4fada340, 0x18c4faf82c8)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:520 +0x3b9
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleInit(0x18c4fada340)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:423 +0x65
+github.com/hanwen/go-fuse/v2/fuse.NewServer({0x7c7e48, 0x18c4fada1a0}, {0x7ffc8f909743, 0x9}, 0x18c4faa42b0?)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:275 +0x465
+github.com/hanwen/go-fuse/v2/fs.Mount({0x7ffc8f909743, 0x9}, {0x7c71f0?, 0x18c4fac60c0?}, 0x18c4fae1d90)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/mount.go:21 +0x56
+main.main()
+	/workspaces/worktrees/wyrwood/task847-secret-file-gate-spike/spike/secretfs/main.go:288 +0x6e9
+2026/09/08 05:46:43 secretfs pid=2407711 mounted /home/vscode/spike847/backing -> /dev/fd/3 (self mnt ns mnt:[4026534121])
+2026/09/08 05:46:43 unknown node 8
+2026/09/08 05:46:43 panic in FS handler: unknown node 8
+goroutine 23 [running]:
+github.com/hanwen/go-fuse/v2/fuse.defaultPanicHandler(0x18c4faa2390, {0x799f60, 0x18c4fbe0020})
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:200 +0x50
+github.com/hanwen/go-fuse/v2/fuse.(*MountOptions).setDefaults.func1({0x799f60?, 0x18c4fbe0020?})
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:179 +0x2a
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1.1()
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:53 +0x42
+panic({0x799f60?, 0x18c4fbe0020?})
+	/usr/local/go/src/runtime/panic.go:859 +0x125
+log.Panicf({0x5cb329?, 0x7f7afdbe1408?}, {0x18c4fa2b458?, 0x18c4fa2b430?, 0x4248dc?})
+	/usr/local/go/src/log/log.go:460 +0x74
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).inode(0x18c4fada1a0, 0x8, 0x0)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:353 +0x147
+github.com/hanwen/go-fuse/v2/fs.(*rawBridge).Forget(0x18c4fada1a0, 0x7f7afdbe1408?, 0x1)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fs/bridge.go:502 +0x1f
+github.com/hanwen/go-fuse/v2/fuse.doForget(0x30?, 0x18c4fa2b518?)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/opcode.go:315 +0x3c
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest.func1(0x18c4fada340?, 0x18c4fa62008?, 0x7f7afdbe1408?)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:59 +0x51
+github.com/hanwen/go-fuse/v2/fuse.(*protocolServer).handleRequest(0x18c4fada340, 0x18c4fab2480, 0x18c4fa62008)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/protocol-server.go:60 +0x205
+github.com/hanwen/go-fuse/v2/fuse.(*Server).handleRequest(0x18c4fada340, 0x18c4fa62008)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:520 +0x3b9
+github.com/hanwen/go-fuse/v2/fuse.(*Server).loop(0x18c4fada340)
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/server.go:494 +0x13d
+created by github.com/hanwen/go-fuse/v2/fuse.(*fuseFD).readRequest in goroutine 20
+	/go/pkg/mod/github.com/hanwen/go-fuse/v2@v2.11.0/fuse/fusefd.go:157 +0x66e

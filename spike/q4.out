@@ -1,0 +1,81 @@
+gh exe inside container: /usr/bin/gh
+/home/vscode/spike847/mnt is a mountpoint
+daemon pid 2424403
+
+### allowlisted tmpwriter: temp+rename over hosts.yml
+renamed ok
+{"time":"2026-09-08T05:48:08.999432634Z","op":"create:.tmp-hosts.yml","path":"gh","pid":2424648,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter","exe_dev":195,"exe_ino":114164147,"cmdline":"tmpwriter /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_NEWFAKE_NEWFAKE_NEWFAKE\n    user: example-user","comm":"tmpwriter","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.000179292Z","op":"rename:.tmp-hosts.yml-\u003ehosts.yml","path":"gh","pid":2424648,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter","exe_dev":195,"exe_ino":114164147,"cmdline":"tmpwriter /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_NEWFAKE_NEWFAKE_NEWFAKE\n    user: example-user","comm":"tmpwriter","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### backing file on host after rename
+github.com:
+    oauth_token: gho_NEWFAKE_NEWFAKE_NEWFAKE
+    user: example-user
+
+### redacted reader (cat, not allowlisted) sees the new file
+github.com:
+    oauth_token: REDACTED
+    user: example-user
+
+### non-allowlisted writer (identical binary, different path) denied
+write temp: open /secrets/gh/.tmp-hosts.yml: permission denied
+{"time":"2026-09-08T05:48:09.039700555Z","op":"open","path":"gh/hosts.yml","pid":2424689,"uid":1000,"gid":1000,"exe":"/usr/bin/cat","exe_dev":195,"exe_ino":101624564,"cmdline":"cat /secrets/gh/hosts.yml","comm":"cat","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"redacted"}
+{"time":"2026-09-08T05:48:09.075394657Z","op":"create:.tmp-hosts.yml","path":"gh","pid":2424723,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter-copy","exe_dev":195,"exe_ino":114164154,"cmdline":"tmpwriter-copy /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_ATTACKER","comm":"tmpwriter-copy","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"denied"}
+
+### backing file unchanged?
+0
+
+### non-allowlisted unlink denied
+rm: cannot remove '/secrets/gh/hosts.yml': Permission denied
+hosts.yml
+
+### gh (allowlisted) reads real token: gh auth status
+github.com
+  X Failed to log in to github.com account example-user (/secrets/gh/hosts.yml)
+  - Active account: true
+  - The token in /secrets/gh/hosts.yml is invalid.
+  - To re-authenticate, run: gh auth login -h github.com
+{"time":"2026-09-08T05:48:09.181166807Z","op":"setattr","path":"gh/hosts.yml","pid":2424795,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth status","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.181378351Z","op":"create:config.yml","path":"gh","pid":2424795,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth status","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### gh writes: gh auth logout
+✓ Logged out of github.com account example-user
+{"time":"2026-09-08T05:48:09.399934141Z","op":"open","path":"gh/config.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.400200005Z","op":"open","path":"gh/hosts.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.402849148Z","op":"open","path":"gh/hosts.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.402923877Z","op":"setattr","path":"gh/hosts.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### backing hosts.yml after logout
+{}
+total 8
+drwxr-xr-x 1 vscode vscode 38 Sep  8 05:48 .
+drwxr-xr-x 1 vscode vscode 14 Sep  8 05:45 ..
+-rw------- 1 vscode vscode 13 Sep  8 05:48 config.yml
+-rw------- 1 vscode vscode  3 Sep  8 05:48 hosts.yml
+
+### gh writes: gh auth login --with-token (fake token, expect API validation failure; does it write?)
+error validating token: HTTP 401: Bad credentials (https://api.github.com/)
+Try authenticating with:  gh auth login
+{"time":"2026-09-08T05:48:09.402923877Z","op":"setattr","path":"gh/hosts.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.473446251Z","op":"open","path":"gh/config.yml","pid":2424899,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth login --hostname github.com --with-token","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.473737402Z","op":"open","path":"gh/hosts.yml","pid":2424899,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth login --hostname github.com --with-token","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+
+### backing hosts.yml after login attempt
+{}
+
+### gh writes: gh config set (config.yml)
+{"time":"2026-09-08T05:48:09.644306547Z","op":"open","path":"gh/hosts.yml","pid":2424951,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh config set git_protocol https","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.646467212Z","op":"open","path":"gh/config.yml","pid":2424951,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh config set git_protocol https","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.646572187Z","op":"setattr","path":"gh/config.yml","pid":2424951,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh config set git_protocol https","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+version: "1"
+git_protocol: https
+
+### identity log for gh ops
+{"time":"2026-09-08T05:48:08.999432634Z","op":"create:.tmp-hosts.yml","path":"gh","pid":2424648,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter","exe_dev":195,"exe_ino":114164147,"cmdline":"tmpwriter /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_NEWFAKE_NEWFAKE_NEWFAKE\n    user: example-user","comm":"tmpwriter","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.000179292Z","op":"rename:.tmp-hosts.yml-\u003ehosts.yml","path":"gh","pid":2424648,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter","exe_dev":195,"exe_ino":114164147,"cmdline":"tmpwriter /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_NEWFAKE_NEWFAKE_NEWFAKE\n    user: example-user","comm":"tmpwriter","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.075394657Z","op":"create:.tmp-hosts.yml","path":"gh","pid":2424723,"uid":1000,"gid":1000,"exe":"/usr/local/bin/tmpwriter-copy","exe_dev":195,"exe_ino":114164154,"cmdline":"tmpwriter-copy /secrets/gh/hosts.yml github.com:\n    oauth_token: gho_ATTACKER","comm":"tmpwriter-copy","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"denied"}
+{"time":"2026-09-08T05:48:09.116338424Z","op":"unlink:hosts.yml","path":"gh","pid":2424761,"uid":1000,"gid":1000,"exe":"/usr/bin/rm","exe_dev":195,"exe_ino":101624738,"cmdline":"rm /secrets/gh/hosts.yml","comm":"rm","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"denied"}
+{"time":"2026-09-08T05:48:09.181166807Z","op":"setattr","path":"gh/hosts.yml","pid":2424795,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth status","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.181378351Z","op":"create:config.yml","path":"gh","pid":2424795,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth status","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.402923877Z","op":"setattr","path":"gh/hosts.yml","pid":2424847,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh auth logout --hostname github.com --user example-user","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
+{"time":"2026-09-08T05:48:09.646572187Z","op":"setattr","path":"gh/config.yml","pid":2424951,"uid":1000,"gid":1000,"exe":"/usr/bin/gh","exe_dev":195,"exe_ino":114163914,"cmdline":"gh config set git_protocol https","comm":"gh","mnt_ns":"mnt:[4026534506]","pid_ns":"pid:[4026534522]","origin":"container","decision":"real"}
