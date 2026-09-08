@@ -26,7 +26,7 @@ docker run -d --rm --name spike847 -u 1000:1000 --mount "type=bind,src=$MNT,dst=
 say "container cat (real expected)"; docker exec spike847 cat /secrets/gh/hosts.yml | head -2; tail_log 1
 say "container /tmp/cat2 copy (redacted expected: path differs)"; docker exec spike847 sh -c 'cp /bin/cat /tmp/cat2 && /tmp/cat2 /secrets/gh/hosts.yml | head -2'; tail_log 1
 say "spoof: bind-mount a different binary over /usr/bin/cat inside the container (needs root in container)"
-docker exec -u 0 spike847 sh -c 'cp /bin/head /tmp/fakecat && mount --bind /tmp/fakecat /usr/bin/cat 2>&1; cat -n 1 /secrets/gh/hosts.yml 2>&1 | head -2' ; tail_log 1
+docker exec -u 0 spike847 sh -c 'cp /bin/head /tmp/fakecat && mount --bind /tmp/fakecat /usr/bin/cat 2>&1; cat /secrets/gh/hosts.yml 2>&1 | head -2' ; tail_log 1
 say "spoof: attacker-built image where /usr/bin/cat is a different binary"
 docker rm -f spike847 >/dev/null 2>&1 || true
 TMPD=$(mktemp -d); printf 'FROM %s\nRUN cp /bin/head /usr/bin/cat\n' "$IMAGE" > "$TMPD/Dockerfile"
@@ -37,7 +37,14 @@ say "exe dev/ino and sha256 for genuine vs spoofed cat from the log"; grep '"con
 say "Q3 interpreted CLI: node reader"
 docker run --rm -u 1000:1000 --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim node -e 'console.log(require("fs").readFileSync("/secrets/gh/hosts.yml","utf8").split("\n")[3])'; tail_log 1
 say "Q3: node with a spoofed script name and argv0"
-docker run --rm -u 1000:1000 --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim bash -c 'printf "console.log(require(\"fs\").readFileSync(\"/secrets/gh/hosts.yml\",\"utf8\").split(\"\\n\")[3])" > /tmp/gh; exec -a /usr/local/bin/gh node /tmp/gh'; tail_log 1
+cat > "$SPIKE_ROOT/reader.js" <<'J'
+console.log(require("fs").readFileSync("/secrets/gh/hosts.yml","utf8").split("\n").filter(l=>l.includes("oauth")).join(" | "))
+J
+docker run --rm -u 1000:1000 -v "$SPIKE_ROOT/reader.js:/tmp/gh:ro" --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim bash -c 'exec -a /usr/local/bin/gh node /tmp/gh'; tail_log 1
+say "Q3: process.title rewrites cmdline and comm"
+docker run --rm -u 1000:1000 -v "$SPIKE_ROOT/reader.js:/tmp/gh:ro" --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim node -e 'process.title="cursor-agent"; require("/tmp/gh")'; tail_log 1
+say "Q3: vendored node copy (cursor-agent shape) hashes like system node"
+docker run --rm -u 1000:1000 -v "$SPIKE_ROOT/reader.js:/tmp/evil.js:ro" --mount "type=bind,src=$MNT,dst=/secrets" node:24-slim bash -c 'mkdir -p /tmp/vendor && cp /usr/local/bin/node /tmp/vendor/node && /tmp/vendor/node /tmp/evil.js'; tail_log 1
 say "Q3: what the daemon logged for the node readers"; grep node "$LOG" | tail -2
 docker rm -f spike847 >/dev/null 2>&1 || true
 stop_daemon

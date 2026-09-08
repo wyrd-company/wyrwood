@@ -53,6 +53,15 @@ enabled for the spike. The kernel is the host kernel. Differences from the
 host: the devcontainer root is a `private` mount (the host's `/home` is
 `shared`), so case B of question 1 needed a shared bind of the spike directory.
 
+After `user_allow_other` was enabled on the host, questions 1, 2, and 3
+were re-run there with the same scripts. Every case matched the
+devcontainer result: A and B strand the container, B2 recovers (the parent
+bind is the btrfs `/home` subvolume, `shared:205`; the FUSE mount
+propagates as `0:198` under it), C panics with `unknown node 2`, path
+allowlist admitted the attacker image, hashes identical, root opaque,
+node identity is `node`. Host evidence: `~/Code/spikes/847/q1.out`,
+`q2.out`, `identity.log`.
+
 ## Q1 Restart under a running container: fails-with-mitigation
 
 | Case | Setup | After daemon kill and remount |
