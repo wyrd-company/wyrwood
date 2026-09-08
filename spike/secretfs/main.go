@@ -22,7 +22,6 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -31,19 +30,6 @@ import (
 	"github.com/hanwen/go-fuse/v2/fs"
 	"github.com/hanwen/go-fuse/v2/fuse"
 )
-
-var secretField = regexp.MustCompile(`(?i)("?(?:[a-z_]*(?:token|secret|password|api[_-]?key)[a-z_]*)"?\s*[:=]\s*)("[^"]*"|[^\s,}]+)`)
-
-func redact(b []byte) []byte {
-	return secretField.ReplaceAllFunc(b, func(m []byte) []byte {
-		sub := secretField.FindSubmatch(m)
-		val := sub[2]
-		if len(val) > 0 && val[0] == '"' {
-			return append(append([]byte{}, sub[1]...), []byte(`"REDACTED"`)...)
-		}
-		return append(append([]byte{}, sub[1]...), []byte("REDACTED")...)
-	})
-}
 
 type identity struct {
 	Time     string `json:"time"`
@@ -65,13 +51,23 @@ type identity struct {
 	Err      string `json:"err,omitempty"`
 }
 
+type hashKey struct {
+	mntNS    string
+	dev, ino uint64
+	mtime    int64
+}
+
 type policy struct {
-	selfMntNS string
-	allow     map[string]bool // by exe path (host view)
-	allowHash map[string]bool // by sha256
-	hashExe   bool
-	logMu     sync.Mutex
-	logW      io.Writer
+	selfMntNS    string
+	allow        map[string]bool // by exe path (host view)
+	allowHash    map[string]bool // by sha256
+	hashExe      bool
+	gateReads    bool
+	hashCache    map[hashKey]string
+	cacheMu      sync.Mutex
+	hits, misses int
+	logMu        sync.Mutex
+	logW         io.Writer
 }
 
 func readlink(p string) string {
@@ -108,12 +104,7 @@ func (p *policy) identify(ctx context.Context, op, path string) identity {
 		id.ExeDev, id.ExeIno = uint64(st.Dev), st.Ino
 	}
 	if p.hashExe {
-		if f, err := os.Open(proc + "/exe"); err == nil {
-			h := sha256.New()
-			io.Copy(h, f)
-			f.Close()
-			id.ExeHash = hex.EncodeToString(h.Sum(nil))
-		}
+		id.ExeHash = p.hashExeCached(proc, id.MntNS, id.ExeDev, id.ExeIno, &st)
 	}
 	if id.MntNS == p.selfMntNS {
 		id.Origin = "host"
@@ -127,6 +118,33 @@ func (p *policy) identify(ctx context.Context, op, path string) identity {
 		id.Decision = "redacted"
 	}
 	return id
+}
+
+func (p *policy) hashExeCached(proc, mntNS string, dev, ino uint64, st *syscall.Stat_t) string {
+	key := hashKey{mntNS: mntNS, dev: dev, ino: ino, mtime: st.Mtim.Sec*1e9 + st.Mtim.Nsec}
+	p.cacheMu.Lock()
+	if p.hashCache == nil {
+		p.hashCache = map[hashKey]string{}
+	}
+	if h, ok := p.hashCache[key]; ok {
+		p.hits++
+		p.cacheMu.Unlock()
+		return h
+	}
+	p.misses++
+	p.cacheMu.Unlock()
+	f, err := os.Open(proc + "/exe")
+	if err != nil {
+		return ""
+	}
+	h := sha256.New()
+	io.Copy(h, f)
+	f.Close()
+	sum := hex.EncodeToString(h.Sum(nil))
+	p.cacheMu.Lock()
+	p.hashCache[key] = sum
+	p.cacheMu.Unlock()
+	return sum
 }
 
 func (p *policy) record(id identity) {
@@ -175,16 +193,23 @@ func (n *node) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, s
 	_, allowed := n.check(ctx, "open", isWrite(flags))
 	if allowed {
 		fh, fl, errno := n.LoopbackNode.Open(ctx, flags)
+		if errno == 0 && n.pol.gateReads && !isWrite(flags) {
+			// Re-authorize on every Read so an inherited or SCM_RIGHTS-passed
+			// fd cannot keep real bytes after the identity changes.
+			rel := n.EmbeddedInode().Path(nil)
+			return &gatedFile{node: n, rel: rel, loop: fh}, fl | fuse.FOPEN_DIRECT_IO, 0
+		}
 		return fh, fl | fuse.FOPEN_DIRECT_IO, errno
 	}
 	if isWrite(flags) {
 		return nil, 0, syscall.EACCES
 	}
-	real, err := os.ReadFile(filepath.Join(n.RootData.Path, n.EmbeddedInode().Path(nil)))
+	rel := n.EmbeddedInode().Path(nil)
+	real, err := os.ReadFile(filepath.Join(n.RootData.Path, rel))
 	if err != nil {
 		return nil, 0, fs.ToErrno(err)
 	}
-	return &redactedFile{data: redact(real)}, fuse.FOPEN_DIRECT_IO, 0
+	return &redactedFile{data: redactForFormat(rel, real)}, fuse.FOPEN_DIRECT_IO, 0
 }
 
 func (n *node) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) syscall.Errno {
@@ -198,7 +223,7 @@ func (n *node) Getattr(ctx context.Context, f fs.FileHandle, out *fuse.AttrOut) 
 	} else if out.Mode&syscall.S_IFMT == syscall.S_IFREG {
 		if id := n.pol.identify(ctx, "getattr", n.EmbeddedInode().Path(nil)); id.Decision != "real" {
 			if real, err := os.ReadFile(filepath.Join(n.RootData.Path, n.EmbeddedInode().Path(nil))); err == nil {
-				out.Size = uint64(len(redact(real)))
+				out.Size = uint64(len(redactForFormat(n.EmbeddedInode().Path(nil), real)))
 			}
 		}
 	}
@@ -242,6 +267,81 @@ func (n *node) Setattr(ctx context.Context, f fs.FileHandle, in *fuse.SetAttrIn,
 	return n.LoopbackNode.Setattr(ctx, f, in, out)
 }
 
+// Symlink, Link, Rmdir, Mknod, and xattr mutations were unguarded in round 1,
+// so a same-UID caller could hardlink a credential out or plant a symlink
+// before a rewrite. Round 2 routes every mutating op through check().
+func (n *node) Symlink(ctx context.Context, target, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	if _, ok := n.check(ctx, "symlink:"+name, true); !ok {
+		return nil, syscall.EACCES
+	}
+	return n.LoopbackNode.Symlink(ctx, target, name, out)
+}
+
+func (n *node) Link(ctx context.Context, target fs.InodeEmbedder, name string, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	if _, ok := n.check(ctx, "link:"+name, true); !ok {
+		return nil, syscall.EACCES
+	}
+	return n.LoopbackNode.Link(ctx, target, name, out)
+}
+
+func (n *node) Rmdir(ctx context.Context, name string) syscall.Errno {
+	if _, ok := n.check(ctx, "rmdir:"+name, true); !ok {
+		return syscall.EACCES
+	}
+	return n.LoopbackNode.Rmdir(ctx, name)
+}
+
+func (n *node) Mknod(ctx context.Context, name string, mode, rdev uint32, out *fuse.EntryOut) (*fs.Inode, syscall.Errno) {
+	if _, ok := n.check(ctx, "mknod:"+name, true); !ok {
+		return nil, syscall.EACCES
+	}
+	return n.LoopbackNode.Mknod(ctx, name, mode, rdev, out)
+}
+
+func (n *node) Setxattr(ctx context.Context, attr string, data []byte, flags uint32) syscall.Errno {
+	if _, ok := n.check(ctx, "setxattr:"+attr, true); !ok {
+		return syscall.EACCES
+	}
+	return n.LoopbackNode.Setxattr(ctx, attr, data, flags)
+}
+
+func (n *node) Removexattr(ctx context.Context, attr string) syscall.Errno {
+	if _, ok := n.check(ctx, "removexattr:"+attr, true); !ok {
+		return syscall.EACCES
+	}
+	return n.LoopbackNode.Removexattr(ctx, attr)
+}
+
+// gatedFile re-authorizes on every Read. Used with -gate-reads to show the
+// difference between gating opens (round 1) and gating reads (round 2): an fd
+// inherited or passed to a non-allowlisted process reads REDACTED here.
+type gatedFile struct {
+	node *node
+	rel  string
+	loop fs.FileHandle
+}
+
+func (g *gatedFile) Read(ctx context.Context, dest []byte, off int64) (fuse.ReadResult, syscall.Errno) {
+	id := g.node.pol.identify(ctx, "read", g.rel)
+	g.node.pol.record(id)
+	real, err := os.ReadFile(filepath.Join(g.node.RootData.Path, g.rel))
+	if err != nil {
+		return nil, fs.ToErrno(err)
+	}
+	data := real
+	if id.Decision != "real" {
+		data = redactForFormat(g.rel, real)
+	}
+	if off >= int64(len(data)) {
+		return fuse.ReadResultData(nil), 0
+	}
+	end := off + int64(len(dest))
+	if end > int64(len(data)) {
+		end = int64(len(data))
+	}
+	return fuse.ReadResultData(data[off:end]), 0
+}
+
 func main() {
 	backing := flag.String("backing", "", "directory holding the real files")
 	mount := flag.String("mount", "", "mountpoint, or /dev/fd/N to adopt an existing /dev/fuse fd")
@@ -249,13 +349,14 @@ func main() {
 	allowHash := flag.String("allow-sha256", "", "comma-separated sha256 of executables allowed real bytes")
 	logPath := flag.String("log", "", "identity log file (default stderr)")
 	hashExe := flag.Bool("hash-exe", false, "hash /proc/<pid>/exe on every open")
+	gateReads := flag.Bool("gate-reads", false, "re-authorize on every read (fd-passing defence)")
 	allowOther := flag.Bool("allow-other", false, "pass allow_other (needs user_allow_other in /etc/fuse.conf)")
 	reexec := flag.Bool("reexec-on-usr1", false, "on SIGUSR1, re-exec self handing over the fuse fd (restart mitigation)")
 	flag.Parse()
 	if *backing == "" || *mount == "" {
 		log.Fatal("need -backing and -mount")
 	}
-	pol := &policy{selfMntNS: readlink("/proc/self/ns/mnt"), allow: map[string]bool{}, allowHash: map[string]bool{}, hashExe: *hashExe, logW: os.Stderr}
+	pol := &policy{selfMntNS: readlink("/proc/self/ns/mnt"), allow: map[string]bool{}, allowHash: map[string]bool{}, hashExe: *hashExe, gateReads: *gateReads, logW: os.Stderr}
 	for _, a := range strings.Split(*allow, ",") {
 		if a != "" {
 			pol.allow[a] = true
@@ -291,6 +392,16 @@ func main() {
 	}
 	log.Printf("secretfs pid=%d mounted %s -> %s (self mnt ns %s)", os.Getpid(), *backing, *mount, pol.selfMntNS)
 
+	go func() {
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, syscall.SIGUSR2)
+		for range ch {
+			pol.cacheMu.Lock()
+			log.Printf("hashcache hits=%d misses=%d entries=%d", pol.hits, pol.misses, len(pol.hashCache))
+			pol.cacheMu.Unlock()
+		}
+	}()
+
 	if *reexec {
 		go func() {
 			ch := make(chan os.Signal, 1)
@@ -305,6 +416,9 @@ func main() {
 			args := []string{"-backing", *backing, "-mount", "/dev/fd/3", "-log", *logPath, "-allow", *allow, "-allow-sha256", *allowHash, "-reexec-on-usr1"}
 			if *hashExe {
 				args = append(args, "-hash-exe")
+			}
+			if *gateReads {
+				args = append(args, "-gate-reads")
 			}
 			if *allowOther {
 				args = append(args, "-allow-other")

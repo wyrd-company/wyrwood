@@ -54,7 +54,8 @@ func main() {
 	}
 	local := syscall.Iovec{Base: &buf[0], Len: 16}
 	remote := syscall.Iovec{Base: (*byte)(unsafe.Pointer(addr)), Len: 16}
-	n, _, errno := syscall.Syscall6(syscall.SYS_PROCESS_VM_READV, uintptr(pid), uintptr(unsafe.Pointer(&local)), 1, uintptr(unsafe.Pointer(&remote)), 1, 0)
+	const sysProcessVMReadv = 310 // linux/amd64
+	n, _, errno := syscall.Syscall6(sysProcessVMReadv, uintptr(pid), uintptr(unsafe.Pointer(&local)), 1, uintptr(unsafe.Pointer(&remote)), 1, 0)
 	fmt.Println("process_vm_readv on child: n =", int(n), "errno =", errno)
 	err = syscall.PtraceAttach(pid)
 	fmt.Println("PTRACE_ATTACH child:", err)

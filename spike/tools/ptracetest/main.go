@@ -18,14 +18,20 @@ func main() {
 	} else {
 		fmt.Println("PTRACE_ATTACH:", err)
 	}
-	f, err := os.Open(fmt.Sprintf("/proc/%d/mem", pid))
-	if err != nil {
+	if f, err := os.Open(fmt.Sprintf("/proc/%d/mem", pid)); err != nil {
 		fmt.Println("open /proc/pid/mem:", err)
-		return
+	} else {
+		buf := make([]byte, 16)
+		_, rerr := f.ReadAt(buf, 0x400000)
+		fmt.Println("read /proc/pid/mem:", rerr)
+		f.Close()
 	}
-	buf := make([]byte, 16)
-	_, err = f.ReadAt(buf, 0x400000)
-	fmt.Println("read /proc/pid/mem:", err)
-	_, err = os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	fmt.Println("read /proc/pid/environ:", err)
+	// Tested independently of the mem outcome (round 2, finding 3).
+	_, eerr := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+	fmt.Println("read /proc/pid/environ:", eerr)
+	if ents, ferr := os.ReadDir(fmt.Sprintf("/proc/%d/fd", pid)); ferr != nil {
+		fmt.Println("list /proc/pid/fd:", ferr)
+	} else {
+		fmt.Println("list /proc/pid/fd: succeeded, entries =", len(ents))
+	}
 }

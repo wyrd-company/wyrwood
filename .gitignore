@@ -7,3 +7,10 @@
 /coverage.out
 __pycache__/
 *.pyc
+
+# spike build outputs
+spike/secretfs/secretfs
+spike/tools/*/fdopener
+spike/tools/*/ptracetest
+spike/tools/*/ancestorptrace
+spike/tools/*/tmpwriter
