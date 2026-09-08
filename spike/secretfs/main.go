@@ -63,6 +63,7 @@ type policy struct {
 	allowHash    map[string]bool // by sha256
 	hashExe      bool
 	gateReads    bool
+	trustMtime   bool
 	hashCache    map[hashKey]string
 	cacheMu      sync.Mutex
 	hits, misses int
@@ -126,10 +127,17 @@ func (p *policy) hashExeCached(proc, mntNS string, dev, ino uint64, st *syscall.
 	if p.hashCache == nil {
 		p.hashCache = map[hashKey]string{}
 	}
-	if h, ok := p.hashCache[key]; ok {
-		p.hits++
-		p.cacheMu.Unlock()
-		return h
+	// mtime (and size, dev, ino) are all writable by a same-UID attacker, so a
+	// cache keyed on them is spoofable: change the bytes, restore the mtime,
+	// and a stale approved hash is returned. The safe default re-hashes every
+	// open; -trust-mtime-cache turns the vulnerable shortcut back on to
+	// demonstrate the attack.
+	if p.trustMtime {
+		if h, ok := p.hashCache[key]; ok {
+			p.hits++
+			p.cacheMu.Unlock()
+			return h
+		}
 	}
 	p.misses++
 	p.cacheMu.Unlock()
@@ -193,9 +201,10 @@ func (n *node) Open(ctx context.Context, flags uint32) (fs.FileHandle, uint32, s
 	_, allowed := n.check(ctx, "open", isWrite(flags))
 	if allowed {
 		fh, fl, errno := n.LoopbackNode.Open(ctx, flags)
-		if errno == 0 && n.pol.gateReads && !isWrite(flags) {
-			// Re-authorize on every Read so an inherited or SCM_RIGHTS-passed
-			// fd cannot keep real bytes after the identity changes.
+		if errno == 0 && n.pol.gateReads {
+			// Re-authorize on every read AND write so an inherited or
+			// SCM_RIGHTS-passed fd (including an O_RDWR handle) cannot keep
+			// real access after the identity changes.
 			rel := n.EmbeddedInode().Path(nil)
 			return &gatedFile{node: n, rel: rel, loop: fh}, fl | fuse.FOPEN_DIRECT_IO, 0
 		}
@@ -236,6 +245,10 @@ func (n *node) Create(ctx context.Context, name string, flags uint32, mode uint3
 		return nil, nil, 0, syscall.EACCES
 	}
 	in, fh, fl, errno := n.LoopbackNode.Create(ctx, name, flags, mode, out)
+	if errno == 0 && n.pol.gateReads {
+		child := in.Operations().(*node)
+		return in, &gatedFile{node: child, rel: child.EmbeddedInode().Path(nil), loop: fh}, fl | fuse.FOPEN_DIRECT_IO, 0
+	}
 	return in, fh, fl | fuse.FOPEN_DIRECT_IO, errno
 }
 
@@ -312,6 +325,22 @@ func (n *node) Removexattr(ctx context.Context, attr string) syscall.Errno {
 	return n.LoopbackNode.Removexattr(ctx, attr)
 }
 
+// Getxattr and Readlink could leak bytes stored out-of-band; a non-allowlisted
+// reader is denied rather than passed through the loopback default.
+func (n *node) Getxattr(ctx context.Context, attr string, dest []byte) (uint32, syscall.Errno) {
+	if _, ok := n.check(ctx, "getxattr:"+attr, false); !ok {
+		return 0, syscall.EACCES
+	}
+	return n.LoopbackNode.Getxattr(ctx, attr, dest)
+}
+
+func (n *node) Readlink(ctx context.Context) ([]byte, syscall.Errno) {
+	if _, ok := n.check(ctx, "readlink", false); !ok {
+		return nil, syscall.EACCES
+	}
+	return n.LoopbackNode.Readlink(ctx)
+}
+
 // gatedFile re-authorizes on every Read. Used with -gate-reads to show the
 // difference between gating opens (round 1) and gating reads (round 2): an fd
 // inherited or passed to a non-allowlisted process reads REDACTED here.
@@ -342,6 +371,54 @@ func (g *gatedFile) Read(ctx context.Context, dest []byte, off int64) (fuse.Read
 	return fuse.ReadResultData(data[off:end]), 0
 }
 
+// Write re-authorizes: an inherited O_RDWR handle held by a process that is no
+// longer allowlisted cannot write real bytes.
+func (g *gatedFile) Write(ctx context.Context, data []byte, off int64) (uint32, syscall.Errno) {
+	id := g.node.pol.identify(ctx, "write", g.rel)
+	g.node.pol.record(id)
+	if id.Decision != "real" {
+		return 0, syscall.EACCES
+	}
+	if w, ok := g.loop.(fs.FileWriter); ok {
+		return w.Write(ctx, data, off)
+	}
+	return 0, syscall.EBADF
+}
+
+func (g *gatedFile) Flush(ctx context.Context) syscall.Errno {
+	if f, ok := g.loop.(fs.FileFlusher); ok {
+		return f.Flush(ctx)
+	}
+	return 0
+}
+
+func (g *gatedFile) Release(ctx context.Context) syscall.Errno {
+	if r, ok := g.loop.(fs.FileReleaser); ok {
+		return r.Release(ctx)
+	}
+	return 0
+}
+
+func (g *gatedFile) Fsync(ctx context.Context, flags uint32) syscall.Errno {
+	if f, ok := g.loop.(fs.FileFsyncer); ok {
+		return f.Fsync(ctx, flags)
+	}
+	return 0
+}
+
+// Lseek is gated: SEEK_DATA/SEEK_HOLE would otherwise reveal real file shape
+// to a reader that should see only the redacted copy.
+func (g *gatedFile) Lseek(ctx context.Context, off uint64, whence uint32) (uint64, syscall.Errno) {
+	id := g.node.pol.identify(ctx, "lseek", g.rel)
+	if id.Decision != "real" {
+		return 0, syscall.EACCES
+	}
+	if l, ok := g.loop.(fs.FileLseeker); ok {
+		return l.Lseek(ctx, off, whence)
+	}
+	return 0, syscall.ENOSYS
+}
+
 func main() {
 	backing := flag.String("backing", "", "directory holding the real files")
 	mount := flag.String("mount", "", "mountpoint, or /dev/fd/N to adopt an existing /dev/fuse fd")
@@ -350,13 +427,14 @@ func main() {
 	logPath := flag.String("log", "", "identity log file (default stderr)")
 	hashExe := flag.Bool("hash-exe", false, "hash /proc/<pid>/exe on every open")
 	gateReads := flag.Bool("gate-reads", false, "re-authorize on every read (fd-passing defence)")
+	trustMtime := flag.Bool("trust-mtime-cache", false, "gate on the (dev,ino,mtime) hash cache (UNSAFE: mtime is spoofable)")
 	allowOther := flag.Bool("allow-other", false, "pass allow_other (needs user_allow_other in /etc/fuse.conf)")
 	reexec := flag.Bool("reexec-on-usr1", false, "on SIGUSR1, re-exec self handing over the fuse fd (restart mitigation)")
 	flag.Parse()
 	if *backing == "" || *mount == "" {
 		log.Fatal("need -backing and -mount")
 	}
-	pol := &policy{selfMntNS: readlink("/proc/self/ns/mnt"), allow: map[string]bool{}, allowHash: map[string]bool{}, hashExe: *hashExe, gateReads: *gateReads, logW: os.Stderr}
+	pol := &policy{selfMntNS: readlink("/proc/self/ns/mnt"), allow: map[string]bool{}, allowHash: map[string]bool{}, hashExe: *hashExe, gateReads: *gateReads, trustMtime: *trustMtime, logW: os.Stderr}
 	for _, a := range strings.Split(*allow, ",") {
 		if a != "" {
 			pol.allow[a] = true
@@ -419,6 +497,9 @@ func main() {
 			}
 			if *gateReads {
 				args = append(args, "-gate-reads")
+			}
+			if *trustMtime {
+				args = append(args, "-trust-mtime-cache")
 			}
 			if *allowOther {
 				args = append(args, "-allow-other")

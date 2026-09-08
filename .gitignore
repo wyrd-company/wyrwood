@@ -14,3 +14,4 @@ spike/tools/*/fdopener
 spike/tools/*/ptracetest
 spike/tools/*/ancestorptrace
 spike/tools/*/tmpwriter
+spike/tools/*/credchild

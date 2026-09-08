@@ -42,10 +42,18 @@ echo "-- container read while daemon down (must fail closed, not expose backing)
 docker exec "$CID" sh -c 'cat /export/secrets/gh/hosts.yml 2>&1' || true
 docker exec "$CID" sh -c 'ls /export/secrets 2>&1' || true
 
-echo "== remount into the running container (B2 recovery) =="
-# Clearing the dead mount propagates its removal to the container peer; the new
-# mount then propagates in. Without this the container keeps the dead endpoint.
+echo "== gap probe: after clearing the dead mount, before remount =="
+# Round-2 review: prove the exposed interval does not reveal backing. The
+# mountpoint is now an empty real directory under the export; it must NOT
+# contain the credential (backing lives outside the export).
 unmount_stale
+echo "-- host view of the bare mountpoint during the gap --"
+ls -la "$MNT" 2>&1
+echo "-- container view during the gap (empty dir or ENOTCONN, never real bytes) --"
+docker exec "$CID" sh -c 'ls -la /export/secrets 2>&1; cat /export/secrets/gh/hosts.yml 2>&1' || true
+
+echo "== remount into the running container (B2 recovery) =="
+# The new mount then propagates in.
 "$BIN" -backing "$BACKING" -mount "$MNT" -log "$LOG" -allow-other -hash-exe > "$SPIKE_ROOT/daemon.out" 2>&1 &
 for _ in $(seq 1 50); do mountpoint -q "$MNT" && break; sleep 0.1; done
 docker exec "$CID" sh -c 'cat /export/secrets/gh/hosts.yml 2>&1' || true

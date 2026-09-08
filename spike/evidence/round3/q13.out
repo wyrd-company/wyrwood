@@ -1,0 +1,29 @@
+===== trust-mtime-cache ON (vulnerable) =====
+-- 1. allowlisted bytes at /tmp/mutable: expect REAL --
+github.com:
+    users:
+        example-user:
+-- 2. overwrite with head bytes, RESTORE original mtime --
+mtime now: 2026-01-23 13:30:04.000000000 +0000
+-- 3. read again (bytes are head, mtime looks unchanged) --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_===== default: re-hash every open (fixed) =====
+-- 1. allowlisted bytes at /tmp/mutable: expect REAL --
+github.com:
+    users:
+        example-user:
+-- 2. overwrite with head bytes, RESTORE original mtime --
+mtime now: 2026-01-23 13:30:04.000000000 +0000
+-- 3. read again (bytes are head, mtime looks unchanged) --
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh

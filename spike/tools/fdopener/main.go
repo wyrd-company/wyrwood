@@ -20,7 +20,11 @@ func main() {
 		fmt.Fprintln(os.Stderr, "usage: fdopener FILE [EXEC ARGS...]")
 		os.Exit(2)
 	}
-	f, err := os.Open(os.Args[1])
+	flags := os.O_RDONLY
+	if os.Getenv("RDWR") == "1" {
+		flags = os.O_RDWR
+	}
+	f, err := os.OpenFile(os.Args[1], flags, 0)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "open:", err)
 		os.Exit(1)

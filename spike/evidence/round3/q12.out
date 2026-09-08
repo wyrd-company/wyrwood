@@ -1,0 +1,31 @@
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round3/mnt is a mountpoint
+daemon pid 42767
+== /secrets/keys/crlf.pem ==
+-----BEGIN RSA PRIVATE KEY-----
+REDACTED
+-----END RSA PRIVATE KEY-----
+== /secrets/keys/trunc.pem ==
+REDACTED
+== /secrets/gh/hosts.yml ==
+github.com:
+    oauth_token: REDACTED
+        REDACTED
+    user: example-user
+    git_protocol: ssh
+== /secrets/codex/auth.json ==
+{
+  "OPENAI_API_KEY": "REDACTED",
+  "tokens": {
+    "access_token": "REDACTED",
+    "refresh_token": "REDACTED"
+  }
+}
+-- good gh file must still expose non-secret structure to an allowlisted reader --
+/tmp/claude-1000/-workspaces/7435ba30-184f-4919-ad44-465380e746b1/scratchpad/847round3/mnt is a mountpoint
+daemon pid 44714
+github.com:
+    oauth_token: |
+        gho_CANARYblockScalarAAAABBBBCCCCDDDDEEEE
+    user: example-user
+    git_protocol: ssh
+RESULT: no canaries survived (fail-closed)

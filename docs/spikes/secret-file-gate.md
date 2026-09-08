@@ -405,3 +405,87 @@ linking or constrained loader, `PR_SET_DUMPABLE`, no secrets in env), because
 `LD_PRELOAD` and ancestor/environ access defeat hash-only trust. Interpreted
 CLIs and dynamically linked readers the attacker can influence stay outside the
 trusted set or move behind a native shim.
+
+## Independent review round 2 (Codex gpt-6-astra) and round 3
+
+Round-2 review returned REJECT: findings 1-8 were not all closed, and several
+round-2 verdicts over-claimed. All five points accepted; round 3 fixed the
+three P1s in code with evidence and bounded the two P2s. Evidence under
+`spike/evidence/round3/`; containers run as uid 1000.
+
+### R2-1 redaction still failed open (P1, fixed)
+
+Round 2 leaked on CRLF PEM, truncated PEM, and `oauth_token: |` block scalars.
+`redact.go` now normalizes CRLF, parses PEM with `encoding/pem` (whole-file
+redaction if the envelope is incomplete), redacts YAML block-scalar bodies, and
+runs a post-pass leak scan that collapses the whole file to `REDACTED` if any
+token-shaped run survives. `q12`: every canary (CRLF PEM body, truncated PEM,
+block-scalar token, nested JSON tokens) is gone, and the good `gh` file is still
+readable by an allowlisted reader (not over-redacted).
+
+### R2-2 per-read/per-op authorization incomplete (P1, fixed with one bound)
+
+`-gate-reads` now wraps every allowed open including `O_RDWR` and `Create`, and
+`gatedFile` re-authorizes on read, write, and lseek. `q14`: an allowlisted
+`fdopener` opens the credential `O_RDWR` and execs a non-allowlisted `head`;
+open-gating yields the real token, `-gate-reads` yields `REDACTED`. `Getxattr`
+and `Readlink` are now gated on the node. `Fallocate`/`CopyFileRange` are not
+implemented on `gatedFile`, so under `-gate-reads` they return `ENOSYS`
+(denied) rather than hitting the ungated loopback default. Bound: `-gate-reads`
+must always be on (it is the safe mode; the plain-handle path is the round-1
+baseline kept only for the `q9`/`q14` contrast), and `setxattr` write-gating is
+still only runtime-exercised for a non-allowlisted writer, not for the
+allowlisted path (base image lacks `setfattr`).
+
+### R2-3 mtime restore defeated the cache (P1, fixed)
+
+`(dev,ino,mtime)` are all writable by a same-UID attacker. The hash cache no
+longer gates by default: every open re-hashes the executable. `q13`: with
+`-trust-mtime-cache` the attacker overwrites an allowlisted copy's bytes,
+restores the mtime, and reads the real token (the bug); with the safe default
+the same attack reads `REDACTED`.
+
+### R2-4 down-window gap not probed (P2, closed)
+
+`q7` now probes the mountpoint after the dead mount is cleared and before the
+remount: the host and container both see an empty directory, the credential is
+absent (`No such file or directory`), and backing is never exposed. B2 recovery
+still works. Not re-tested: real CLI login/refresh across the gap (out of scope
+for the topology question; covered functionally by Q4/Q5).
+
+### R2-5 process-access evidence too narrow (P2, closed)
+
+`q11` now launches an allowlisted `credchild` that loads the real credential
+into memory; its ancestor scans the child's memory and recovers the actual
+token (`recovered credential from child memory (needle="gho_FAKE"): true`),
+then `PTRACE_ATTACH`/`GETREGS` succeed. Separately, a same-UID non-descendant
+opening `/proc/<pid>/fd/N` of the reader's held credential fd re-enters FUSE as
+itself and gets `REDACTED` (the magic symlink re-authorizes), while its
+`/proc/<pid>/environ` still leaks the env canary. So: ancestor tracing fully
+recovers the plaintext; same-UID fd access is contained by re-authorization;
+same-UID environ is not.
+
+### Round 3 verdict
+
+The three P1 gaps are closed in code with evidence; the two P2s are closed or
+bounded. The file gate now fails closed on redaction, gates reads and writes
+per operation (including inherited/`O_RDWR` handles), and does not trust
+spoofable metadata for identity. The irreducible residual is unchanged and is
+the design's real subject: once a secret enters a reader an attacker can
+influence (`LD_PRELOAD`), launch-and-trace (ancestor memory), or that copies it
+into its environment, the file gate cannot protect it. That is a reader
+trust-model problem, not a filesystem problem.
+
+### Recommendation after round 3
+
+Write the technical design. Its spine is the reader trust model, stated as
+hard requirements the spike now supports: trusted readers run under a dedicated
+uid (not the user's), are statically linked or run with a locked-down loader
+(`LD_PRELOAD`/`LD_LIBRARY_PATH`/plugin dirs neutralized), set
+`PR_SET_DUMPABLE=0`, and never receive secrets via environment. The FUSE gate
+provides: fail-closed format-aware redaction, per-operation read/write
+authorization by re-hashed executable identity (no path, cmdline, or metadata
+trust), the safe export topology with parent-dir rshared propagation for
+restart survival, and fail-closed behavior while the daemon is down.
+Dynamically linked or interpreted CLIs the attacker can influence stay outside
+the trusted set or move behind a native, self-contained shim.

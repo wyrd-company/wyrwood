@@ -1,0 +1,18 @@
+===== open-gating only (round 1/2 handle) =====
+-- non-allowlisted head reads the inherited O_RDWR handle via stdin --
+github.com:
+    users:
+        example-user:
+            oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    oauth_token: gho_FAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE
+    user: example-user
+    git_protocol: ssh
+===== per-read + per-write gating (-gate-reads) =====
+-- non-allowlisted head reads the inherited O_RDWR handle via stdin --
+github.com:
+    users:
+        example-user:
+            oauth_token: REDACTED
+    oauth_token: REDACTED
+    user: example-user
+    git_protocol: ssh

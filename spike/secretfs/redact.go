@@ -3,38 +3,65 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/pem"
 	"regexp"
 )
 
-// Format-aware redaction. Round 1 used one regex over raw bytes; it left
-// `access_token` visible inside `"tokens": {...}` and produced invalid JSON.
-// Round 2 redacts by format and FAILS CLOSED: any content a redactor does not
-// understand is replaced wholesale, never passed through partly cleaned.
+// Format-aware redaction that FAILS CLOSED. Round 2's regex-only version leaked
+// on CRLF PEM, truncated PEM, and YAML block scalars. Round 3 normalizes line
+// endings, parses PEM with encoding/pem (whole-file redaction if the envelope
+// is incomplete), redacts YAML block scalars, and then runs a paranoia leak
+// scan: if anything secret-shaped survives the format pass, the whole file
+// collapses to REDACTED. The rule is: never emit bytes we are not sure about.
 
 var secretKey = regexp.MustCompile(`(?i)(token|secret|password|api[_-]?key|_authtoken|\bkey\b|credential|private[_-]?key|refresh|access|id_token|bearer|oauth)`)
 
 const redactedValue = "REDACTED"
 
-// redactForFormat picks a redactor from the served path's shape. Unknown
-// formats collapse to a single REDACTED marker rather than leaking.
+// leaky matches things a redacted file must never still contain: PEM bodies,
+// and long opaque token-shaped runs. It is deliberately aggressive; a false
+// positive costs a whole-file redaction, which is the safe direction.
+var leaky = regexp.MustCompile(`[A-Za-z0-9+/_-]{32,}`)
+
 func redactForFormat(path string, b []byte) []byte {
+	// Normalize CRLF so \r\n cannot hide a PEM envelope or a key boundary.
+	b = bytes.ReplaceAll(b, []byte("\r\n"), []byte("\n"))
+	var out []byte
 	switch {
 	case bytes.Contains(b, []byte("-----BEGIN")):
-		return redactPEM(b)
+		out = redactPEM(b)
 	case looksJSON(b):
-		if out, ok := redactJSON(b); ok {
-			return out
+		if r, ok := redactJSON(b); ok {
+			out = r
+		} else {
+			return whole()
 		}
-		return []byte(redactedValue + "\n")
-	case looksYAML(path):
-		return redactYAMLLines(b)
+	case looksYAML(path) || bytes.ContainsAny(b, "=:"):
+		out = redactYAMLLines(b)
 	default:
-		// npmrc / ini / opaque: line-based key=value, else whole-file.
-		if bytes.ContainsAny(b, "=:") {
-			return redactYAMLLines(b)
-		}
-		return []byte(redactedValue + "\n")
+		return whole()
 	}
+	// Paranoia gate: if any secret-shaped run survived, redact everything.
+	if leaks(out) {
+		return whole()
+	}
+	return out
+}
+
+func whole() []byte { return []byte(redactedValue + "\n") }
+
+// leaks reports whether any token-shaped run survived that is not the REDACTED
+// marker itself. A surviving PEM body, JWT, or opaque token is 32+ chars and is
+// caught here; the cost of a false positive is a whole-file redaction. Fail
+// closed on doubt.
+func leaks(b []byte) bool {
+	for _, m := range leaky.FindAll(b, -1) {
+		if bytes.Equal(m, []byte(redactedValue)) {
+			continue
+		}
+		return true
+	}
+	return false
 }
 
 func looksJSON(b []byte) bool {
@@ -47,9 +74,6 @@ func looksYAML(path string) bool {
 		bytes.HasSuffix([]byte(path), []byte(".yaml"))
 }
 
-// redactJSON walks the parsed tree and rewrites every value under a
-// secret-named key to REDACTED, recursively. It re-marshals, so output is
-// always valid JSON. ok=false means the bytes did not parse (fail closed).
 func redactJSON(b []byte) ([]byte, bool) {
 	var v any
 	if err := json.Unmarshal(b, &v); err != nil {
@@ -81,21 +105,63 @@ func walkJSON(key string, v any) any {
 	}
 }
 
+// redactPEM parses with encoding/pem. Every decoded block is re-emitted with a
+// REDACTED body. If any bytes remain that still mention BEGIN (a truncated or
+// malformed envelope pem.Decode could not consume), the whole file is redacted.
 func redactPEM(b []byte) []byte {
-	// Replace the body of every PEM block; keep the BEGIN/END envelope so the
-	// consumer still parses the container but gets no key material.
-	re := regexp.MustCompile(`(?s)(-----BEGIN [^-]+-----\n).*?(\n-----END [^-]+-----)`)
-	return re.ReplaceAll(b, []byte("${1}"+redactedValue+"${2}"))
+	var buf bytes.Buffer
+	rest := b
+	for {
+		blk, r := pem.Decode(rest)
+		if blk == nil {
+			break
+		}
+		buf.WriteString("-----BEGIN " + blk.Type + "-----\n")
+		buf.WriteString(redactedValue + "\n")
+		buf.WriteString("-----END " + blk.Type + "-----\n")
+		rest = r
+	}
+	if bytes.Contains(rest, []byte("BEGIN")) || bytes.Contains(rest, []byte("END")) {
+		return whole() // incomplete envelope: do not risk it
+	}
+	return buf.Bytes()
 }
 
 var kvLine = regexp.MustCompile(`(?i)^(\s*[^#\n].*(token|secret|password|api[_-]?key|_authtoken|key|credential|refresh|access|bearer|oauth)[^:=]*[:=]\s*)(.*)$`)
+var blockScalar = regexp.MustCompile(`^[|>][+-]?\s*$`)
 
 func redactYAMLLines(b []byte) []byte {
 	lines := bytes.Split(b, []byte("\n"))
-	for i, ln := range lines {
-		if m := kvLine.FindSubmatch(ln); m != nil {
-			lines[i] = append(append([]byte{}, m[1]...), []byte(redactedValue)...)
+	for i := 0; i < len(lines); i++ {
+		m := kvLine.FindSubmatch(lines[i])
+		if m == nil {
+			continue
+		}
+		val := bytes.TrimSpace(m[3])
+		lines[i] = append(append([]byte{}, m[1]...), []byte(redactedValue)...)
+		// Block scalar (`key: |` / `key: >`): redact the indented body that
+		// follows, or the value would leak on the next lines.
+		if len(val) == 0 || blockScalar.Match(val) {
+			indent := leadingSpaces(m[1])
+			for j := i + 1; j < len(lines); j++ {
+				if len(bytes.TrimSpace(lines[j])) == 0 {
+					continue
+				}
+				if leadingSpaces(lines[j]) <= indent {
+					break
+				}
+				lines[j] = bytes.Repeat([]byte(" "), leadingSpaces(lines[j]))
+				lines[j] = append(lines[j], []byte(redactedValue)...)
+			}
 		}
 	}
 	return bytes.Join(lines, []byte("\n"))
+}
+
+func leadingSpaces(b []byte) int {
+	n := 0
+	for n < len(b) && b[n] == ' ' {
+		n++
+	}
+	return n
 }
