@@ -43,8 +43,8 @@ func TestStoreRetentionSurvivesRestart(t *testing.T) {
 		t.Fatalf("Recent() length = %d, want 3", len(recent))
 	}
 	for index, sequence := range []int{3, 4, 5} {
-		if !recent[index].Timestamp.Equal(sampleEvent(sequence).Timestamp) {
-			t.Errorf("Recent()[%d] timestamp = %v, want sequence %d", index, recent[index].Timestamp, sequence)
+		if !recent[index].Time.Equal(sampleEvent(sequence).Time) {
+			t.Errorf("Recent()[%d] timestamp = %v, want sequence %d", index, recent[index].Time, sequence)
 		}
 	}
 }
@@ -166,7 +166,7 @@ func TestStoreRejectsChecksumValidInvalidFinalEvent(t *testing.T) {
 	if err := json.Unmarshal(frame[frameHeaderBytes:], &record); err != nil {
 		t.Fatal(err)
 	}
-	delete(record, "latency")
+	delete(record, "latency-ns")
 	payload, err := json.Marshal(record)
 	if err != nil {
 		t.Fatal(err)
@@ -515,9 +515,7 @@ func TestStoreConcurrentAppendAndQueries(t *testing.T) {
 				t.Errorf("Append(%d): %v", sequence, err)
 			}
 			_ = store.Recent(8)
-			_ = store.LastConsumerActivity()
-			_ = store.ConsumerHealth()
-			_ = store.Health()
+			_ = store.BindingHealth()
 		}()
 	}
 	wait.Wait()

@@ -1,141 +1,83 @@
 // ---
 // relationships:
 //   implements: command-line-interface
-//   uses: control-interface
 // ---
 
 // Package command owns top-level command dispatch for the wyrwood executable.
 package command
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
-	"syscall"
-
-	"github.com/wyrd-company/wyrwood/internal/config"
-	"github.com/wyrd-company/wyrwood/internal/control"
-	"github.com/wyrd-company/wyrwood/internal/daemon"
-	"github.com/wyrd-company/wyrwood/internal/tui"
-	"github.com/wyrd-company/wyrwood/internal/userservice"
+	"strconv"
+	"strings"
 )
 
-const help = `Wyrwood provides stable, filtered SSH-agent endpoints for containers.
+const help = `Wyrwood delivers OpenBao-backed secrets and signing to containers.
 
 Usage:
-  wyrwood <command> [options]
+  wyrwood <mode> <command> [options]
 
-Commands:
-  daemon    Run the per-user daemon
-  init      Create the initial per-user configuration
-  apply     Validate and apply the default configuration
-  configuration
-            Inspect or change durable configuration
-  consumer  Create, replace, or retire a consumer
-  keys      List identities available from the upstream agent
-  status    Inspect daemon and consumer health
-  events    Inspect bounded operational events
-  tui       Open the terminal management interface
-  service   Manage per-user login startup
-  version   Print version information
-  help      Show this help
+Controller:
+  controller serve [--config PATH]      Run the controller
+  controller host-key [--config PATH]   Print the controller SSH host-key fingerprint
 
-Management options:
-  --output human|json   Select human output (default) or structured JSON
-  --limit NUMBER        Events to return, from 1 through 1000 (default 100)
+Agent:
+  agent login <ssh://host:port> [--accept-fingerprint SHA256:...]
+                                        Create the agent key and request approval
+  agent daemon                          Run the agent
+  agent status                          Inspect agent, controller session, and binding health
+  agent containers                      List observed containers and their bindings
+  agent events [--limit N]              Inspect bounded operational events (1-1000, default 100)
+  agent service install|remove|start|stop|status
+                                        Manage the system unit (requires root)
+
+Other:
+  version                               Print the executable version
+  help                                  Show this help
+
+Options:
+  --output human|json                   Select human output (default) or one JSON object
 `
 
 // version is replaced with the release version at link time.
 var version = "dev"
 
-type controlClient interface {
-	Apply() (control.ApplyResult, error)
-	Keys() (control.KeysResult, error)
-	Status() (control.StatusResult, error)
-	Events(limit int) (control.EventsResult, error)
-	Configuration(offset, limit int, expectedRevision string) (control.ConfigurationResult, error)
-	SetUpstream(expectedRevision, upstream string) (control.ConfigurationChangeResult, error)
-	SetTimeouts(expectedRevision string, timeouts control.ConfigurationTimeouts) (control.ConfigurationChangeResult, error)
-	PutConsumer(expectedRevision string, consumerID *string, consumer control.ConfigurationConsumerInput) (control.ConfigurationChangeResult, error)
-	RetireConsumer(expectedRevision, consumerID string) (control.ConfigurationChangeResult, error)
-}
-
-type dependencies struct {
-	initialize         func() (string, error)
-	defaultControlPath func() (string, error)
-	newClient          func(string) (controlClient, error)
-	runDaemon          func(context.Context, daemon.Options) error
-	defaultDaemon      func() (daemon.Options, error)
-	manageService      func(userservice.Action) (userservice.Result, error)
-	newTUIClient       func(string) (tui.Client, error)
-	runTUI             func(tui.Client, io.Writer) error
-}
-
-func defaultDependencies() dependencies {
-	return dependencies{
-		initialize:         config.Initialize,
-		defaultControlPath: daemon.DefaultControlPath,
-		newClient: func(path string) (controlClient, error) {
-			return control.NewClient(path)
-		},
-		runDaemon:     daemon.Run,
-		defaultDaemon: daemon.DefaultOptions,
-		manageService: userservice.Manage,
-		newTUIClient: func(path string) (tui.Client, error) {
-			client, err := control.NewClient(path)
-			if err != nil {
-				return nil, err
-			}
-			return tui.NewControlClient(client), nil
-		},
-		runTUI: func(client tui.Client, output io.Writer) error {
-			return tui.Run(os.Stdin, output, client)
-		},
-	}
-}
+// Version returns the executable version.
+func Version() string { return version }
 
 // Run executes the root command and returns a stable process exit code.
 func Run(args []string, stdout, stderr io.Writer) int {
-	return run(args, stdout, stderr, defaultDependencies())
+	return run(args, os.Stdin, stdout, stderr, defaultDependencies())
 }
 
-func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
+func run(args []string, stdin io.Reader, stdout, stderr io.Writer, deps dependencies) int {
 	if len(args) == 0 {
 		_, _ = io.WriteString(stdout, help)
 		return exitSuccess
 	}
-
 	switch args[0] {
 	case "help", "-h", "--help":
 		_, _ = io.WriteString(stdout, help)
 		return exitSuccess
 	case "version", "--version":
+		options, positional, problem := parseOptions(args[1:], optionOutput)
+		if problem != nil || len(positional) != 0 {
+			return writeFailure(stderr, options.output, "version", failureUsage)
+		}
+		if options.output == outputJSON {
+			return writeJSON(stdout, struct {
+				Version int    `json:"version"`
+				Wyrwood string `json:"wyrwood"`
+			}{outputVersion, version})
+		}
 		_, _ = fmt.Fprintln(stdout, "wyrwood "+version)
 		return exitSuccess
-	case "daemon":
-		if len(args) == 2 && (args[1] == "--help" || args[1] == "-h") {
-			_, _ = io.WriteString(stdout, "Usage: wyrwood daemon\n")
-			return exitSuccess
-		}
-		if len(args) != 1 {
-			return writeFailure(stderr, outputHuman, "daemon", failureUsage)
-		}
-		return runDaemon(stdout, stderr, deps)
-	case "init":
-		return runInit(args[1:], stdout, stderr, deps)
-	case "apply", "keys", "status", "events":
-		return runManagement(args[0], args[1:], stdout, stderr, deps)
-	case "configuration":
-		return runConfiguration(args[1:], stdout, stderr, deps)
-	case "consumer":
-		return runConsumer(args[1:], stdout, stderr, deps)
-	case "service":
-		return runService(args[1:], stdout, stderr, deps)
-	case "tui":
-		return runTUI(args[1:], stdout, stderr, deps)
+	case "controller":
+		return runController(args[1:], stdout, stderr, deps)
+	case "agent":
+		return runAgent(args[1:], stdin, stdout, stderr, deps)
 	default:
 		_, _ = fmt.Fprintln(stderr, "unknown command")
 		_, _ = fmt.Fprintln(stderr, "Run 'wyrwood help' for usage.")
@@ -143,140 +85,86 @@ func run(args []string, stdout, stderr io.Writer, deps dependencies) int {
 	}
 }
 
-func runTUI(args []string, stdout, stderr io.Writer, deps dependencies) int {
-	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		_, _ = io.WriteString(stdout, "Usage: wyrwood tui\n")
-		return exitSuccess
-	}
-	if len(args) != 0 {
-		return writeFailure(stderr, outputHuman, "tui", failureUsage)
-	}
-	path, err := deps.defaultControlPath()
-	if err != nil {
-		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
-		return exitOperational
-	}
-	client, err := deps.newTUIClient(path)
-	if err != nil {
-		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
-		return exitOperational
-	}
-	if err := deps.runTUI(client, stdout); err != nil {
-		_, _ = io.WriteString(stderr, "wyrwood tui: terminal interface unavailable\n")
-		return exitOperational
-	}
-	return exitSuccess
+type optionSet uint
+
+const (
+	optionOutput optionSet = 1 << iota
+	optionConfig
+	optionAcceptFingerprint
+	optionLimit
+)
+
+type options struct {
+	output            outputFormat
+	config            string
+	acceptFingerprint string
+	limit             int
+	help              bool
 }
 
-func runService(args []string, stdout, stderr io.Writer, deps dependencies) int {
-	format := requestedOutput(args)
-	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		_, _ = io.WriteString(stdout, commandHelp("service"))
-		return exitSuccess
+// parseOptions parses the allowed options and returns positional arguments.
+// The output format is resolved first so usage failures use the requested
+// projection whenever it can be determined.
+func parseOptions(args []string, allowed optionSet) (options, []string, *failure) {
+	result := options{output: outputHuman, limit: 100}
+	for index := 0; index < len(args); index++ {
+		if args[index] == "--output" && index+1 < len(args) && args[index+1] == "json" {
+			result.output = outputJSON
+		}
+		if args[index] == "--output=json" {
+			result.output = outputJSON
+		}
 	}
-	if len(args) == 0 {
-		return writeFailure(stderr, format, "service", failureUsage)
-	}
-	action := userservice.Action(args[0])
-	switch action {
-	case userservice.ActionInstall, userservice.ActionRemove, userservice.ActionStart, userservice.ActionStop, userservice.ActionStatus:
-	default:
-		return writeFailure(stderr, format, "service", failureUsage)
-	}
-	options, parseFailure, showHelp := parseCommandOptions("service", args[1:])
-	if showHelp {
-		_, _ = io.WriteString(stdout, commandHelp("service"))
-		return exitSuccess
-	}
-	if parseFailure != nil {
-		return writeFailure(stderr, options.output, "service", *parseFailure)
-	}
-	result, err := deps.manageService(action)
-	if err != nil {
-		problem := failureService
+	var positional []string
+	seen := map[string]bool{}
+	for index := 0; index < len(args); index++ {
+		argument := args[index]
+		if argument == "-h" || argument == "--help" {
+			result.help = true
+			continue
+		}
+		if !strings.HasPrefix(argument, "--") {
+			positional = append(positional, argument)
+			continue
+		}
+		name, value, inline := strings.Cut(argument, "=")
+		if !inline {
+			if index+1 >= len(args) {
+				return result, nil, &failureUsage
+			}
+			index++
+			value = args[index]
+		}
+		if seen[name] {
+			return result, nil, &failureUsage
+		}
+		seen[name] = true
 		switch {
-		case errors.Is(err, userservice.ErrUnavailable):
-			problem = failureServiceUnavailable
-		case errors.Is(err, userservice.ErrNotInstalled):
-			problem = failureServiceNotInstalled
+		case name == "--output" && allowed&optionOutput != 0:
+			switch value {
+			case "human":
+				result.output = outputHuman
+			case "json":
+				result.output = outputJSON
+			default:
+				return result, nil, &failureUsage
+			}
+		case name == "--config" && allowed&optionConfig != 0:
+			if value == "" {
+				return result, nil, &failureUsage
+			}
+			result.config = value
+		case name == "--accept-fingerprint" && allowed&optionAcceptFingerprint != 0:
+			result.acceptFingerprint = value
+		case name == "--limit" && allowed&optionLimit != 0:
+			limit, err := strconv.Atoi(value)
+			if err != nil || limit < 1 || limit > 1000 {
+				return result, nil, &failureUsage
+			}
+			result.limit = limit
+		default:
+			return result, nil, &failureUsage
 		}
-		return writeFailure(stderr, options.output, "service", problem)
 	}
-	return writeSuccess(stdout, stderr, options.output, "service", result)
+	return result, positional, nil
 }
-
-func runDaemon(_ io.Writer, stderr io.Writer, deps dependencies) int {
-	options, err := deps.defaultDaemon()
-	if err != nil {
-		_, _ = fmt.Fprintln(stderr, "wyrwood daemon: could not resolve per-user paths")
-		return exitOperational
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-	if err := deps.runDaemon(ctx, options); err != nil {
-		_, _ = fmt.Fprintln(stderr, "wyrwood daemon: stopped with an operational error")
-		return exitOperational
-	}
-	return exitSuccess
-}
-
-func runInit(args []string, stdout, stderr io.Writer, deps dependencies) int {
-	options, parseFailure, showHelp := parseCommandOptions("init", args)
-	if showHelp {
-		_, _ = io.WriteString(stdout, commandHelp("init"))
-		return exitSuccess
-	}
-	if parseFailure != nil {
-		return writeFailure(stderr, options.output, "init", *parseFailure)
-	}
-	path, err := deps.initialize()
-	if err != nil {
-		var durability *config.DurabilityError
-		if errors.As(err, &durability) {
-			return writeFailure(stderr, options.output, "init", failureDurability)
-		}
-		return writeFailure(stderr, options.output, "init", failureInitialize)
-	}
-	return writeSuccess(stdout, stderr, options.output, "init", initResult{Path: path})
-}
-
-func runManagement(command string, args []string, stdout, stderr io.Writer, deps dependencies) int {
-	options, parseFailure, showHelp := parseCommandOptions(command, args)
-	if showHelp {
-		_, _ = io.WriteString(stdout, commandHelp(command))
-		return exitSuccess
-	}
-	if parseFailure != nil {
-		return writeFailure(stderr, options.output, command, *parseFailure)
-	}
-	path, err := deps.defaultControlPath()
-	if err != nil {
-		return writeFailure(stderr, options.output, command, failureDaemonUnavailable)
-	}
-	client, err := deps.newClient(path)
-	if err != nil {
-		return writeFailure(stderr, options.output, command, failureDaemonUnavailable)
-	}
-
-	var result any
-	switch command {
-	case "apply":
-		applied, requestErr := client.Apply()
-		if requestErr == nil && !applied.Committed {
-			requestErr = errUncommittedApply
-		}
-		result, err = applied, requestErr
-	case "keys":
-		result, err = client.Keys()
-	case "status":
-		result, err = client.Status()
-	case "events":
-		result, err = client.Events(options.eventLimit)
-	}
-	if err != nil {
-		return writeFailure(stderr, options.output, command, classifyRequestFailure(err))
-	}
-	return writeSuccess(stdout, stderr, options.output, command, result)
-}
-
-var errUncommittedApply = errors.New("daemon did not commit configuration")

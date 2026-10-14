@@ -1,7 +1,0 @@
-DASHBOARD
-upstream [!] DEGRADED
-configuration READY
-> sample alpha  [OK] HEALTHY
-tab/shift+tab Focus   ↑/↓ Select   r Refresh
-n New  a Apply  s Settings
-? Help  q Quit

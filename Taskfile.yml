@@ -31,16 +31,9 @@ tasks:
       - python3 -m unittest scripts/create-release-manifest_test.py
 
   test:integration:linux:
-    desc: Run all real Linux milestone gates
+    desc: Run the real Linux integration gate
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
-
-  test:integration:management:
-    desc: Run the real Linux management milestone gate
-    cmds:
-      - >-
-        go test -count=1 -tags=integration
-        -run '^TestLinuxManagementMilestone$' ./internal/integration
 
   vet:
     desc: Run Go static analysis
