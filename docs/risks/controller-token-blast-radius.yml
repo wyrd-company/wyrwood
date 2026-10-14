@@ -5,9 +5,12 @@ title: The controller's OpenBao credential can write policy
 description: >-
   The controller holds the only Wyrwood credential able to create OpenBao
   policies and AppRoles. Compromise of the controller grants the ability to
-  grant any container any access the controller's own OpenBao policy allows.
-  Mitigation: the controller's OpenBao policy is limited to a Wyrwood prefix
-  for policies, AppRoles, Transit keys, and wrapping; the controller runs as a
+  grant any container any access the controller's own OpenBao policy allows,
+  and to revoke any token whose accessor it holds, which disrupts but does
+  not expose. Mitigation: the controller's OpenBao policy is limited to a Wyrwood prefix
+  for policies, AppRoles, Transit keys, and wrapping, plus revocation by
+  accessor; the controller holds only the accessors its agents report and
+  never lists or looks them up; the controller runs as a
   container with its credential supplied as a mounted file rather than an
   environment variable; the web interface binds to a local or reverse-proxied
   address and admits only operators in a configured group of the site's

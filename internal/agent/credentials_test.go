@@ -80,7 +80,8 @@ func (fake *fakeOpenBao) serve(w http.ResponseWriter, r *http.Request) {
 			lease = 3600
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"auth": map[string]any{
-			"client_token": "token-" + body.RoleID, "lease_duration": lease, "renewable": true,
+			"client_token": "token-" + body.RoleID, "accessor": "accessor" + strings.ReplaceAll(body.RoleID, "-", ""),
+			"lease_duration": lease, "renewable": true,
 		}})
 	case strings.HasSuffix(r.URL.Path, "/renew-self"):
 		fake.mu.Lock()
@@ -391,5 +392,38 @@ func TestCappedRenewalRequestsAReplacementBeforeExpiry(t *testing.T) {
 		}
 	case <-time.After(10 * time.Second):
 		t.Fatal("no replacement request before the maximum lifetime")
+	}
+}
+
+func TestEachInstalledTokenReportsItsAccessor(t *testing.T) {
+	ctx := context.Background()
+	fake := newFakeOpenBao(t)
+	release := fake.gate("role-a")
+	manager := newTestCredentials(t, fake, func(string) {})
+	var mu sync.Mutex
+	var reports []string
+	manager.report = func(binding, accessor string) {
+		mu.Lock()
+		defer mu.Unlock()
+		reports = append(reports, binding+"="+accessor)
+	}
+	reported := func() string {
+		mu.Lock()
+		defer mu.Unlock()
+		return strings.Join(reports, ",")
+	}
+	stale := make(chan struct{})
+	first := manager.begin("bnd-1")
+	go func() {
+		manager.deliver(ctx, credential("bnd-1", "role-a"), first)
+		close(stale)
+	}()
+	eventually(t, "the first login to start", func() bool { return fake.loginCount("role-a") == 1 })
+	manager.deliver(ctx, credential("bnd-1", "role-b"), manager.begin("bnd-1"))
+	close(release)
+	<-stale
+	// The stale token is revoked by the agent and never reported.
+	if got := reported(); got != "bnd-1=accessorroleb" {
+		t.Fatalf("reports = %s", got)
 	}
 }

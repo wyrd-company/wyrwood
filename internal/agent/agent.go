@@ -127,6 +127,7 @@ func New(options Options) (*Agent, error) {
 		results: map[string]protocol.ContractResult{}, recreating: map[string]bool{}, pending: map[string]contract.CreateRequest{},
 	}
 	agent.creds = newCredentials(options.Config.OpenBaoTimeout, agent.requestCredential, agent.record, agent.bindingKey)
+	agent.creds.report = agent.reportAccessor
 	return agent, nil
 }
 
@@ -681,6 +682,17 @@ func (agent *Agent) requestRecreate(ctx context.Context, id string) {
 	agent.mu.Unlock()
 	for _, container := range targets {
 		agent.startRecreate(ctx, bound, container)
+	}
+}
+
+// reportAccessor tells the controller which token a binding holds, so the
+// controller can revoke it when the binding is deleted.
+func (agent *Agent) reportAccessor(id, accessor string) {
+	agent.mu.Lock()
+	session := agent.session
+	agent.mu.Unlock()
+	if session != nil {
+		session.send(protocol.TokenAccessor{Binding: id, Accessor: accessor})
 	}
 }
 

@@ -18,6 +18,8 @@ import (
 
 	"github.com/openbao/openbao/api/v2"
 	"golang.org/x/crypto/ssh"
+
+	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
 // ManagedPrefix bounds every policy and AppRole name the controller writes.
@@ -205,6 +207,22 @@ func (manager *Manager) DeleteRole(ctx context.Context, role string) error {
 		return err
 	}
 	_, err = client.Logical().DeleteWithContext(ctx, "auth/"+manager.mounts.AppRole+"/role/"+role)
+	return categorize(err)
+}
+
+// RevokeAccessor revokes the token an agent reported by its accessor.
+// OpenBao accepts an accessor whose token is already revoked or expired.
+// The controller never lists or looks up accessors; it revokes only those
+// agents report.
+func (manager *Manager) RevokeAccessor(ctx context.Context, accessor string) error {
+	if !protocol.ValidAccessor(accessor) {
+		return &Error{Category: CategoryInvalid}
+	}
+	client, err := manager.authorized(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = client.Logical().WriteWithContext(ctx, "auth/token/revoke-accessor", map[string]any{"accessor": accessor})
 	return categorize(err)
 }
 

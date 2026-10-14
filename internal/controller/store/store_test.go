@@ -122,11 +122,28 @@ func TestPoliciesBindingsInventoryAndResults(t *testing.T) {
 	if err != nil || results["b-1"].Outcome != protocol.OutcomeNonConforming || len(results["b-1"].FailedItems) != 1 {
 		t.Fatalf("ContractResults() = %#v, %v", results, err)
 	}
+	if _, err := store.TokenAccessor(ctx, "b-1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("TokenAccessor(none reported) = %v", err)
+	}
+	for _, accessor := range []string{"accessor-first", "accessor-second"} {
+		if err := store.SaveTokenAccessor(ctx, "b-1", accessor, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if accessor, err := store.TokenAccessor(ctx, "b-1"); err != nil || accessor != "accessor-second" {
+		t.Fatalf("TokenAccessor() = %q, %v; want the latest report", accessor, err)
+	}
+	if err := store.SaveTokenAccessor(ctx, "b-missing", "accessor", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("SaveTokenAccessor(unknown binding) = %v", err)
+	}
 	if err := store.DeleteBinding(ctx, "b-1"); err != nil {
 		t.Fatal(err)
 	}
 	results, _ = store.ContractResults(ctx)
 	if len(results) != 0 {
 		t.Fatalf("contract results outlived their binding: %#v", results)
+	}
+	if _, err := store.TokenAccessor(ctx, "b-1"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("token accessor outlived its binding: %v", err)
 	}
 }

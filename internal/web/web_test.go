@@ -349,8 +349,8 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 		t.Fatalf("unbind confirmation = %s", confirm.body)
 	}
 	unbound := post(t, client, harness.site.URL+"/bindings/"+bindings[0].ID+"/unbind", url.Values{"csrf": {token}})
-	// No agent is connected, so the token cannot be revoked yet.
-	if !strings.Contains(unbound.body, "Binding removed") || !strings.Contains(unbound.body, "stays valid until the agent reconnects") {
+	// No agent is connected and none reported a token, so nothing was revoked.
+	if !strings.Contains(unbound.body, "Binding removed") || !strings.Contains(unbound.body, "token could not be revoked") {
 		t.Fatalf("unbind = %s", unbound.body)
 	}
 	for _, path := range []string{"/keys", "/events", "/policies", "/policies/edit?name=teal"} {

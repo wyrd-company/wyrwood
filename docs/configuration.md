@@ -55,10 +55,12 @@ A binding attaches one policy to one container key on one agent. Keys are
 tried in order: devcontainer identity labels, compose project and service
 labels, container name. The controller creates one AppRole per binding with
 the policy attached. Changing the policy updates the AppRole, and the agent
-obtains a new token on the push. Deleting the binding deletes the AppRole and
-tells the agent to revoke the container's token. If the agent is not
-connected, that token stays valid until the agent reconnects or the token
-expires.
+obtains a new token on the push. The agent reports each new token's accessor
+to the controller. Deleting the binding deletes the AppRole and revokes the
+container's token by that accessor, whether or not the agent is connected. If
+OpenBao refuses the revocation, or the agent is not connected and has not yet
+reported an accessor, the deletion says so, and the token stays valid until
+the agent revokes it or it expires.
 
 ## Contract enforcement
 
@@ -130,4 +132,6 @@ list.
 
 The controller's own OpenBao policy should cover only the Wyrwood prefix:
 `sys/policies/acl/wyrwood-*`, `auth/approle/role/wyrwood-*`,
-`sys/wrapping/wrap`, and the Transit and SSH mounts it manages.
+`sys/wrapping/wrap`, update on `auth/token/revoke-accessor`, and the Transit
+and SSH mounts it manages. The controller revokes only the token accessors its
+agents report.

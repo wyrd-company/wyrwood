@@ -96,6 +96,7 @@ up() {
 		path "ssh/roles" { capabilities = ["list"] }
 		path "ssh/roles/*" { capabilities = ["create", "read", "update", "list"] }
 		path "auth/token/renew-self" { capabilities = ["update"] }
+		path "auth/token/revoke-accessor" { capabilities = ["update"] }
 	HCL
 	bao write auth/approle/role/wyrwood-controller token_policies=wyrwood-controller token_ttl=1h >/dev/null
 	bao kv put kv/teams/teal/example value=teal-example-value >/dev/null

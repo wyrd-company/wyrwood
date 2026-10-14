@@ -136,7 +136,9 @@ func AppRoleLogin(ctx context.Context, client *api.Client, mount, roleID, secret
 
 // Token is an OpenBao client token held only in memory. String never reveals it.
 type Token struct {
-	value     string
+	value string
+	// Accessor names the token for revocation without revealing it.
+	Accessor  string
 	Policies  []string
 	TTL       time.Duration
 	Renewable bool
@@ -173,6 +175,7 @@ func tokenFromAuth(secret *api.Secret) (Token, error) {
 	}
 	return Token{
 		value:     secret.Auth.ClientToken,
+		Accessor:  secret.Auth.Accessor,
 		Policies:  append([]string(nil), secret.Auth.Policies...),
 		TTL:       time.Duration(secret.Auth.LeaseDuration) * time.Second,
 		Renewable: secret.Auth.Renewable,

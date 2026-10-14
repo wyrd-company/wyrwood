@@ -51,6 +51,7 @@ type OpenBao interface {
 	WritePolicy(ctx context.Context, name, hcl string) error
 	WriteRole(ctx context.Context, role, policyName string, tokenTTL, tokenMaxTTL time.Duration) error
 	DeleteRole(ctx context.Context, role string) error
+	RevokeAccessor(ctx context.Context, accessor string) error
 	RoleID(ctx context.Context, role string) (string, error)
 	WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration) (string, error)
 	TransitKeyExists(ctx context.Context, name string) (bool, error)

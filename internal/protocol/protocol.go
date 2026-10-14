@@ -35,6 +35,7 @@ const (
 
 var (
 	idPattern          = regexp.MustCompile(`^[a-z0-9-]{1,64}$`)
+	accessorPattern    = regexp.MustCompile(`^[A-Za-z0-9.]{1,128}$`)
 	containerIDPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
@@ -51,13 +52,14 @@ const (
 	TypeRecreateRequest   Type = "recreate-request"
 	TypeUnbind            Type = "unbind"
 	TypeResultRecorded    Type = "result-recorded"
+	TypeTokenAccessor     Type = "token-accessor"
 )
 
 // Types lists every message type in schema order.
 var Types = []Type{
 	TypeHello, TypeInventory, TypeContractResult, TypeCredentialRequest,
 	TypePolicySet, TypeCredential, TypeRecreateRequest, TypeUnbind,
-	TypeResultRecorded,
+	TypeResultRecorded, TypeTokenAccessor,
 }
 
 // Message is one protocol message.
@@ -268,6 +270,14 @@ type Unbind struct {
 	Binding string `json:"binding"`
 }
 
+// TokenAccessor reports the accessor of the token an agent obtained for a
+// binding, so the controller can revoke that token when the binding is
+// deleted. It replaces any accessor reported for the binding before.
+type TokenAccessor struct {
+	Binding  string `json:"binding"`
+	Accessor string `json:"accessor"`
+}
+
 // ResultRecorded acknowledges a contract result the controller has stored,
 // or discarded because its binding no longer belongs to the agent. It
 // echoes the result's binding, outcome, and reason.
@@ -291,6 +301,7 @@ func (Credential) MessageType() Type        { return TypeCredential }
 func (RecreateRequest) MessageType() Type   { return TypeRecreateRequest }
 func (Unbind) MessageType() Type            { return TypeUnbind }
 func (ResultRecorded) MessageType() Type    { return TypeResultRecorded }
+func (TokenAccessor) MessageType() Type     { return TypeTokenAccessor }
 
 // Validate checks the hello message.
 func (message Hello) Validate() error { return nil }
@@ -369,6 +380,21 @@ func (message RecreateRequest) Validate() error { return validateID(message.Bind
 
 // Validate checks the binding identifier.
 func (message Unbind) Validate() error { return validateID(message.Binding) }
+
+// Validate checks the binding identifier and the accessor's form.
+func (message TokenAccessor) Validate() error {
+	if err := validateID(message.Binding); err != nil {
+		return err
+	}
+	if !ValidAccessor(message.Accessor) {
+		return errors.New("token accessor is invalid")
+	}
+	return nil
+}
+
+// ValidAccessor reports whether value has the form of an OpenBao token
+// accessor, including a namespace suffix.
+func ValidAccessor(value string) bool { return accessorPattern.MatchString(value) }
 
 // Validate checks the acknowledged result's closed vocabularies.
 func (message ResultRecorded) Validate() error {

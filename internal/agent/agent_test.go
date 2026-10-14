@@ -466,6 +466,64 @@ func TestInterruptionReportSurvivesAControllerStorageFailure(t *testing.T) {
 	})
 }
 
+func TestUnbindingRevokesTheTokenOfADisconnectedAgent(t *testing.T) {
+	ctx := context.Background()
+	bao := baotest.Start(t)
+	bao.WriteKV(t, "app/example", map[string]any{"value": "app-secret"})
+	state := t.TempDir()
+	first := controllertest.StartIn(t, bao, state, controllertest.FreeAddress(t))
+	paths := newPaths(t)
+	login := login(t, paths, first.URL, first.Fingerprint)
+	if err := first.DecideAgent(ctx, login.AgentFingerprint, true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.SavePolicy(ctx, policy.New("app", `path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	fake := enginetest.New()
+	app := engine.Container{Name: "/app"}
+	app.State.Status = "running"
+	fake.Add(app)
+	running := startAgent(t, paths, fake, false)
+	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, "app", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var token openbao.Token
+	eventually(t, "a token whose accessor the controller recorded", func() bool {
+		held, ok := running.agent.creds.current(bound.ID)
+		recorded, err := first.Store().TokenAccessor(ctx, bound.ID)
+		token = held
+		return ok && err == nil && recorded == held.Accessor
+	})
+	readSecret := func() error {
+		client, err := bao.Root.Clone()
+		if err != nil {
+			t.Fatal(err)
+		}
+		client.SetToken(token.Value())
+		_, err = client.Logical().Read("kv/data/app/example")
+		return err
+	}
+	if err := readSecret(); err != nil {
+		t.Fatalf("the binding's token cannot read its secret before the deletion: %v", err)
+	}
+	// The agent keeps running and keeps its token, but the controller it
+	// knows is gone; a controller on the same state at another address
+	// deletes the binding.
+	first.Stop()
+	second := controllertest.StartIn(t, bao, state, controllertest.FreeAddress(t))
+	if err := second.DeleteBinding(ctx, bound.ID, "operator-1"); err != nil {
+		t.Fatalf("DeleteBinding(disconnected agent with a reported token) = %v", err)
+	}
+	if _, ok := running.agent.creds.current(bound.ID); !ok {
+		t.Fatal("the agent dropped its token on its own; the test proves nothing")
+	}
+	if err := readSecret(); err == nil {
+		t.Fatal("the deleted binding's token still reads its secret")
+	}
+}
+
 func TestRecreateNotAllowedIsReported(t *testing.T) {
 	ctx := context.Background()
 	bao := baotest.Start(t)

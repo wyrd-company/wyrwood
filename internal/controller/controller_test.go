@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openbao/openbao/api/v2"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
@@ -308,11 +309,42 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 		t.Fatalf("contract results = %#v", results)
 	}
 
+	// The agent reports its token's accessor; one for a binding it does not
+	// hold is ignored.
+	for _, report := range []protocol.TokenAccessor{
+		{Binding: "missing", Accessor: "unreportedaccessor"},
+		{Binding: binding.ID, Accessor: token.Accessor},
+	} {
+		if err := replacement.conn.Send(report); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		recorded, err := controller.Store().TokenAccessor(ctx, binding.ID)
+		if err == nil && recorded == token.Accessor {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("recorded accessor = %q, %v", recorded, err)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if _, err := controller.Store().TokenAccessor(ctx, "missing"); err == nil {
+		t.Fatal("an accessor for an unknown binding was recorded")
+	}
+	if !tokenValid(t, harness.bao, token) {
+		t.Fatal("the binding token is not valid before the deletion")
+	}
+
 	if err := controller.DeleteBinding(ctx, binding.ID, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	if unbind, ok := replacement.receive(t).(protocol.Unbind); !ok || unbind.Binding != binding.ID {
 		t.Fatalf("unbind = %#v", unbind)
+	}
+	if tokenValid(t, harness.bao, token) {
+		t.Fatal("the deleted binding's token is still valid")
 	}
 	if _, err := controller.OpenBao().RoleID(ctx, binding.Role); err == nil {
 		t.Fatal("deleted binding's AppRole still exists")
@@ -334,7 +366,7 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	}
 }
 
-func TestUnbindingADisconnectedAgentSaysTheTokenStaysValid(t *testing.T) {
+func TestUnbindingAnUnreportedTokenOfADisconnectedAgentSaysItStaysValid(t *testing.T) {
 	ctx := context.Background()
 	harness := startHarness(t)
 	controller := harness.controller
@@ -370,6 +402,115 @@ func TestUnbindingADisconnectedAgentSaysTheTokenStaysValid(t *testing.T) {
 	}
 	if !recorded {
 		t.Fatal("binding-deleted event does not record the disconnected agent")
+	}
+}
+
+// tokenValid reports whether token still authenticates to OpenBao.
+func tokenValid(t *testing.T, bao *baotest.Server, token openbao.Token) bool {
+	t.Helper()
+	client, err := bao.Root.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetToken(token.Value())
+	_, err = client.Auth().Token().LookupSelf()
+	return err == nil
+}
+
+func TestUnbindingReportsATokenOpenBaoDidNotRevoke(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	controller := harness.controller
+	key := newAgentKey(t)
+	_, _ = harness.dial("host-a", key)
+	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	issued, err := harness.bao.Root.Auth().Token().Create(&api.TokenCreateRequest{TTL: "1h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := openbao.NewToken(issued.Auth.ClientToken, time.Hour)
+	if err := controller.Store().SaveTokenAccessor(ctx, binding.ID, issued.Auth.Accessor, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	// The controller's OpenBao policy no longer allows revocation.
+	withdrawn := strings.Replace(baotest.ControllerPolicy, `path "auth/token/revoke-accessor" { capabilities = ["update"] }`, "", 1)
+	if withdrawn == baotest.ControllerPolicy {
+		t.Fatal("the controller policy does not grant revoke-accessor")
+	}
+	if err := harness.bao.Root.Sys().PutPolicy("wyrwood-controller", withdrawn); err != nil {
+		t.Fatal(err)
+	}
+	err = controller.DeleteBinding(ctx, binding.ID, "operator-1")
+	var operation *OperationError
+	if !errors.As(err, &operation) || !operation.TokenLive || operation.Code != events.ErrorOpenBaoDenied ||
+		!strings.Contains(operation.Message, "could not revoke") {
+		t.Fatalf("DeleteBinding(revocation denied) = %#v", err)
+	}
+	if _, err := controller.Store().Binding(ctx, binding.ID); err == nil {
+		t.Fatal("binding still stored after a failed revocation")
+	}
+	if !tokenValid(t, harness.bao, token) {
+		t.Fatal("the token was revoked although OpenBao denied it")
+	}
+}
+
+func TestAnAgentCannotReportAnotherAgentsTokenAccessor(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	controller := harness.controller
+	keys := map[string]gossh.Signer{"host-a": newAgentKey(t), "host-b": newAgentKey(t)}
+	for name, key := range keys {
+		_, _ = harness.dial(name, key)
+		if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	theirs, err := controller.CreateBinding(ctx, "host-b", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ours, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := harness.dial("host-a", keys["host-a"])
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	for _, message := range []protocol.Message{
+		protocol.Hello{AgentVersion: "test"},
+		protocol.TokenAccessor{Binding: theirs.ID, Accessor: "foreignaccessor"},
+		protocol.TokenAccessor{Binding: ours.ID, Accessor: "ownaccessor"},
+	} {
+		if err := connection.conn.Send(message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		if recorded, err := controller.Store().TokenAccessor(ctx, ours.ID); err == nil && recorded == "ownaccessor" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the agent's own accessor was not recorded")
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if recorded, err := controller.Store().TokenAccessor(ctx, theirs.ID); err == nil {
+		t.Fatalf("another agent's binding recorded accessor %q", recorded)
 	}
 }
 

@@ -31,6 +31,12 @@ type credentials struct {
 	request    func(binding string)
 	record     func(events.Event)
 	keyOf      func(binding string) string
+	// report sends a binding's token accessor to the controller.
+	report func(binding, accessor string)
+
+	// reportMu orders reports so the last one sent for a binding carries
+	// its current token's accessor.
+	reportMu sync.Mutex
 
 	mu         sync.Mutex
 	endpoint   protocol.OpenBao
@@ -52,7 +58,8 @@ type heldToken struct {
 func newCredentials(timeout time.Duration, request func(string), record func(events.Event), keyOf func(string) string) *credentials {
 	return &credentials{
 		timeout: timeout, retryDelay: time.Second, now: time.Now, request: request, record: record, keyOf: keyOf,
-		held: map[string]*heldToken{}, generation: map[string]uint64{},
+		report: func(string, string) {},
+		held:   map[string]*heldToken{}, generation: map[string]uint64{},
 	}
 }
 
@@ -152,7 +159,23 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 		previous.cancel()
 		go manager.revoke(credential.Binding, previous.token)
 	}
+	manager.reportAccessor(credential.Binding)
 	go manager.maintain(renewCtx, credential.Binding)
+}
+
+// reportAccessor sends the accessor of the binding's current token.
+func (manager *credentials) reportAccessor(binding string) {
+	manager.reportMu.Lock()
+	defer manager.reportMu.Unlock()
+	manager.mu.Lock()
+	var accessor string
+	if held, ok := manager.held[binding]; ok {
+		accessor = held.token.Accessor
+	}
+	manager.mu.Unlock()
+	if accessor != "" {
+		manager.report(binding, accessor)
+	}
 }
 
 var errNoEndpoint = &openbao.Error{Category: openbao.CategoryUnavailable}

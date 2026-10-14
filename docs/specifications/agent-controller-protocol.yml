@@ -26,6 +26,10 @@ description: >-
   failed item names, `recreating`, `recreated` with the new engine
   identifier, or `recreate-failed` with a categorical reason.
   `credential-request` names a binding whose token must be replaced.
+  `token-accessor` carries a binding and the accessor of the token the agent
+  obtained for it, sent after each login; the
+  controller keeps the latest one per binding and uses it only to revoke that
+  token when the binding is deleted.
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory: binding identifier, the matched key, the
@@ -43,7 +47,8 @@ description: >-
   arrives.
 
   Neither direction ever carries a token, an unwrapped secret identifier, an
-  environment value, or a secret value. The controller replaces an agent's
+  environment value, or a secret value. A token accessor cannot
+  authenticate; it names a token for revocation. The controller replaces an agent's
   existing session when the same approved key connects again.
 validation-criteria: >-
   Round-trip tests validate every message against the schema asset and the

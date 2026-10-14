@@ -25,6 +25,9 @@ import (
 type OperationError struct {
 	Message string
 	Code    events.ErrorCode
+	// TokenLive marks a binding deletion that took effect while the
+	// binding's token may still be valid.
+	TokenLive bool
 }
 
 func (err *OperationError) Error() string { return err.Message }
@@ -207,26 +210,40 @@ func (controller *Controller) ChangeBinding(ctx context.Context, id, policyName,
 	return nil
 }
 
-// DeleteBinding retires a binding: the agent revokes its token, and the
-// binding's AppRole is deleted. Deleting the AppRole stops new logins but
-// does not revoke a token already issued, so when the agent is not
-// connected the binding is still removed and the error says that the
-// token stays valid until the agent reconnects or the token expires.
+// DeleteBinding retires a binding. A connected agent is told to revoke
+// the binding's token; the controller also revokes it by the accessor the
+// agent reported, whether or not the agent is connected, and deletes the
+// AppRole. When the token could not be revoked, because revocation failed
+// or the agent is not connected and reported no accessor, the binding is
+// still removed and the error says the token stays valid until it expires.
 func (controller *Controller) DeleteBinding(ctx context.Context, id, operator string) error {
 	started := controller.now()
 	binding, err := controller.store.Binding(ctx, id)
 	if err != nil {
 		return operationError(events.ErrorNotBound, "the binding does not exist")
 	}
-	code := events.ErrorNone
-	if err := controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}); err != nil {
-		code = events.ErrorControllerUnavailable
+	accessor, accessorErr := controller.store.TokenAccessor(ctx, id)
+	connected := controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}) == nil
+	var tokenCode, roleCode events.ErrorCode
+	switch {
+	case accessorErr == nil:
+		if err := controller.openbao.RevokeAccessor(ctx, accessor); err != nil {
+			tokenCode = openBaoError(err)
+		}
+	case !connected:
+		tokenCode = events.ErrorControllerUnavailable
 	}
 	if err := controller.openbao.DeleteRole(ctx, binding.Role); err != nil {
-		code = openBaoError(err)
+		roleCode = openBaoError(err)
 	}
-	if err := controller.store.DeleteBinding(ctx, id); err != nil {
+	code := events.ErrorNone
+	switch {
+	case controller.store.DeleteBinding(ctx, id) != nil:
 		code = events.ErrorInternal
+	case tokenCode != "":
+		code = tokenCode
+	case roleCode != "":
+		code = roleCode
 	}
 	controller.record(events.Event{Operation: events.OperationBindingDeleted, Outcome: outcomeFor(code), ErrorCode: code,
 		Agent: binding.Agent, Binding: binding.ID, ContainerKey: events.ContainerKey(string(binding.Key.Kind), binding.Key.Value),
@@ -235,12 +252,16 @@ func (controller *Controller) DeleteBinding(ctx context.Context, id, operator st
 		return operationError(code, "the binding could not be removed")
 	}
 	controller.hub.pushAgent(ctx, binding.Agent)
-	switch code {
-	case events.ErrorNone:
+	switch {
+	case code == events.ErrorNone:
 		return nil
-	case events.ErrorControllerUnavailable:
-		return operationError(code, "the binding was removed, but its agent is not connected: the container's token "+
-			"stays valid until the agent reconnects and revokes it, or until the token expires")
+	case tokenCode == events.ErrorControllerUnavailable:
+		return &OperationError{Code: code, TokenLive: true, Message: "the binding was removed, but its agent is not connected " +
+			"and has not reported the container's token: the token stays valid until the agent reconnects and revokes it, " +
+			"or until it expires"}
+	case tokenCode != "":
+		return &OperationError{Code: code, TokenLive: true, Message: "the binding was removed, but OpenBao could not revoke " +
+			"the container's token: it stays valid until the agent revokes it or it expires"}
 	default:
 		return operationError(code, "the binding was removed but OpenBao could not delete its AppRole")
 	}

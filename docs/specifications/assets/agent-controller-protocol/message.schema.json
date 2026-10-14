@@ -8,7 +8,7 @@
     "version": { "const": 1 },
     "type": {
       "type": "string",
-      "enum": ["hello", "inventory", "contract-result", "credential-request", "policy-set", "credential", "recreate-request", "unbind", "result-recorded"]
+      "enum": ["hello", "inventory", "contract-result", "credential-request", "policy-set", "credential", "recreate-request", "unbind", "result-recorded", "token-accessor"]
     }
   },
   "oneOf": [
@@ -20,7 +20,8 @@
     { "$ref": "#/$defs/credential" },
     { "$ref": "#/$defs/recreate-request" },
     { "$ref": "#/$defs/unbind" },
-    { "$ref": "#/$defs/result-recorded" }
+    { "$ref": "#/$defs/result-recorded" },
+    { "$ref": "#/$defs/token-accessor" }
   ],
   "$defs": {
     "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
@@ -177,6 +178,17 @@
         "binding": { "$ref": "#/$defs/id" },
         "outcome": { "$ref": "#/$defs/contract-result/properties/outcome" },
         "reason": { "$ref": "#/$defs/contract-result/properties/reason" }
+      }
+    },
+    "token-accessor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding", "accessor"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "token-accessor" },
+        "binding": { "$ref": "#/$defs/id" },
+        "accessor": { "type": "string", "pattern": "^[A-Za-z0-9.]{1,128}$" }
       }
     }
   }

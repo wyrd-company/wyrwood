@@ -176,6 +176,17 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 			}
 		}
 		return session.conn.Send(typed.Acknowledge())
+	case protocol.TokenAccessor:
+		// Only an accessor the binding's own agent reports is kept, so the
+		// controller revokes nothing it was not told about.
+		binding, err := controller.store.Binding(ctx, typed.Binding)
+		if err != nil || binding.Agent != session.agent {
+			return nil
+		}
+		if err := controller.store.SaveTokenAccessor(ctx, typed.Binding, typed.Accessor, controller.now()); err != nil {
+			controller.logf("token accessor not recorded")
+		}
+		return nil
 	case protocol.CredentialRequest:
 		binding, err := controller.store.Binding(ctx, typed.Binding)
 		if err != nil || binding.Agent != session.agent {

@@ -52,8 +52,10 @@ proposed-design:
     On startup the controller logs in with its AppRole and renews its token.
     Its policy allows create, read, update, and delete on `sys/policies/acl/wyrwood-*`,
     `auth/approle/role/wyrwood-*` and their role-id and secret-id endpoints,
-    `sys/wrapping/wrap`, and the Transit and SSH-engine mounts an operator
-    configures for key management. The AppRole mount, Transit mount, and SSH
+    `sys/wrapping/wrap`, update on `auth/token/revoke-accessor`, and the
+    Transit and SSH-engine mounts an operator configures for key management.
+    The controller revokes only accessors its agents report; it never lists
+    or looks up accessors. The AppRole mount, Transit mount, and SSH
     mount names are configuration. The controller never requests a root token
     and never reads a secret value on a container's behalf.
   policy-management: >-
@@ -87,14 +89,18 @@ proposed-design:
   bindings-and-approles: >-
     A binding pairs a policy with a container key on one agent. Creating a
     binding creates the AppRole `wyrwood-<agent>-<binding>` with the policy's
-    HCL attached, the policy's token time-to-live, and secret-id usage limited
-    to one. Deleting a binding tells the agent to revoke the binding's token
-    and deletes the AppRole, which stops new logins but does not revoke a
-    token already issued. When the agent is not connected, the deletion
-    reports that the token stays valid until the agent reconnects and revokes
-    it or the token expires. Changing a binding's policy updates the AppRole's token policies so
-    the next token the agent obtains carries the new policy; the agent re-logs
-    in on the push.
+    HCL attached, the policy's token time-to-live and maximum lifetime, and
+    secret-id usage limited to one. After each login the agent reports the
+    new token's accessor, and the controller keeps the latest one per
+    binding; tokens replaced by rotation are revoked by the agent. Deleting a
+    binding tells a connected agent to revoke the binding's token, revokes
+    that token by its accessor whether or not the agent is connected, and
+    deletes the AppRole, which stops new logins. When revocation fails, or
+    the agent is not connected and has reported no accessor, the binding is
+    still deleted and the deletion reports that the token stays valid until
+    the agent revokes it or it expires. Changing a binding's policy updates
+    the AppRole's token policies so the next token the agent obtains carries
+    the new policy; the agent re-logs in on the push.
   container-keys: >-
     A reported container carries every candidate key it offers in precedence
     order: devcontainer identity labels, compose project and service labels,

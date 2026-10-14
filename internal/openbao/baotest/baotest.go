@@ -41,6 +41,7 @@ path "transit/keys/*" { capabilities = ["create", "read", "update", "list"] }
 path "ssh/roles" { capabilities = ["list"] }
 path "ssh/roles/*" { capabilities = ["create", "read", "update", "list"] }
 path "auth/token/renew-self" { capabilities = ["update"] }
+path "auth/token/revoke-accessor" { capabilities = ["update"] }
 `
 
 // Server is a running dev server.

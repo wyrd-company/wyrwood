@@ -79,9 +79,9 @@ var notices = map[string]string{
 	"bound":    "Policy bound. The agent receives it on its next report.",
 	"changed":  "Binding moved to the new policy. The agent obtains a fresh token.",
 	"recreate": "Recreate requested. The agent reports the result.",
-	"unbound":  "Binding removed and its AppRole deleted. The agent revokes the token.",
-	"unbound-offline": "Binding removed and its AppRole deleted. The agent is not connected, so the container's token " +
-		"stays valid until the agent reconnects and revokes it, or until the token expires.",
+	"unbound":  "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
+		"it stays valid until the agent revokes it or it expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",
 	"key":        "Transit key created.",
 	"rotated":    "Transit key rotated. Agents list the new version on the next request.",
@@ -472,7 +472,7 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
 	server.render(writer, request, "confirm", confirmPage{
 		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
-		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The agent revokes the container's token and removes its consumer directory; the container's sockets stop answering. If the agent is not connected, the token stays valid until the agent reconnects or the token expires.",
+		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the agent removes its consumer directory; the container's sockets stop answering.",
 		Action: "/bindings/" + url.PathEscape(binding.ID) + "/unbind", Button: "Unbind and revoke AppRole", Danger: true, Back: back,
 	})
 }
@@ -482,9 +482,9 @@ func (server *Server) handleUnbind(writer http.ResponseWriter, request *http.Req
 	_, back := server.bindingBack(request.Context(), id)
 	err := server.controller.DeleteBinding(request.Context(), id, operatorSubject(request))
 	var operation *controller.OperationError
-	if errors.As(err, &operation) && operation.Code == events.ErrorControllerUnavailable {
-		// The binding is gone; only the revocation waits for the agent.
-		http.Redirect(writer, request, back+"&notice=unbound-offline", http.StatusSeeOther)
+	if errors.As(err, &operation) && operation.TokenLive {
+		// The binding is gone; only its token may still be valid.
+		http.Redirect(writer, request, back+"&notice=unbound-token-live", http.StatusSeeOther)
 		return
 	}
 	if err != nil {

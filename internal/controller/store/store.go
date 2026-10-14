@@ -77,6 +77,11 @@ var migrations = []string{
 		containers TEXT NOT NULL,
 		reported_at INTEGER NOT NULL
 	);
+	CREATE TABLE binding_tokens (
+		binding TEXT PRIMARY KEY REFERENCES bindings(id) ON DELETE CASCADE,
+		accessor TEXT NOT NULL,
+		updated_at INTEGER NOT NULL
+	);
 	CREATE TABLE contract_results (
 		binding TEXT PRIMARY KEY REFERENCES bindings(id) ON DELETE CASCADE,
 		outcome TEXT NOT NULL,
@@ -521,6 +526,30 @@ type ContractResult struct {
 	ContainerID string
 	Reason      protocol.Reason
 	UpdatedAt   time.Time
+}
+
+// SaveTokenAccessor records the accessor of a binding's current token,
+// replacing the one recorded before. It fails with ErrNotFound when the
+// binding does not exist.
+func (store *Store) SaveTokenAccessor(ctx context.Context, binding, accessor string, now time.Time) error {
+	_, err := store.db.ExecContext(ctx, `INSERT INTO binding_tokens (binding, accessor, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(binding) DO UPDATE SET accessor = excluded.accessor, updated_at = excluded.updated_at`,
+		binding, accessor, unix(now))
+	if isConstraint(err) {
+		return ErrNotFound
+	}
+	return err
+}
+
+// TokenAccessor returns the accessor recorded for a binding's current
+// token, or ErrNotFound when its agent has reported none.
+func (store *Store) TokenAccessor(ctx context.Context, binding string) (string, error) {
+	var accessor string
+	err := store.db.QueryRowContext(ctx, `SELECT accessor FROM binding_tokens WHERE binding = ?`, binding).Scan(&accessor)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return accessor, err
 }
 
 // SaveContractResult records a binding's latest conformance.
