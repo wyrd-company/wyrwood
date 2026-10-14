@@ -74,14 +74,19 @@ proposed-design:
     and removes it when the recreate succeeds. A remove failure starts the
     original container again when it was running. A create failure after
     remove is reported as a failed recreate with the preserved create request
-    retained in memory for one retry. A journal left by an agent process that
-    exited mid-recreate is reported as a failed recreate when no container
-    with that name exists, so the container is not left absent silently. A
-    failed or interrupted recreate records its outcome and reason in the
-    journal, never the create request, and the journal is removed once the
-    controller acknowledges recording that result, so the report survives
-    agent restarts and controller storage failures. Each reconcile sends an
-    unacknowledged report again.
+    retained in memory for one retry.
+  interrupted-recreate: >-
+    The create request lives only in agent memory and is never written to
+    disk, because it carries the container's environment, which can hold
+    secrets. An agent process that exits between remove and create therefore
+    cannot complete the recreate. The next agent process reports it: a
+    journal with no container of that name is a failed recreate, so the
+    container is never left absent silently, and the operator recreates the
+    container. A failed or interrupted recreate records its outcome and
+    reason in the journal, and the journal is removed once the controller
+    acknowledges recording that result, so the report survives agent restarts
+    and controller storage failures. Each reconcile sends an unacknowledged
+    report again.
   bind-time-only: >-
     Recreate is triggered only by a binding message whose policy has recreate
     enforcement and whose binding is new for that container key on this agent.
