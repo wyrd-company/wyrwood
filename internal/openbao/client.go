@@ -99,7 +99,7 @@ func NewClient(endpoint Endpoint) (*api.Client, error) {
 	if err != nil || !parsed.IsAbs() {
 		return nil, &Error{Category: CategoryInvalid}
 	}
-	configuration := api.DefaultConfig()
+	configuration := api.NewConfig()
 	if configuration.Error != nil {
 		return nil, &Error{Category: CategoryInvalid}
 	}
@@ -180,12 +180,15 @@ func tokenFromAuth(secret *api.Secret) (Token, error) {
 	}, nil
 }
 
-// withToken returns a shallow client clone carrying token.
+// withToken returns a client clone carrying token and the namespace header.
+// It does not use Client.Clone, which reads BAO_* environment variables and
+// drops headers unless the source opts in.
 func withToken(client *api.Client, token string) (*api.Client, error) {
-	clone, err := client.Clone()
+	clone, err := api.NewClient(client.CloneConfig())
 	if err != nil {
 		return nil, &Error{Category: CategoryInvalid}
 	}
+	clone.SetHeaders(client.Headers())
 	clone.SetToken(token)
 	return clone, nil
 }
