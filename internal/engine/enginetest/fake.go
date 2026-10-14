@@ -20,14 +20,17 @@ import (
 // Fake is an in-memory engine. Create records the request body and makes a
 // container from it.
 type Fake struct {
-	mu         sync.Mutex
-	containers map[string]engine.Container
-	order      []string
-	listeners  []chan engine.Event
-	Calls      []string
-	Created    [][]byte
-	FailCreate int
-	FailRemove int
+	mu          sync.Mutex
+	containers  map[string]engine.Container
+	order       []string
+	listeners   []chan engine.Event
+	Calls       []string
+	Created     [][]byte
+	FailCreate  int
+	FailRemove  int
+	FailInspect int
+	// InspectError is what a failed inspect returns; nil means unavailable.
+	InspectError error
 }
 
 // New returns an empty fake engine.
@@ -119,6 +122,13 @@ func (fake *Fake) List(context.Context) ([]engine.Summary, error) {
 func (fake *Fake) Inspect(_ context.Context, id string) (engine.Container, error) {
 	fake.mu.Lock()
 	defer fake.mu.Unlock()
+	if fake.FailInspect > 0 {
+		fake.FailInspect--
+		if fake.InspectError != nil {
+			return engine.Container{}, fake.InspectError
+		}
+		return engine.Container{}, engine.ErrUnavailable
+	}
 	container, ok := fake.containers[id]
 	if !ok {
 		for _, candidate := range fake.containers {

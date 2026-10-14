@@ -232,15 +232,30 @@ func (agent *Agent) fullReconcile(ctx context.Context) error {
 		return err
 	}
 	observed := map[string]engine.Container{}
+	var indeterminate []string
 	for _, summary := range summaries {
 		inspectCtx, cancel := context.WithTimeout(ctx, agent.config.EngineTimeout)
 		container, err := agent.engine.Inspect(inspectCtx, summary.ID)
 		cancel()
-		if err == nil {
+		switch {
+		case err == nil:
 			observed[container.ID] = container
+		case !errors.Is(err, engine.ErrNotFound):
+			indeterminate = append(indeterminate, summary.ID)
 		}
 	}
 	agent.mu.Lock()
+	// A listed container whose inspect failed still exists: keep its last
+	// observation so its consumer directory, which the container mounts by
+	// inode, is not removed and recreated.
+	complete := true
+	for _, id := range indeterminate {
+		if previous, ok := agent.containers[id]; ok {
+			observed[id] = previous
+		} else {
+			complete = false
+		}
+	}
 	for id := range agent.containers {
 		if _, ok := observed[id]; !ok {
 			agent.containerGoneLocked(id)
@@ -252,7 +267,10 @@ func (agent *Agent) fullReconcile(ctx context.Context) error {
 		}
 		agent.containers[id] = container
 	}
-	agent.reportInterruptedRecreatesLocked(observed)
+	if complete {
+		// An uninspected container may carry a journaled name.
+		agent.reportInterruptedRecreatesLocked(observed)
+	}
 	agent.applyLocked(ctx)
 	agent.mu.Unlock()
 	agent.sendInventory()
