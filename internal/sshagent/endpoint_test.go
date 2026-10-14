@@ -7,6 +7,7 @@ package sshagent
 
 import (
 	"bytes"
+	"crypto/ed25519"
 	"crypto/rand"
 	"fmt"
 	"net"
@@ -338,4 +339,50 @@ func waitForPort(t *testing.T, port int) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatal("sshd did not start")
+}
+
+// sessionBind returns a session-bind@openssh.com payload signed by host.
+func sessionBind(t *testing.T, host ssh.Signer, forwarding bool, corrupt bool) []byte {
+	t.Helper()
+	sessionID := make([]byte, 32)
+	_, _ = rand.Read(sessionID)
+	signature, err := host.Sign(rand.Reader, sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if corrupt {
+		sessionID[0] ^= 0xff
+	}
+	return ssh.Marshal(struct {
+		HostKey    []byte
+		SessionID  []byte
+		Signature  []byte
+		Forwarding bool
+	}{host.PublicKey().Marshal(), sessionID, ssh.Marshal(signature), forwarding})
+}
+
+func TestSessionBindIsAcceptedWithoutStorage(t *testing.T) {
+	_, fixture := setup(t)
+	client := dial(t, fixture.socket)
+	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host, err := ssh.NewSignerFromKey(hostKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// More binds than OpenSSH's per-connection limit, forwarded and not:
+	// nothing is stored, so none is refused.
+	for index := range 20 {
+		if _, err := client.Extension("session-bind@openssh.com", sessionBind(t, host, index%2 == 0, false)); err != nil {
+			t.Fatalf("session-bind %d = %v", index, err)
+		}
+	}
+	if _, err := client.Extension("session-bind@openssh.com", sessionBind(t, host, false, true)); err == nil {
+		t.Fatal("session-bind with a signature that does not verify was accepted")
+	}
+	if got := fixture.operations()[events.OperationSSHSessionBind]; got != 21 {
+		t.Fatalf("session-bind events = %d, want 21", got)
+	}
 }

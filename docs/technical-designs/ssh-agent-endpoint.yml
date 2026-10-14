@@ -29,10 +29,8 @@ design-challenges:
     Certificates expire on the role's schedule. The endpoint must issue before
     first use and reissue before expiry without a client-visible gap.
   session-binding: >-
-    OpenSSH destination restrictions use session-bind messages. The endpoint
-    has no upstream connection to replay them to, so it must accept and
-    record them per connection and apply any restriction the policy
-    expresses locally.
+    OpenSSH clients send session-bind messages and expect the agent to accept
+    them. The endpoint has no upstream connection to replay them to.
 proposed-design:
   high-level-overview: >-
     The agent binds `ssh-agent.sock` inside each bound container's consumer
@@ -65,10 +63,9 @@ proposed-design:
     Removing a key or role from the policy removes the identity from the next
     listing and refuses signing for it immediately.
   session-binding: >-
-    `session-bind@openssh.com` is accepted and recorded per connection up to
-    the OpenSSH limit of sixteen unique pairs. The endpoint uses it only for
-    events and for refusing forwarded use when the policy marks an identity
-    as not forwardable.
+    `session-bind@openssh.com` is accepted when its host-key signature
+    verifies and is recorded only as an event. Binds are not stored, and no
+    identity is restricted by destination or by forwarding.
   events: >-
     Identity listing, signing by fingerprint, certificate issuance, and
     session binding record categorical events with latency. No payload,

@@ -29,9 +29,6 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/openbao"
 )
 
-// maximumSessionBinds is OpenSSH's per-connection session-bind limit.
-const maximumSessionBinds = 16
-
 var (
 	errRefused     = errors.New("operation refused")
 	errNotBound    = errors.New("not bound")
@@ -172,15 +169,6 @@ type session struct {
 	lookup       binding.Lookup
 	record       binding.Recorder
 	certificates *certificateCache
-
-	mu    sync.Mutex
-	binds []sessionBind
-}
-
-type sessionBind struct {
-	hostKey    []byte
-	session    []byte
-	forwarding bool
 }
 
 type identity struct {
@@ -343,13 +331,18 @@ func signCertificate(signer ssh.Signer, data []byte, flags sshagent.SignatureFla
 	return signer.Sign(rand.Reader, data)
 }
 
-// Extension accepts session-bind@openssh.com and denies every other extension.
+// Extension accepts session-bind@openssh.com and denies every other
+// extension. A bind whose host-key signature verifies is acknowledged and
+// recorded as an event; it is not stored, because no policy restricts use by
+// destination or forwarding.
 func (session *session) Extension(extensionType string, contents []byte) ([]byte, error) {
 	if extensionType != "session-bind@openssh.com" {
 		return nil, sshagent.ErrExtensionUnsupported
 	}
 	started := session.endpoint.Now()
 	view, _ := session.lookup()
+	// The wire format ends with the forwarding flag; it is parsed only so
+	// that the message decodes.
 	var message struct {
 		HostKey    []byte
 		SessionID  []byte
@@ -371,19 +364,6 @@ func (session *session) Extension(extensionType string, contents []byte) ([]byte
 		recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), errRefused)
 		return nil, errRefused
 	}
-	session.mu.Lock()
-	defer session.mu.Unlock()
-	for _, existing := range session.binds {
-		if bytes.Equal(existing.hostKey, message.HostKey) && bytes.Equal(existing.session, message.SessionID) {
-			recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), nil)
-			return nil, nil
-		}
-	}
-	if len(session.binds) >= maximumSessionBinds {
-		recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), errRefused)
-		return nil, errRefused
-	}
-	session.binds = append(session.binds, sessionBind{hostKey: message.HostKey, session: message.SessionID, forwarding: message.Forwarding})
 	recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), nil)
 	return nil, nil
 }
