@@ -27,7 +27,8 @@ members may operate Wyrwood.
 mkdir -p ~/wyrwood/state
 cat > ~/wyrwood/controller.yml <<'YAML'
 http:
-  listen: 127.0.0.1:8080
+  # Inside the container; the published port below keeps it on host loopback.
+  listen: 0.0.0.0:8080
 ssh:
   listen: 0.0.0.0:2222
 openbao:

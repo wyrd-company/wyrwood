@@ -1,0 +1,61 @@
+# ---
+# relationships:
+#   publishes: controller
+# ---
+
+name: Publish image
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  image:
+    name: Build and publish the controller image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Validate stable release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          then
+          echo "Release tags must be bare stable SemVer values." >&2
+          exit 1
+          fi
+
+      - name: Check out release commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Build and push for amd64 and arm64
+        shell: bash
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+          docker buildx create --name wyrwood --use
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --build-arg VERSION="$RELEASE_VERSION" \
+            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+            --label org.opencontainers.image.version="$RELEASE_VERSION" \
+            --tag "$image:$RELEASE_VERSION" \
+            --tag "$image:latest" \
+            --push .

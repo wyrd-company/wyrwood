@@ -31,7 +31,9 @@ tasks:
       - python3 -m unittest scripts/create-release-manifest_test.py
 
   test:integration:linux:
-    desc: Run the real Linux integration gate
+    desc: >-
+      Run the real Linux integration gate as root with Docker Engine, bao,
+      the devcontainer CLI, and sshd (WYRWOOD_GATE_IMAGE overrides the image)
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
 

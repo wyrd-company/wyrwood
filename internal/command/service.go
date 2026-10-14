@@ -8,8 +8,11 @@
 package command
 
 import (
+	"errors"
 	"fmt"
 	"io"
+
+	"github.com/wyrd-company/wyrwood/internal/linuxservice"
 )
 
 func runService(args []string, stdout, stderr io.Writer, deps dependencies) int {
@@ -47,5 +50,12 @@ func runService(args []string, stdout, stderr io.Writer, deps dependencies) int 
 }
 
 func serviceFailure(err error) failure {
-	return failureServiceManager
+	switch {
+	case errors.Is(err, linuxservice.ErrRequiresRoot):
+		return failureRequiresRoot
+	case errors.Is(err, linuxservice.ErrNotInstalled):
+		return failureNotInstalled
+	default:
+		return failureServiceManager
+	}
 }

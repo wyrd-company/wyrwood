@@ -54,6 +54,7 @@ var (
 	failureRequiresRoot   = failure{"requires-root", "this command requires root", exitOperational}
 	failureServiceManager = failure{"service-manager", "system service manager operation failed", exitOperational}
 	failureStateDirectory = failure{"state-unavailable", "controller state unavailable", exitOperational}
+	failureNotInstalled   = failure{"not-installed", "wyrwood-agent.service is not installed", exitOperational}
 )
 
 type failureProjection struct {

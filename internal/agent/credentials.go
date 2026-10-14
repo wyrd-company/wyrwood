@@ -202,16 +202,24 @@ func (manager *credentials) holding() map[string]bool {
 	return result
 }
 
-// stopAll stops renewal and forgets every held token, for shutdown. Tokens
-// are not revoked so a restart within their lifetime needs no controller.
+// stopAll stops renewal and revokes every held token, for shutdown. Tokens
+// live only in memory, so a restarted agent could never use them again;
+// revoking them leaves no live credential behind.
 func (manager *credentials) stopAll() {
 	manager.mu.Lock()
 	held := manager.held
 	manager.held = map[string]*heldToken{}
 	manager.mu.Unlock()
-	for _, token := range held {
+	var wait sync.WaitGroup
+	for binding, token := range held {
 		token.cancel()
+		wait.Add(1)
+		go func(binding string, token openbao.Token) {
+			defer wait.Done()
+			manager.revoke(binding, token)
+		}(binding, token.token)
 	}
+	wait.Wait()
 }
 
 func (manager *credentials) recordOutcome(operation events.Operation, binding string, started time.Time, err error) {

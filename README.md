@@ -81,6 +81,17 @@ task build
 Intentional is the only version and release mechanism. Record a change with
 `intentional add`, and release with `intentional plan`, `apply`, and `tag`.
 Tags are bare SemVer values. A pushed stable tag runs the package publisher
-compatibility preflight, publishes the GitHub release, and submits the
-package manifest to `repo.wyrd.foo`. Dispatch the `Publish docs` workflow with
-the same tag after every automated release.
+compatibility preflight, publishes the GitHub release, submits the package
+manifest to `repo.wyrd.foo`, and publishes the controller image to
+`ghcr.io/wyrd-company/wyrwood` with the workflow's own token. Package
+submission uses these product-repository secrets:
+
+- `REPO_WYRD_FOO_PUBLISHER_APP_ID`
+- `REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`
+
+Dispatch the `Publish docs` workflow with the same tag after every automated
+release; a release created with the Release workflow's `GITHUB_TOKEN` emits no
+event that triggers it. Documentation publishing uses these separate secrets:
+
+- `WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`
+- `WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`

@@ -18,6 +18,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/engine"
+	"github.com/wyrd-company/wyrwood/internal/linuxservice"
 	"github.com/wyrd-company/wyrwood/internal/sshagent"
 	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
 	"github.com/wyrd-company/wyrwood/internal/web"
@@ -51,7 +52,14 @@ func defaultDependencies() dependencies {
 		queryAgent: func(ctx context.Context, request agent.ControlRequest, destination any) error {
 			return agent.Query(ctx, paths, request, destination)
 		},
-		manageService: func(string) (string, error) { return "", errUnavailable },
+		manageService: func(action string) (string, error) {
+			manager, err := linuxservice.NewManager()
+			if err != nil {
+				return "", err
+			}
+			state, err := manager.Manage(action)
+			return string(state), err
+		},
 	}
 }
 

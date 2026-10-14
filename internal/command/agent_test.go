@@ -13,6 +13,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/agent"
 	"github.com/wyrd-company/wyrwood/internal/events"
+	"github.com/wyrd-company/wyrwood/internal/linuxservice"
 )
 
 func TestAgentLoginProjectionsAndExitStatuses(t *testing.T) {
@@ -94,5 +95,30 @@ func TestAgentQueriesUseOnlyTheControlSocket(t *testing.T) {
 	}
 	if strings.Join(operations, ",") != "status,containers,events" {
 		t.Fatalf("operations = %v", operations)
+	}
+}
+
+func TestServiceProjectionsAndFailures(t *testing.T) {
+	deps := defaultDependencies()
+	deps.manageService = func(action string) (string, error) {
+		if action == "install" {
+			return "", linuxservice.ErrRequiresRoot
+		}
+		return "active", nil
+	}
+	status, stdout, _ := runForTest(t, deps, "agent", "service", "status")
+	if status != exitSuccess || stdout != "wyrwood-agent.service: active\n" {
+		t.Fatalf("service status = %d %q", status, stdout)
+	}
+	status, stdout, _ = runForTest(t, deps, "agent", "service", "start", "--output", "json")
+	if status != exitSuccess || stdout != `{"version":1,"action":"start","state":"active"}`+"\n" {
+		t.Fatalf("service start json = %d %q", status, stdout)
+	}
+	status, _, stderr := runForTest(t, deps, "agent", "service", "install")
+	if status != exitOperational || !strings.Contains(stderr, "requires root") {
+		t.Fatalf("service install = %d %q", status, stderr)
+	}
+	if status, _, _ := runForTest(t, deps, "agent", "service", "restart"); status != exitUsage {
+		t.Fatalf("unknown action = %d", status)
 	}
 }
