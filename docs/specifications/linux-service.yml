@@ -1,0 +1,32 @@
+$schema: https://refinery.systems/ontology/specification
+relationships:
+  implements: agent
+  uses: command-line-interface
+format: systemd-system-unit
+description: >-
+  On Linux, `wyrwood agent service install|remove|start|stop|status` manages
+  `wyrwood-agent.service` in the system service manager and requires root.
+  Package installation creates the `wyrwood` system user with no login shell,
+  adds it to the `docker` group, creates `/etc/wyrwood`, `/var/lib/wyrwood`
+  with mode 0700, and the tmpfiles entry for `/run/wyrwood` with mode 0755
+  owned by that user, and installs the unit. The service commands exist for
+  hosts that installed from the release archive.
+
+  The unit runs `wyrwood agent daemon` as `User=wyrwood`, `Group=wyrwood`,
+  with `SupplementaryGroups=docker`, `UMask=0077`, `NoNewPrivileges=yes`,
+  `ProtectSystem=strict`, `ReadWritePaths=/var/lib/wyrwood /run/wyrwood`,
+  `RuntimeDirectory=wyrwood`, `RuntimeDirectoryPreserve=yes`, restart on
+  failure after two seconds, and a fifteen-second stop timeout. It is wanted
+  by `multi-user.target` and ordered after `docker.service`. Daemon startup
+  restores consumer directories and sockets from cached policy before it
+  contacts the controller, so bound containers keep their endpoints while the
+  controller is unavailable.
+
+  Install and remove replace the unit atomically, reload the manager, and
+  enable or disable the unit. Status reports only `not-installed`,
+  `inactive`, `active`, or `failed`. Every action supports the command-line
+  interface's human and JSON output, and failures are categorical.
+validation-criteria: >-
+  Tests verify exact unit bytes, hardening directives, argv order without a
+  shell, the tmpfiles entry, package post-install user creation on DEB and
+  RPM, idempotent install, and categorical non-leaking errors.

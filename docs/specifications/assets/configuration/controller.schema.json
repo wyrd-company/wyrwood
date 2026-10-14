@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.foo/wyrwood/schemas/controller-configuration.json",
+  "title": "Wyrwood controller configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["openbao"],
+  "properties": {
+    "http": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listen": { "type": "string", "default": "127.0.0.1:8080" }
+      }
+    },
+    "ssh": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "listen": { "type": "string", "default": "0.0.0.0:2222" }
+      }
+    },
+    "state": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "directory": { "type": "string", "default": "/var/lib/wyrwood" }
+      }
+    },
+    "openbao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["address", "approle"],
+      "properties": {
+        "address": { "type": "string", "format": "uri" },
+        "ca-file": { "type": "string" },
+        "namespace": { "type": "string" },
+        "approle": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["role-id", "secret-id-file"],
+          "properties": {
+            "mount": { "type": "string", "default": "approle" },
+            "role-id": { "type": "string" },
+            "secret-id-file": { "type": "string" }
+          }
+        },
+        "transit-mount": { "type": "string", "default": "transit" },
+        "ssh-mount": { "type": "string", "default": "ssh" }
+      }
+    }
+  }
+}

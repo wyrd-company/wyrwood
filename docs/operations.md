@@ -6,65 +6,52 @@ relationships:
   references:
     - command-line-interface
     - operational-events
-    - terminal-interface
 ---
 
 Wyrwood provides human-readable output for interactive use and closed,
 versioned JSON for automation.
 
 ```bash
-wyrwood status
-wyrwood events --limit 50
-wyrwood status --output json
-wyrwood service status --output json
+sudo wyrwood agent status
+sudo wyrwood agent containers
+sudo wyrwood agent events --limit 50
+sudo wyrwood agent status --output json
 ```
 
-Successful output goes to standard output. Categorical, actionable errors go to
-standard error. Automation can distinguish usage, initialization, daemon,
-configuration, apply, upstream, stale-revision, durability, and missing-consumer
-failures by exit status without parsing internal error text.
+Successful output goes to standard output. Categorical errors go to standard
+error. Automation can distinguish usage, login, daemon, controller, and
+fingerprint failures by exit status without parsing error text.
 
-## Terminal interface
+## Web interface
 
-Run `wyrwood tui` from an interactive terminal to manage the same daemon through
-a keyboard-only interface. It exposes the dashboard, upstream keys, consumer
-details, consumer creation, timeouts, health, and recent events.
-
-```bash
-wyrwood tui
-```
-
-Saved edits remain visibly `UNAPPLIED` until the explicit Apply action succeeds.
-Dirty edits require confirmation before discard or exit. Press `?` to expand
-the help for the current view.
+The controller's web interface shows agents with pending approvals,
+containers per agent with binding and conformance state, policies, OpenBao
+keys under the managed mounts, and events. Bind it to loopback and place it
+behind a reverse proxy.
 
 ## Operational events
 
-The daemon retains a bounded per-user event history for reconciliation,
-connections, identity listing, signing, and session binding. Events include
-categorical outcomes, latency, consumer identifiers, and a key fingerprint only
-when the operation needs one. They exclude signing payloads, signatures,
-public-key bytes, agent comments, filesystem paths, destinations, and raw
-errors.
+The agent and the controller each retain a bounded event history. Agent
+events cover container observation, bindings, contract checks and recreates,
+token login and renewal, vault requests by mount category, and SSH identity
+listing, signing, and certificate issuance. Controller events cover agent
+approval, sessions, policy saves, bindings, and credential issuance. Events
+contain no tokens, secret values, request bodies, paths, signatures, or raw
+upstream errors.
 
 ## Commands
 
 | Command | Purpose |
 | --- | --- |
-| `wyrwood init` | Create the initial per-user configuration from `SSH_AUTH_SOCK`. |
-| `wyrwood daemon` | Run the per-user daemon directly. |
-| `wyrwood service install\|remove\|start\|stop\|status` | Manage login startup through the systemd user manager. |
-| `wyrwood keys` | List upstream identities as fingerprints and display labels. |
-| `wyrwood status` | Inspect daemon, upstream, and consumer health. |
-| `wyrwood events` | Read the newest bounded operational events. |
-| `wyrwood configuration show` | Read the complete durable configuration and revision. |
-| `wyrwood configuration set-upstream` | Replace the durable upstream socket path. |
-| `wyrwood configuration set-timeouts` | Replace the complete timeout set. |
-| `wyrwood consumer put` | Create or completely replace one consumer. |
-| `wyrwood consumer retire` | Remove one consumer from durable configuration. |
-| `wyrwood apply` | Validate and atomically apply durable configuration. |
-| `wyrwood tui` | Open the terminal management interface. |
+| `wyrwood controller serve` | Run the controller. |
+| `wyrwood controller host-key` | Print the controller's SSH host-key fingerprint. |
+| `wyrwood agent login <url>` | Generate the agent key, accept the controller fingerprint, and request approval. |
+| `wyrwood agent daemon` | Run the agent directly. |
+| `wyrwood agent status` | Inspect agent, controller session, and binding health. |
+| `wyrwood agent containers` | List observed containers with binding, conformance, and token state. |
+| `wyrwood agent events` | Read the newest bounded operational events. |
+| `wyrwood agent service install\|remove\|start\|stop\|status` | Manage the system unit. |
 | `wyrwood version` | Print the executable version. |
 
-Run `wyrwood help` for the top-level grammar or append `--help` to a management
-command for its exact options.
+Run `wyrwood help` for the top-level grammar or append `--help` to a command
+for its options.

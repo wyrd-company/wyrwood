@@ -1,0 +1,47 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - controller
+    - agent
+description: >-
+  Wyrwood must deliver OpenBao-backed secrets and signing to containers on
+  several hosts, with policy written once. A per-user daemon configured
+  through a local YAML file and terminal interface on each host cannot hold a
+  policy-writing OpenBao credential safely on every host, cannot show an
+  operator the containers across hosts, and cannot be governed from one place.
+  Which process holds the policy-writing credential and where policy is edited
+  must be decided before any other design.
+considered-options:
+  "1": >-
+    Keep one per-user daemon per host. Each host holds its own OpenBao
+    credential and its own policy file. Operation stays local through the
+    command line and terminal interface.
+  "2": >-
+    Split Wyrwood into a controller and an agent. The controller runs once
+    per site as a container, owns policy, serves a web interface, and holds
+    the only policy-writing OpenBao credential. The agent runs on each host as
+    a package, enrolls with the controller over SSH, reports containers, and
+    publishes sockets. The terminal interface is removed.
+  "3": >-
+    Keep per-host daemons and add a separate read-only dashboard that
+    aggregates their state. Policy stays per host.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    Policy is written with containers in mind and the same policy applies on
+    every host, so one authority for policy is the natural shape. Putting the
+    policy-writing OpenBao credential in one hardened container removes it from
+    every workstation. An operator sees every host's containers in one place,
+    which is what makes binding by container identity practical. Option 3
+    keeps the credential on every host and leaves policy duplicated. Option 1
+    keeps the credential on every host and gives no cross-host view.
+expected-outcomes:
+  positive:
+    - One place to write policy and see bindings across hosts.
+    - Exactly one holder of a policy-writing OpenBao credential.
+    - Agents hold only per-container tokens bounded by policy.
+    - A web interface replaces a terminal interface that cannot show other hosts.
+  negative:
+    - The controller is a service to run and keep reachable.
+    - Agents need an enrollment step and a cached policy to survive controller outages.
+    - Two deployment shapes to package and document instead of one.

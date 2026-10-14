@@ -1,99 +1,103 @@
 ---
-title: Configuration and policy
+title: Policies and contracts
 order: 4
 docs: true
 relationships:
   references:
+    - policy
     - configuration
-    - command-line-interface
 ---
 
-The per-user YAML file is Wyrwood's durable source of truth. On Linux it is
-`$XDG_CONFIG_HOME/wyrwood/config.yml`, or `~/.config/wyrwood/config.yml` when
-`XDG_CONFIG_HOME` is unset.
+Policy lives on the controller. Agents receive the policies that match their
+containers and cache them so a controller restart does not interrupt running
+containers.
+
+## Policy document
 
 ```yaml
-upstream: /run/user/1000/example-agent.sock
-consumers:
-  - name: teal
-    socket: /run/user/1000/teal/agent.sock
-    fingerprints:
-      - SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
-timeouts:
-  connect: 5s
-  list: 5s
-  replay: 5s
-  sign: 2m
+name: teal-devcontainer
+openbao:
+  policy: |
+    path "kv/data/teams/teal/*" {
+      capabilities = ["read"]
+    }
+  token-ttl: 1h
+ssh:
+  transit-keys:
+    - teal-github
+  ca-roles:
+    - homelab
+contract:
+  mount-target: /run/wyrwood
+  env:
+    SSH_AUTH_SOCK: "{mount-target}/ssh-agent.sock"
+    VAULT_ADDR: "unix://{mount-target}/vault.sock"
+  access-group: 1000
+  enforcement: report
 ```
 
-Examples use placeholder paths and fingerprints. Select exact fingerprints from
-`wyrwood keys` before applying a real configuration.
+The controller validates the HCL through OpenBao before saving and writes it
+as `wyrwood-teal-devcontainer`. Every Transit key and SSH role the policy
+names must exist under the controller's configured mounts and must also be
+permitted by the HCL.
 
-## Managed changes
+## Bindings
 
-`configuration show` returns the complete editable model and a revision derived
-from the exact persisted bytes. Mutations require that revision and fail on a
-stale value instead of overwriting another edit.
+A binding attaches one policy to one container key on one agent. Keys are
+tried in order: devcontainer identity labels, compose project and service
+labels, container name. The controller creates one AppRole per binding with
+the policy attached. Changing the policy updates the AppRole, and the agent
+obtains a new token on the push. Deleting the binding deletes the AppRole and
+revokes its tokens.
 
-```bash
-wyrwood configuration show
-revision=$(wyrwood configuration show --output json |
-  jq -r '.result.revision')
-wyrwood configuration set-upstream --revision "$revision" \
-  --socket /run/user/1000/example-agent.sock
+## Contract enforcement
 
-revision=$(wyrwood configuration show --output json |
-  jq -r '.result.revision')
-wyrwood configuration set-timeouts --revision "$revision" \
-  --connect 5s --list 5s --replay 5s --sign 2m
+`report` is the default. The agent checks the mount, the environment names and
+values, and the access group on every reconcile and reports what is missing.
+
+`recreate` makes the agent apply the contract once, when the policy is first
+bound to a container. The agent stops, removes, and creates the container from
+its inspected definition with the mount and environment merged in. Later drift
+is reported, not recreated. The host's agent configuration must also allow
+recreate; otherwise the binding is reported as non-conforming with that
+reason.
+
+## Agent configuration
+
+`/etc/wyrwood/agent.yml` holds only what is needed to reach the controller
+and the engine:
+
+```yaml
+controller:
+  url: ssh://controller.example.internal:2222
+engine:
+  socket: /var/run/docker.sock
+  allow-recreate: false
 ```
 
-`consumer put` replaces the complete consumer value and fingerprint allowlist.
-Omit `--id` to create one; supply the opaque identifier returned by
-`configuration show` to replace one. Retire an existing consumer with its
-identifier:
+The agent key, accepted controller fingerprint, cached policy, and events live
+under `/var/lib/wyrwood`. No token or secret is ever written there.
 
-```bash
-revision=$(wyrwood configuration show --output json |
-  jq -r '.result.revision')
-wyrwood configuration show
-read -r -p "Consumer ID to retire: " consumer_id
-wyrwood consumer retire --revision "$revision" --id "$consumer_id"
+## Controller configuration
+
+`/etc/wyrwood/controller.yml` names the listen addresses, the state
+directory, and the OpenBao connection. The AppRole secret identifier is read
+from a file:
+
+```yaml
+http:
+  listen: 127.0.0.1:8080
+ssh:
+  listen: 0.0.0.0:2222
+openbao:
+  address: https://openbao.example.internal:8200
+  approle:
+    role-id: REPLACE_WITH_ROLE_ID
+    secret-id-file: /run/secrets/openbao-secret-id
+  transit-mount: transit
+  ssh-mount: ssh
 ```
 
-The prompt keeps selection of the consumer deliberate; display names are not
-authorization identities.
-
-Managed writes serialize canonical YAML and do not preserve comments or custom
-formatting. Direct file edits remain supported, but they also change the
-revision. Both paths require a separate `wyrwood apply` before the runtime
-policy changes.
-
-## Consumer filesystem access
-
-Without `access-group`, Wyrwood gives the consumer directory mode `0700` and the
-socket mode `0600`. Set a numeric supplementary group when the container must
-reach the endpoint through group access:
-
-```bash
-revision=$(wyrwood configuration show --output json |
-  jq -r '.result.revision')
-wyrwood configuration show
-read -r -p "Consumer ID to replace: " consumer_id
-wyrwood keys
-read -r -p "Fingerprint to allow: " fingerprint
-
-wyrwood consumer put --revision "$revision" --id "$consumer_id" \
-  --name teal --socket /run/user/1000/teal/agent.sock \
-  --access-group 1001 --fingerprint "$fingerprint"
-```
-
-The group must belong to the daemon user. A socket-path change creates a new
-consumer security principal and a new opaque identifier.
-
-## Timeouts
-
-Connect, identity-list, and session-binding replay timeouts accept Go duration
-syntax from `100ms` through `30s`. Signing accepts `1s` through `10m`, allowing
-time for confirmation in the upstream agent without permitting an unbounded
-request.
+The controller's own OpenBao policy should cover only the Wyrwood prefix:
+`sys/policies/acl/wyrwood-*`, `auth/approle/role/wyrwood-*`,
+`sys/wrapping/wrap`, and the Transit and SSH mounts it manages.

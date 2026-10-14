@@ -4,11 +4,11 @@
 #   references: wyrwood
 # ---
 name: wyrwood
-tagline: Stable, filtered host SSH keys for containers.
+tagline: OpenBao-backed secrets and signing for containers, with nothing stored inside.
 blurb: >-
-  A per-user Linux daemon that gives each container its own stable SSH-agent
-  socket and explicit public-key fingerprint allowlist while private keys stay
-  in the host agent.
+  A controller that owns policy and an agent on each Docker host that gives
+  every bound container a directory of sockets: an OpenBao endpoint carrying
+  the container's own token and an SSH agent whose keys live in OpenBao.
 category: Agent Infrastructure
 language: Go
 status: preview
@@ -21,5 +21,3 @@ install:
     command: sudo dnf install wyrwood
   - label: AUR
     command: paru -S wyrwood-bin
-assets:
-  - assets/demo.gif

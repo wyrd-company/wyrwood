@@ -5,35 +5,50 @@ docs: true
 relationships:
   references:
     - wyrwood
-    - linux-per-user-agent-proxy
+    - controller
+    - agent
 ---
 
-Wyrwood gives Linux containers stable, deliberately limited access to keys held
-by a host SSH agent. One unprivileged daemon connects to the user's agent and
-publishes a separate SSH-agent-compatible socket for each consumer.
+Wyrwood delivers OpenBao-backed secrets and signing to containers through a
+per-container directory of Unix sockets. A container holds no token, no key,
+and no secret file.
 
-![Wyrwood command-line and terminal demo](assets/demo.gif)
+Wyrwood has two parts:
 
-Each consumer socket is an authorization boundary. Its allowlist names exact
-SHA-256 public-key fingerprints, so mounting one socket never grants access to
-new keys merely because they appear in the host agent. Identity listing and
-signing are filtered at request time; agent administration and unknown
-extensions are rejected.
+- The **controller** runs once per site as a container. It owns policy, serves
+  a web interface, and holds the only OpenBao credential that can write
+  policies and AppRoles.
+- The **agent** runs on each Linux host with Docker Engine. It enrolls with the
+  controller over SSH, reports every container, and publishes each bound
+  container's sockets.
 
-Wyrwood addresses two problems with mounting a host agent socket directly:
+A **policy** pairs an OpenBao policy with a container contract. The OpenBao
+policy names the secrets a container may read and the keys it may sign with.
+The contract names the mount, environment values, and access group the
+container must have, and whether the agent only reports a container that
+lacks them or recreates it once at binding time.
 
-- **Excess authority** — different containers can receive different key
-  allowlists instead of sharing every identity in the host agent.
-- **Stale mounts** — containers mount the consumer's parent directory, so a
-  replaced socket remains visible without restarting or remounting the
-  container.
+A **binding** attaches a policy to a container by the most stable identity the
+engine offers: devcontainer labels first, then compose labels, then the
+container name. The controller creates one OpenBao AppRole per binding and
+hands the agent a role and a wrapped secret. The agent logs in, keeps the
+token in memory, and renews it.
 
-Private keys never enter Wyrwood. Signing stays inside the configured upstream
-agent, including any confirmation or destination restrictions it enforces.
-Wyrwood retains only bounded, categorical operational events; it does not store
-payloads, signatures, public-key bytes, agent comments, destinations, paths, or
-raw protocol messages.
+Inside the container, the mounted directory holds two sockets:
 
-The current release supports Linux hosts, Unix-domain consumer sockets, and a
-systemd user service. The command-line interface (CLI) and terminal user
-interface (TUI) use the same owner-authenticated local daemon control socket.
+- `vault.sock` speaks the OpenBao API. The agent replaces whatever credential
+  the client sends with the container's own token. A tool that insists on
+  logging in first receives a placeholder and proceeds.
+- `ssh-agent.sock` is a standard SSH agent. Its identities are OpenBao Transit
+  keys and OpenBao SSH-engine certificates named by the policy. Every
+  signature is produced by OpenBao.
+
+Mounting the directory rather than a socket file keeps a replaced socket
+visible inside a running container. Removing a key or path from the policy
+takes effect on the next request without a restart.
+
+Wyrwood retains only bounded, categorical operational events. They contain no
+tokens, secret values, signatures, payloads, paths, or raw upstream errors.
+
+The agent supports Linux hosts with Docker Engine. The controller runs
+anywhere a container can reach OpenBao and accept SSH connections from agents.

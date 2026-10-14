@@ -1,0 +1,37 @@
+$schema: https://refinery.systems/ontology/job-to-be-done
+relationships:
+  articulates: wyrwood
+description: >-
+  When a tool inside a container needs to authenticate over SSH, give it an
+  SSH-agent endpoint whose keys live in OpenBao, so the container can sign
+  without ever holding a private key.
+job-map:
+  define: Identify the container and the remote services it must reach over SSH.
+  locate: Find the Transit key or SSH-engine role in OpenBao that authenticates to each service.
+  prepare: Name those keys and roles in the container's policy.
+  confirm: List identities through the ssh-agent socket inside the container.
+  execute: Run git, ssh, or any agent-aware tool against the socket.
+  monitor: Watch signing outcomes by key fingerprint without seeing payloads or signatures.
+  modify: Rotate a Transit key or shorten a certificate role and see the next connection use it.
+  conclude: Remove the key or role from the policy and see it disappear from the identity list.
+outcomes:
+  - "1":
+      importance: 1
+      statement: >-
+        The ssh-agent socket lists only the keys and certificates the
+        container's policy names, and signs only with those.
+  - "2":
+      importance: 2
+      statement: >-
+        No private key material exists on the host or in the container; every
+        signature is produced by OpenBao.
+  - "3":
+      importance: 3
+      statement: >-
+        A certificate issued for a host that trusts the OpenBao CA expires on
+        the role's schedule and is renewed before the next connection needs it.
+  - "4":
+      importance: 4
+      statement: >-
+        Replacing a socket on the host remains visible inside a running
+        container without a restart or remount.

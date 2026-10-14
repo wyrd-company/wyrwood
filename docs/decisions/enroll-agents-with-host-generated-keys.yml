@@ -1,0 +1,39 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - agent
+    - agent-controller-protocol
+description: >-
+  Agents authenticate to the controller over SSH with a key pair. Where the
+  pair is generated and how the controller comes to trust it decides whether a
+  private key ever crosses a browser or clipboard.
+considered-options:
+  "1": >-
+    The controller mints the key pair, stores it in OpenBao, and the operator
+    downloads the private key from the web interface and installs it on the
+    host.
+  "2": >-
+    The agent generates its key pair on the host. A login command shows the
+    public key, contacts the controller, and caches the controller's host-key
+    fingerprint after the operator accepts it. The controller lists the key as
+    pending until an operator approves it in the web interface.
+  "3": >-
+    The controller issues short-lived SSH certificates from the OpenBao SSH CA
+    to agents after a one-time enrollment token.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    The private key never leaves the host, and approval is a visible operator
+    action in the controller. The agent's username is the hostname, so the
+    controller's agent list reads naturally. Option 3 is stronger but adds a
+    certificate lifecycle before there is a second operator to need it; it
+    remains open as a later hardening step. Option 1 moves a private key
+    through a browser.
+expected-outcomes:
+  positive:
+    - No agent private key is ever transmitted.
+    - Enrollment is one command on the host and one approval in the controller.
+    - The controller host key is pinned after first contact, like known_hosts.
+  negative:
+    - A host that is rebuilt must be approved again.
+    - Agent keys do not expire; revocation is an operator action.

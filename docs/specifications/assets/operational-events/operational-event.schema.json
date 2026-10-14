@@ -1,65 +1,36 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.foo/wyrwood/schemas/operational-event.json",
   "title": "Wyrwood operational event",
-  "description": "One closed, non-sensitive Wyrwood operational event.",
-  "x-relationships": {},
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "timestamp",
-    "consumer-id",
-    "operation",
-    "outcome",
-    "latency",
-    "error-code"
-  ],
+  "required": ["time", "operation", "outcome", "latency-ns"],
   "properties": {
-    "timestamp": {
-      "type": "string",
-      "format": "date-time",
-      "description": "RFC 3339 timestamp normalized to UTC by the durable writer."
-    },
-    "consumer-id": {
-      "type": "string",
-      "pattern": "^[a-f0-9]{64}$",
-      "description": "Lowercase hexadecimal SHA-256 digest of the UTF-8 bytes of the canonical absolute consumer socket path. Stable while the path is unchanged; a path change creates a new security principal and identifier."
-    },
+    "time": { "type": "string", "format": "date-time" },
     "operation": {
-      "enum": [
-        "consumer-connect",
-        "list-identities",
-        "sign",
-        "session-bind",
-        "upstream-connect",
-        "replay",
-        "reconcile"
-      ]
-    },
-    "fingerprint": {
       "type": "string",
-      "pattern": "^SHA256:[A-Za-z0-9+/]{42}[AEIMQUYcgkosw048]$",
-      "description": "Optional canonical OpenSSH SHA-256 public-key fingerprint."
-    },
-    "outcome": {
-      "enum": ["succeeded", "denied", "failed"]
-    },
-    "latency": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 9223372036854775807,
-      "description": "Operation latency in nanoseconds."
-    },
-    "error-code": {
       "enum": [
-        "none",
-        "policy-denied",
-        "upstream-unavailable",
-        "upstream-timeout",
-        "upstream-protocol",
-        "consumer-protocol",
-        "resource-limit",
-        "internal"
+        "container-observed", "container-gone", "binding-received", "binding-retired",
+        "contract-checked", "recreate-begun", "recreate-finished",
+        "login", "renew", "revoke", "vault-request",
+        "ssh-list", "ssh-sign", "ssh-certificate", "ssh-session-bind",
+        "agent-approved", "agent-rejected", "session-opened", "session-closed",
+        "policy-saved", "binding-created", "binding-changed", "binding-deleted",
+        "credential-issued", "recreate-requested"
       ]
-    }
+    },
+    "outcome": { "type": "string", "enum": ["ok", "denied", "failed", "timeout"] },
+    "latency-ns": { "type": "integer", "minimum": 0 },
+    "error": {
+      "type": "string",
+      "enum": ["engine-unavailable", "controller-unavailable", "openbao-unavailable", "openbao-denied", "openbao-timeout", "no-token", "not-bound", "policy-denied", "recreate-not-allowed", "protocol", "internal"]
+    },
+    "agent": { "type": "string", "maxLength": 253 },
+    "binding": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "container-key": { "type": "string", "maxLength": 512 },
+    "policy": { "type": "string", "maxLength": 64 },
+    "fingerprint": { "type": "string", "pattern": "^SHA256:[A-Za-z0-9+/]{43}$" },
+    "mount": { "type": "string", "enum": ["kv", "transit", "ssh", "sys", "auth", "other"] },
+    "method": { "type": "string", "enum": ["GET", "LIST", "POST", "PUT", "DELETE"] }
   }
 }

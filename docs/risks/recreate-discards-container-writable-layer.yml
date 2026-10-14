@@ -1,0 +1,19 @@
+$schema: https://refinery.systems/ontology/risk
+relationships: {}
+slug: recreate-discards-container-writable-layer
+title: Recreating a container discards its writable layer
+description: >-
+  Applying a contract by recreating a container stops, removes, and creates it
+  again. Anything not on a mount or volume is lost, including editor servers
+  installed into the container and work saved outside mounted paths. An
+  attached editor session is interrupted. Mitigation: recreate runs only once,
+  when a policy with recreate enforcement is first bound, while the operator is
+  present in the controller; later drift is reported, not recreated; anonymous
+  volumes are carried over by name; the controller shows the recreate as an
+  explicit event before and after.
+categories:
+  - operational
+likelihood: 3
+impact: 2
+response-strategy: mitigate
+status: open

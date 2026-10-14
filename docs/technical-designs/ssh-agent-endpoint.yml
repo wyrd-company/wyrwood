@@ -1,0 +1,83 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  related-to:
+    - agent
+objective: >-
+  Serve a standard SSH-agent socket to a container whose identities are
+  OpenBao Transit keys and OpenBao SSH-engine certificates named by the
+  container's policy, so that git, ssh, and agent-aware tools sign without a
+  private key existing on the host or in the container.
+background:
+  current-design: >-
+    The agent socket proxies a host SSH agent and filters its identities by a
+    fingerprint allowlist configured per consumer.
+  problems:
+    - An agent outside a login session has no host SSH agent to proxy.
+    - A fingerprint allowlist is a second policy language beside OpenBao policy.
+    - Host agents hold long-lived private keys on every workstation.
+design-challenges:
+  identity-sources: >-
+    Transit keys are stable public keys whose signing happens in OpenBao.
+    SSH-engine certificates require a key pair to certify. The endpoint must
+    present both as ordinary agent identities and route signing accordingly.
+  signature-formats: >-
+    An SSH client expects a signature in SSH wire format for the key type.
+    Transit returns raw signatures for ed25519 and PKCS#1 v1.5 for RSA; the
+    endpoint must convert and must request the hash algorithm the client's
+    signature flags imply.
+  certificate-lifetime: >-
+    Certificates expire on the role's schedule. The endpoint must issue before
+    first use and reissue before expiry without a client-visible gap.
+  session-binding: >-
+    OpenSSH destination restrictions use session-bind messages. The endpoint
+    has no upstream connection to replay them to, so it must accept and
+    record them per connection and apply any restriction the policy
+    expresses locally.
+proposed-design:
+  high-level-overview: >-
+    The agent binds `ssh-agent.sock` inside each bound container's consumer
+    directory and implements the SSH-agent protocol directly. Identity
+    listing returns one entry per Transit key named by the policy and one
+    certificate entry per SSH-engine role named by the policy. Signing
+    requests are matched to an identity by public key and fulfilled by a
+    Transit sign call or by a local signature with the per-container key
+    behind a certificate. Administration requests are refused and unknown
+    extensions are denied.
+  transit-identities: >-
+    For each Transit key the policy names, the endpoint reads the key's
+    current version public key through the vault socket's token and presents
+    it with the key name as the comment. A sign request calls Transit sign
+    with the request's hash algorithm: ed25519 keys sign the raw request;
+    RSA keys use PKCS#1 v1.5 with SHA-256 or SHA-512 according to the
+    client's flags. The returned signature is re-encoded in SSH wire format.
+    Key rotation in Transit changes the listed public key on the next identity
+    listing.
+  certificate-identities: >-
+    For each SSH-engine role the policy names, the endpoint generates an
+    ed25519 key pair in memory for that container at first listing and
+    requests a certificate from the role with the container key as the
+    principal source the role allows. The certificate and its public key are
+    presented as the identity. The endpoint reissues when less than a third
+    of the validity remains. The private key exists only in agent memory for
+    the life of the binding.
+  policy-observation: >-
+    Identity listing and signing consult the current binding on every request.
+    Removing a key or role from the policy removes the identity from the next
+    listing and refuses signing for it immediately.
+  session-binding: >-
+    `session-bind@openssh.com` is accepted and recorded per connection up to
+    the OpenSSH limit of sixteen unique pairs. The endpoint uses it only for
+    events and for refusing forwarded use when the policy marks an identity
+    as not forwardable.
+  events: >-
+    Identity listing, signing by fingerprint, certificate issuance, and
+    session binding record categorical events with latency. No payload,
+    signature, public-key bytes, or destination is recorded.
+  verification: >-
+    Tests run the endpoint against an OpenBao dev server with a Transit mount
+    and an SSH CA and verify identity listing, ed25519 and RSA signatures that
+    OpenSSH accepts, certificate issuance and reissue timing, policy changes
+    on open connections, and refusal of administration requests. The Linux
+    integration gate runs `ssh-add -L` and a real `ssh` connection to a test
+    server that trusts the CA from inside a container with only the consumer
+    directory mounted.

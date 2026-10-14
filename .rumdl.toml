@@ -1,0 +1,6 @@
+# ---
+# relationships: {}
+# ---
+
+[global]
+exclude = [".intentional/intents"]

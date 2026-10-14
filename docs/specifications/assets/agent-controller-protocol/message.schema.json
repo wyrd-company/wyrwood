@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.foo/wyrwood/schemas/agent-controller-message.json",
+  "title": "Wyrwood agent-controller message",
+  "type": "object",
+  "required": ["version", "type"],
+  "properties": {
+    "version": { "const": 1 },
+    "type": {
+      "type": "string",
+      "enum": ["hello", "inventory", "contract-result", "credential-request", "policy-set", "credential", "recreate-request", "unbind"]
+    }
+  },
+  "oneOf": [
+    { "$ref": "#/$defs/hello" },
+    { "$ref": "#/$defs/inventory" },
+    { "$ref": "#/$defs/contract-result" },
+    { "$ref": "#/$defs/credential-request" },
+    { "$ref": "#/$defs/policy-set" },
+    { "$ref": "#/$defs/credential" },
+    { "$ref": "#/$defs/recreate-request" },
+    { "$ref": "#/$defs/unbind" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "key": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "value"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["devcontainer", "compose", "name"] },
+        "value": { "type": "string", "maxLength": 512 }
+      }
+    },
+    "container": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "state", "keys"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "name": { "type": "string", "maxLength": 256 },
+        "state": { "type": "string", "enum": ["created", "running", "paused", "restarting", "exited", "dead"] },
+        "image": { "type": "string", "maxLength": 512 },
+        "keys": { "type": "array", "items": { "$ref": "#/$defs/key" }, "minItems": 1, "maxItems": 3 },
+        "mounts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["source", "target"],
+            "properties": { "source": { "type": "string" }, "target": { "type": "string" } }
+          }
+        },
+        "env-names": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "hello": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "agent-version", "allow-recreate"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "hello" },
+        "agent-version": { "type": "string" },
+        "allow-recreate": { "type": "boolean" }
+      }
+    },
+    "inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "containers"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "inventory" },
+        "containers": { "type": "array", "items": { "$ref": "#/$defs/container" }, "maxItems": 1024 }
+      }
+    },
+    "contract-result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding", "outcome"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "contract-result" },
+        "binding": { "$ref": "#/$defs/id" },
+        "outcome": { "type": "string", "enum": ["conforming", "non-conforming", "recreating", "recreated", "recreate-failed"] },
+        "failed-items": { "type": "array", "items": { "type": "string", "enum": ["mount", "env", "access-group", "recreate-not-allowed"] } },
+        "container-id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "reason": { "type": "string", "enum": ["engine-error", "create-failed", "start-failed"] }
+      }
+    },
+    "credential-request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "credential-request" },
+        "binding": { "$ref": "#/$defs/id" }
+      }
+    },
+    "policy-set": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "openbao", "bindings"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "policy-set" },
+        "openbao": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address"],
+          "properties": {
+            "address": { "type": "string", "format": "uri" },
+            "ca-pem": { "type": "string" },
+            "namespace": { "type": "string" }
+          }
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["binding", "key", "policy"],
+            "properties": {
+              "binding": { "$ref": "#/$defs/id" },
+              "key": { "$ref": "#/$defs/key" },
+              "policy": { "$ref": "https://wyrd.foo/wyrwood/schemas/policy.json" }
+            }
+          }
+        }
+      }
+    },
+    "credential": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding", "approle-mount", "role-id", "wrapped-secret-id"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "credential" },
+        "binding": { "$ref": "#/$defs/id" },
+        "approle-mount": { "type": "string" },
+        "role-id": { "type": "string" },
+        "wrapped-secret-id": { "type": "string" }
+      }
+    },
+    "recreate-request": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "recreate-request" },
+        "binding": { "$ref": "#/$defs/id" }
+      }
+    },
+    "unbind": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "type", "binding"],
+      "properties": {
+        "version": { "const": 1 },
+        "type": { "const": "unbind" },
+        "binding": { "$ref": "#/$defs/id" }
+      }
+    }
+  }
+}

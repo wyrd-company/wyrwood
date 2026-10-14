@@ -1,0 +1,48 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - container-contract
+description: >-
+  A container receives its sockets only if the consumer directory is mounted
+  and its tools know where the sockets are. Docker fixes mounts and environment
+  at create time. Who applies that contract, and with what engine access,
+  determines whether a user must edit a container definition before binding
+  and whether the agent needs write access to the engine.
+considered-options:
+  "1": >-
+    A devcontainer Feature or the container definition declares the mounts
+    and environment. The agent validates a bound container against its
+    contract and reports non-conformance. The agent uses only engine read
+    operations.
+  "2": >-
+    The contract lives in the policy. The agent reports non-conformance by
+    default. A policy may opt into recreate enforcement: when such a policy is
+    first bound to a container, the agent stops, removes, and creates the
+    container again from its inspected definition with the contract applied.
+    Later drift is reported, not recreated. Engine write operations are used
+    only for that recreate and only on hosts whose agent configuration allows
+    it.
+  "3": >-
+    A mutating proxy in front of the engine socket applies the contract at
+    create time for every client.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    The contract belongs in the policy because the policy is written with the
+    target in mind, and ordinary containers have no Feature. Requiring the
+    socket path before the container exists forces a rebuild after every
+    binding. Recreating once at bind time, while the operator is present, gives
+    the ergonomic path without turning the agent into a continuous mutator.
+    Keeping report as the default and gating write access per host keeps
+    read-only engine use the norm. Option 3 requires every engine client to be
+    repointed. Option 1 is the fallback for any container whose policy does not
+    opt in.
+expected-outcomes:
+  positive:
+    - Binding a policy is enough to make a container conform, when the policy says so.
+    - Engine write access is explicit and limited to one operation at bind time.
+    - Non-conforming containers are visible in the controller.
+  negative:
+    - Recreate discards the container's writable layer and interrupts attached sessions.
+    - The agent must reproduce a container definition from inspect output faithfully.
+    - A host whose agent allows recreate has an agent with effective engine write access.

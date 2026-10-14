@@ -1,0 +1,95 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  mitigates:
+    - recreate-discards-container-writable-layer
+  assumes:
+    - devcontainer-cli-creates-devcontainers
+  related-to:
+    - agent
+objective: >-
+  Define what a container must look like to receive its sockets, validate a
+  bound container against that definition, and when the policy opts in, apply
+  it once by recreating the container at the moment of binding.
+background:
+  current-design: >-
+    The user mounts a consumer directory into the container by hand and sets
+    the agent socket path in the container's environment before creating it.
+  problems:
+    - The socket path must be known before the container exists.
+    - Nothing reports a container that mounted the wrong directory or nothing at all.
+    - Ordinary containers without a devcontainer definition have no place to declare the mount.
+design-challenges:
+  contract-expression: >-
+    The contract must say enough for the agent to verify and to apply, in
+    terms of the engine's own create model, without becoming a second
+    container definition language.
+  faithful-recreate: >-
+    Recreating from inspect output must preserve name, labels, image, command,
+    entrypoint, working directory, user, environment, mounts including
+    anonymous volumes by their generated names, networks and aliases, ports,
+    restart policy, and resource limits. Anything dropped is a silent change
+    to the user's container.
+  bounded-mutation: >-
+    Recreate is the only engine write. It must happen once, at bind time, and
+    never in response to later drift.
+proposed-design:
+  high-level-overview: >-
+    A contract is part of a Wyrwood policy. It names the mount target for the
+    consumer directory, the environment names and values the container's
+    tools need to find the sockets, the numeric access group the container's
+    processes use, and the enforcement mode. The agent checks a bound
+    container against the contract on every reconcile and reports the result.
+    With recreate enforcement, the first binding of that policy to a container
+    triggers one recreate with the contract merged into the container's
+    definition.
+  contract-fields: >-
+    `mount-target` is the absolute path inside the container where the consumer
+    directory appears; the source is always the agent's consumer directory for
+    that container and is never user-supplied. `env` is a map of environment
+    names to values; the values may reference the mount target. The default
+    contract sets `SSH_AUTH_SOCK` to the ssh-agent socket and `VAULT_ADDR` to
+    `unix://` followed by the vault socket path. `access-group` is the numeric
+    group the container's processes belong to. `enforcement` is `report` or
+    `recreate`.
+  validation: >-
+    A container conforms when a bind mount exists whose source is the
+    container's consumer directory and whose target is the contract's mount
+    target, when every contract environment name is present with the contract
+    value, and when the access group is one the agent user can assign.
+    Validation uses inspect output only; it never executes inside the
+    container. The result lists each failed item by name so the controller can
+    show what is missing.
+  recreate: >-
+    Recreate requires enforcement `recreate` on the policy and recreate
+    allowed in the host's agent configuration; otherwise the binding is
+    reported as non-conforming with the reason that recreate is not permitted
+    on this host. The agent inspects the container, builds a create request
+    that preserves every field the challenge lists, merges the contract's
+    mount and environment, then stops the container with its configured stop
+    timeout, removes it without removing volumes, creates it with the same
+    name, and starts it if it was running. The agent records a recreate-begun
+    event before stopping and a recreate-finished event with the new engine
+    identifier after starting. A create failure after remove is reported as a
+    failed recreate with the preserved create request retained in memory for
+    one retry; the container is not left absent silently.
+  bind-time-only: >-
+    Recreate is triggered only by a binding message whose policy has recreate
+    enforcement and whose binding is new for that container key on this agent.
+    A later reconcile that finds drift reports it. An operator can request a
+    recreate explicitly from the controller, which arrives as a distinct
+    message and follows the same path.
+  devcontainer-compatibility: >-
+    Recreated containers keep the devcontainer identity labels, so the
+    devcontainer CLI and editors find them by the same lookup. Lifecycle
+    commands whose markers lived in the discarded writable layer run again on
+    the next up. The operator-facing documentation states that the writable
+    layer is discarded and that attached editor sessions reconnect.
+  verification: >-
+    Unit tests build create requests from recorded inspect fixtures covering
+    anonymous volumes, named volumes, bind mounts, multiple networks with
+    aliases, published ports, restart policies, and resource limits, and
+    assert field-by-field equality. The Linux integration gate binds a
+    recreate policy to a running container created by the devcontainer CLI,
+    verifies the recreated container is found by the same CLI, that its
+    sockets are reachable at the mount target, and that a later environment
+    change is reported rather than recreated.

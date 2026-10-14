@@ -1,60 +1,125 @@
 $schema: https://refinery.systems/ontology/concept
 relationships:
-  shapes: stable-filtered-agent-access
+  shapes: controlled-secret-delivery-for-containers
+  assumes:
+    - docker-engine-is-the-only-runtime
+    - one-controller-per-site
+    - devcontainer-cli-creates-devcontainers
+  exposes:
+    - agent-compromise-exposes-host-container-secrets
+    - controller-token-blast-radius
+    - recreate-discards-container-writable-layer
 description: >-
-  Wyrwood is a per-user SSH-agent proxy that publishes stable, independently
-  authorized consumer endpoints for containers. It connects to one local
-  SSH-agent compatible application and preserves consumer availability while
-  that upstream socket is recreated at its configured path.
+  Wyrwood delivers OpenBao-backed secrets and signing to containers through a
+  per-container directory of Unix sockets. A controller holds policy and talks
+  to OpenBao. An agent on each host watches the Docker engine, binds containers
+  to policy, and publishes the sockets. A container holds no token, no key, and
+  no secret file.
 properties:
-  per-user-daemon: >-
-    One unprivileged daemon belongs to one logged-in operating-system user and
-    uses that user's upstream agent, configuration, runtime endpoints, and
-    operational history.
-  single-upstream: >-
-    Every consumer selects keys from one configured SSH-agent compatible
-    upstream endpoint.
-  consumer-security-principal: >-
-    A consumer endpoint is an authorization boundary whose possession grants
-    every process able to reach it the same explicitly configured key access.
-  explicit-key-policy: >-
-    Each consumer policy names exact public-key fingerprints and never grants
-    newly discovered upstream keys implicitly.
-  user-assigned-endpoint: >-
-    Each consumer has a mutable display name and a user-assigned socket path
-    whose dedicated parent directory is mounted into its container.
-  local-management: >-
-    A command-line interface and terminal user interface manage the daemon
-    through an operating-system local, same-user control endpoint.
-  non-sensitive-history: >-
-    Bounded per-user operational events contain categorical outcomes and
-    timing. Events may retain a selected public-key fingerprint as a stable,
-    correlatable key identifier. Events contain no signing payloads, signatures,
-    public-key bytes, agent comments, filesystem paths, destinations, raw client
-    messages, or raw upstream errors.
+  controller:
+    >-
+    One service, delivered as a container image, that owns Wyrwood policy. It
+    serves a web interface, an SSH server that agents connect to, and the only
+    OpenBao credential that can write policies and AppRoles.
+  agent:
+    >-
+    One daemon per host, delivered as an operating-system package, that holds
+    an SSH key for the controller, read access to the Docker engine, and the
+    per-container OpenBao tokens it obtained from the controller.
+  policy:
+    >-
+    A named document on the controller that pairs an OpenBao policy with a
+    container contract. The OpenBao policy names the secrets a container may
+    read and the keys it may sign with. The contract names the mounts,
+    environment values, and access group the container must have, and how the
+    agent enforces them.
+  binding:
+    >-
+    The association between one policy and one container key. A container key
+    is the most stable identity the engine offers for a container, tried in
+    order: devcontainer identity labels, compose project and service labels,
+    container name.
+  consumer-directory:
+    >-
+    A host directory owned by the agent and named after the container. It is
+    bind mounted into the container and holds that container's sockets. The
+    directory is the security principal: every process that can reach it shares
+    the bound policy's authority.
+  vault-socket:
+    >-
+    An HTTP endpoint over a Unix socket in the consumer directory that speaks
+    the OpenBao API. The agent replaces whatever credential the client sends
+    with the container's own token before forwarding.
+  ssh-agent-socket:
+    >-
+    An SSH-agent endpoint in the consumer directory whose identities are keys
+    held in OpenBao Transit and certificates issued by the OpenBao SSH engine
+    under the container's own token.
+  agent-identity:
+    >-
+    An SSH key pair generated on the host by the agent. The controller lists
+    the public key as pending until an operator approves it. The agent pins the
+    controller host key on first login.
+  non-sensitive-history:
+    >-
+    Bounded operational events on the agent and the controller record
+    categorical outcomes, timing, container keys, and key fingerprints. They
+    contain no secret values, tokens, signatures, payloads, request bodies,
+    filesystem paths, or raw upstream errors.
 features:
-  filter-agent-identities: >-
-    Lists only upstream identities whose fingerprints appear in the consumer's
-    explicit allowlist.
-  authorize-signatures: >-
-    Forwards signing requests only when the requested key remains allowed by
-    the current consumer policy.
-  preserve-session-restrictions: >-
-    Accepts and replays OpenSSH session-binding messages on replacement
-    upstream connections so destination restrictions remain enforced.
-  recover-upstream-connections: >-
-    Reconnects when the configured upstream socket is recreated while keeping
-    consumer listeners available.
-  apply-configuration: >-
-    Validates the complete YAML configuration and replaces active runtime
-    configuration atomically.
-  inspect-operation: >-
-    Reports daemon, upstream, and consumer health together with bounded
-    non-sensitive events in interactive and structured forms.
-  manage-user-startup: >-
-    Installs and controls operating-system specific login startup for the
-    unprivileged per-user daemon.
+  observe-containers:
+    >-
+    Watches the Docker engine and reports every container to the controller
+    with its candidate keys and labels.
+  bind-policy:
+    >-
+    Lets an operator attach a policy to a reported container in the web
+    interface, by the most stable key the container offers.
+  issue-container-credentials:
+    >-
+    Creates one OpenBao AppRole per binding, hands the agent its role and a
+    wrapped secret on request, and never exposes either to the container.
+  enforce-contract:
+    >-
+    Validates a bound container against its contract and reports the result.
+    When the policy opts in, recreates the container once with the contract
+    applied at the moment the binding is made.
+  proxy-openbao:
+    >-
+    Serves the OpenBao API over the container's vault socket with the
+    container's token substituted on every request.
+  sign-over-ssh-agent:
+    >-
+    Lists and signs with Transit keys and SSH-engine certificates the
+    container's policy allows, through a standard SSH-agent socket.
+  manage-openbao:
+    >-
+    Creates and updates the OpenBao policies, AppRoles, and Transit keys that
+    Wyrwood policies reference, from the web interface.
+  enroll-agents:
+    >-
+    Accepts a host-generated agent key, lets an operator approve it, and shows
+    the host's containers once the agent reports in.
+  inspect-operation:
+    >-
+    Reports agent, controller, and binding health together with bounded
+    non-sensitive events through the command line and the web interface.
 benefits:
-  - Containers retain a stable SSH_AUTH_SOCK integration across host agent resets.
-  - A socket mount grants access only to deliberately selected keys.
-  - Users can determine whether forwarding works without exposing privileged data.
+  - A container that is copied, exported, or compromised yields no reusable credential.
+  - Rotating a key or secret in OpenBao takes effect for every container without a restart.
+  - One operator governs policy for every host from one place.
+  - Which containers hold which authority is visible, not inferred.
+open-questions:
+  Q01: >-
+    Which OpenBao clients inside a devcontainer need an authentication method
+    other than a token header, and does the synthetic login response in the
+    vault socket cover them.
+  Q02: >-
+    Whether a GPG-agent socket is needed for commit signing, or whether SSH
+    commit signing through the ssh-agent socket is sufficient.
+exclusions:
+  - macOS and Windows hosts. The agent targets Linux hosts running Docker Engine.
+  - Container runtimes other than Docker Engine.
+  - Any delivery of secrets as environment variables.
+  - Reading host SSH agents or host key files. Keys live in OpenBao.
+  - A terminal user interface. Operation is through the command line and the web interface.

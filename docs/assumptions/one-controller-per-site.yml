@@ -1,0 +1,9 @@
+$schema: https://refinery.systems/ontology/assumption
+relationships: {}
+description: >-
+  One controller serves every agent in a site. Agents cache the last policy
+  they received and keep serving issued tokens until expiry, so a controller
+  restart does not interrupt running containers.
+end-descendant-type: technical-design
+evidence:
+  - A single operator governs every host today; high availability of the controller is not required.

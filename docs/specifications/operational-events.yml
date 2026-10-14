@@ -2,71 +2,29 @@ $schema: https://refinery.systems/ontology/specification
 relationships: {}
 format: json-schema
 description: >-
-  Wyrwood operational history is a bounded sequence of closed event records whose
-  machine-readable structure is defined by
-  `assets/operational-events/operational-event.schema.json`. Each event records a
-  RFC 3339 timestamp with a four-digit year, consumer identifier, categorical
-  operation, optional canonical public-key fingerprint, categorical outcome,
-  non-negative signed 64-bit latency in nanoseconds, and categorical error code.
-  The durable `consumer-id` is the lowercase hexadecimal SHA-256 digest of the
-  UTF-8 bytes of the canonical absolute consumer socket path. It remains stable
-  while the path is unchanged; changing the path creates a new security principal
-  and identifier. Configuration, status, and event projections use that exact same
-  identifier value. A fingerprint is intentionally correlatable across events.
-  Events contain no signing payloads, signatures, public-key bytes, agent comments,
-  filesystem paths, destinations, raw client messages, or raw upstream errors.
+  Agent and controller operational history is a bounded sequence of closed
+  event records defined by `assets/operational-events/operational-event.schema.json`.
+  Each record has an RFC 3339 timestamp, a categorical `operation`, a
+  categorical `outcome`, a non-negative latency in nanoseconds, and an
+  optional categorical `error`. Agent records may carry the container key
+  that identifies the consumer, the binding identifier, a key fingerprint
+  for signing and certificate operations, and the OpenBao mount category for
+  vault requests. Controller records may carry the agent name, binding
+  identifier, and policy name. A fingerprint is intentionally correlatable
+  across events.
 
-  The durable file begins with the eight-byte ASCII header `WYREVT01`. Each event is
-  encoded as a four-byte big-endian JSON byte length, a four-byte big-endian CRC-32C
-  checksum, and at most 1024 bytes of UTF-8 JSON conforming to the schema asset. The
-  only recoverable corruption boundary is the final frame: an incomplete final
-  header, an incomplete final body, or a checksum-invalid final body is removed on
-  startup. A checksum-valid but invalid event and any corruption before the final
-  frame make the store unreadable rather than discarding subsequent history.
+  Records contain no token, secret identifier, wrapping token, HCL, request
+  path beyond the mount category, request or response body, signature,
+  public-key bytes, environment value, filesystem path, or raw engine, SSH,
+  or OpenBao error text.
 
-  The daemon receives the canonical absolute storage path and a retention limit from
-  1 through 100000 events as explicit inputs. The event path has a dedicated leaf
-  parent below the filesystem root. The store creates a missing leaf parent with mode
-  `0700` without creating its ancestors. An existing parent is a real directory owned
-  by the daemon's effective user and already has exact mode `0700`; the store does not
-  change its mode. The event file and stable writer-lock file have mode `0600`. The
-  lock admits one daemon writer. Startup removes stale owned regular replacement files
-  in the reserved `.events-` namespace while leaving every other entry untouched.
-  Every append is synchronized to durable storage before returning. Crossing the
-  retention limit writes the retained sequence to an owner-only temporary file in the
-  same directory, synchronizes it, atomically renames it over the event file, and
-  synchronizes the directory. The store contains events only and has no configuration
-  authority.
-
-  Recent-event queries preserve durable write order. Last-activity projections select
-  each consumer's greatest retained timestamp. Overall and per-consumer health use
-  the most recently written retained event and return only `unknown`, `healthy`,
-  `denied`, or `degraded` with its categorical error code and timestamp. Endpoint
-  reconciliation and consumer admission emit lifecycle records. Consumer identity
-  listing, signing, and accepted session binding emit a record at the policy
-  boundary; signing records the requested canonical fingerprint. Upstream connection
-  and session-binding replay emit separate recovery records. Event-recorder failure
-  degrades daemon health but never expands an agent response or exposes the omitted
-  request material. Connect failures use `upstream-unavailable` unless their dial
-  deadline expires; operation and replay deadline expiry use `upstream-timeout`, and
-  other accepted upstream protocol failures use `upstream-protocol`. Each
-  agent-operation record is submitted synchronously to the durable store before that
-  policy operation returns. Its latency measures the agent boundary before event
-  persistence rather than local storage time.
+  The durable file format, framing, checksum, retention from 1 through
+  100000 records, atomic compaction, and final-frame recovery follow the
+  agent's event store. Health projections use the most recent retained event
+  per binding and report only `unknown`, `healthy`, `denied`, or `degraded`.
 validation-criteria: >-
-  A record conforms when it validates against the JSON Schema asset and the Go event
-  validator accepts it. Reflection tests verify the event type's exact fields and the
-  absence of open-ended maps, slices, or interfaces. Identifier tests verify the
-  lowercase 64-hex digest, stability for an unchanged canonical socket path, change
-  when a path change creates a new principal, and exact equality across durable events,
-  configuration, status, and event wire projections. Storage tests verify owner-only
-  modes, exclusive writing, restart survival, bounded retention, final-frame recovery,
-  fatal interior corruption, atomic inode replacement, concurrent access under race
-  detection, and query projections. The Linux Docker gate drives signing and
-  session-binding markers through a mounted consumer endpoint, verifies their
-  absence from projected and durable records, crosses the configured retention
-  boundary, and verifies the exact retained count. The Linux management gate
-  drives more than one terminal projection page of real policy activity,
-  verifies the CLI returns its requested bounded suffix, and scans both
-  projected and durable bytes for configured paths, request payloads, upstream
-  display-control markers, and other prohibited values.
+  A record conforms when it validates against the schema asset and the Go
+  validator accepts it. Reflection tests verify the event type has no
+  open-ended fields. Storage tests verify owner-only modes, bounded retention,
+  final-frame recovery, and atomic replacement. Integration gates scan
+  projected and durable bytes for tokens, paths, and request material.

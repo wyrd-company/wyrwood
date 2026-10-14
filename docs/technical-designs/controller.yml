@@ -1,0 +1,128 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  mitigates:
+    - controller-token-blast-radius
+  assumes:
+    - one-controller-per-site
+  related-to:
+    - agent
+    - container-contract
+objective: >-
+  Provide one service per site that owns Wyrwood policy, is the only holder of
+  a policy-writing OpenBao credential, enrolls agents over SSH, shows every
+  reported container, and issues per-binding OpenBao credentials to agents
+  without ever exposing them to containers.
+background:
+  current-design: >-
+    Policy is a per-host YAML file edited through a local command line and
+    terminal interface. Each host holds whatever upstream credential it needs.
+  problems:
+    - Policy must be written on every host and cannot be seen across hosts.
+    - A policy-writing OpenBao credential would have to exist on every host.
+    - No component can show which containers exist and what they are bound to.
+design-challenges:
+  credential-scope: >-
+    The controller writes OpenBao policies and AppRoles. Its own OpenBao
+    policy must be bounded to a Wyrwood prefix so that compromise of the
+    controller cannot grant authority outside that prefix.
+  agent-trust: >-
+    Agents are not known in advance. The controller must accept an unknown
+    public key as pending, let an operator approve it, and reject every
+    unapproved key without leaking whether it is pending.
+  binding-identity: >-
+    Container identifiers change on every rebuild. A binding must attach to
+    the most stable key the engine offers and the controller must show which
+    key it used.
+  availability: >-
+    Agents must keep serving containers while the controller is down, so the
+    controller must hand agents everything they need to operate from a cache
+    and must tolerate reconnection with stale reports.
+proposed-design:
+  high-level-overview: >-
+    The controller is one Go process delivered as a container image. It runs a
+    web interface over HTTP, an SSH server built on Wish that accepts agent
+    connections on a dedicated port, and an OpenBao client configured with an
+    AppRole whose policy covers only Wyrwood-managed paths. Durable state is
+    one SQLite database on a mounted volume: approved and pending agents,
+    policies, bindings, and the latest container report per agent. OpenBao
+    holds the policy documents, AppRoles, and Transit keys the controller
+    manages; the database holds only Wyrwood's references to them.
+  openbao-integration: >-
+    On startup the controller logs in with its AppRole and renews its token.
+    Its policy allows create, read, update, and delete on `sys/policies/acl/wyrwood-*`,
+    `auth/approle/role/wyrwood-*` and their role-id and secret-id endpoints,
+    `sys/wrapping/wrap`, and the Transit and SSH-engine mounts an operator
+    configures for key management. The AppRole mount, Transit mount, and SSH
+    mount names are configuration. The controller never requests a root token
+    and never reads a secret value on a container's behalf.
+  policy-management: >-
+    A Wyrwood policy is a named document containing an OpenBao policy in HCL,
+    a token time-to-live, the Transit keys and SSH-engine roles the ssh-agent
+    endpoint offers, and a container contract. Saving a policy writes the HCL
+    to OpenBao under `wyrwood-<policy>`, validates it through OpenBao's own
+    parser, and records the policy revision. The web interface edits the HCL
+    directly; it does not invent a simpler policy language. The interface also
+    lists and creates Transit keys and SSH-engine roles under the configured
+    mounts so an operator can name them in a policy without leaving Wyrwood.
+  agent-enrollment: >-
+    The SSH server accepts public-key authentication only. A key that is not
+    approved is recorded as pending with the username the agent presented and
+    the connection is closed without a session. An operator approves or
+    rejects pending keys in the web interface; approval names the agent by its
+    presented hostname. The server's host key is generated on first start,
+    stored on the state volume, and shown in the web interface so an operator
+    can compare it with the fingerprint the agent's login command displays.
+  agent-sessions: >-
+    An approved agent opens the `wyrwood` SSH subsystem and exchanges
+    newline-delimited JSON messages as defined by the agent-controller
+    protocol specification. The agent reports its complete container inventory
+    on connect and on every engine event. The controller matches each reported
+    container against bindings by key precedence, returns the policy revision,
+    contract, OpenBao address and CA, and for each bound container its
+    AppRole role identifier and a response-wrapped secret identifier with a
+    short wrapping time-to-live. The controller pushes a policy update message
+    whenever a policy or binding that affects that agent changes. Each agent
+    has at most one active session; a new connection replaces the old one.
+  bindings-and-approles: >-
+    A binding pairs a policy with a container key on one agent. Creating a
+    binding creates the AppRole `wyrwood-<agent>-<binding>` with the policy's
+    HCL attached, the policy's token time-to-live, and secret-id usage limited
+    to one. Deleting a binding deletes the AppRole, which revokes outstanding
+    tokens. Changing a binding's policy updates the AppRole's token policies so
+    the next token the agent obtains carries the new policy; the agent re-logs
+    in on the push.
+  container-keys: >-
+    A reported container carries every candidate key it offers in precedence
+    order: devcontainer identity labels, compose project and service labels,
+    container name. A binding stores the key kind and value it attached to.
+    The web interface shows the container by name and the key the binding
+    used, so a rebuild that changes the name but keeps its labels remains
+    bound, and a rename that breaks a name binding is visible.
+  web-interface: >-
+    The interface is served by the controller process and bound to a
+    configurable address that defaults to loopback, intended to sit behind a
+    reverse proxy. Pages: agents with pending approvals; containers per agent
+    with binding and conformance state; policies with HCL and contract
+    editors; OpenBao key management under the configured mounts; events.
+    Authentication is a single operator password hashed on the state volume;
+    multi-operator access is outside this design.
+  operational-events: >-
+    The controller records bounded events for agent approval and rejection,
+    session open and close, policy saves, binding changes, AppRole creation
+    and deletion, credential issuance, and recreate requests. Events carry
+    agent name, container key, policy name, and categorical outcome. They
+    contain no HCL, no secret identifier, no wrapping token, and no request
+    body.
+  packaging: >-
+    The image is built from the same Go module as the agent and published to
+    the GitHub Container Registry for the repository. It runs as a non-root
+    user, reads its OpenBao AppRole secret identifier from a mounted file, and
+    needs two volumes: state and the SSH host key. Configuration is one YAML
+    file mounted read-only.
+  verification: >-
+    Unit tests cover policy validation, binding key precedence, AppRole
+    lifecycle against an OpenBao test server, pending-key handling, and session
+    replacement. An integration gate runs a real OpenBao dev server, starts the
+    controller, enrolls a test agent key, binds a policy, and verifies that the
+    issued wrapped secret identifier unwraps to a token carrying exactly the
+    policy's HCL.

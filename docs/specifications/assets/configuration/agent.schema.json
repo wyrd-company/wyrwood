@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://wyrd.foo/wyrwood/schemas/agent-configuration.json",
+  "title": "Wyrwood agent configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["controller"],
+  "properties": {
+    "controller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url"],
+      "properties": {
+        "url": { "type": "string", "pattern": "^ssh://[^/]+(:[0-9]+)?$" }
+      }
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "socket": { "type": "string", "default": "/var/run/docker.sock" },
+        "allow-recreate": { "type": "boolean", "default": false }
+      }
+    },
+    "consumers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "root": { "type": "string", "default": "/run/wyrwood/containers" }
+      }
+    },
+    "timeouts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "engine": { "$ref": "#/$defs/duration" },
+        "controller": { "$ref": "#/$defs/duration" },
+        "openbao": { "$ref": "#/$defs/duration" },
+        "sign": { "$ref": "#/$defs/duration" }
+      }
+    }
+  },
+  "$defs": {
+    "duration": { "type": "string", "pattern": "^[0-9]+(ms|s|m)$" }
+  }
+}

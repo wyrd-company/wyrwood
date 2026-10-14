@@ -1,102 +1,49 @@
 $schema: https://refinery.systems/ontology/specification
 relationships:
-  uses: control-interface
-  references: configuration
-format: json-schema
+  references:
+    - configuration
+    - operational-events
+format: cli
 description: >-
-  Wyrwood provides non-interactive `init`, `apply`, `keys`, `status`, `events`,
-  `configuration`, `consumer`, and `service` commands. `init` is the only
-  management command that
-  accesses configuration storage directly: it atomically creates the default
-  owner-only configuration from `SSH_AUTH_SOCK`. Every runtime operation resolves the
-  daemon's default per-user control socket and invokes exactly one operation on
-  control protocol version 1. The CLI does not accept a control path, a
-  configuration path, or a request-deadline override and therefore cannot
-  create another configuration authority or runtime mutation path. A complete
-  control exchange is bounded to 65 seconds. `events` defaults to 100 records
-  and accepts a limit from 1 through 1000.
+  One executable, `wyrwood`, runs in two modes selected by the first argument.
 
-  `configuration show` follows coherent control pages and prints the complete
-  approved editable model and exact revision. `configuration set-upstream`
-  requires `--revision` and one complete `--socket` value.
-  `configuration set-timeouts` requires `--revision` and complete `--connect`,
-  `--list`, `--replay`, and `--sign` values. `consumer put` requires a revision,
-  complete name and socket, zero or one numeric access group, and zero or more
-  repeated exact fingerprints. Omitting `--id` creates a consumer; supplying the
-  opaque identifier returned by `configuration show` replaces that consumer.
-  `consumer retire` requires a revision and opaque consumer identifier. These
-  commands invoke the corresponding daemon operations and print the resulting
-  durable revision. Consumer put and retire also print the affected opaque
-  consumer identifier; replacing a socket path reports the new identifier while
-  selecting the old identifier in the request. They do not apply it. `apply`
-  remains the explicit runtime transition. Comments from `keys` are display data
-  and are never accepted in place of fingerprints.
+  `wyrwood controller serve` runs the controller with the configuration file
+  at `/etc/wyrwood/controller.yml` or the path given by `--config`. It is the
+  container image's entrypoint. `wyrwood controller host-key` prints the SSH
+  host-key fingerprint from the state volume so an operator can compare it
+  with an agent's login prompt.
 
-  Configuration pagination is transport-only. The command emits no partial
-  result until every page from one revision has arrived, and its result contains
-  one complete consumer collection without offsets or page totals. A conflict
-  on a later page fails the command without mixing revisions or automatically
-  retrying. Each mutation is likewise attempted exactly once. Callers inspect
-  the current revision before retrying a transport failure, conflict, or
-  uncertain durability result.
+  `wyrwood agent login <controller-url>` generates the agent key pair when
+  absent, prints its public-key fingerprint, connects to the controller,
+  prints the controller's host-key fingerprint, and asks for acceptance unless
+  `--accept-fingerprint <fingerprint>` supplies the exact expected value. It
+  records the controller URL and accepted fingerprint, then reports whether
+  the key is `approved` or `pending`. Login is the only command that accesses
+  the agent's durable state directly. `wyrwood agent daemon` runs the agent.
+  `wyrwood agent status`, `wyrwood agent containers`, and `wyrwood agent events`
+  query the running daemon through its owner-only control socket and accept no
+  path override. `containers` lists each observed container with its name, the
+  binding key it matched, policy name, conformance, and token state.
+  `events` defaults to 100 records and accepts `--limit` from 1 through 1000.
+  `wyrwood agent service install|remove|start|stop|status` manages the system
+  unit through the Linux service adapter and requires root.
 
-  Human-readable output is the default. `--output json` emits exactly one JSON
-  object and newline whose version-1 contract is defined by
-  `assets/command-line-interface/command-output.schema.json`. The human and JSON
-  projections contain the same operation information. Human display fields and
-  paths are quoted so control characters cannot inject terminal records. JSON
-  errors are written to standard error; successful JSON is written to standard
-  output. Errors are categorical and actionable and never include raw
-  filesystem, configuration-parser, daemon, protocol, or upstream errors. `apply`
-  succeeds only when the daemon reports that the candidate configuration
-  committed. A committed result can report degraded cleanup and remains a
-  successful apply because the active configuration changed.
+  `wyrwood version` prints the executable version. Human-readable output is
+  the default. `--output json` emits exactly one versioned, closed JSON object
+  whose fields match the human projection. Successful output goes to standard
+  output; categorical errors go to standard error and never include raw
+  filesystem, engine, SSH, or OpenBao error text.
 
-  Exit status 0 means the command completed successfully. Status 1 is a local
-  operational, terminal-initialization, service-manager, or output failure.
-  Status 2 is command-line usage failure.
-  Status 3 is initialization failure or uncertain initialization durability.
-  Status 4 means the daemon path, connection, exchange, or protocol version was
-  unavailable. Status 5 means apply or a managed mutation rejected invalid
-  configuration. Status 6 means the daemon could not complete a valid operation
-  or did not commit apply.
-  Status 7 means the configured upstream agent was unavailable. Health and
-  retained policy-denial events and an absent service status are successful
-  query results, not command failures. Linux service-manager unavailability or
-  an incomplete service operation uses status 1. Starting or stopping an absent
-  unit also uses status 1 with the distinct `service-not-installed` category.
-  Status 8 means the supplied configuration revision is stale. Status 9 means a
-  configuration replacement was published but its durability is uncertain.
-  Status 10 means a consumer selected for replacement or retirement does not
-  exist at the supplied current revision.
-
-  Human and JSON status output carry the daemon's truncation marker. A truncated
-  status result is labeled incomplete runtime observability and never implies
-  that consumers omitted from the status projection are absent from the fully
-  paginated configuration.
-
-  `daemon` continues to delegate directly to the per-user daemon runtime and
-  handles SIGINT and SIGTERM. `service install|remove|start|stop|status` delegates
-  to the Linux per-user systemd adapter and supports the same human or closed
-  JSON output selection. `tui` launches the terminal interface described by the
-  terminal-interface specification and reports terminal initialization failure
-  as status 1 before changing terminal state.
+  Exit status 0 is success. Status 1 is a local operational failure. Status 2
+  is usage. Status 3 means the agent key or login state could not be created
+  or read. Status 4 means the daemon control socket was unavailable. Status 5
+  means the controller refused or did not approve the agent. Status 6 means
+  the controller was unreachable. Status 7 means the host-key fingerprint did
+  not match the accepted value.
 validation-criteria: >-
-  Command tests verify exact human projections and versioned JSON structure for
-  runtime and service commands; categorical stable failures and exit statuses;
-  invalid configuration, stale revision, missing consumer, uncertain configuration durability,
-  unavailable daemon, unavailable upstream, absent
-  service installation, and retained policy denial; default and bounded event
-  limits; quoted display data; committed apply enforcement; exclusive use of the
-  local control client for configuration and runtime commands; and schema parity
-  with implementation constants and result fields. Tests also verify coherent
-  configuration pagination, exact create-versus-replace grammar, complete
-  fingerprint replacement, affected consumer identifiers including a path-change
-  replacement, exact `configuration-not-found` status 10 behavior, status
-  truncation wording, and that persisted mutations remain unapplied. Linux
-  milestone gates exercise the same fixed owner-authenticated control operations
-  used by the runtime commands. The container scenario changes policy, queries
-  events, and restarts the daemon. The management scenario builds the user-facing
-  executable, starts a real daemon, and drives both the scriptable and terminal
-  clients through durable mutations, stale conflicts, coherent pagination,
-  apply, outages, bounded redacted output, and lifecycle cleanup.
+  Command tests verify exact human and JSON projections for every command,
+  categorical exit statuses, that runtime commands use only the control
+  socket, that login never prints private-key material, and that no output
+  contains a token, secret identifier, or environment value. The Linux
+  management gate builds the executable, runs login against a test
+  controller, and drives status, containers, and events against a real agent.
