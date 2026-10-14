@@ -30,6 +30,8 @@ http_port=18088
 ssh_port=12222
 workload_image=wyrwood-demo-workload:local
 root_token=wyrwood-demo-root
+# The controller and every mount it uses live in a dedicated namespace.
+bao_namespace=wyrwood
 engine=$root/engine
 agent_paths=(/etc/wyrwood /var/lib/wyrwood /run/wyrwood)
 # up records that it created the agent paths, so down never removes the
@@ -40,8 +42,11 @@ engine_docker() {
 	sudo docker -H "unix://$engine/docker.sock" "$@"
 }
 
+# bao runs a command in the demo namespace; BAO_NAMESPACE= bao runs it in
+# the root namespace.
 bao() {
-	docker exec -i -e BAO_ADDR=http://127.0.0.1:8200 -e BAO_TOKEN="$root_token" wyrwood-demo-bao bao "$@"
+	docker exec -i -e BAO_ADDR=http://127.0.0.1:8200 -e BAO_TOKEN="$root_token" \
+		-e BAO_NAMESPACE="${BAO_NAMESPACE-$bao_namespace}" wyrwood-demo-bao bao "$@"
 }
 
 wait_for() {
@@ -80,12 +85,13 @@ up() {
 		-e BAO_DEV_ROOT_TOKEN_ID="$root_token" -e BAO_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
 		openbao/openbao:2.4.1 >/dev/null
 	wait_for "OpenBao" curl -fsS "http://127.0.0.1:$bao_port/v1/sys/health"
+	BAO_NAMESPACE='' bao namespace create "$bao_namespace" >/dev/null
 	bao auth enable approle >/dev/null
 	bao secrets enable -version=2 kv >/dev/null
 	bao secrets enable transit >/dev/null
 	bao secrets enable ssh >/dev/null
 	bao write ssh/config/ca generate_signing_key=true key_type=ed25519 >/dev/null
-	bao policy write wyrwood-controller - >/dev/null <<-'HCL'
+	bao policy write controller - >/dev/null <<-'HCL'
 		path "sys/policies/acl/wyrwood-*" { capabilities = ["create", "read", "update", "delete", "list"] }
 		path "auth/approle/role/wyrwood-*" { capabilities = ["create", "read", "update", "delete", "list"] }
 		path "auth/approle/role/wyrwood-*/role-id" { capabilities = ["read"] }
@@ -98,13 +104,13 @@ up() {
 		path "auth/token/renew-self" { capabilities = ["update"] }
 		path "auth/token/revoke-accessor" { capabilities = ["update"] }
 	HCL
-	bao write auth/approle/role/wyrwood-controller token_policies=wyrwood-controller token_ttl=1h >/dev/null
+	bao write auth/approle/role/controller token_policies=controller token_ttl=1h >/dev/null
 	bao kv put kv/teams/teal/example value=teal-example-value >/dev/null
 	bao write -f transit/keys/teal-github type=ed25519 >/dev/null
 	bao write ssh/roles/teal-hosts key_type=ca allow_user_certificates=true \
 		allowed_users=deploy default_user=deploy ttl=30m >/dev/null
-	role_id=$(bao read -field=role_id auth/approle/role/wyrwood-controller/role-id)
-	bao write -f -field=secret_id auth/approle/role/wyrwood-controller/secret-id >"$root/controller/secret-id"
+	role_id=$(bao read -field=role_id auth/approle/role/controller/role-id)
+	bao write -f -field=secret_id auth/approle/role/controller/secret-id >"$root/controller/secret-id"
 	chmod 600 "$root/controller/secret-id"
 
 	# The mock provider signs every request in as one operator in the
@@ -128,6 +134,7 @@ up() {
 		  directory: $root/controller/state
 		openbao:
 		  address: http://127.0.0.1:$bao_port
+		  namespace: $bao_namespace
 		  approle:
 		    role-id: $role_id
 		    secret-id-file: $root/controller/secret-id
