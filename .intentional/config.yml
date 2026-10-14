@@ -5,16 +5,16 @@ settings:
   pre-1-0-bump-mapping: component
 discovery:
   managed-paths:
-  - detector: go-module
-    path: go.mod
-    release-unit: wyrwood
+    - detector: go-module
+      path: go.mod
+      release-unit: wyrwood
 release-units:
   wyrwood:
     path: .
     projections:
-    - adapter: go
-      file: go.mod
-      mode: none
+      - adapter: go
+        file: go.mod
+        mode: none
     tags:
       primary:
         role: primary

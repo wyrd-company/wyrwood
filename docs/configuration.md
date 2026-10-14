@@ -18,9 +18,7 @@ containers.
 name: teal-devcontainer
 openbao:
   policy: |
-    path "kv/data/teams/teal/*" {
-      capabilities = ["read"]
-    }
+    path "kv/data/teams/teal/*" { capabilities = ["read"] }
   token-ttl: 1h
 ssh:
   transit-keys:
