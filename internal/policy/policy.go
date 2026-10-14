@@ -31,6 +31,7 @@ const (
 	maximumAccessGroup    = 4294967294
 	maximumDocumentBytes  = 1 << 20
 	defaultTokenTTL       = "1h"
+	defaultTokenMaxTTL    = "8h"
 	defaultMountTarget    = "/run/wyrwood"
 	mountTargetToken      = "{mount-target}"
 	openBaoPolicyPrefix   = "wyrwood-"
@@ -65,6 +66,9 @@ type Policy struct {
 type OpenBao struct {
 	Policy   string `json:"policy"`
 	TokenTTL string `json:"token-ttl,omitempty"`
+	// TokenMaxTTL is the longest a token lives through renewal before the
+	// agent must log in again with a fresh credential from the controller.
+	TokenMaxTTL string `json:"token-max-ttl,omitempty"`
 }
 
 // SSH names the Transit keys and SSH-engine roles the ssh-agent endpoint offers.
@@ -95,7 +99,7 @@ func DefaultContract() Contract {
 
 // New returns a policy with the given name, HCL, and the default contract.
 func New(name, hcl string) Policy {
-	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl, TokenTTL: defaultTokenTTL}, Contract: DefaultContract()}
+	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl, TokenTTL: defaultTokenTTL, TokenMaxTTL: defaultTokenMaxTTL}, Contract: DefaultContract()}
 }
 
 // Decode strictly parses one JSON policy document and validates it.
@@ -131,9 +135,17 @@ func (policy Policy) Validate() error {
 		return errors.New("OpenBao policy exceeds 65536 bytes")
 	}
 	if policy.OpenBao.TokenTTL != "" {
-		if _, err := parseTTL(policy.OpenBao.TokenTTL); err != nil {
+		if _, err := parseTTL("token time-to-live", policy.OpenBao.TokenTTL); err != nil {
 			return err
 		}
+	}
+	if policy.OpenBao.TokenMaxTTL != "" {
+		if _, err := parseTTL("token maximum lifetime", policy.OpenBao.TokenMaxTTL); err != nil {
+			return err
+		}
+	}
+	if policy.TokenMaxTTL() < policy.TokenTTL() {
+		return errors.New("token maximum lifetime must be at least the token time-to-live")
 	}
 	if policy.SSH != nil {
 		if err := validateIdentities("transit key", policy.SSH.TransitKeys); err != nil {
@@ -200,13 +212,22 @@ func (policy Policy) OpenBaoPolicyName() string { return openBaoPolicyPrefix + p
 
 // TokenTTL returns the AppRole token time-to-live, defaulting to one hour.
 func (policy Policy) TokenTTL() time.Duration {
-	value := policy.OpenBao.TokenTTL
+	return durationOr(policy.OpenBao.TokenTTL, defaultTokenTTL)
+}
+
+// TokenMaxTTL returns the AppRole token maximum lifetime, defaulting to
+// eight hours.
+func (policy Policy) TokenMaxTTL() time.Duration {
+	return durationOr(policy.OpenBao.TokenMaxTTL, defaultTokenMaxTTL)
+}
+
+func durationOr(value, fallback string) time.Duration {
 	if value == "" {
-		value = defaultTokenTTL
+		value = fallback
 	}
-	duration, err := parseTTL(value)
+	duration, err := parseTTL("", value)
 	if err != nil {
-		return time.Hour
+		duration, _ = parseTTL("", fallback)
 	}
 	return duration
 }
@@ -247,13 +268,13 @@ func (policy Policy) Clone() Policy {
 	return clone
 }
 
-func parseTTL(value string) (time.Duration, error) {
+func parseTTL(field, value string) (time.Duration, error) {
 	if !ttlPattern.MatchString(value) {
-		return 0, errors.New("token time-to-live must be minutes or hours, such as 30m or 1h")
+		return 0, fmt.Errorf("%s must be minutes or hours, such as 30m or 1h", field)
 	}
 	amount, err := strconv.Atoi(value[:len(value)-1])
 	if err != nil || amount <= 0 || amount > maximumTokenTTLAmount {
-		return 0, errors.New("token time-to-live is out of range")
+		return 0, fmt.Errorf("%s is out of range", field)
 	}
 	if strings.HasSuffix(value, "h") {
 		return time.Duration(amount) * time.Hour, nil

@@ -11,7 +11,9 @@ description: >-
   `name` is a lower-kebab-case slug unique in the controller and is the suffix
   of the OpenBao policy name `wyrwood-<name>`. `openbao.policy` is the complete
   HCL policy document; the controller validates it through OpenBao before
-  saving. `openbao.token-ttl` is the AppRole token time-to-live. `ssh.transit-keys`
+  saving. `openbao.token-ttl` is the AppRole token time-to-live.
+  `openbao.token-max-ttl` is the AppRole token maximum lifetime, at least the
+  time-to-live. They default to `1h` and `8h`. `ssh.transit-keys`
   lists Transit key names under the controller's Transit mount that the
   ssh-agent endpoint presents. `ssh.ca-roles` lists SSH-engine role names
   under the controller's SSH mount for which the endpoint obtains

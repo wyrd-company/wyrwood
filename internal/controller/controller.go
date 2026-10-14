@@ -49,7 +49,7 @@ type OpenBao interface {
 	Maintain(ctx context.Context, retry time.Duration)
 	Mounts() openbao.Mounts
 	WritePolicy(ctx context.Context, name, hcl string) error
-	WriteRole(ctx context.Context, role, policyName string, tokenTTL time.Duration) error
+	WriteRole(ctx context.Context, role, policyName string, tokenTTL, tokenMaxTTL time.Duration) error
 	DeleteRole(ctx context.Context, role string) error
 	RoleID(ctx context.Context, role string) (string, error)
 	WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration) (string, error)

@@ -20,6 +20,7 @@ openbao:
   policy: |
     path "kv/data/teams/teal/*" { capabilities = ["read"] }
   token-ttl: 1h
+  token-max-ttl: 8h
 ssh:
   transit-keys:
     - teal-github
@@ -38,6 +39,15 @@ The controller validates the HCL through OpenBao before saving and writes it
 as `wyrwood-teal-devcontainer`. Every Transit key and SSH role the policy
 names must exist under the controller's configured mounts and must also be
 permitted by the HCL.
+
+## Token lifetime
+
+`token-ttl` is how long a token lives between renewals; `token-max-ttl`, at
+least as long, is how long it lives at most. The agent renews a token until it
+nears its maximum lifetime, then logs in again with a fresh credential from
+the controller. The maximum is therefore a trade-off: it bounds how long a
+token the controller cannot revoke stays usable, and it is also how long a
+controller outage can last before workloads lose secret access.
 
 ## Bindings
 

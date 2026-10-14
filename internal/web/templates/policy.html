@@ -26,6 +26,7 @@
           </div>
           <div class="field"><label for="hcl" class="visually-hidden">OpenBao policy HCL</label><textarea id="hcl" name="hcl" class="hcl" spellcheck="false">{{.HCL}}</textarea></div>
           <div class="field" style="max-width:240px"><label for="ttl">Token time-to-live</label><input id="ttl" name="token-ttl" type="text" value="{{.TokenTTL}}"><span class="hint">Minutes or hours, such as 30m or 1h. Applied to each binding's AppRole.</span></div>
+          <div class="field" style="max-width:240px"><label for="max-ttl">Token maximum lifetime</label><input id="max-ttl" name="token-max-ttl" type="text" value="{{.TokenMaxTTL}}"><span class="hint">At least the time-to-live, such as 8h. After it the agent needs a fresh credential from the controller.</span></div>
         </section>
         <section class="card" aria-labelledby="h-ssh">
           <div class="section-head"><h2 id="h-ssh">SSH agent identities</h2><span class="sub">What <code>ssh-agent.sock</code> offers. Each must also be allowed by the HCL above.</span></div>

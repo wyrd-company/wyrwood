@@ -561,6 +561,7 @@ type policyPage struct {
 	Agents      int
 	HCL         string
 	TokenTTL    string
+	TokenMaxTTL string
 	TransitKeys string
 	CARoles     string
 	MountTarget string
@@ -597,6 +598,10 @@ func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 	page.Name, page.Revision, page.HCL, page.TokenTTL = document.Name, document.Revision, document.OpenBao.Policy, document.OpenBao.TokenTTL
 	if page.TokenTTL == "" {
 		page.TokenTTL = "1h"
+	}
+	page.TokenMaxTTL = document.OpenBao.TokenMaxTTL
+	if page.TokenMaxTTL == "" {
+		page.TokenMaxTTL = "8h"
 	}
 	page.TransitKeys = strings.Join(document.TransitKeys(), "\n")
 	page.CARoles = strings.Join(document.CARoles(), "\n")
@@ -699,6 +704,7 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 func policyFromForm(request *http.Request) (policy.Policy, error) {
 	document := policy.New(strings.TrimSpace(request.PostFormValue("name")), strings.ReplaceAll(request.PostFormValue("hcl"), "\r\n", "\n"))
 	document.OpenBao.TokenTTL = strings.TrimSpace(request.PostFormValue("token-ttl"))
+	document.OpenBao.TokenMaxTTL = strings.TrimSpace(request.PostFormValue("token-max-ttl"))
 	transit, roles := lines(request.PostFormValue("transit-keys")), lines(request.PostFormValue("ca-roles"))
 	if len(transit) > 0 || len(roles) > 0 {
 		document.SSH = &policy.SSH{TransitKeys: transit, CARoles: roles}

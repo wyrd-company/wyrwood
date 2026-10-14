@@ -14,7 +14,8 @@
       "required": ["policy"],
       "properties": {
         "policy": { "type": "string", "maxLength": 65536 },
-        "token-ttl": { "type": "string", "pattern": "^[0-9]+(m|h)$", "default": "1h" }
+        "token-ttl": { "type": "string", "pattern": "^[0-9]+(m|h)$", "default": "1h" },
+        "token-max-ttl": { "type": "string", "pattern": "^[0-9]+(m|h)$", "default": "8h" }
       }
     },
     "ssh": {

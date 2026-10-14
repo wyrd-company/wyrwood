@@ -9,6 +9,7 @@ package openbao
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -49,8 +50,15 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	if err := manager.WritePolicy(ctx, "outside-prefix", `path "kv/*" {}`); CategoryOf(err) != CategoryInvalid {
 		t.Fatalf("WritePolicy(outside prefix) = %v", err)
 	}
-	if err := manager.WriteRole(ctx, "wyrwood-host-b-1", "wyrwood-teal", 20*time.Minute); err != nil {
+	if err := manager.WriteRole(ctx, "wyrwood-host-b-1", "wyrwood-teal", 20*time.Minute, 3*time.Hour); err != nil {
 		t.Fatalf("WriteRole() = %v", err)
+	}
+	written, err := server.Root.Logical().Read("auth/approle/role/wyrwood-host-b-1")
+	if err != nil || written == nil {
+		t.Fatalf("read role = %v, %v", written, err)
+	}
+	if fmt.Sprint(written.Data["token_ttl"]) != "1200" || fmt.Sprint(written.Data["token_max_ttl"]) != "10800" {
+		t.Fatalf("role token_ttl = %v, token_max_ttl = %v", written.Data["token_ttl"], written.Data["token_max_ttl"])
 	}
 	roleID, err := manager.RoleID(ctx, "wyrwood-host-b-1")
 	if err != nil {

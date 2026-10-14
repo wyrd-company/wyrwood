@@ -68,6 +68,7 @@ func TestInvalidPoliciesAreRejectedByGoAndSchema(t *testing.T) {
 		"name":           `{"name":"Teal","openbao":{"policy":""},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}`,
 		"unknown-field":  `{"name":"teal","secret":"x","openbao":{"policy":""},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}`,
 		"ttl":            `{"name":"teal","openbao":{"policy":"","token-ttl":"10s"},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}`,
+		"max-ttl":        `{"name":"teal","openbao":{"policy":"","token-max-ttl":"10s"},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}`,
 		"relative-mount": `{"name":"teal","openbao":{"policy":""},"contract":{"mount-target":"run","enforcement":"report"}}`,
 		"enforcement":    `{"name":"teal","openbao":{"policy":""},"contract":{"mount-target":"/run/wyrwood","enforcement":"always"}}`,
 		"env-name":       `{"name":"teal","openbao":{"policy":""},"contract":{"mount-target":"/run/wyrwood","env":{"lower":"x"},"enforcement":"report"}}`,
@@ -112,5 +113,36 @@ func TestTokenTTLAndNames(t *testing.T) {
 	clone.Contract.Env["VAULT_ADDR"] = "changed"
 	if candidate.SSH.TransitKeys[0] == "changed" || strings.Contains(candidate.Contract.Env["VAULT_ADDR"], "changed") {
 		t.Fatal("Clone() shares state")
+	}
+}
+
+func TestTokenMaxTTL(t *testing.T) {
+	candidate := samplePolicy()
+	if candidate.TokenMaxTTL() != 8*time.Hour {
+		t.Fatalf("TokenMaxTTL() = %v, want the 8h default", candidate.TokenMaxTTL())
+	}
+	if New("teal", "").OpenBao.TokenMaxTTL != "8h" {
+		t.Fatal("New() does not write the 8h default")
+	}
+	candidate.OpenBao.TokenTTL, candidate.OpenBao.TokenMaxTTL = "2h", "3h"
+	if err := candidate.Validate(); err != nil || candidate.TokenMaxTTL() != 3*time.Hour {
+		t.Fatalf("Validate(3h) = %v, TokenMaxTTL() = %v", err, candidate.TokenMaxTTL())
+	}
+	candidate.OpenBao.TokenMaxTTL = "2h"
+	if err := candidate.Validate(); err != nil {
+		t.Fatalf("Validate(maximum equal to time-to-live) = %v", err)
+	}
+	candidate.OpenBao.TokenMaxTTL = "90m"
+	if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), "at least the token time-to-live") {
+		t.Fatalf("Validate(maximum below time-to-live) = %v", err)
+	}
+	// An omitted maximum takes the default, which a longer time-to-live exceeds.
+	candidate.OpenBao.TokenTTL, candidate.OpenBao.TokenMaxTTL = "12h", ""
+	if err := candidate.Validate(); err == nil {
+		t.Fatal("Validate(12h time-to-live under the default maximum) = nil")
+	}
+	candidate.OpenBao.TokenTTL, candidate.OpenBao.TokenMaxTTL = "1h", "8"
+	if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), "token maximum lifetime") {
+		t.Fatalf("Validate(malformed maximum) = %v", err)
 	}
 }

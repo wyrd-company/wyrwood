@@ -118,7 +118,7 @@ func (controller *Controller) SavePolicy(ctx context.Context, document policy.Po
 			continue
 		}
 		agents[binding.Agent] = true
-		if err := controller.openbao.WriteRole(ctx, binding.Role, saved.OpenBaoPolicyName(), saved.TokenTTL()); err != nil {
+		if err := controller.openbao.WriteRole(ctx, binding.Role, saved.OpenBaoPolicyName(), saved.TokenTTL(), saved.TokenMaxTTL()); err != nil {
 			controller.logf("AppRole for a binding was not refreshed (%s)", openbao.CategoryOf(err))
 		}
 	}
@@ -158,7 +158,7 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 	}
 	binding := store.Binding{ID: store.NewID("b-"), Agent: agent, Key: key, Policy: policyName, CreatedAt: controller.now(), CreatedBy: operator}
 	binding.Role = RoleName(agent, binding.ID)
-	if err := controller.openbao.WriteRole(ctx, binding.Role, stored.Policy.OpenBaoPolicyName(), stored.Policy.TokenTTL()); err != nil {
+	if err := controller.openbao.WriteRole(ctx, binding.Role, stored.Policy.OpenBaoPolicyName(), stored.Policy.TokenTTL(), stored.Policy.TokenMaxTTL()); err != nil {
 		record(openBaoError(err), "")
 		return store.Binding{}, operationError(openBaoError(err), "OpenBao could not create the binding's AppRole")
 	}
@@ -194,7 +194,7 @@ func (controller *Controller) ChangeBinding(ctx context.Context, id, policyName,
 	if err != nil {
 		return operationError(events.ErrorNotBound, "the policy does not exist")
 	}
-	if err := controller.openbao.WriteRole(ctx, binding.Role, stored.Policy.OpenBaoPolicyName(), stored.Policy.TokenTTL()); err != nil {
+	if err := controller.openbao.WriteRole(ctx, binding.Role, stored.Policy.OpenBaoPolicyName(), stored.Policy.TokenTTL(), stored.Policy.TokenMaxTTL()); err != nil {
 		record(openBaoError(err))
 		return operationError(openBaoError(err), "OpenBao could not update the binding's AppRole")
 	}

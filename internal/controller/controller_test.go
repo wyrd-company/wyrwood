@@ -12,6 +12,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"errors"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -241,6 +242,10 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	credential, ok := connection.receive(t).(protocol.Credential)
 	if !ok || credential.Binding != binding.ID || credential.AppRoleMount != "approle" {
 		t.Fatalf("credential = %#v", credential)
+	}
+	role, err := harness.bao.Root.Logical().Read("auth/approle/role/" + binding.Role)
+	if err != nil || role == nil || fmt.Sprint(role.Data["token_max_ttl"]) != "28800" {
+		t.Fatalf("binding AppRole token_max_ttl = %v, %v; want the policy's 8h default", role, err)
 	}
 	client, _ := openbao.NewClient(openbao.Endpoint{Address: harness.bao.Address, Timeout: 5 * time.Second})
 	secretID, err := openbao.UnwrapSecretID(ctx, client, credential.WrappedSecretID)

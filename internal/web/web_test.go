@@ -304,11 +304,18 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 	if invalid.status != http.StatusUnprocessableEntity || !strings.Contains(invalid.body, "OpenBao rejected the HCL policy") {
 		t.Fatalf("invalid policy = %d %s", invalid.status, invalid.body)
 	}
+	short := post(t, client, harness.site.URL+"/policies", url.Values{"csrf": {token}, "new": {"yes"}, "name": {"teal"},
+		"hcl": {`path "kv/data/teal/*" { capabilities = ["read"] }`}, "token-ttl": {"2h"}, "token-max-ttl": {"1h"},
+		"mount-target": {"/run/wyrwood"}, "enforcement": {"report"}})
+	if short.status != http.StatusUnprocessableEntity || !strings.Contains(short.body, "at least the token time-to-live") {
+		t.Fatalf("maximum below time-to-live = %d %s", short.status, short.body)
+	}
 	saved := post(t, client, harness.site.URL+"/policies", url.Values{"csrf": {token}, "new": {"yes"}, "name": {"teal"},
 		"hcl":       {`path "kv/data/teal/*" { capabilities = ["read"] }`},
-		"token-ttl": {"30m"}, "mount-target": {"/run/wyrwood"}, "env": {"VAULT_ADDR=unix://{mount-target}/vault.sock"},
+		"token-ttl": {"30m"}, "token-max-ttl": {"4h"}, "mount-target": {"/run/wyrwood"}, "env": {"VAULT_ADDR=unix://{mount-target}/vault.sock"},
 		"transit-keys": {""}, "enforcement": {"recreate"}})
-	if !strings.Contains(saved.body, "Policy saved") || !strings.Contains(saved.body, "Revision 1") {
+	if !strings.Contains(saved.body, "Policy saved") || !strings.Contains(saved.body, "Revision 1") ||
+		!strings.Contains(saved.body, `name="token-max-ttl" type="text" value="4h"`) {
 		t.Fatalf("save = %s", saved.body)
 	}
 

@@ -172,8 +172,9 @@ func (manager *Manager) DeletePolicy(ctx context.Context, name string) error {
 }
 
 // WriteRole creates or updates a binding AppRole: one-use secret identifiers
-// and tokens carrying exactly the given policy and time-to-live.
-func (manager *Manager) WriteRole(ctx context.Context, role, policyName string, tokenTTL time.Duration) error {
+// and tokens carrying exactly the given policy, time-to-live, and maximum
+// lifetime.
+func (manager *Manager) WriteRole(ctx context.Context, role, policyName string, tokenTTL, tokenMaxTTL time.Duration) error {
 	if err := managed(role); err != nil {
 		return err
 	}
@@ -185,7 +186,7 @@ func (manager *Manager) WriteRole(ctx context.Context, role, policyName string, 
 	_, err = client.Logical().WriteWithContext(ctx, "auth/"+manager.mounts.AppRole+"/role/"+role, map[string]any{
 		"token_policies":     []string{policyName},
 		"token_ttl":          seconds,
-		"token_max_ttl":      "0",
+		"token_max_ttl":      strconv.Itoa(int(tokenMaxTTL / time.Second)),
 		"token_type":         "service",
 		"secret_id_num_uses": 1,
 		"secret_id_ttl":      strconv.Itoa(int(MaximumWrapTTL / time.Second)),
