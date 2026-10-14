@@ -18,7 +18,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
+
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
@@ -42,6 +45,7 @@ const (
 // can substitute it.
 type OpenBao interface {
 	Login(ctx context.Context) error
+	Health(ctx context.Context) error
 	Maintain(ctx context.Context, retry time.Duration)
 	Mounts() openbao.Mounts
 	WritePolicy(ctx context.Context, name, hcl string) error
@@ -68,6 +72,11 @@ type Controller struct {
 	hub     *hub
 	log     io.Writer
 	now     func() time.Time
+
+	healthMu      sync.Mutex
+	healthChecked time.Time
+	healthOK      bool
+	hostKey       string
 }
 
 // Options configure a controller beyond its configuration document.
@@ -155,6 +164,9 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 	if err != nil {
 		return err
 	}
+	controller.healthMu.Lock()
+	controller.hostKey = gossh.FingerprintSHA256(signer.PublicKey())
+	controller.healthMu.Unlock()
 	loginCtx, cancel := context.WithTimeout(ctx, openBaoTimeout)
 	if err := controller.openbao.Login(loginCtx); err != nil {
 		controller.logf("openbao login failed (%s); retrying in background", openbao.CategoryOf(err))
@@ -184,6 +196,41 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 		controller.hub.closeAll()
 		return err
 	}
+}
+
+// HostKeyFingerprint returns the SSH host-key fingerprint agents pin.
+func (controller *Controller) HostKeyFingerprint() string {
+	controller.healthMu.Lock()
+	defer controller.healthMu.Unlock()
+	return controller.hostKey
+}
+
+// OpenBaoReachable reports whether OpenBao answered a health check within
+// the last thirty seconds.
+func (controller *Controller) OpenBaoReachable(ctx context.Context) bool {
+	controller.healthMu.Lock()
+	if time.Since(controller.healthChecked) < 30*time.Second {
+		reachable := controller.healthOK
+		controller.healthMu.Unlock()
+		return reachable
+	}
+	controller.healthMu.Unlock()
+	checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	reachable := controller.openbao.Health(checkCtx) == nil
+	cancel()
+	controller.healthMu.Lock()
+	controller.healthChecked, controller.healthOK = time.Now(), reachable
+	controller.healthMu.Unlock()
+	return reachable
+}
+
+// RecordOperatorEvent records a sign-in or sign-out outcome. Refused
+// sign-ins carry no claim values.
+func (controller *Controller) RecordOperatorEvent(operation events.Operation, operator string, code events.ErrorCode, latency time.Duration) {
+	if len(operator) > 255 {
+		operator = ""
+	}
+	controller.record(events.Event{Operation: operation, Outcome: outcomeFor(code), ErrorCode: code, Operator: operator, Latency: latency})
 }
 
 func (controller *Controller) logf(format string, arguments ...any) {

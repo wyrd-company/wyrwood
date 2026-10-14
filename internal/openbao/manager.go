@@ -141,6 +141,9 @@ func managed(name string) error {
 	return nil
 }
 
+// Health reports whether OpenBao answers its health endpoint.
+func (manager *Manager) Health(ctx context.Context) error { return Health(ctx, manager.client) }
+
 // WritePolicy writes an ACL policy. OpenBao parses the HCL and rejects it
 // when invalid, which is the controller's policy validation.
 func (manager *Manager) WritePolicy(ctx context.Context, name, hcl string) error {

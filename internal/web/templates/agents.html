@@ -1,0 +1,59 @@
+{{define "content"}}
+<main>
+  {{template "notice" .}}
+  <section class="card" aria-labelledby="h-hk">
+    <div class="section-head">
+      <div>
+        <h2 id="h-hk" class="hint" style="font-weight:500;font-size:14px">Controller SSH host key</h2>
+        <code style="font-size:15px;word-break:break-all">{{.HostKey}}</code>
+      </div>
+      <p class="hint" style="max-width:360px">Compare with the fingerprint <code>wyrwood agent login</code> shows on the host before accepting it there.</p>
+    </div>
+  </section>
+
+  {{if .PendingKeys}}
+  <section aria-labelledby="h-pend" style="display:flex;flex-direction:column;gap:12px">
+    <div class="section-head"><h2 id="h-pend" style="font-size:17px">Pending approval</h2><span class="sub">{{len .PendingKeys}} key{{if gt (len .PendingKeys) 1}}s{{end}}</span></div>
+    {{range .PendingKeys}}
+    <article class="card" style="background:var(--notice-bg);border-color:var(--notice-line);flex-direction:row;flex-wrap:wrap;align-items:center">
+      <div style="flex:1 1 360px;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div><strong style="font-size:17px">{{.Name}}</strong> <span class="hint">presented hostname · first seen {{ago .FirstSeen}}</span></div>
+        <code style="word-break:break-all">{{.Fingerprint}}</code>
+        <p class="hint">Approve only if this matches the fingerprint printed by <code>wyrwood agent login</code> on {{.Name}}.</p>
+      </div>
+      <form method="post" action="/agents/decide" class="actions">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="fingerprint" value="{{.Fingerprint}}">
+        <button type="submit" name="decision" value="reject" class="danger">Reject</button>
+        <button type="submit" name="decision" value="approve" class="primary">Approve agent</button>
+      </form>
+    </article>
+    {{end}}
+  </section>
+  {{end}}
+
+  <section aria-labelledby="h-appr" style="display:flex;flex-direction:column;gap:12px">
+    <h2 id="h-appr" style="font-size:17px">Approved agents</h2>
+    {{if .Approved}}
+    <div class="table-box">
+      <table>
+        <thead><tr><th scope="col">Agent</th><th scope="col">Session</th><th scope="col">Containers</th><th scope="col">Bound</th><th scope="col">Binding health</th><th scope="col">Last report</th></tr></thead>
+        <tbody>
+        {{range .Approved}}
+          <tr>
+            <th scope="row"><a href="/containers?agent={{.Name}}" style="color:var(--ink)">{{.Name}}</a></th>
+            <td>{{if .Connected}}<span><span class="dot"></span>Connected</span>{{else}}<span><span class="dot off"></span>Disconnected</span>{{end}}</td>
+            <td>{{.Containers}}</td>
+            <td>{{.Bound}}</td>
+            <td>{{range .Health}}<span class="badge {{.Category}}">{{.Count}} {{.Category}}</span> {{else}}<span class="hint">none bound</span>{{end}}</td>
+            <td>{{ago .LastReport}}{{if not .Connected}} · serving from cache{{end}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}<p class="hint">No agent is approved yet. Run <code>wyrwood agent login</code> on a host, then approve its key here.</p>{{end}}
+    <p class="hint">A disconnected agent keeps serving its containers from cached policy until their tokens expire.</p>
+  </section>
+</main>
+{{end}}

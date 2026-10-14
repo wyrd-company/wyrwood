@@ -20,6 +20,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/engine"
 	"github.com/wyrd-company/wyrwood/internal/sshagent"
 	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
+	"github.com/wyrd-company/wyrwood/internal/web"
 )
 
 // errUnavailable marks a command whose implementation is not linked into this build.
@@ -97,7 +98,11 @@ func serveController(ctx context.Context, path string) error {
 		return err
 	}
 	defer instance.Close()
-	return instance.Run(ctx, nil)
+	operators, err := web.New(instance, web.Options{Version: version})
+	if err != nil {
+		return err
+	}
+	return instance.Run(ctx, operators.Serve)
 }
 
 func controllerHostKey(path string) (string, error) {

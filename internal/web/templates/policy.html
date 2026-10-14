@@ -1,0 +1,53 @@
+{{define "content"}}
+<main>
+  {{template "notice" .}}
+  {{if .Problem}}<p class="problem" role="alert">{{.Problem}}</p>{{end}}
+  <form method="post" action="/policies" style="display:flex;flex-direction:column;gap:24px">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    {{if .New}}<input type="hidden" name="new" value="yes">{{else}}<input type="hidden" name="name" value="{{.Name}}">{{end}}
+    <div class="section-head">
+      <div>
+        <h2 style="font-size:20px" class="mono">{{if .New}}New policy{{else}}{{.Name}}{{end}}</h2>
+        {{if not .New}}<span class="sub">Revision {{.Revision}} · bound to {{.Bindings}} container{{if ne .Bindings 1}}s{{end}} on {{.Agents}} agent{{if ne .Agents 1}}s{{end}}</span>{{end}}
+      </div>
+      <button type="submit" class="primary">Save and validate</button>
+    </div>
+    {{if .New}}
+    <div class="card">
+      <div class="field"><label for="name">Name</label><input id="name" name="name" type="text" value="{{.Name}}" required pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" maxlength="64"><span class="hint">Lower-kebab-case. Written to OpenBao as <code>wyrwood-&lt;name&gt;</code>.</span></div>
+    </div>
+    {{end}}
+    <div class="split" style="padding:0">
+      <div class="main-column" style="display:flex;flex-direction:column;gap:24px">
+        <section class="card" aria-labelledby="h-hcl">
+          <div class="section-head">
+            <h2 id="h-hcl">OpenBao policy</h2>
+            {{if not .New}}<span class="sub">Written to <code>{{.PolicyPath}}</code> and parsed by OpenBao on save.</span>{{end}}
+          </div>
+          <div class="field"><label for="hcl" class="visually-hidden">OpenBao policy HCL</label><textarea id="hcl" name="hcl" class="hcl" spellcheck="false">{{.HCL}}</textarea></div>
+          <div class="field" style="max-width:240px"><label for="ttl">Token time-to-live</label><input id="ttl" name="token-ttl" type="text" value="{{.TokenTTL}}"><span class="hint">Minutes or hours, such as 30m or 1h. Applied to each binding's AppRole.</span></div>
+        </section>
+        <section class="card" aria-labelledby="h-ssh">
+          <div class="section-head"><h2 id="h-ssh">SSH agent identities</h2><span class="sub">What <code>ssh-agent.sock</code> offers. Each must also be allowed by the HCL above.</span></div>
+          <div class="grid-2">
+            <div class="field"><label for="transit-keys">Transit keys</label><textarea id="transit-keys" name="transit-keys" rows="4">{{.TransitKeys}}</textarea><span class="hint">One key name per line.</span></div>
+            <div class="field"><label for="ca-roles">SSH-engine roles</label><textarea id="ca-roles" name="ca-roles" rows="4">{{.CARoles}}</textarea><span class="hint">One role name per line.</span></div>
+          </div>
+          {{range .Unpermitted}}<p class="caution">{{.}} is not allowed by the HCL; using it will be denied.</p>{{end}}
+        </section>
+      </div>
+      <section class="card" aria-labelledby="h-con" style="flex:1 1 340px">
+        <div><h2 id="h-con">Container contract</h2><span class="hint">What a bound container must have to reach its sockets.</span></div>
+        <div class="field"><label for="mount-target">Mount target</label><input id="mount-target" name="mount-target" type="text" value="{{.MountTarget}}"></div>
+        <div class="field"><label for="env">Environment</label><textarea id="env" name="env" rows="4">{{.Env}}</textarea><span class="hint">One NAME=value per line. <code>{mount-target}</code> is replaced by the mount target.</span></div>
+        <div class="field"><label for="access-group">Access group (numeric)</label><input id="access-group" name="access-group" type="text" inputmode="numeric" value="{{.AccessGroup}}"><span class="hint">Leave empty for owner-only sockets.</span></div>
+        <fieldset>
+          <legend>Enforcement</legend>
+          <label class="choice"><input type="radio" name="enforcement" value="report"{{if ne .Enforcement "recreate"}} checked{{end}}><span><strong>Report</strong><br><span class="hint">Check and show what is missing. Never touch the container.</span></span></label>
+          <label class="choice"><input type="radio" name="enforcement" value="recreate"{{if eq .Enforcement "recreate"}} checked{{end}}><span><strong>Recreate at bind time</strong><br><span class="hint">Recreate once when first bound, on hosts that allow it. Discards the writable layer.</span></span></label>
+        </fieldset>
+      </section>
+    </div>
+  </form>
+</main>
+{{end}}

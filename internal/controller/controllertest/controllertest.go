@@ -50,11 +50,22 @@ func Start(t testing.TB, bao *baotest.Server) *Controller {
 // StartIn runs a controller with the given state directory and SSH address.
 func StartIn(t testing.TB, bao *baotest.Server, state, sshAddress string) *Controller {
 	t.Helper()
+	return StartConfigured(t, bao, state, sshAddress, nil, nil)
+}
+
+// StartConfigured runs a controller after configure adjusts its
+// configuration, serving HTTP with serveHTTP when it is non-nil.
+func StartConfigured(t testing.TB, bao *baotest.Server, state, sshAddress string, configure func(*config.Controller),
+	serveHTTP func(*controller.Controller) func(context.Context) error) *Controller {
+	t.Helper()
 	roleID, secretFile := bao.ControllerCredentials(t)
 	configuration := config.Controller{
 		HTTPListen: FreeAddress(t), SSHListen: sshAddress, StateDirectory: state, SessionTTL: time.Hour,
 		OpenBao: config.ControllerOpenBao{Address: bao.Address, AppRoleMount: "approle", RoleID: roleID,
 			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
+	}
+	if configure != nil {
+		configure(&configuration)
 	}
 	instance, err := controller.New(configuration, controller.Options{})
 	if err != nil {
@@ -62,7 +73,11 @@ func StartIn(t testing.TB, bao *baotest.Server, state, sshAddress string) *Contr
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	running := &Controller{Controller: instance, Bao: bao, SSHAddress: sshAddress, URL: "ssh://" + sshAddress, stop: cancel, done: make(chan error, 1)}
-	go func() { running.done <- instance.Run(ctx, nil) }()
+	var serve func(context.Context) error
+	if serveHTTP != nil {
+		serve = serveHTTP(instance)
+	}
+	go func() { running.done <- instance.Run(ctx, serve) }()
 	t.Cleanup(running.Stop)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
