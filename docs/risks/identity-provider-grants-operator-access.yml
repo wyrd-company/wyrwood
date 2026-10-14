@@ -6,8 +6,11 @@ description: >-
   Operators sign in through the site's OpenID Connect provider and are
   admitted by group membership. Compromise of the provider, of an account in
   an allowed group, or of an administrator who can change group membership
-  grants full operator access to the web interface, and through it the
-  ability to bind any policy to any container. Mitigation: the controller
+  grants full operator access to the web interface. An operator can write
+  any HCL into a policy and bind it to a container they control, which
+  grants any access in the controller's OpenBao namespace. Mitigation: the
+  supported deployment confines the controller to a dedicated OpenBao
+  namespace, so operator access reaches nothing outside it; the controller
   admits only groups named in its configuration file, which the web interface
   cannot change; membership is checked at every sign-in; sessions are bounded
   by a configured time-to-live; the client secret is read from a mounted file;

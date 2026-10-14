@@ -23,9 +23,12 @@ background:
     - No component can show which containers exist and what they are bound to.
 design-challenges:
   credential-scope: >-
-    The controller writes OpenBao policies and AppRoles. Its own OpenBao
-    policy must be bounded to a Wyrwood prefix so that compromise of the
-    controller cannot grant authority outside that prefix.
+    The controller writes OpenBao policies and AppRoles. OpenBao does not
+    limit the HCL a token writes to the capabilities that token holds, so a
+    bound on policy names does not bound what the controller can grant. The
+    controller must be confined to a dedicated OpenBao namespace so that
+    compromise of the controller cannot grant authority outside that
+    namespace.
   agent-trust: >-
     Agents are not known in advance. The controller must accept an unknown
     public key as pending, let an operator approve it, and reject every
@@ -49,6 +52,13 @@ proposed-design:
     holds the policy documents, AppRoles, and Transit keys the controller
     manages; the database holds only Wyrwood's references to them.
   openbao-integration: >-
+    The controller runs in a dedicated OpenBao namespace that holds its
+    AppRole mount, its own policy and AppRole, the Transit and SSH-engine
+    mounts, and every secret engine containers read. Tokens issued in that
+    namespace reach nothing outside it. The controller's own policy and
+    AppRole are named outside the `wyrwood-` prefix so that the controller
+    cannot rewrite them. Every binding AppRole carries exactly the binding's
+    own `wyrwood-` policy; the controller refuses any other token policy.
     On startup the controller logs in with its AppRole and renews its token.
     Its policy allows create, read, update, and delete on `sys/policies/acl/wyrwood-*`,
     `auth/approle/role/wyrwood-*` and their role-id and secret-id endpoints,
