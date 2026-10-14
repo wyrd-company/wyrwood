@@ -177,16 +177,7 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 		}
 		return session.conn.Send(typed.Acknowledge())
 	case protocol.TokenAccessor:
-		// Only an accessor the binding's own agent reports is kept, so the
-		// controller revokes nothing it was not told about.
-		binding, err := controller.store.Binding(ctx, typed.Binding)
-		if err != nil || binding.Agent != session.agent {
-			return nil
-		}
-		if err := controller.store.SaveTokenAccessor(ctx, typed.Binding, typed.Accessor, controller.now()); err != nil {
-			controller.logf("token accessor not recorded")
-		}
-		return nil
+		return session.recordAccessor(ctx, typed)
 	case protocol.CredentialRequest:
 		binding, err := controller.store.Binding(ctx, typed.Binding)
 		if err != nil || binding.Agent != session.agent {
@@ -374,4 +365,28 @@ func ContainerBinding(container protocol.Container, bindings []store.Binding) (s
 		}
 	}
 	return store.Binding{}, false
+}
+
+// recordAccessor keeps the accessor an agent reports for its own binding and
+// acknowledges it once it is durable. A report for a binding that does not
+// exist or never belonged to the agent is acknowledged and dropped. A
+// storage failure is not acknowledged, so the agent reports again.
+func (session *agentSession) recordAccessor(ctx context.Context, report protocol.TokenAccessor) error {
+	controller := session.controller
+	binding, err := controller.store.Binding(ctx, report.Binding)
+	switch {
+	case errors.Is(err, store.ErrNotFound), err == nil && binding.Agent != session.agent:
+		return session.conn.Send(report.Acknowledge())
+	case err != nil:
+		controller.logf("token accessor not recorded")
+		return nil
+	}
+	if err := controller.store.SaveTokenAccessor(ctx, report.Binding, report.Accessor, controller.now()); err != nil {
+		// The binding may have been deleted since it was read.
+		if _, lookup := controller.store.Binding(ctx, report.Binding); !errors.Is(lookup, store.ErrNotFound) {
+			controller.logf("token accessor not recorded")
+			return nil
+		}
+	}
+	return session.conn.Send(report.Acknowledge())
 }

@@ -53,13 +53,14 @@ const (
 	TypeUnbind            Type = "unbind"
 	TypeResultRecorded    Type = "result-recorded"
 	TypeTokenAccessor     Type = "token-accessor"
+	TypeAccessorRecorded  Type = "accessor-recorded"
 )
 
 // Types lists every message type in schema order.
 var Types = []Type{
 	TypeHello, TypeInventory, TypeContractResult, TypeCredentialRequest,
 	TypePolicySet, TypeCredential, TypeRecreateRequest, TypeUnbind,
-	TypeResultRecorded, TypeTokenAccessor,
+	TypeResultRecorded, TypeTokenAccessor, TypeAccessorRecorded,
 }
 
 // Message is one protocol message.
@@ -278,6 +279,19 @@ type TokenAccessor struct {
 	Accessor string `json:"accessor"`
 }
 
+// AccessorRecorded acknowledges a token accessor the controller has stored,
+// revoked because its binding was already retired, or discarded because the
+// binding never belonged to the agent. It echoes the report.
+type AccessorRecorded struct {
+	Binding  string `json:"binding"`
+	Accessor string `json:"accessor"`
+}
+
+// Acknowledge returns the acknowledgement of report.
+func (report TokenAccessor) Acknowledge() AccessorRecorded {
+	return AccessorRecorded(report)
+}
+
 // ResultRecorded acknowledges a contract result the controller has stored,
 // or discarded because its binding no longer belongs to the agent. It
 // echoes the result's binding, outcome, and reason.
@@ -302,6 +316,7 @@ func (RecreateRequest) MessageType() Type   { return TypeRecreateRequest }
 func (Unbind) MessageType() Type            { return TypeUnbind }
 func (ResultRecorded) MessageType() Type    { return TypeResultRecorded }
 func (TokenAccessor) MessageType() Type     { return TypeTokenAccessor }
+func (AccessorRecorded) MessageType() Type  { return TypeAccessorRecorded }
 
 // Validate checks the hello message.
 func (message Hello) Validate() error { return nil }
@@ -391,6 +406,9 @@ func (message TokenAccessor) Validate() error {
 	}
 	return nil
 }
+
+// Validate checks the acknowledged report.
+func (message AccessorRecorded) Validate() error { return TokenAccessor(message).Validate() }
 
 // ValidAccessor reports whether value has the form of an OpenBao token
 // accessor, including a namespace suffix.

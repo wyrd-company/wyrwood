@@ -172,6 +172,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 	for _, result := range results {
 		session.send(result)
 	}
+	agent.creds.reportUnrecorded()
 	for {
 		message, err := session.conn.Receive()
 		if err != nil {
@@ -191,6 +192,8 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 			agent.unbind(ctx, typed.Binding)
 		case protocol.ResultRecorded:
 			agent.resultRecorded(typed)
+		case protocol.AccessorRecorded:
+			agent.creds.accessorRecorded(typed)
 		default:
 			return true, protocol.ErrInvalid
 		}

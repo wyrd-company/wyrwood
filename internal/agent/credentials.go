@@ -44,6 +44,8 @@ type credentials struct {
 	held       map[string]*heldToken
 	next       uint64
 	generation map[string]uint64
+	// recorded is the accessor the controller acknowledged per binding.
+	recorded map[string]string
 }
 
 type heldToken struct {
@@ -59,7 +61,7 @@ func newCredentials(timeout time.Duration, request func(string), record func(eve
 	return &credentials{
 		timeout: timeout, retryDelay: time.Second, now: time.Now, request: request, record: record, keyOf: keyOf,
 		report: func(string, string) {},
-		held:   map[string]*heldToken{}, generation: map[string]uint64{},
+		held:   map[string]*heldToken{}, generation: map[string]uint64{}, recorded: map[string]string{},
 	}
 }
 
@@ -178,6 +180,32 @@ func (manager *credentials) reportAccessor(binding string) {
 	}
 }
 
+// reportUnrecorded sends again each current token's accessor the controller
+// has not acknowledged, so a report lost to a dropped session or a
+// controller storage failure still arrives.
+func (manager *credentials) reportUnrecorded() {
+	manager.reportMu.Lock()
+	defer manager.reportMu.Unlock()
+	manager.mu.Lock()
+	pending := map[string]string{}
+	for binding, held := range manager.held {
+		if accessor := held.token.Accessor; accessor != "" && manager.recorded[binding] != accessor {
+			pending[binding] = accessor
+		}
+	}
+	manager.mu.Unlock()
+	for binding, accessor := range pending {
+		manager.report(binding, accessor)
+	}
+}
+
+// accessorRecorded notes the controller's acknowledgement of a report.
+func (manager *credentials) accessorRecorded(recorded protocol.AccessorRecorded) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	manager.recorded[recorded.Binding] = recorded.Accessor
+}
+
 var errNoEndpoint = &openbao.Error{Category: openbao.CategoryUnavailable}
 
 // retry asks the controller for a fresh credential with exponential backoff
@@ -273,6 +301,7 @@ func (manager *credentials) retire(binding string) {
 	held, ok := manager.held[binding]
 	delete(manager.held, binding)
 	delete(manager.generation, binding)
+	delete(manager.recorded, binding)
 	manager.mu.Unlock()
 	if !ok {
 		return
@@ -311,6 +340,7 @@ func (manager *credentials) stopAll() {
 	held := manager.held
 	manager.held = map[string]*heldToken{}
 	manager.generation = map[string]uint64{}
+	manager.recorded = map[string]string{}
 	manager.mu.Unlock()
 	var wait sync.WaitGroup
 	for binding, token := range held {

@@ -27,7 +27,8 @@ description: >-
   identifier, or `recreate-failed` with a categorical reason.
   `credential-request` names a binding whose token must be replaced.
   `token-accessor` carries a binding and the accessor of the token the agent
-  obtained for it, sent after each login; the
+  obtained for it. The agent sends it after each login and again on each new
+  session and each full reconcile until the controller acknowledges it. The
   controller keeps the latest one per binding and uses it only to revoke that
   token when the binding is deleted.
 
@@ -44,7 +45,10 @@ description: >-
   stored the result, or discarded it because the binding no longer exists or
   belongs to another agent; a result it could not store is not acknowledged.
   The agent keeps a failed recreate's report until that acknowledgement
-  arrives.
+  arrives. `accessor-recorded` acknowledges one `token-accessor` by echoing
+  its binding and accessor, once the controller has stored it or discarded
+  it because the binding does not exist or never belonged to the agent; a
+  report the controller could not store is not acknowledged.
 
   Neither direction ever carries a token, an unwrapped secret identifier, an
   environment value, or a secret value. A token accessor cannot

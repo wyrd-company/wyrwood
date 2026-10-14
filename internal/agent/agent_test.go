@@ -524,6 +524,84 @@ func TestUnbindingRevokesTheTokenOfADisconnectedAgent(t *testing.T) {
 	}
 }
 
+func TestAccessorReportSurvivesAControllerStorageFailure(t *testing.T) {
+	ctx := context.Background()
+	bao := baotest.Start(t)
+	bao.WriteKV(t, "app/example", map[string]any{"value": "app-secret"})
+	state := t.TempDir()
+	first := controllertest.StartIn(t, bao, state, controllertest.FreeAddress(t))
+	paths := newPaths(t)
+	login := login(t, paths, first.URL, first.Fingerprint)
+	if err := first.DecideAgent(ctx, login.AgentFingerprint, true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := first.SavePolicy(ctx, policy.New("app", `path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	// The controller's storage refuses every token accessor write.
+	database, err := sql.Open("sqlite", "file:"+filepath.Join(state, "controller.db")+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	for _, statement := range []string{
+		`CREATE TRIGGER refuse_insert BEFORE INSERT ON binding_tokens BEGIN SELECT RAISE(ABORT, 'refused'); END`,
+		`CREATE TRIGGER refuse_update BEFORE UPDATE ON binding_tokens BEGIN SELECT RAISE(ABORT, 'refused'); END`,
+	} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fake := enginetest.New()
+	app := engine.Container{Name: "/app"}
+	app.State.Status = "running"
+	fake.Add(app)
+	running := startAgent(t, paths, fake, false)
+	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, "app", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var token openbao.Token
+	eventually(t, "a token", func() bool {
+		held, ok := running.agent.creds.current(bound.ID)
+		token = held
+		return ok
+	})
+	time.Sleep(500 * time.Millisecond)
+	if _, err := first.Store().TokenAccessor(ctx, bound.ID); err == nil {
+		t.Fatal("an accessor was recorded while storage refused it")
+	}
+	for _, statement := range []string{`DROP TRIGGER refuse_insert`, `DROP TRIGGER refuse_update`} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// The next reconcile sends the unacknowledged report again.
+	if err := running.agent.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the accessor recorded after storage recovered", func() bool {
+		recorded, err := first.Store().TokenAccessor(ctx, bound.ID)
+		return err == nil && recorded == token.Accessor
+	})
+	first.Stop()
+	second := controllertest.StartIn(t, bao, state, controllertest.FreeAddress(t))
+	if err := second.DeleteBinding(ctx, bound.ID, "operator-1"); err != nil {
+		t.Fatalf("DeleteBinding(disconnected agent) = %v", err)
+	}
+	if _, ok := running.agent.creds.current(bound.ID); !ok {
+		t.Fatal("the agent dropped its token on its own; the test proves nothing")
+	}
+	client, err := bao.Root.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.SetToken(token.Value())
+	if _, err := client.Logical().Read("kv/data/app/example"); err == nil {
+		t.Fatal("the deleted binding's token still reads its secret")
+	}
+}
+
 func TestRecreateNotAllowedIsReported(t *testing.T) {
 	ctx := context.Background()
 	bao := baotest.Start(t)

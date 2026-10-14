@@ -90,13 +90,15 @@ proposed-design:
     For each bound container the controller supplies an AppRole role
     identifier and a response-wrapped secret identifier. The agent unwraps,
     logs in, holds the token in memory, and reports the token's accessor to
-    the controller after each login. It renews at half the remaining
-    time-to-live, asking for the login time-to-live each time, and requests a fresh wrapped secret identifier
-    from the controller when renewal fails, when the token's maximum lifetime
-    caps a renewal, or when the policy push says the binding changed. When a
-    bound container is destroyed or unbound, the agent revokes the token and
-    removes the consumer directory. Tokens are never logged, never
-    written, and never exposed through the control socket.
+    the controller after each login, again on each new session and each full
+    reconcile until the controller acknowledges it. It renews at half the
+    remaining time-to-live, asking for the login time-to-live each time, and
+    requests a fresh wrapped secret identifier from the controller when
+    renewal fails, when the token's maximum lifetime caps a renewal, or when
+    the policy push says the binding changed. When a bound container is
+    destroyed or unbound, the agent revokes the token and removes the consumer
+    directory. Tokens are never logged, never written, and never exposed
+    through the control socket.
   consumer-directories: >-
     A consumer directory is `/run/wyrwood/containers/<container-name>/`, owned
     by the agent user, with mode 0750 and the contract's access group, or

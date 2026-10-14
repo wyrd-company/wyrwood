@@ -44,6 +44,7 @@ func sampleMessages() []Message {
 		ResultRecorded{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonStartFailed},
 		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF"},
 		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF.ns1"},
+		AccessorRecorded{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF"},
 	}
 }
 

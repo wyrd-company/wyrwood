@@ -275,6 +275,7 @@ func (agent *Agent) fullReconcile(ctx context.Context) error {
 	agent.applyLocked(ctx)
 	agent.mu.Unlock()
 	agent.sendInventory()
+	agent.creds.reportUnrecorded()
 	return nil
 }
 

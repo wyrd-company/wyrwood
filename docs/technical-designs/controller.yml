@@ -91,14 +91,15 @@ proposed-design:
     binding creates the AppRole `wyrwood-<agent>-<binding>` with the policy's
     HCL attached, the policy's token time-to-live and maximum lifetime, and
     secret-id usage limited to one. After each login the agent reports the
-    new token's accessor, and the controller keeps the latest one per
-    binding; tokens replaced by rotation are revoked by the agent. Deleting a
-    binding tells a connected agent to revoke the binding's token, revokes
-    that token by its accessor whether or not the agent is connected, and
-    deletes the AppRole, which stops new logins. When revocation fails, or
-    the agent is not connected and has reported no accessor, the binding is
-    still deleted and the deletion reports that the token stays valid until
-    the agent revokes it or it expires. Changing a binding's policy updates
+    new token's accessor until the controller acknowledges it, and the
+    controller keeps the latest one per binding; tokens replaced by rotation
+    are revoked by the agent. Deleting a binding tells a connected agent to
+    revoke the binding's token, revokes that token by its accessor whether or
+    not the agent is connected, and deletes the AppRole, which stops new
+    logins. When revocation fails, or the agent is not connected and has
+    reported no accessor, the binding is still deleted and the deletion
+    reports that the token stays valid until the agent revokes it or it
+    expires. Changing a binding's policy updates
     the AppRole's token policies so the next token the agent obtains carries
     the new policy; the agent re-logs in on the push.
   container-keys: >-

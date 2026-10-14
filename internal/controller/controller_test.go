@@ -318,6 +318,9 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 		if err := replacement.conn.Send(report); err != nil {
 			t.Fatal(err)
 		}
+		if recorded, ok := replacement.receive(t).(protocol.AccessorRecorded); !ok || recorded != report.Acknowledge() {
+			t.Fatalf("acknowledgement of %#v = %#v", report, recorded)
+		}
 	}
 	deadline := time.Now().Add(10 * time.Second)
 	for {
