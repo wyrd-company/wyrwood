@@ -8,7 +8,10 @@ package agent
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/contract"
@@ -21,6 +24,17 @@ var (
 	errCreateFailed = errors.New("create failed")
 	errStartFailed  = errors.New("start failed")
 )
+
+// recreateJournal is written before a recreate stops its container and
+// removed when the recreate finishes. One left behind means the agent
+// stopped mid-recreate. It names the binding and container only; the
+// create request, which carries the container's environment, stays in
+// memory.
+type recreateJournal struct {
+	Version int          `json:"version"`
+	Binding string       `json:"binding"`
+	Key     protocol.Key `json:"key"`
+}
 
 func (agent *Agent) recreatingBindingLocked(id string) bool {
 	for name := range agent.recreating {
@@ -72,6 +86,9 @@ func (agent *Agent) recreate(ctx context.Context, bound protocol.Binding, contai
 			newID, err = agent.retryCreate(ctx, name)
 		}
 	}
+	if removeErr := os.Remove(agent.paths.RecreateJournal(name)); removeErr != nil && !errors.Is(removeErr, os.ErrNotExist) {
+		agent.logf("recreate journal not removed")
+	}
 	agent.mu.Lock()
 	delete(agent.recreating, name)
 	delete(agent.pending, name)
@@ -118,6 +135,13 @@ func (agent *Agent) performRecreate(ctx context.Context, bound protocol.Binding,
 	if err != nil {
 		return "", err
 	}
+	journal, err := json.Marshal(recreateJournal{Version: 1, Binding: bound.Binding, Key: bound.Key})
+	if err != nil {
+		return "", err
+	}
+	if err := writeOwnerOnly(agent.paths.RecreateJournal(request.Name), journal, false); err != nil {
+		return "", err
+	}
 	agent.mu.Lock()
 	agent.pending[request.Name] = request
 	agent.mu.Unlock()
@@ -132,9 +156,49 @@ func (agent *Agent) performRecreate(ctx context.Context, bound protocol.Binding,
 	err = agent.engine.Remove(operation, container.ID)
 	cancel()
 	if err != nil {
+		// The original container still exists; leave it as it was found.
+		if request.Running {
+			operation, cancel = step()
+			_ = agent.engine.Start(operation, container.ID)
+			cancel()
+		}
 		return "", err
 	}
 	return agent.createAndStart(ctx, request)
+}
+
+// reportInterruptedRecreatesLocked reports each recreate a previous agent
+// process began and did not finish, using observed, the full engine view.
+// A container with the journaled name means the recreate got that far and
+// reconcile reports its conformance; an absent one is a failed recreate.
+func (agent *Agent) reportInterruptedRecreatesLocked(observed map[string]engine.Container) {
+	entries, err := os.ReadDir(agent.paths.RecreateJournals())
+	if err != nil {
+		return
+	}
+	present := map[string]bool{}
+	for _, container := range observed {
+		present[container.ShortName()] = true
+	}
+	for _, entry := range entries {
+		name, ok := strings.CutSuffix(entry.Name(), ".json")
+		if !ok || entry.IsDir() || agent.recreating[name] {
+			continue
+		}
+		path := agent.paths.RecreateJournal(name)
+		data, err := os.ReadFile(path)
+		var journal recreateJournal
+		if err == nil && json.Unmarshal(data, &journal) == nil && journal.Version == 1 && !present[name] {
+			agent.reportLocked(protocol.ContractResult{Binding: journal.Binding, Outcome: protocol.OutcomeRecreateFailed,
+				Reason: protocol.ReasonCreateFailed})
+			agent.record(events.Event{Operation: events.OperationRecreateFinished, Outcome: events.OutcomeFailed,
+				ErrorCode: events.ErrorEngineUnavailable, Binding: journal.Binding,
+				ContainerKey: events.ContainerKey(string(journal.Key.Kind), journal.Key.Value)})
+		}
+		if err := os.Remove(path); err != nil {
+			agent.logf("recreate journal not removed")
+		}
+	}
 }
 
 func (agent *Agent) retryCreate(ctx context.Context, name string) (string, error) {

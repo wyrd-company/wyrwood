@@ -45,6 +45,14 @@ func (paths Paths) KnownController() string { return filepath.Join(paths.State, 
 // PolicyCache is the cached policy set.
 func (paths Paths) PolicyCache() string { return filepath.Join(paths.State, "policy-cache.json") }
 
+// RecreateJournals holds one record per container being recreated.
+func (paths Paths) RecreateJournals() string { return filepath.Join(paths.State, "recreating") }
+
+// RecreateJournal records that the container named name is being recreated.
+func (paths Paths) RecreateJournal(name string) string {
+	return filepath.Join(paths.RecreateJournals(), name+".json")
+}
+
 // Events is the agent event store.
 func (paths Paths) Events() string { return filepath.Join(paths.State, "events", "agent.events") }
 

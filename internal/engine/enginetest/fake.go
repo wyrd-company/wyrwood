@@ -27,6 +27,7 @@ type Fake struct {
 	Calls      []string
 	Created    [][]byte
 	FailCreate int
+	FailRemove int
 }
 
 // New returns an empty fake engine.
@@ -162,6 +163,13 @@ func (fake *Fake) Stop(_ context.Context, id string, _ time.Duration) error {
 
 func (fake *Fake) Remove(_ context.Context, id string) error {
 	fake.call("remove")
+	fake.mu.Lock()
+	if fake.FailRemove > 0 {
+		fake.FailRemove--
+		fake.mu.Unlock()
+		return engine.ErrUnavailable
+	}
+	fake.mu.Unlock()
 	fake.Destroy(id)
 	return nil
 }

@@ -252,6 +252,7 @@ func (agent *Agent) fullReconcile(ctx context.Context) error {
 		}
 		agent.containers[id] = container
 	}
+	agent.reportInterruptedRecreatesLocked(observed)
 	agent.applyLocked(ctx)
 	agent.mu.Unlock()
 	agent.sendInventory()
