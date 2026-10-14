@@ -9,6 +9,7 @@ package openbao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ func testManager(t *testing.T) (*baotest.Server, *Manager) {
 	t.Helper()
 	server := baotest.Start(t)
 	roleID, secretFile := server.ControllerCredentials(t)
-	client, err := NewClient(Endpoint{Address: server.Address, Timeout: 5 * time.Second})
+	client, err := NewClient(Endpoint{Address: server.Address, Namespace: server.Namespace, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 		t.Fatalf("WrappedSecretID() = %v", err)
 	}
 
-	agentClient, err := NewClient(Endpoint{Address: server.Address, Timeout: 5 * time.Second})
+	agentClient, err := NewClient(Endpoint{Address: server.Address, Namespace: server.Namespace, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +91,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	if _, err := AppRoleLogin(ctx, agentClient, "approle", roleID, secretID); err == nil {
 		t.Fatal("secret identifier was usable twice")
 	}
-	reader, _ := agentClient.Clone()
+	reader, _ := agentClient.CloneWithHeaders()
 	reader.SetToken(token.Value())
 	secret, err := reader.KVv2("kv").Get(ctx, "teams/teal/example")
 	if err != nil || secret.Data["value"] != "teal-secret" {
@@ -169,5 +170,23 @@ func TestErrorsNeverCarryRawText(t *testing.T) {
 	_, err = AppRoleLogin(context.Background(), client, "approle", "role", "secret-value")
 	if err == nil || CategoryOf(err) != CategoryUnavailable || err.Error() != "openbao unavailable" {
 		t.Fatalf("AppRoleLogin() = %v", err)
+	}
+}
+
+func TestBindingRolesCarryOnlyManagedPolicies(t *testing.T) {
+	ctx := context.Background()
+	_, manager := testManager(t)
+	for _, policyName := range []string{baotest.ControllerName, "root", "default", "wyrwood-", ""} {
+		var invalid *Error
+		if err := manager.WriteRole(ctx, "wyrwood-host-a-1", policyName, time.Hour, time.Hour); !errors.As(err, &invalid) || invalid.Category != CategoryInvalid {
+			t.Errorf("WriteRole(policy %q) = %v, want invalid", policyName, err)
+		}
+	}
+	client, err := manager.authorized(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role, err := client.Logical().ReadWithContext(ctx, "auth/approle/role/wyrwood-host-a-1"); err != nil || role != nil {
+		t.Fatalf("a rejected role was written: %v, %v", role, err)
 	}
 }

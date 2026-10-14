@@ -106,6 +106,7 @@ ssh:
   listen: 0.0.0.0:2222
 openbao:
   address: https://openbao.example.internal:8200
+  namespace: wyrwood
   approle:
     role-id: REPLACE_WITH_ROLE_ID
     secret-id-file: /run/secrets/openbao-secret-id
@@ -130,8 +131,52 @@ requests with the `groups` scope. An account is admitted only when one of its
 groups is listed under `allowed-groups`; the web interface cannot change the
 list.
 
-The controller's own OpenBao policy should cover only the Wyrwood prefix:
-`sys/policies/acl/wyrwood-*`, `auth/approle/role/wyrwood-*`,
-`sys/wrapping/wrap`, update on `auth/token/revoke-accessor`, and the Transit
-and SSH mounts it manages. The controller revokes only the token accessors its
-agents report.
+## OpenBao namespace
+
+The controller runs in a dedicated OpenBao namespace. OpenBao does not limit
+the HCL a token writes to the capabilities that token holds, so the
+controller, and any operator, can grant every access in the namespace the
+controller runs in. A dedicated namespace keeps that access inside Wyrwood.
+
+The namespace holds:
+
+- the AppRole auth mount the controller and binding AppRoles use
+- the controller's own policy and AppRole
+- the Transit and SSH-engine mounts the controller manages
+- every secret engine containers read, for example KV
+
+Paths in policies are relative to the namespace, so a policy names
+`kv/data/...`, not `wyrwood/kv/data/...`. Set `openbao.namespace` to the
+namespace path; the controller, the agents, and the container vault sockets
+all send it.
+
+Name the controller's own policy and AppRole outside the `wyrwood-` prefix,
+for example `controller`. The controller writes only `wyrwood-` names, so it
+cannot rewrite its own policy or AppRole. Every binding AppRole carries only
+its own `wyrwood-` policy.
+
+The controller's policy, for the default `approle`, `transit`, and `ssh`
+mounts:
+
+```hcl
+path "sys/policies/acl/wyrwood-*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+path "auth/approle/role/wyrwood-*" {
+  capabilities = ["create", "read", "update", "delete", "list"]
+}
+path "auth/approle/role/wyrwood-*/role-id" { capabilities = ["read"] }
+path "auth/approle/role/wyrwood-*/secret-id" {
+  capabilities = ["create", "update"]
+}
+path "sys/wrapping/wrap" { capabilities = ["update"] }
+path "transit/keys" { capabilities = ["list"] }
+path "transit/keys/*" { capabilities = ["create", "read", "update", "list"] }
+path "ssh/roles" { capabilities = ["list"] }
+path "ssh/roles/*" { capabilities = ["create", "read", "update", "list"] }
+path "auth/token/renew-self" { capabilities = ["update"] }
+path "auth/token/revoke-accessor" { capabilities = ["update"] }
+```
+
+Change the mount names in the paths when you configure other mounts. The
+controller revokes only the token accessors its agents report.

@@ -229,7 +229,7 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		}
 		return false
 	})
-	reader, _ := openbao.NewClient(openbao.Endpoint{Address: bao.Address})
+	reader, _ := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Namespace: bao.Namespace})
 	reader.SetToken(token)
 	if _, err := reader.Auth().Token().LookupSelf(); err != nil {
 		t.Fatalf("agent token does not work: %v", err)
@@ -497,7 +497,7 @@ func TestUnbindingRevokesTheTokenOfADisconnectedAgent(t *testing.T) {
 		return ok && err == nil && recorded == held.Accessor
 	})
 	readSecret := func() error {
-		client, err := bao.Root.Clone()
+		client, err := bao.Root.CloneWithHeaders()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -592,7 +592,7 @@ func TestAccessorReportSurvivesAControllerStorageFailure(t *testing.T) {
 	if _, ok := running.agent.creds.current(bound.ID); !ok {
 		t.Fatal("the agent dropped its token on its own; the test proves nothing")
 	}
-	client, err := bao.Root.Clone()
+	client, err := bao.Root.CloneWithHeaders()
 	if err != nil {
 		t.Fatal(err)
 	}

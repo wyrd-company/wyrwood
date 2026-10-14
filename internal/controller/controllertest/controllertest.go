@@ -61,7 +61,7 @@ func StartConfigured(t testing.TB, bao *baotest.Server, state, sshAddress string
 	roleID, secretFile := bao.ControllerCredentials(t)
 	configuration := config.Controller{
 		HTTPListen: FreeAddress(t), SSHListen: sshAddress, StateDirectory: state, SessionTTL: time.Hour,
-		OpenBao: config.ControllerOpenBao{Address: bao.Address, AppRoleMount: "approle", RoleID: roleID,
+		OpenBao: config.ControllerOpenBao{Address: bao.Address, Namespace: bao.Namespace, AppRoleMount: "approle", RoleID: roleID,
 			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
 	}
 	if configure != nil {

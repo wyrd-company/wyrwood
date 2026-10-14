@@ -28,6 +28,14 @@ import (
 // RootToken is the dev server's root token.
 const RootToken = "wyrwood-test-root"
 
+// Namespace is the dedicated namespace every fixture lives in, as the
+// supported deployment specifies.
+const Namespace = "wyrwood"
+
+// ControllerName names the controller's own policy and AppRole, outside the
+// managed prefix so the controller cannot rewrite them.
+const ControllerName = "controller"
+
 // ControllerPolicy is the bounded controller policy the controller design
 // specifies, for the default mounts.
 const ControllerPolicy = `
@@ -47,7 +55,13 @@ path "auth/token/revoke-accessor" { capabilities = ["update"] }
 // Server is a running dev server.
 type Server struct {
 	Address string
-	Root    *api.Client
+	// Namespace is the dedicated namespace the fixtures live in.
+	Namespace string
+	// Root is a root token client scoped to Namespace.
+	Root *api.Client
+	// TopLevel is a root token client in the root namespace, outside
+	// Namespace.
+	TopLevel *api.Client
 }
 
 // Executable returns the bao executable path or skips the test.
@@ -63,8 +77,9 @@ func Executable(t testing.TB) string {
 	return path
 }
 
-// Start runs a dev server with KV v2 at kv, Transit at transit, an SSH CA at
-// ssh, KV version 2 at kv, and AppRole at approle, and stops it when the test ends.
+// Start runs a dev server with a dedicated namespace holding KV v2 at kv,
+// Transit at transit, an SSH CA at ssh, AppRole at approle, and the
+// controller's policy and AppRole, and stops it when the test ends.
 func Start(t testing.TB) *Server {
 	t.Helper()
 	executable := Executable(t)
@@ -105,12 +120,21 @@ func Start(t testing.TB) *Server {
 	}
 	configuration := api.DefaultConfig()
 	configuration.Address = url
-	root, err := api.NewClient(configuration)
+	topLevel, err := api.NewClient(configuration)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topLevel.SetToken(RootToken)
+	if _, err := topLevel.Logical().Write("sys/namespaces/"+Namespace, nil); err != nil {
+		t.Fatal(err)
+	}
+	root, err := topLevel.Clone()
 	if err != nil {
 		t.Fatal(err)
 	}
 	root.SetToken(RootToken)
-	server := &Server{Address: url, Root: root}
+	root.SetNamespace(Namespace)
+	server := &Server{Address: url, Namespace: Namespace, Root: root, TopLevel: topLevel}
 	server.setup(t)
 	return server
 }
@@ -132,9 +156,9 @@ func (server *Server) setup(t testing.TB) {
 	if _, err := server.Root.Logical().WriteWithContext(ctx, "ssh/config/ca", map[string]any{"generate_signing_key": true, "key_type": "ed25519"}); err != nil {
 		t.Fatal(err)
 	}
-	must(sys.PutPolicyWithContext(ctx, "wyrwood-controller", ControllerPolicy))
-	if _, err := server.Root.Logical().WriteWithContext(ctx, "auth/approle/role/wyrwood-controller", map[string]any{
-		"token_policies": []string{"wyrwood-controller"},
+	must(sys.PutPolicyWithContext(ctx, ControllerName, ControllerPolicy))
+	if _, err := server.Root.Logical().WriteWithContext(ctx, "auth/approle/role/"+ControllerName, map[string]any{
+		"token_policies": []string{ControllerName},
 		"token_ttl":      "1h",
 	}); err != nil {
 		t.Fatal(err)
@@ -146,11 +170,11 @@ func (server *Server) setup(t testing.TB) {
 func (server *Server) ControllerCredentials(t testing.TB) (string, string) {
 	t.Helper()
 	ctx := context.Background()
-	role, err := server.Root.Logical().ReadWithContext(ctx, "auth/approle/role/wyrwood-controller/role-id")
+	role, err := server.Root.Logical().ReadWithContext(ctx, "auth/approle/role/"+ControllerName+"/role-id")
 	if err != nil {
 		t.Fatal(err)
 	}
-	secret, err := server.Root.Logical().WriteWithContext(ctx, "auth/approle/role/wyrwood-controller/secret-id", nil)
+	secret, err := server.Root.Logical().WriteWithContext(ctx, "auth/approle/role/"+ControllerName+"/secret-id", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

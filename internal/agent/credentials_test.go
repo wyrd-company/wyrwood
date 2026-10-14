@@ -350,7 +350,7 @@ func shortLivedCredential(t *testing.T, server *baotest.Server, binding string, 
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrapping, err := server.Root.Clone()
+	wrapping, err := server.Root.CloneWithHeaders()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -375,7 +375,7 @@ func TestCappedRenewalRequestsAReplacementBeforeExpiry(t *testing.T) {
 		_, valid := manager.current(binding)
 		requests <- request{valid: valid}
 	}, func(events.Event) {}, func(string) string { return "" })
-	if err := manager.setEndpoint(protocol.OpenBao{Address: server.Address}); err != nil {
+	if err := manager.setEndpoint(protocol.OpenBao{Address: server.Address, Namespace: server.Namespace}); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(manager.stopAll)

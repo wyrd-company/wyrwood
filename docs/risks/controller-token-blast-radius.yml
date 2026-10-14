@@ -4,13 +4,21 @@ slug: controller-token-blast-radius
 title: The controller's OpenBao credential can write policy
 description: >-
   The controller holds the only Wyrwood credential able to create OpenBao
-  policies and AppRoles. Compromise of the controller grants the ability to
-  grant any container any access the controller's own OpenBao policy allows,
-  and to revoke any token whose accessor it holds, which disrupts but does
-  not expose. Mitigation: the controller's OpenBao policy is limited to a Wyrwood prefix
-  for policies, AppRoles, Transit keys, and wrapping, plus revocation by
-  accessor; the controller holds only the accessors its agents report and
-  never lists or looks them up; the controller runs as a
+  policies and AppRoles. OpenBao does not limit the HCL a token writes to the
+  capabilities that token holds, so compromise of the controller grants any
+  access in the OpenBao namespace the controller runs in: it can write a
+  policy that allows every path, bind it to an AppRole, and log in through
+  it. It can also revoke any token whose accessor it holds, which disrupts
+  but does not expose. When the controller runs in the root namespace of a
+  shared OpenBao instance, compromise of the controller is compromise of
+  that instance. Mitigation: the supported deployment confines the
+  controller to a dedicated OpenBao namespace that holds only Wyrwood's
+  AppRole mount, Transit and SSH-engine mounts, and the secrets its
+  containers read, so the controller can grant nothing outside it; the
+  controller's own policy and AppRole are named outside the `wyrwood-`
+  prefix so it cannot rewrite them; every binding AppRole carries only its
+  own `wyrwood-` policy; the controller holds only the accessors its agents
+  report and never lists or looks them up; the controller runs as a
   container with its credential supplied as a mounted file rather than an
   environment variable; the web interface binds to a local or reverse-proxied
   address and admits only operators in a configured group of the site's

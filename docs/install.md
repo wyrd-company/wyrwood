@@ -13,10 +13,35 @@ containers.
 
 ## Controller
 
-The controller is published as a container image. It needs an OpenBao
-AppRole whose policy covers the Wyrwood prefix, an OpenID Connect client for
+The controller is published as a container image. It needs a dedicated
+OpenBao namespace, an AppRole in that namespace, an OpenID Connect client for
 operator sign-in, a state volume, and a configuration file. The AppRole
 secret identifier and the client secret are read from mounted files.
+
+### OpenBao
+
+Create the namespace and its mounts with an OpenBao administrator token.
+[Policies and contracts](configuration.md#openbao-namespace) explains why the
+namespace is required and gives the controller policy; save it as
+`controller.hcl`.
+
+```bash
+bao namespace create wyrwood
+export BAO_NAMESPACE=wyrwood
+bao auth enable approle
+bao secrets enable -version=2 kv
+bao secrets enable transit
+bao secrets enable ssh
+bao write ssh/config/ca generate_signing_key=true key_type=ed25519
+bao policy write controller controller.hcl
+bao write auth/approle/role/controller token_policies=controller token_ttl=1h
+bao read -field=role_id auth/approle/role/controller/role-id
+bao write -f -field=secret_id auth/approle/role/controller/secret-id
+```
+
+Keep the secrets your containers read in this namespace.
+
+### Controller container
 
 The image runs as user and group 65532. State lives in a named volume, which
 Docker creates with that ownership from the image. The two secret files must
@@ -43,6 +68,7 @@ ssh:
   listen: 0.0.0.0:2222
 openbao:
   address: https://openbao.example.internal:8200
+  namespace: wyrwood
   approle:
     role-id: REPLACE_WITH_ROLE_ID
     secret-id-file: /run/secrets/openbao-secret-id
