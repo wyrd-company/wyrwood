@@ -1,0 +1,28 @@
+# ---
+# relationships:
+#   implements: linux-service
+# ---
+[Unit]
+Description=Wyrwood agent
+Documentation=https://github.com/wyrd-company/wyrwood
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/wyrwood agent daemon
+User=wyrwood
+Group=wyrwood
+SupplementaryGroups=docker
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/wyrwood /run/wyrwood
+RuntimeDirectory=wyrwood
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+
+[Install]
+WantedBy=multi-user.target

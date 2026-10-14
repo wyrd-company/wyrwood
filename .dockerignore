@@ -1,0 +1,9 @@
+# ---
+# relationships: {}
+# ---
+*
+!go.mod
+!go.sum
+!cmd
+!internal
+internal/**/testdata

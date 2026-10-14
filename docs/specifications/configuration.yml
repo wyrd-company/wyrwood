@@ -1,89 +1,44 @@
 $schema: https://refinery.systems/ontology/specification
-relationships: {}
+relationships:
+  references:
+    - command-line-interface
 format: json-schema
 description: >-
-  Wyrwood configuration is one strict YAML document whose machine-readable
-  structure is defined by
-  `assets/configuration/configuration.schema.json`. Input is bounded to 1 MiB
-  before YAML decoding. The document records one
-  canonical absolute upstream SSH-agent socket path, zero or more consumer
-  security principals, and the deadlines applied to upstream operations. Linux
-  socket paths contain at most 107 characters and must also fit the kernel's
-  107-byte AF_UNIX pathname limit. Each
-  consumer records a display name, a canonical absolute socket path, an
-  optional Linux numeric group identifier, and an exact allowlist of OpenSSH
-  SHA-256 public-key fingerprints.
+  Wyrwood has two configuration documents, both strict YAML bounded to 1 MiB.
 
-  A consumer's opaque identifier is the lowercase hexadecimal SHA-256 digest of
-  the UTF-8 bytes of its canonical absolute socket path. Configuration, status,
-  events, replacement selection, and retirement use that same identifier. It is
-  stable while the socket path is unchanged. Replacing the socket path creates a
-  different security principal and identifier.
+  The agent reads `/etc/wyrwood/agent.yml`, defined by
+  `assets/configuration/agent.schema.json`. It records the controller URL,
+  the engine socket path, whether recreate enforcement is allowed on this
+  host, the consumer directory root, and timeouts for engine, controller,
+  and OpenBao operations. The agent key pair, accepted controller host-key
+  fingerprint, cached policy, and events live under `/var/lib/wyrwood` and
+  are not part of the configuration document. Defaults: engine socket
+  `/var/run/docker.sock`, recreate not allowed, consumer root
+  `/run/wyrwood/containers`.
 
-  Consumer socket paths are unique and differ from the upstream path. Each
-  consumer socket has a dedicated parent directory. Consumer parent directories
-  are distinct, do not contain one another, and do not contain the upstream
-  socket. Consumer display names are non-empty, unique, valid UTF-8, and at most
-  256 Unicode characters. Fingerprint values
-  use OpenSSH's canonical `SHA256:` prefix followed by the unpadded base64
-  encoding of exactly 32 digest bytes; each consumer's list contains unique
-  values. A consumer contains at most 1024 fingerprints, matching the bounded
-  upstream-key projection and keeping one complete consumer mutation within the
-  64 KiB control-request limit.
+  The controller reads `/etc/wyrwood/controller.yml`, defined by
+  `assets/configuration/controller.schema.json`. It records the HTTP listen
+  address, the SSH listen address, the state directory, the OpenBao address,
+  CA file, namespace, AppRole mount, role identifier, and the file that holds
+  the secret identifier, and the Transit and SSH-engine mount names the
+  controller manages. The secret identifier is read from the named file at
+  startup and never from an environment variable or the document itself.
 
-  Timeout values use Go duration syntax. Connect, identity-list, and
-  session-binding replay deadlines are each between 100 milliseconds and 30
-  seconds inclusive. The signing deadline is between 1 second and 10 minutes
-  inclusive. Initial configuration records defaults of 5 seconds for connect,
-  list, and replay and 2 minutes for signing.
+  The controller document also records operator sign-in under `oidc`: the
+  issuer URL, the client identifier, the file that holds the client secret,
+  the public redirect URL ending in `/auth/callback`, the name of the groups
+  claim, the allowed groups, and the provider name shown on the sign-in
+  button. `oidc` is required and `allowed-groups` must name at least one
+  group. The client secret follows the same rule as the AppRole secret
+  identifier. `http.session-ttl` bounds an operator session. Defaults: groups
+  claim `groups`, session time-to-live 12 hours.
 
-  On Linux, the configuration path is
-  `$XDG_CONFIG_HOME/wyrwood/config.yml` when `XDG_CONFIG_HOME` is set and
-  `$HOME/.config/wyrwood/config.yml` when it is unset. Both roots are absolute.
-  Initialization
-  records the current `SSH_AUTH_SOCK` value after full validation, creates the
-  Wyrwood configuration directory with mode `0700`, and publishes a complete
-  file with mode `0600` as one atomic no-replace operation. A directory-sync
-  failure after publication returns the resolved configuration path together
-  with an explicit durability-uncertainty error.
-
-  The daemon projects the editable configuration through its owner-authenticated
-  control interface and identifies the exact persisted bytes with a lowercase
-  SHA-256 revision. Direct file edits remain supported and therefore produce a
-  different revision even when they change only comments or formatting. A
-  managed mutation supplies the revision it was based on, changes the complete
-  upstream path, complete timeout set, or one complete consumer, or retires one
-  consumer. The daemon validates the resulting complete configuration,
-  deterministically serializes every modeled value, and atomically replaces the
-  fixed owner-only file. Canonical YAML uses schema field order, orders consumers
-  bytewise by canonical socket path, orders each fingerprint list
-  lexicographically, uses LF line endings, and ends with exactly one newline.
-  The daemon rejects canonical candidate bytes above 1 MiB as invalid before it
-  creates or publishes a replacement. Comments and formatting are not modeled and are not
-  preserved by a managed mutation. Persisting a mutation does not change the
-  active runtime snapshot; apply is a separate daemon operation.
-
-  Configuration reads paginate consumers in the same bytewise canonical socket
-  path order and repeat the revision, upstream, and timeout values on every
-  page. There is no consumer-count ceiling. A later page requires the first page's revision,
-  so a direct or managed edit between pages fails as a configuration conflict
-  instead of combining revisions.
+  Timeouts use Go duration syntax between 100 milliseconds and 30 seconds,
+  except the OpenBao sign timeout, which allows up to 2 minutes. The session
+  time-to-live uses the same syntax between 15 minutes and 24 hours.
 validation-criteria: >-
-  A configuration conforms when it validates against the JSON Schema asset and
-  the Go parser accepts it. The parser enforces YAML field closure, canonical
-  filesystem paths, cross-field uniqueness and directory isolation, canonical
-  fingerprint encoding, Linux group range, duration parsing and bounds, and a
-  single-document input. Filesystem tests verify Linux default-path resolution
-  and initialization's owner-only, atomic, no-replace behavior. The Linux
-  container integration gate applies fingerprint additions and removals while
-  one downstream connection remains open and verifies that the next request
-  observes the complete newly committed allowlist. Control tests verify coherent
-  pagination, exact-byte revisions, stale-write rejection, complete-candidate
-  validation, canonical serialization and the 1 MiB rejection boundary,
-  deterministic atomic owner-only replacement, durability uncertainty, and
-  separation of durable mutation from runtime apply. Identifier tests use exact
-  UTF-8 socket-path bytes and verify stability, path-change replacement, and
-  parity across configuration, status, and events. The Linux management gate
-  drives both clients through real daemon mutations and proves that a stale
-  client cannot change persisted bytes, every page belongs to one revision, and
-  a terminal save is visible to the scriptable projection before apply.
+  A document conforms when it validates against its JSON Schema asset and the
+  Go parser accepts it with unknown fields rejected. Tests cover defaults,
+  bounds, path canonicalization, rejection of inline secrets, and rejection
+  of an `oidc` section without allowed groups or with a redirect URL that is
+  not absolute.

@@ -20,7 +20,7 @@ const maximumRetention = 100_000
 var (
 	// ErrCorrupt means corruption occurred outside the recoverable final-frame boundary.
 	ErrCorrupt = errors.New("operational event store is corrupt")
-	// ErrWriterActive means another daemon writer holds the store lock.
+	// ErrWriterActive means another process holds the store lock.
 	ErrWriterActive = errors.New("operational event store already has a writer")
 	// ErrClosed means the store no longer accepts operations.
 	ErrClosed = errors.New("operational event store is closed")
@@ -238,11 +238,7 @@ func (store *Store) closeAfterWriteFailure() {
 }
 
 func cloneEvents(source []Event) []Event {
-	result := make([]Event, len(source))
-	for index, event := range source {
-		result[index] = cloneEvent(event)
-	}
-	return result
+	return append([]Event(nil), source...)
 }
 
 func (store *Store) syncFileAndDirectory() error {

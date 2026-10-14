@@ -1,0 +1,37 @@
+$schema: https://refinery.systems/ontology/specification
+relationships:
+  references:
+    - agent-controller-protocol
+format: json-schema
+description: >-
+  A Wyrwood policy is the document the controller stores for each named
+  policy and sends to agents in the agent-controller protocol. Its structure
+  is defined by `assets/policy/policy.schema.json`.
+
+  `name` is a lower-kebab-case slug unique in the controller and is the suffix
+  of the OpenBao policy name `wyrwood-<name>`. `openbao.policy` is the complete
+  HCL policy document; the controller validates it through OpenBao before
+  saving. `openbao.token-ttl` is the AppRole token time-to-live.
+  `openbao.token-max-ttl` is the AppRole token maximum lifetime, at least the
+  time-to-live. They default to `1h` and `8h`. `ssh.transit-keys`
+  lists Transit key names under the controller's Transit mount that the
+  ssh-agent endpoint presents. `ssh.ca-roles` lists SSH-engine role names
+  under the controller's SSH mount for which the endpoint obtains
+  certificates. Every key and role named must also be permitted by the HCL
+  policy, or the endpoint reports a denial for it.
+
+  `contract.mount-target` is the absolute container path for the consumer
+  directory. `contract.env` maps environment names to values; the token
+  `{mount-target}` is replaced by the mount target. `contract.access-group` is
+  the numeric group applied to the consumer directory and sockets.
+  `contract.enforcement` is `report` or `recreate`. The default contract sets
+  `mount-target` to `/run/wyrwood`, `SSH_AUTH_SOCK` to
+  `{mount-target}/ssh-agent.sock`, `VAULT_ADDR` to
+  `unix://{mount-target}/vault.sock`, and enforcement to `report`.
+
+  A policy document contains no secret. The controller stores it in SQLite
+  and in OpenBao as the HCL portion only.
+validation-criteria: >-
+  A policy conforms when it validates against the JSON Schema asset, when
+  OpenBao accepts the HCL, and when every Transit key and SSH role it names
+  exists under the configured mounts. Controller tests cover each failure.

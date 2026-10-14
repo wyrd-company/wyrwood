@@ -1,0 +1,78 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  related-to:
+    - agent
+objective: >-
+  Serve the OpenBao HTTP API to a container over a Unix socket so that any
+  OpenBao client works unchanged, every request carries the container's own
+  token, and the container never learns a real credential.
+background:
+  current-design: >-
+    No OpenBao access exists for containers. Tools that need secrets read
+    bind-mounted credential files.
+  problems:
+    - A credential file is readable by every process in the container.
+    - Rotation requires rewriting files inside running containers.
+    - Each tool has its own file format and its own notion of login.
+design-challenges:
+  token-substitution: >-
+    Clients send whatever they think their token is, or nothing. The proxy
+    must replace it on every request without the client noticing and without
+    the real token appearing in any response.
+  login-shaped-clients: >-
+    Some clients insist on performing an authentication method login before
+    reading. The proxy must satisfy that without granting anything beyond the
+    container's token.
+  token-lifecycle-endpoints: >-
+    A client that renews, revokes, or looks up its token would act on the
+    agent-owned token. Those endpoints must be answered or refused in a way
+    that keeps the agent in control.
+  unix-transport: >-
+    The OpenBao Go client, and therefore the CLI and tools built on it, dial a
+    `unix://` address directly. Other clients may need an HTTP-over-Unix
+    capable library; that is the client's constraint, not the proxy's.
+proposed-design:
+  high-level-overview: >-
+    The agent binds `vault.sock` inside each bound container's consumer
+    directory and serves plain HTTP on it. A request is forwarded to the
+    configured OpenBao address over TLS with the container's current token
+    in `X-Vault-Token` and the client-supplied token and `Authorization`
+    header removed. Responses are returned unchanged except where the proxy
+    answers locally.
+  local-answers: >-
+    `POST auth/<any>/login` and `POST auth/token/create*` return a synthetic
+    success whose client token is an opaque placeholder bound to the
+    container, with the binding's policy names, so a client that logs in
+    proceeds normally. `GET auth/token/lookup-self` is forwarded, since it
+    reveals only the token's accessor, policies, and time-to-live.
+    `POST auth/token/renew-self` returns the forwarded lookup as if renewed,
+    because the agent owns renewal. `POST auth/token/revoke-self` and every
+    `auth/token/revoke*`, `auth/token/renew` with an explicit token, and
+    `sys/wrapping/unwrap` of a token the container did not create are refused
+    with the OpenBao permission-denied shape. Every other path, including
+    `sys/health`, KV, Transit, and SSH-engine operations, is forwarded and
+    bounded by the token's policy on the OpenBao side.
+  request-bounds: >-
+    Request bodies are bounded to the OpenBao server's configured maximum and
+    the proxy defaults to 1 MiB. Headers are passed through except the
+    credential headers, hop-by-hop headers, and `X-Vault-Namespace`, which is
+    set from the binding when configured. Streaming responses are passed
+    through unchanged.
+  policy-observation: >-
+    The proxy reads the container's current token on every request, so a
+    token obtained after a binding change is used by the next request on an
+    existing connection. A container without a live token receives a
+    categorical 503 with a Wyrwood-specific body so a tool can distinguish an
+    unbound or controller-absent state from an OpenBao denial.
+  events: >-
+    Each forwarded request records an event with the mount category derived
+    from the first path segment under the mount, the HTTP method, the status
+    class, and latency. The path beyond the mount, the body, and the response
+    are never recorded.
+  verification: >-
+    Tests run the proxy against an OpenBao dev server and verify token
+    substitution, header stripping, synthetic login shapes against the
+    official client and the Dagu vault provider, refusal of lifecycle
+    endpoints, pass-through of KV and Transit operations, and the 503 shape
+    when no token is held. The Linux integration gate runs `bao kv get` inside
+    a container with only the vault socket mounted.

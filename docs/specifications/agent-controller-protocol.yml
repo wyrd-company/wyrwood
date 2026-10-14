@@ -1,0 +1,64 @@
+$schema: https://refinery.systems/ontology/specification
+relationships:
+  references:
+    - policy
+format: json-schema
+description: >-
+  Agents and the controller exchange newline-delimited JSON messages over the
+  `wyrwood` SSH subsystem on an authenticated SSH connection. Message shapes
+  are defined by `assets/agent-controller-protocol/message.schema.json`.
+  Every message has integer `version` 1 and a `type`. A line is at most 1 MiB.
+  Unknown fields are rejected.
+
+  Authentication is SSH public key only. The username is the agent's
+  hostname. A key the controller has not approved receives an authentication
+  failure identical to an unknown key. The controller presents one host key;
+  the agent verifies it against the fingerprint accepted at login and
+  refuses to connect on mismatch.
+
+  Agent to controller: `hello` carries the agent version and whether recreate
+  is allowed on the host. `inventory` carries the complete current container
+  list; each entry has the engine identifier, name, state, image reference,
+  candidate keys in precedence order as `{kind, value}` with kinds
+  `devcontainer`, `compose`, and `name`, and the contract check inputs:
+  mounts as `{source, target}` and environment names present. `contract-result`
+  reports one container's conformance as `conforming`, `non-conforming` with
+  failed item names, `recreating`, `recreated` with the new engine
+  identifier, or `recreate-failed` with a categorical reason.
+  `credential-request` names a binding whose token must be replaced.
+  `token-accessor` carries a binding and the accessor of the token the agent
+  obtained for it. The agent sends it after each login and again on each new
+  session and each full reconcile until the controller acknowledges it. The
+  controller keeps the latest one per binding and uses it only to revoke that
+  token when the binding is deleted; one reported for a binding the agent
+  held that is already deleted is revoked on arrival.
+
+  Controller to agent: `policy-set` carries every binding that matches a
+  container in the latest inventory: binding identifier, the matched key, the
+  complete policy document and revision, the OpenBao address, CA,
+  namespace, and the Transit and SSH-engine mount names the controller
+  manages. `credential` carries a binding identifier, the AppRole mount and
+  role identifier, and a response-wrapped secret identifier whose wrapping
+  time-to-live is at most 5 minutes. `recreate-request` names a binding for
+  an operator-requested recreate. `unbind` names a binding to retire.
+  `result-recorded` acknowledges one `contract-result` by echoing its
+  binding, outcome, and reason. The controller sends it only after it has
+  stored the result, or discarded it because the binding no longer exists or
+  belongs to another agent; a result it could not store is not acknowledged.
+  The agent keeps a failed recreate's report until that acknowledgement
+  arrives. `accessor-recorded` acknowledges one `token-accessor` by echoing
+  its binding and accessor, once the controller has stored it, revoked it for
+  a deleted binding, or discarded it because the binding never belonged to
+  the agent; a report the controller could not store or revoke is not
+  acknowledged.
+
+  Neither direction ever carries a token, an unwrapped secret identifier, an
+  environment value, or a secret value. A token accessor cannot
+  authenticate; it names a token for revocation. The controller replaces an agent's
+  existing session when the same approved key connects again.
+validation-criteria: >-
+  Round-trip tests validate every message against the schema asset and the
+  Go types. Session tests cover that a contract result is acknowledged only
+  after the controller stores it. Session tests cover unknown-key rejection, host-key mismatch,
+  session replacement, oversize lines, and that no message serialization
+  contains a token or secret identifier.

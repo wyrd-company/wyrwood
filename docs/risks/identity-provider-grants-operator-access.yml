@@ -1,0 +1,21 @@
+$schema: https://refinery.systems/ontology/risk
+relationships: {}
+slug: identity-provider-grants-operator-access
+title: The identity provider decides who operates the controller
+description: >-
+  Operators sign in through the site's OpenID Connect provider and are
+  admitted by group membership. Compromise of the provider, of an account in
+  an allowed group, or of an administrator who can change group membership
+  grants full operator access to the web interface, and through it the
+  ability to bind any policy to any container. Mitigation: the controller
+  admits only groups named in its configuration file, which the web interface
+  cannot change; membership is checked at every sign-in; sessions are bounded
+  by a configured time-to-live; the client secret is read from a mounted file;
+  every sign-in and every agent, policy, and binding change is an operational
+  event that names the operator.
+categories:
+  - security
+likelihood: 2
+impact: 4
+response-strategy: mitigate
+status: open

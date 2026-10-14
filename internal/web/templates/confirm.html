@@ -1,0 +1,12 @@
+{{define "content"}}
+<main>
+  <section class="card" aria-labelledby="h-confirm" style="max-width:640px">
+    <h2 id="h-confirm">{{.Heading}}</h2>
+    {{if .Problem}}<p class="problem" role="alert">{{.Problem}}</p>{{else}}<p>{{.Body}}</p>{{end}}
+    <div class="actions">
+      {{if .Action}}<form method="post" action="{{.Action}}"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit" class="{{if .Danger}}danger{{else}}primary{{end}}">{{.Button}}</button></form>{{end}}
+      <a class="button" href="{{.Back}}">{{if .Action}}Cancel{{else}}Back{{end}}</a>
+    </div>
+  </section>
+</main>
+{{end}}

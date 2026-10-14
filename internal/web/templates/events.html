@@ -1,0 +1,27 @@
+{{define "content"}}
+<main>
+  <div class="filters" role="group" aria-label="Filter by outcome">
+    <a href="/events"{{if eq .Outcome ""}} aria-current="true"{{end}}>All</a>
+    {{range .Outcomes}}<a href="/events?outcome={{.}}"{{if eq $.Outcome .}} aria-current="true"{{end}}>{{.}}</a>{{end}}
+    <span class="hint">Controller events, newest first · retention 10,000</span>
+  </div>
+  <section class="table-box" aria-label="Event history">
+    <table>
+      <thead><tr><th scope="col">Time</th><th scope="col">Operation</th><th scope="col">Outcome</th><th scope="col">Subject</th><th scope="col">Operator</th><th scope="col">Latency</th></tr></thead>
+      <tbody>
+      {{range .Events}}
+        <tr>
+          <td class="mono" style="font-size:12px;white-space:nowrap">{{stamp .Time}}</td>
+          <td class="mono" style="font-size:13px">{{.Operation}}</td>
+          <td><span class="badge {{.Class}}">{{.Outcome}}</span>{{if .Error}} <span class="hint mono">{{.Error}}</span>{{end}}</td>
+          <td class="mono" style="font-size:12px">{{.Subject}}</td>
+          <td>{{.Operator}}</td>
+          <td class="mono" style="font-size:12px">{{.Latency}}</td>
+        </tr>
+      {{else}}<tr><td colspan="6" class="hint">No events.</td></tr>{{end}}
+      </tbody>
+    </table>
+  </section>
+  <p class="hint">Events hold categorical outcomes only: no tokens, secret values, HCL, request paths beyond the mount category, or raw upstream errors. Each agent keeps its own history; read it with <code>wyrwood agent events</code> on the host.</p>
+</main>
+{{end}}

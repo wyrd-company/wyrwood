@@ -1,0 +1,42 @@
+{{define "layout"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wyrwood · {{.Title}}</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+</head>
+<body>
+{{if eq .Current "sign-in"}}{{template "content" .}}{{else}}
+<div class="app">
+  <nav class="nav" aria-label="Primary">
+    <a class="brand" href="/agents">{{template "logo"}}<span>Wyrwood</span></a>
+    <div class="nav-links">
+      <a href="/agents"{{if eq .Current "agents"}} aria-current="page"{{end}}>Agents{{if .Pending}} <span class="count" aria-label="{{.Pending}} pending">{{.Pending}}</span>{{end}}</a>
+      <a href="/containers"{{if eq .Current "containers"}} aria-current="page"{{end}}>Containers</a>
+      <a href="/policies"{{if eq .Current "policies"}} aria-current="page"{{end}}>Policies</a>
+      <a href="/keys"{{if eq .Current "keys"}} aria-current="page"{{end}}>OpenBao keys</a>
+      <a href="/events"{{if eq .Current "events"}} aria-current="page"{{end}}>Events</a>
+      <a href="/security"{{if eq .Current "security"}} aria-current="page"{{end}}>Security</a>
+    </div>
+    <div class="nav-foot">
+      {{if .OpenBaoOK}}<span><span class="dot"></span>OpenBao reachable</span>{{else}}<span><span class="dot bad"></span>OpenBao unreachable · agents keep serving</span>{{end}}
+      <span class="mono">{{.Controller}}</span>
+    </div>
+  </nav>
+  <div class="page">
+    <header class="topbar">
+      <h1>{{.Title}}</h1>
+      <div class="who">
+        <span>{{.Operator}}</span>
+        <form class="inline" method="post" action="/sign-out"><input type="hidden" name="csrf" value="{{.CSRF}}"><button type="submit">Sign out</button></form>
+      </div>
+    </header>
+    {{template "content" .}}
+  </div>
+</div>{{end}}
+</body>
+</html>{{end}}
+{{define "logo"}}<svg width="26" height="26" viewBox="0 0 32 32" fill="none" stroke="#8FC5A6" stroke-width="1.8" aria-hidden="true"><circle cx="16" cy="16" r="14"></circle><circle cx="16" cy="16" r="9.5"></circle><circle cx="16" cy="16" r="5"></circle><path d="M16 2v28"></path></svg>{{end}}
+{{define "notice"}}{{if .Notice}}<p class="notice" role="status">{{.Notice}}</p>{{end}}{{end}}

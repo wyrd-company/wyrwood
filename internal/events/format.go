@@ -17,37 +17,85 @@ import (
 )
 
 const (
-	fileMagic             = "WYREVT01"
+	fileMagic             = "WYREVT02"
 	frameHeaderBytes      = 8
-	maximumEventJSONBytes = 1024
+	maximumEventJSONBytes = 2048
 )
 
 var checksumTable = crc32.MakeTable(crc32.Castagnoli)
 
-type eventRecord struct {
-	Timestamp          string       `json:"timestamp"`
-	ConsumerID         ConsumerID   `json:"consumer-id"`
-	Operation          Operation    `json:"operation"`
-	Fingerprint        *Fingerprint `json:"fingerprint,omitempty"`
-	Outcome            Outcome      `json:"outcome"`
-	LatencyNanoseconds int64        `json:"latency"`
-	ErrorCode          ErrorCode    `json:"error-code"`
+// Record is the closed JSON projection of one event, matching the
+// operational-event schema field for field.
+type Record struct {
+	Time         string    `json:"time"`
+	Operation    Operation `json:"operation"`
+	Outcome      Outcome   `json:"outcome"`
+	LatencyNS    int64     `json:"latency-ns"`
+	Error        ErrorCode `json:"error,omitempty"`
+	Agent        string    `json:"agent,omitempty"`
+	Binding      string    `json:"binding,omitempty"`
+	ContainerKey string    `json:"container-key,omitempty"`
+	Policy       string    `json:"policy,omitempty"`
+	Operator     string    `json:"operator,omitempty"`
+	Fingerprint  string    `json:"fingerprint,omitempty"`
+	Mount        Mount     `json:"mount,omitempty"`
+	Method       Method    `json:"method,omitempty"`
+}
+
+// Record projects a validated event into its schema record.
+func (event Event) Record() Record {
+	return Record{
+		Time:         event.Time.UTC().Format(time.RFC3339Nano),
+		Operation:    event.Operation,
+		Outcome:      event.Outcome,
+		LatencyNS:    int64(event.Latency),
+		Error:        event.ErrorCode,
+		Agent:        event.Agent,
+		Binding:      event.Binding,
+		ContainerKey: event.ContainerKey,
+		Policy:       event.Policy,
+		Operator:     event.Operator,
+		Fingerprint:  event.Fingerprint,
+		Mount:        event.Mount,
+		Method:       event.Method,
+	}
+}
+
+// Event converts a schema record back into a validated event.
+func (record Record) Event() (Event, error) {
+	timestamp, err := time.Parse(time.RFC3339Nano, record.Time)
+	if err != nil {
+		return Event{}, fmt.Errorf("decode event time: %w", err)
+	}
+	if record.LatencyNS < 0 {
+		return Event{}, fmt.Errorf("decode event: negative latency")
+	}
+	event := Event{
+		Time:         timestamp,
+		Operation:    record.Operation,
+		Outcome:      record.Outcome,
+		Latency:      time.Duration(record.LatencyNS),
+		ErrorCode:    record.Error,
+		Agent:        record.Agent,
+		Binding:      record.Binding,
+		ContainerKey: record.ContainerKey,
+		Policy:       record.Policy,
+		Operator:     record.Operator,
+		Fingerprint:  record.Fingerprint,
+		Mount:        record.Mount,
+		Method:       record.Method,
+	}
+	if err := event.Validate(); err != nil {
+		return Event{}, fmt.Errorf("validate event: %w", err)
+	}
+	return event, nil
 }
 
 func encodeFrame(event Event) ([]byte, error) {
 	if err := event.Validate(); err != nil {
 		return nil, err
 	}
-	record := eventRecord{
-		Timestamp:          event.Timestamp.UTC().Format(time.RFC3339Nano),
-		ConsumerID:         event.ConsumerID,
-		Operation:          event.Operation,
-		Fingerprint:        event.Fingerprint,
-		Outcome:            event.Outcome,
-		LatencyNanoseconds: int64(event.Latency),
-		ErrorCode:          event.ErrorCode,
-	}
-	payload, err := json.Marshal(record)
+	payload, err := json.Marshal(event.Record())
 	if err != nil {
 		return nil, fmt.Errorf("encode event: %w", err)
 	}
@@ -66,15 +114,13 @@ func decodeFrame(payload []byte) (Event, error) {
 	if err := json.Unmarshal(payload, &fields); err != nil {
 		return Event{}, fmt.Errorf("decode event object: %w", err)
 	}
-	for _, required := range []string{
-		"timestamp", "consumer-id", "operation", "outcome", "latency", "error-code",
-	} {
+	for _, required := range []string{"time", "operation", "outcome", "latency-ns"} {
 		if _, exists := fields[required]; !exists {
 			return Event{}, fmt.Errorf("decode event: required property %q is absent", required)
 		}
 	}
 
-	var record eventRecord
+	var record Record
 	decoder := json.NewDecoder(bytes.NewReader(payload))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&record); err != nil {
@@ -87,23 +133,7 @@ func decodeFrame(payload []byte) (Event, error) {
 		}
 		return Event{}, fmt.Errorf("decode event trailer: %w", err)
 	}
-	timestamp, err := time.Parse(time.RFC3339Nano, record.Timestamp)
-	if err != nil {
-		return Event{}, fmt.Errorf("decode event timestamp: %w", err)
-	}
-	event := Event{
-		Timestamp:   timestamp,
-		ConsumerID:  record.ConsumerID,
-		Operation:   record.Operation,
-		Fingerprint: record.Fingerprint,
-		Outcome:     record.Outcome,
-		Latency:     time.Duration(record.LatencyNanoseconds),
-		ErrorCode:   record.ErrorCode,
-	}
-	if err := event.Validate(); err != nil {
-		return Event{}, fmt.Errorf("validate event: %w", err)
-	}
-	return event, nil
+	return record.Event()
 }
 
 // loadFrames returns the valid events and an optional truncation offset. Only

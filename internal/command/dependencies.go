@@ -1,0 +1,122 @@
+// ---
+// relationships:
+//   implements: command-line-interface
+// ---
+
+package command
+
+import (
+	"context"
+	"errors"
+	"io"
+	"log"
+	"net"
+	"os"
+
+	"github.com/wyrd-company/wyrwood/internal/agent"
+	"github.com/wyrd-company/wyrwood/internal/binding"
+	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/controller"
+	"github.com/wyrd-company/wyrwood/internal/engine"
+	"github.com/wyrd-company/wyrwood/internal/linuxservice"
+	"github.com/wyrd-company/wyrwood/internal/sshagent"
+	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
+	"github.com/wyrd-company/wyrwood/internal/web"
+)
+
+// errUnavailable marks a command whose implementation is not linked into this build.
+var errUnavailable = errors.New("command unavailable")
+
+// errConfiguration marks an invalid or unreadable configuration document.
+var errConfiguration = errors.New("configuration unavailable")
+
+type dependencies struct {
+	serveController   func(ctx context.Context, configPath string) error
+	controllerHostKey func(configPath string) (string, error)
+	runAgent          func(ctx context.Context) error
+	agentLogin        func(ctx context.Context, options agent.LoginOptions) (agent.LoginResult, error)
+	queryAgent        func(ctx context.Context, request agent.ControlRequest, destination any) error
+	manageService     func(action string) (string, error)
+}
+
+func defaultDependencies() dependencies {
+	paths := agent.DefaultPaths()
+	return dependencies{
+		serveController:   serveController,
+		controllerHostKey: controllerHostKey,
+		runAgent:          func(ctx context.Context) error { return runAgentDaemon(ctx, paths) },
+		agentLogin: func(ctx context.Context, options agent.LoginOptions) (agent.LoginResult, error) {
+			options.Paths = paths
+			return agent.Login(ctx, options)
+		},
+		queryAgent: func(ctx context.Context, request agent.ControlRequest, destination any) error {
+			return agent.Query(ctx, paths, request, destination)
+		},
+		manageService: func(action string) (string, error) {
+			manager, err := linuxservice.NewManager()
+			if err != nil {
+				return "", err
+			}
+			state, err := manager.Manage(action)
+			return string(state), err
+		},
+	}
+}
+
+func runAgentDaemon(ctx context.Context, paths agent.Paths) error {
+	configuration, err := config.LoadAgent(paths.Config)
+	if err != nil {
+		return errConfiguration
+	}
+	agent.Version = version
+	// Library diagnostics, such as ssh-agent request failures, are already
+	// recorded as categorical events and are not repeated to the journal.
+	log.SetOutput(io.Discard)
+	instance, err := agent.New(agent.Options{
+		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineSocket), Log: os.Stderr,
+		Endpoints: endpoints{vault: vaultproxy.New(configuration.OpenBaoTimeout), ssh: sshagent.New(configuration.SignTimeout)},
+	})
+	if err != nil {
+		return err
+	}
+	return instance.Run(ctx)
+}
+
+// endpoints serves both consumer sockets.
+type endpoints struct {
+	vault *vaultproxy.Proxy
+	ssh   *sshagent.Endpoint
+}
+
+func (set endpoints) ServeVault(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
+	set.vault.Serve(listener, lookup, record)
+}
+
+func (set endpoints) ServeSSHAgent(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
+	set.ssh.Serve(listener, lookup, record)
+}
+
+func serveController(ctx context.Context, path string) error {
+	configuration, err := config.LoadController(path)
+	if err != nil {
+		return errConfiguration
+	}
+	instance, err := controller.New(configuration, controller.Options{Log: os.Stderr})
+	if err != nil {
+		return err
+	}
+	defer instance.Close()
+	operators, err := web.New(instance, web.Options{Version: version})
+	if err != nil {
+		return err
+	}
+	return instance.Run(ctx, operators.Serve)
+}
+
+func controllerHostKey(path string) (string, error) {
+	configuration, err := config.LoadController(path)
+	if err != nil {
+		return "", errConfiguration
+	}
+	return controller.HostKeyFingerprint(configuration.StateDirectory)
+}

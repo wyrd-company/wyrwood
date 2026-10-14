@@ -1,0 +1,17 @@
+$schema: https://refinery.systems/ontology/assumption
+relationships: {}
+description: >-
+  Devcontainers are created by the devcontainer CLI or an editor that embeds it,
+  and are found again by their devcontainer identity labels. A container the
+  agent recreates with those labels intact is found by the same lookup, and the
+  devcontainer CLI's lifecycle commands run again on the next up because their
+  markers lived in the discarded writable layer.
+end-descendant-type: test-charter
+evidence:
+  - >-
+    The devcontainer CLI selects an existing container by the
+    devcontainer.local_folder and devcontainer.config_file labels.
+  - >-
+    VS Code installs its server into the container at connect time rather
+    than depending on container identity.
+  - T3 Code depends only on its mounted userdata directory.

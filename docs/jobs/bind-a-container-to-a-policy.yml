@@ -1,0 +1,36 @@
+$schema: https://refinery.systems/ontology/job-to-be-done
+relationships:
+  articulates: wyrwood
+description: >-
+  When a new container appears on any host, decide what it may access from one
+  place, and know whether the container is actually set up to receive it.
+job-map:
+  define: Decide which secrets and keys a class of container needs and how it must be mounted.
+  locate: See the container reported by its host's agent with the keys it offers.
+  prepare: Write or reuse a policy whose contract matches the container.
+  confirm: Review the OpenBao policy text and the contract before binding.
+  execute: Bind the policy to the container by its most stable key.
+  monitor: See whether the container conforms to the contract and whether its token is live.
+  modify: Edit the policy and watch every bound container report against the new contract.
+  conclude: Unbind the container and confirm its AppRole and token are revoked.
+outcomes:
+  - "1":
+      importance: 1
+      statement: >-
+        A binding survives container rebuilds that preserve the container's
+        identity labels or name.
+  - "2":
+      importance: 2
+      statement: >-
+        A container that does not conform to its contract is visibly reported
+        as non-conforming rather than silently served nothing.
+  - "3":
+      importance: 3
+      statement: >-
+        When the policy opts in, binding a container applies the contract
+        without the operator editing the container's definition.
+  - "4":
+      importance: 4
+      statement: >-
+        The controller shows every host, every container, and every binding,
+        and nothing else can create a binding.

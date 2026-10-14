@@ -4,16 +4,82 @@ order: 2
 docs: true
 install: true
 relationships:
-  references: linux-user-service
+  references:
+    - linux-service
 ---
 
-Wyrwood currently supports Linux on `amd64` and `arm64`. Install a package from
-the Wyrd repository, use the Arch User Repository (AUR), or download a release
-archive.
+Install the controller once per site and the agent on every host that runs
+containers.
 
-## APT
+## Controller
 
-Add the Wyrd package signing key and repository, then install Wyrwood:
+The controller is published as a container image. It needs an OpenBao
+AppRole whose policy covers the Wyrwood prefix, an OpenID Connect client for
+operator sign-in, a state volume, and a configuration file. The AppRole
+secret identifier and the client secret are read from mounted files.
+
+The image runs as user and group 65532. State lives in a named volume, which
+Docker creates with that ownership from the image. The two secret files must
+be readable by that user.
+
+In your identity provider, for example Pocket ID, create a confidential
+client with PKCE, set its redirect URL to
+`https://<controller public host>/auth/callback`, and create the group whose
+members may operate Wyrwood.
+
+```bash
+mkdir -p ~/wyrwood
+# Paste each secret when prompted, then press Ctrl-D.
+cat > ~/wyrwood/secret-id
+cat > ~/wyrwood/oidc-client-secret
+sudo chown 65532:65532 ~/wyrwood/secret-id ~/wyrwood/oidc-client-secret
+sudo chmod 0400 ~/wyrwood/secret-id ~/wyrwood/oidc-client-secret
+
+cat > ~/wyrwood/controller.yml <<'YAML'
+http:
+  # Inside the container; the published port below keeps it on host loopback.
+  listen: 0.0.0.0:8080
+ssh:
+  listen: 0.0.0.0:2222
+openbao:
+  address: https://openbao.example.internal:8200
+  approle:
+    role-id: REPLACE_WITH_ROLE_ID
+    secret-id-file: /run/secrets/openbao-secret-id
+oidc:
+  provider-name: Pocket ID
+  issuer: https://id.example.internal
+  client-id: REPLACE_WITH_CLIENT_ID
+  client-secret-file: /run/secrets/oidc-client-secret
+  redirect-url: https://wyrwood.example.internal/auth/callback
+  allowed-groups:
+    - wyrwood-operators
+YAML
+
+docker run -d --name wyrwood-controller \
+  -p 127.0.0.1:8080:8080 -p 2222:2222 \
+  -v wyrwood-state:/var/lib/wyrwood \
+  -v ~/wyrwood/controller.yml:/etc/wyrwood/controller.yml:ro \
+  -v ~/wyrwood/secret-id:/run/secrets/openbao-secret-id:ro \
+  -v ~/wyrwood/oidc-client-secret:/run/secrets/oidc-client-secret:ro \
+  ghcr.io/wyrd-company/wyrwood:latest
+```
+
+Print the controller's SSH host-key fingerprint so you can compare it when
+an agent logs in:
+
+```bash
+docker exec wyrwood-controller wyrwood controller host-key
+```
+
+## Agent
+
+The agent supports Linux on `amd64` and `arm64`. Install a package from the
+Wyrd repository or the Arch User Repository (AUR). Packages create the
+`wyrwood` system user, add it to the `docker` group, and install the system
+unit.
+
+### APT
 
 ```bash
 sudo install -d -m 0755 /etc/apt/keyrings
@@ -26,9 +92,7 @@ sudo apt update
 sudo apt install wyrwood
 ```
 
-## RPM
-
-Add the Wyrd repository definition and install with DNF:
+### RPM
 
 ```bash
 sudo curl -fsSL https://repo.wyrd.foo/wyrd.repo \
@@ -36,55 +100,37 @@ sudo curl -fsSL https://repo.wyrd.foo/wyrd.repo \
 sudo dnf install wyrwood
 ```
 
-## Arch User Repository
-
-The prebuilt AUR package is `wyrwood-bin`. Install it with an AUR helper, for
-example:
+### Arch User Repository
 
 ```bash
 paru -S wyrwood-bin
 ```
 
-## Release archive
+### Release archive
 
 Each [GitHub release](https://github.com/wyrd-company/wyrwood/releases)
-provides Linux `tar.gz`, DEB, and RPM artifacts for `amd64` and `arm64`, plus a
-`checksums.txt` file. Verify the archive, extract `wyrwood`, and place it on your
-`PATH`.
+provides Linux `tar.gz`, DEB, and RPM artifacts for `amd64` and `arm64`, plus
+`checksums.txt`. After extracting the executable, create the service user and
+unit yourself:
 
 ```bash
-archive=wyrwood_RELEASE_linux_x86_64.tar.gz
-sha256sum --check checksums.txt --ignore-missing
-tar -xzf "$archive"
 sudo install -m 0755 wyrwood /usr/local/bin/wyrwood
-```
-
-Replace `RELEASE` with the selected version and `x86_64` with `aarch64` for a
-Linux arm64 host.
-
-## Build from source
-
-Building requires the Go version declared in the repository's `go.mod` file.
-
-```bash
-git clone https://github.com/wyrd-company/wyrwood.git
-cd wyrwood
-go build -o wyrwood ./cmd/wyrwood
-sudo install -m 0755 wyrwood /usr/local/bin/wyrwood
+sudo useradd --system --no-create-home --shell /usr/sbin/nologin \
+  --groups docker wyrwood
+sudo wyrwood agent service install
 ```
 
 ## Verify
 
 ```bash
 wyrwood version
-wyrwood help
 ```
 
-After an upgrade, restart an active daemon so it runs the new executable:
+After upgrading the agent, restart it so it runs the new executable:
 
 ```bash
-wyrwood service stop
-wyrwood service start
+sudo systemctl restart wyrwood-agent
 ```
 
-Consumer sockets are unavailable between those commands.
+Consumer sockets are restored from cached policy before the agent contacts
+the controller, so bound containers keep their endpoints across the restart.

@@ -1,0 +1,39 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - agent
+    - linux-service
+description: >-
+  The agent reaches the Docker engine, runs on headless servers as well as
+  workstations, and holds no user-session resources once keys live in OpenBao.
+  Whether it runs per user under the systemd user manager or once per host as
+  a system unit decides its filesystem ownership, its startup without a login,
+  and how containers reach its sockets.
+considered-options:
+  "1": >-
+    Keep the systemd user service. One agent per logged-in user, per-user
+    configuration and runtime directories, the user's docker group membership
+    provides engine access. Headless hosts need lingering enabled.
+  "2": >-
+    Run one system service per host under a dedicated user that is a member of
+    the docker group. Configuration under the system configuration directory,
+    state under the system state directory, consumer directories under the
+    system runtime directory. Containers reach sockets through the access
+    group the policy contract names.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    The agent serves containers, not users, and a host runs one engine. A
+    system unit starts without a login, which headless servers need, and gives
+    one place per host for the agent key and cached policy. The access-group
+    mechanism already lets a container process with a different user
+    identifier reach a socket. Option 1 ties sockets to a login session that a
+    server does not have and duplicates agent keys per user.
+expected-outcomes:
+  positive:
+    - One enrollment per host.
+    - Sockets exist before any user logs in.
+    - A dedicated user with no shell bounds what the agent process can read.
+  negative:
+    - Package installation must create the user and unit.
+    - A workstation user without root cannot install or control the agent.

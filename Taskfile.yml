@@ -31,16 +31,11 @@ tasks:
       - python3 -m unittest scripts/create-release-manifest_test.py
 
   test:integration:linux:
-    desc: Run all real Linux milestone gates
+    desc: >-
+      Run the real Linux integration gate as root with Docker Engine, bao,
+      the devcontainer CLI, and sshd (WYRWOOD_GATE_IMAGE overrides the image)
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
-
-  test:integration:management:
-    desc: Run the real Linux management milestone gate
-    cmds:
-      - >-
-        go test -count=1 -tags=integration
-        -run '^TestLinuxManagementMilestone$' ./internal/integration
 
   vet:
     desc: Run Go static analysis
@@ -55,18 +50,18 @@ tasks:
       - python3 scripts/check-release-toolchain.py
       - cd scripts && ./check-publishing-secret-contract.sh
 
+  demo:
+    desc: >-
+      Record docs/assets/demo.gif and the web interface screenshots
+      (needs Docker Engine, sudo, agent-browser, vhs, ffmpeg, and gifsicle)
+    cmds:
+      - docs/demo/record.sh
+
   docs:check:
     desc: Lint repository artifacts
     cmds:
       - rumdl check .
       - ryl check . --markdown
-
-  docs:demo:
-    desc: Regenerate the public documentation demo
-    deps:
-      - build
-    cmds:
-      - PATH="$PWD:$PATH" vhs docs/demo.tape
 
   build:
     desc: Build the Wyrwood executable

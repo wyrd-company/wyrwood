@@ -1,0 +1,9 @@
+$schema: https://refinery.systems/ontology/assumption
+relationships: {}
+description: >-
+  Every host the agent runs on uses Docker Engine, and the engine's Unix socket
+  is reachable by the agent. Podman, containerd without Docker, and remote
+  engines are not supported.
+end-descendant-type: technical-design
+evidence:
+  - All current hosts are Linux workstations and homelab servers running Docker Engine.

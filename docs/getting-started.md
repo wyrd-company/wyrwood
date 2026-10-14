@@ -5,82 +5,103 @@ docs: true
 relationships:
   references:
     - command-line-interface
-    - configuration
-    - linux-user-service
+    - policy
+    - container-contract
 ---
 
-Wyrwood initializes from the current `SSH_AUTH_SOCK`. Start in the same Linux
-login session as the host SSH agent whose keys you want to use.
+This walk-through enrolls one host, writes one policy, and binds one
+container.
 
-## Initialize and start the daemon
+## Enroll the agent
 
-Create the owner-only configuration, install the systemd user unit, and start
-it:
-
-```bash
-wyrwood init
-wyrwood service install
-wyrwood service start
-wyrwood status
-```
-
-`init` records the current upstream socket path. It never overwrites an existing
-configuration. Service commands use the current user's systemd manager and do
-not require `sudo`.
-
-List the identities available from the upstream agent:
+On the host, point the agent at the controller. The command generates the
+agent's key pair, prints its fingerprint, and shows the controller's host-key
+fingerprint for you to accept.
 
 ```bash
-wyrwood keys
+sudo wyrwood agent login ssh://controller.example.internal:2222
+sudo systemctl enable --now wyrwood-agent
 ```
 
-Fingerprints are authorization identities. Agent comments are display labels
-only.
+Sign in to the controller's web interface through your identity provider,
+open **Agents**, and approve the pending key after comparing its fingerprint
+with the one the login command printed. The host's containers appear once
+the agent reports in.
 
-## Create a consumer
+![Agents page with one key pending approval](assets/web-agents.png)
 
-Every managed configuration change starts from the exact current revision. The
-following example creates a consumer named `teal` with one allowed key:
+## Write a policy
+
+Open **Policies** and create one. A policy has three parts:
+
+1. The OpenBao policy, in HCL. For example, read access to one KV path and
+   signing with one Transit key:
+
+   ```hcl
+   path "kv/data/teams/teal/*" {
+     capabilities = ["read"]
+   }
+   path "transit/sign/teal-github" {
+     capabilities = ["update"]
+   }
+   path "transit/keys/teal-github" {
+     capabilities = ["read"]
+   }
+   ```
+
+2. The SSH identities the agent socket should offer. Name the Transit key
+   `teal-github`. Name an SSH-engine role if a host you reach trusts the
+   OpenBao CA.
+
+3. The contract. The default mounts the consumer directory at `/run/wyrwood`
+   and sets `SSH_AUTH_SOCK` and `VAULT_ADDR` to the sockets inside it. Set
+   the access group to the numeric group your container's processes use.
+   Leave enforcement at `report` unless you want the agent to recreate the
+   container with the mount applied when you bind it.
+
+![Policy editor with a saved policy](assets/web-policy.png)
+
+## Bind a container
+
+Open **Containers**, select the container, and choose the policy. The
+controller binds by the most stable key the container offers and shows which
+one it used. The agent creates the container's consumer directory, obtains
+its OpenBao token, and checks the contract.
+
+![Binding a container to a recreate policy](assets/web-bind.png)
+
+A container created without the mount is reported as non-conforming. Either
+add the mount and environment to the container's definition and recreate it
+yourself, or set the policy's enforcement to `recreate` and bind again. A
+recreate stops, removes, and creates the container once. Anything outside a
+mount or volume is discarded, and an attached editor session reconnects.
+
+![A bound container that conforms to its contract](assets/web-containers.png)
+
+For a devcontainer, the equivalent definition is:
+
+```json
+{
+  "mounts": [
+    "source=/run/wyrwood/containers/${devcontainerId},target=/run/wyrwood,type=bind"
+  ],
+  "containerEnv": {
+    "SSH_AUTH_SOCK": "/run/wyrwood/ssh-agent.sock",
+    "VAULT_ADDR": "unix:///run/wyrwood/vault.sock"
+  }
+}
+```
+
+## Use the sockets
+
+Inside the container:
 
 ```bash
-runtime_root="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-revision=$(wyrwood configuration show --output json |
-  jq -r '.result.revision')
-wyrwood keys
-read -r -p "Fingerprint to allow: " fingerprint
-
-wyrwood consumer put \
-  --revision "$revision" \
-  --name teal \
-  --socket "$runtime_root/teal/agent.sock" \
-  --fingerprint "$fingerprint"
+bao kv get kv/teams/teal/example
+ssh-add -L
+git -c core.sshCommand=ssh push
 ```
 
-The consumer socket needs a dedicated parent directory. Wyrwood can create that
-leaf directory when its ancestor already exists; it does not create missing
-ancestors. Keep the socket path short enough for the Linux Unix-domain socket
-limit.
-
-Saving configuration does not alter the running policy. Apply it explicitly:
-
-```bash
-wyrwood apply
-wyrwood status
-```
-
-## Mount the consumer directory
-
-Mount the socket's parent directory into the container, then point the
-container's `SSH_AUTH_SOCK` at the mounted socket. Mount the directory, not the
-socket file, so replacement remains visible inside a running container.
-
-```bash
-docker run --rm -it \
-  --mount type=bind,src="$runtime_root/teal",dst=/run/example \
-  --env SSH_AUTH_SOCK=/run/example/agent.sock \
-  debian:stable-slim
-```
-
-Any process that can reach the consumer socket shares its configured authority.
-Use container runtime mounts and Linux filesystem permissions to limit that
-access.
+The first command carries the container's token without the container ever
+seeing it. The second lists the Transit key. The third signs the push in
+OpenBao.
