@@ -174,10 +174,13 @@ func (manager *Manager) DeletePolicy(ctx context.Context, name string) error {
 }
 
 // WriteRole creates or updates a binding AppRole: one-use secret identifiers
-// and tokens carrying exactly the given policy, time-to-live, and maximum
-// lifetime.
+// and tokens carrying exactly the given managed policy, time-to-live, and
+// maximum lifetime.
 func (manager *Manager) WriteRole(ctx context.Context, role, policyName string, tokenTTL, tokenMaxTTL time.Duration) error {
 	if err := managed(role); err != nil {
+		return err
+	}
+	if err := managed(policyName); err != nil {
 		return err
 	}
 	client, err := manager.authorized(ctx)

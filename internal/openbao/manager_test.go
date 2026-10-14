@@ -9,6 +9,7 @@ package openbao
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -169,5 +170,23 @@ func TestErrorsNeverCarryRawText(t *testing.T) {
 	_, err = AppRoleLogin(context.Background(), client, "approle", "role", "secret-value")
 	if err == nil || CategoryOf(err) != CategoryUnavailable || err.Error() != "openbao unavailable" {
 		t.Fatalf("AppRoleLogin() = %v", err)
+	}
+}
+
+func TestBindingRolesCarryOnlyManagedPolicies(t *testing.T) {
+	ctx := context.Background()
+	_, manager := testManager(t)
+	for _, policyName := range []string{baotest.ControllerName, "root", "default", "wyrwood-", ""} {
+		var invalid *Error
+		if err := manager.WriteRole(ctx, "wyrwood-host-a-1", policyName, time.Hour, time.Hour); !errors.As(err, &invalid) || invalid.Category != CategoryInvalid {
+			t.Errorf("WriteRole(policy %q) = %v, want invalid", policyName, err)
+		}
+	}
+	client, err := manager.authorized(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if role, err := client.Logical().ReadWithContext(ctx, "auth/approle/role/wyrwood-host-a-1"); err != nil || role != nil {
+		t.Fatalf("a rejected role was written: %v, %v", role, err)
 	}
 }
