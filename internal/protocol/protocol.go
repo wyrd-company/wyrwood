@@ -221,6 +221,10 @@ type OpenBao struct {
 	Address   string `json:"address"`
 	CAPEM     string `json:"ca-pem,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
+	// TransitMount and SSHMount name the mounts the policy's Transit keys
+	// and SSH-engine roles live under.
+	TransitMount string `json:"transit-mount,omitempty"`
+	SSHMount     string `json:"ssh-mount,omitempty"`
 }
 
 // Binding is one binding that matches a container in the latest inventory.

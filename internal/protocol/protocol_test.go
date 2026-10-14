@@ -33,7 +33,7 @@ func sampleMessages() []Message {
 		ContractResult{Binding: "b-1", Outcome: OutcomeRecreated, ContainerID: containerID},
 		ContractResult{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonCreateFailed},
 		CredentialRequest{Binding: "b-1"},
-		PolicySet{OpenBao: OpenBao{Address: "https://bao.example:8200", CAPEM: "-----BEGIN CERTIFICATE-----", Namespace: "team"}, Bindings: []Binding{{
+		PolicySet{OpenBao: OpenBao{Address: "https://bao.example:8200", CAPEM: "-----BEGIN CERTIFICATE-----", Namespace: "team", TransitMount: "transit", SSHMount: "ssh"}, Bindings: []Binding{{
 			Binding: "b-1", Key: Key{Kind: KeyName, Value: "web"}, Policy: policy.New("teal", `path "kv/*" {}`),
 		}}},
 		PolicySet{OpenBao: OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []Binding{}},

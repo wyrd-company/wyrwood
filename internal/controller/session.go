@@ -39,6 +39,10 @@ type agentSession struct {
 	closer     io.Closer
 	cancel     context.CancelFunc
 
+	// pushMu serializes computing and sending policy sets so a newer set
+	// is never overtaken by an older one.
+	pushMu sync.Mutex
+
 	mu sync.Mutex
 	// credentialed maps each binding the agent received a credential for in
 	// this session to the policy that credential carried.
@@ -181,6 +185,8 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 // push sends the policy set for the latest inventory and a credential for
 // every matched binding the agent does not yet hold one for.
 func (session *agentSession) push(ctx context.Context) error {
+	session.pushMu.Lock()
+	defer session.pushMu.Unlock()
 	controller := session.controller
 	readCtx, cancel := context.WithTimeout(ctx, operationTimeout)
 	defer cancel()

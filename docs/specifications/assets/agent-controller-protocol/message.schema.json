@@ -113,7 +113,9 @@
           "properties": {
             "address": { "type": "string", "format": "uri" },
             "ca-pem": { "type": "string" },
-            "namespace": { "type": "string" }
+            "namespace": { "type": "string" },
+            "transit-mount": { "type": "string" },
+            "ssh-mount": { "type": "string" }
           }
         },
         "bindings": {

@@ -1,0 +1,325 @@
+{
+ "Id": "592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3",
+ "Created": "2026-10-14T04:14:32.561249736Z",
+ "Path": "/bin/sh",
+ "Args": [
+  "-c",
+  "sleep 3600"
+ ],
+ "State": {
+  "Status": "running",
+  "Running": true,
+  "Paused": false,
+  "Restarting": false,
+  "OOMKilled": false,
+  "Dead": false,
+  "Pid": 32758,
+  "ExitCode": 0,
+  "Error": "",
+  "StartedAt": "2026-10-14T04:14:32.66738219Z",
+  "FinishedAt": "0001-01-01T00:00:00Z"
+ },
+ "Image": "sha256:597f62847dd382382056a1d6704d50465908c2040038c4611832a23269a67112",
+ "ResolvConfPath": "/var/lib/docker/containers/592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3/resolv.conf",
+ "HostnamePath": "/var/lib/docker/containers/592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3/hostname",
+ "HostsPath": "/var/lib/docker/containers/592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3/hosts",
+ "LogPath": "/var/lib/docker/containers/592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3/592dbe0641d42d492a20297f6f3d13084ab01087236cc4cf63c6cc8cb15c36c3-json.log",
+ "Name": "/wyr-fixture",
+ "RestartCount": 0,
+ "Driver": "overlayfs",
+ "Platform": "linux",
+ "MountLabel": "",
+ "ProcessLabel": "",
+ "AppArmorProfile": "",
+ "ExecIDs": null,
+ "HostConfig": {
+  "Binds": [
+   "wyr-named:/named",
+   "/srv/fixture/bind:/bind:ro"
+  ],
+  "ContainerIDFile": "",
+  "LogConfig": {
+   "Type": "json-file",
+   "Config": {}
+  },
+  "NetworkMode": "wyr-a",
+  "PortBindings": {
+   "8080/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "18080"
+    }
+   ]
+  },
+  "RestartPolicy": {
+   "Name": "unless-stopped",
+   "MaximumRetryCount": 0
+  },
+  "AutoRemove": false,
+  "VolumeDriver": "",
+  "VolumesFrom": null,
+  "ConsoleSize": [
+   0,
+   0
+  ],
+  "CapAdd": null,
+  "CapDrop": null,
+  "CgroupnsMode": "host",
+  "Dns": null,
+  "DnsOptions": [],
+  "DnsSearch": [],
+  "ExtraHosts": null,
+  "GroupAdd": null,
+  "IpcMode": "private",
+  "Cgroup": "",
+  "Links": null,
+  "OomScoreAdj": 0,
+  "PidMode": "",
+  "Privileged": false,
+  "PublishAllPorts": false,
+  "ReadonlyRootfs": false,
+  "SecurityOpt": null,
+  "UTSMode": "",
+  "UsernsMode": "",
+  "ShmSize": 67108864,
+  "Runtime": "runc",
+  "Isolation": "",
+  "CpuShares": 0,
+  "Memory": 67108864,
+  "NanoCpus": 500000000,
+  "CgroupParent": "",
+  "BlkioWeight": 0,
+  "BlkioWeightDevice": [],
+  "BlkioDeviceReadBps": [],
+  "BlkioDeviceWriteBps": [],
+  "BlkioDeviceReadIOps": [],
+  "BlkioDeviceWriteIOps": [],
+  "CpuPeriod": 0,
+  "CpuQuota": 0,
+  "CpuRealtimePeriod": 0,
+  "CpuRealtimeRuntime": 0,
+  "CpusetCpus": "",
+  "CpusetMems": "",
+  "Devices": [],
+  "DeviceCgroupRules": null,
+  "DeviceRequests": null,
+  "MemoryReservation": 0,
+  "MemorySwap": 134217728,
+  "MemorySwappiness": null,
+  "OomKillDisable": false,
+  "PidsLimit": null,
+  "Ulimits": null,
+  "CpuCount": 0,
+  "CpuPercent": 0,
+  "IOMaximumIOps": 0,
+  "IOMaximumBandwidth": 0,
+  "MaskedPaths": [
+   "/proc/acpi",
+   "/proc/asound",
+   "/proc/interrupts",
+   "/proc/kcore",
+   "/proc/keys",
+   "/proc/latency_stats",
+   "/proc/sched_debug",
+   "/proc/scsi",
+   "/proc/timer_list",
+   "/proc/timer_stats",
+   "/sys/devices/virtual/powercap",
+   "/sys/firmware"
+  ],
+  "ReadonlyPaths": [
+   "/proc/bus",
+   "/proc/fs",
+   "/proc/irq",
+   "/proc/sys",
+   "/proc/sysrq-trigger"
+  ]
+ },
+ "Storage": {
+  "RootFS": {
+   "Snapshot": {
+    "Name": "overlayfs"
+   }
+  }
+ },
+ "Mounts": [
+  {
+   "Type": "bind",
+   "Source": "/srv/fixture/bind",
+   "Destination": "/bind",
+   "Mode": "ro",
+   "RW": false,
+   "Propagation": "rprivate"
+  },
+  {
+   "Type": "volume",
+   "Name": "b14c1fbe36a864edcca60f2acf9126c8c3cc5b02d7dbf65ac67908bb072e4bd9",
+   "Source": "/var/lib/docker/volumes/b14c1fbe36a864edcca60f2acf9126c8c3cc5b02d7dbf65ac67908bb072e4bd9/_data",
+   "Destination": "/data",
+   "Driver": "local",
+   "Mode": "",
+   "RW": true,
+   "Propagation": ""
+  },
+  {
+   "Type": "volume",
+   "Name": "wyr-named",
+   "Source": "/var/lib/docker/volumes/wyr-named/_data",
+   "Destination": "/named",
+   "Driver": "local",
+   "Mode": "z",
+   "RW": true,
+   "Propagation": ""
+  },
+  {
+   "Type": "volume",
+   "Name": "76f60830c33d5a8deeac39382e5480be0dac9b0f21098c3c3bfebcd71d1e8d04",
+   "Source": "/var/lib/docker/volumes/76f60830c33d5a8deeac39382e5480be0dac9b0f21098c3c3bfebcd71d1e8d04/_data",
+   "Destination": "/openbao/file",
+   "Driver": "local",
+   "Mode": "",
+   "RW": true,
+   "Propagation": ""
+  },
+  {
+   "Type": "volume",
+   "Name": "d9aff2de51a68fa3507eb6fe34a6d41b6dba042a30056b471b16bec40c02369a",
+   "Source": "/var/lib/docker/volumes/d9aff2de51a68fa3507eb6fe34a6d41b6dba042a30056b471b16bec40c02369a/_data",
+   "Destination": "/openbao/logs",
+   "Driver": "local",
+   "Mode": "",
+   "RW": true,
+   "Propagation": ""
+  }
+ ],
+ "Config": {
+  "Hostname": "592dbe0641d4",
+  "Domainname": "",
+  "User": "100:1000",
+  "AttachStdin": false,
+  "AttachStdout": true,
+  "AttachStderr": true,
+  "ExposedPorts": {
+   "8080/tcp": {},
+   "8200/tcp": {}
+  },
+  "Tty": false,
+  "OpenStdin": false,
+  "StdinOnce": false,
+  "Env": [
+   "KEEP=1",
+   "VAULT_ADDR=wrong",
+   "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+   "NAME=openbao",
+   "VERSION="
+  ],
+  "Cmd": [
+   "-c",
+   "sleep 3600"
+  ],
+  "Image": "openbao/openbao:2.4.1",
+  "Volumes": {
+   "/data": {},
+   "/openbao/file": {},
+   "/openbao/logs": {}
+  },
+  "WorkingDir": "/work",
+  "Entrypoint": [
+   "/bin/sh"
+  ],
+  "Labels": {
+   "com.docker.compose.project": "shop",
+   "com.docker.compose.service": "web",
+   "description": "OpenBao is a tool for securely accessing secrets. A secret is anything that you want to tightly control access to, such as API keys, passwords, certificates, and more. OpenBao provides a unified interface to any secret, while providing tight access control and recording a detailed audit log.",
+   "devcontainer.local_folder": "/src/shop",
+   "maintainer": "OpenBao <openbao@lists.openssf.org>",
+   "name": "OpenBao",
+   "org.opencontainers.image.created": "2025-09-11T20:44:48Z",
+   "org.opencontainers.image.description": "OpenBao 2.4.1",
+   "org.opencontainers.image.documentation": "https://github.com/openbao/openbao/blob/main/README.md",
+   "org.opencontainers.image.licenses": "MPL-2.0",
+   "org.opencontainers.image.revision": "efb9efa12f550e8322f3cec040862355e966f565",
+   "org.opencontainers.image.source": "https://github.com/openbao/openbao",
+   "org.opencontainers.image.title": "bao",
+   "org.opencontainers.image.url": "https://github.com/openbao/openbao",
+   "org.opencontainers.image.vendor": "OpenBao",
+   "org.opencontainers.image.version": "2.4.1",
+   "release": "2.4.1",
+   "revision": "efb9efa12f550e8322f3cec040862355e966f565",
+   "summary": "OpenBao is a tool for securely accessing secrets.",
+   "vendor": "OpenBao",
+   "version": "2.4.1"
+  },
+  "StopTimeout": 7
+ },
+ "NetworkSettings": {
+  "SandboxID": "45e83c8adc5548a46afd3d960c4b76a61a9c8dcf4d67fbeb4c28641b3639b7b0",
+  "SandboxKey": "/var/run/docker/netns/45e83c8adc55",
+  "Ports": {
+   "8080/tcp": [
+    {
+     "HostIp": "127.0.0.1",
+     "HostPort": "18080"
+    }
+   ],
+   "8200/tcp": null
+  },
+  "Networks": {
+   "wyr-a": {
+    "IPAMConfig": null,
+    "Links": null,
+    "Aliases": [
+     "web-alias"
+    ],
+    "DriverOpts": null,
+    "GwPriority": 0,
+    "NetworkID": "4c20634493eae884e8d82170b77a35d518f7231d627475c82ef8afb804b3f27e",
+    "EndpointID": "6b10105b4799898d34958744822a6c7ee0dc38d0136871263013c9e743c5cf6a",
+    "Gateway": "172.18.0.1",
+    "IPAddress": "172.18.0.2",
+    "MacAddress": "7e:37:d3:e9:29:be",
+    "IPPrefixLen": 16,
+    "IPv6Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "DNSNames": [
+     "wyr-fixture",
+     "web-alias",
+     "592dbe0641d4"
+    ]
+   },
+   "wyr-b": {
+    "IPAMConfig": {},
+    "Links": null,
+    "Aliases": [
+     "second-alias"
+    ],
+    "DriverOpts": {},
+    "GwPriority": 0,
+    "NetworkID": "9811f5cc010d65dc66bfc7fd4efe68f37e2e4e77e1944223baf7dfa2c4652cac",
+    "EndpointID": "a8450bc22e56cd8321f478dc8383766973e427220965090c7f8d3d71fc12bacb",
+    "Gateway": "172.19.0.1",
+    "IPAddress": "172.19.0.2",
+    "MacAddress": "36:e4:ae:e9:d5:84",
+    "IPPrefixLen": 16,
+    "IPv6Gateway": "",
+    "GlobalIPv6Address": "",
+    "GlobalIPv6PrefixLen": 0,
+    "DNSNames": [
+     "wyr-fixture",
+     "second-alias",
+     "592dbe0641d4"
+    ]
+   }
+  }
+ },
+ "ImageManifestDescriptor": {
+  "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+  "digest": "sha256:06a26f632cd0bdd0fd6e25034f55d68bc28b62590adc8efea3b8dacade11579a",
+  "size": 1987,
+  "platform": {
+   "architecture": "amd64",
+   "os": "linux"
+  }
+ }
+}

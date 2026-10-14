@@ -90,7 +90,10 @@ func New(configuration config.Controller, options Options) (*Controller, error) 
 		_ = database.Close()
 		return nil, fmt.Errorf("open events: %w", err)
 	}
-	agentOpenBao := protocol.OpenBao{Address: configuration.OpenBao.Address, Namespace: configuration.OpenBao.Namespace}
+	agentOpenBao := protocol.OpenBao{
+		Address: configuration.OpenBao.Address, Namespace: configuration.OpenBao.Namespace,
+		TransitMount: configuration.OpenBao.TransitMount, SSHMount: configuration.OpenBao.SSHMount,
+	}
 	if configuration.OpenBao.CAFile != "" {
 		data, err := os.ReadFile(configuration.OpenBao.CAFile)
 		if err != nil {

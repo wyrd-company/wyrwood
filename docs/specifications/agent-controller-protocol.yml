@@ -29,8 +29,9 @@ description: >-
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory: binding identifier, the matched key, the
-  complete policy document and revision, the OpenBao address, CA, and
-  namespace. `credential` carries a binding identifier, the AppRole mount and
+  complete policy document and revision, the OpenBao address, CA,
+  namespace, and the Transit and SSH-engine mount names the controller
+  manages. `credential` carries a binding identifier, the AppRole mount and
   role identifier, and a response-wrapped secret identifier whose wrapping
   time-to-live is at most 5 minutes. `recreate-request` names a binding for
   an operator-requested recreate. `unbind` names a binding to retire.
