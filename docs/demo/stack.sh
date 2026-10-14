@@ -18,8 +18,8 @@
 #   docs/demo/stack.sh down    stop everything and remove all demo state
 #
 # Requires Docker Engine on this host, sudo, Go, curl, and jq. The agent runs
-# as root with its default paths, so do not run this on a host that already
-# runs a Wyrwood agent.
+# as root with its default paths. up refuses to start when any of those paths
+# exists, and down removes them only when this demo created them.
 set -euo pipefail
 
 repository=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -31,6 +31,10 @@ ssh_port=12222
 workload_image=wyrwood-demo-workload:local
 root_token=wyrwood-demo-root
 engine=$root/engine
+agent_paths=(/etc/wyrwood /var/lib/wyrwood /run/wyrwood)
+# up records that it created the agent paths, so down never removes the
+# state of an agent this demo did not configure.
+owned=$root/agent-paths-owned
 
 engine_docker() {
 	sudo docker -H "unix://$engine/docker.sock" "$@"
@@ -53,12 +57,22 @@ wait_for() {
 	return 1
 }
 
+# demo_owns_agent_paths reports whether up created the agent paths and the
+# agent configuration still names the demo controller.
+demo_owns_agent_paths() {
+	[ -f "$owned" ] && ! sudo test -L /etc/wyrwood/agent.yml &&
+		sudo grep -qE "^[[:space:]]+url: ssh://127\.0\.0\.1:$ssh_port\$" /etc/wyrwood/agent.yml 2>/dev/null
+}
+
 up() {
-	if [ -e /etc/wyrwood ] || [ -e /var/lib/wyrwood ]; then
-		echo "an agent is already configured on this host; run down first" >&2
-		exit 1
-	fi
+	for path in "${agent_paths[@]}"; do
+		if sudo test -e "$path"; then
+			echo "$path exists: this host has Wyrwood agent state; the demo will not touch it" >&2
+			exit 1
+		fi
+	done
 	mkdir -p "$root/bin" "$root/controller"
+	: >"$owned"
 	(cd "$repository" && go build -o "$root/bin/wyrwood" ./cmd/wyrwood)
 	docker build --quiet --tag "$workload_image" "$repository/internal/integration/testdata" >/dev/null
 
@@ -184,7 +198,12 @@ down() {
 		done
 	fi
 	sudo ip link delete wyrwood-demo0 2>/dev/null || true
-	sudo rm -rf /etc/wyrwood /var/lib/wyrwood /run/wyrwood
+	if demo_owns_agent_paths; then
+		sudo rm -rf -- "${agent_paths[@]}"
+	elif [ -f "$owned" ]; then
+		echo "agent configuration does not name the demo controller; leaving ${agent_paths[*]} in place" >&2
+	fi
+	rm -f -- "$owned"
 	case "$root" in
 	/tmp/wyrwood-demo*) sudo rm -rf -- "$root" ;;
 	esac
