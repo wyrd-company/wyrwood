@@ -62,12 +62,12 @@ func startHarnessWith(t *testing.T, wrap func(OpenBao) OpenBao) *harness {
 	state := t.TempDir()
 	configuration := config.Controller{
 		HTTPListen: freeAddress(t), SSHListen: freeAddress(t), StateDirectory: state, SessionTTL: time.Hour,
-		OpenBao: config.ControllerOpenBao{Address: bao.Address, AppRoleMount: "approle", RoleID: roleID,
+		OpenBao: config.ControllerOpenBao{Address: bao.Address, Namespace: bao.Namespace, AppRoleMount: "approle", RoleID: roleID,
 			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
 	}
 	options := Options{}
 	if wrap != nil {
-		client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Timeout: 5 * time.Second})
+		client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Namespace: bao.Namespace, Timeout: 5 * time.Second})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -264,7 +264,7 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	if err != nil || role == nil || fmt.Sprint(role.Data["token_max_ttl"]) != "28800" {
 		t.Fatalf("binding AppRole token_max_ttl = %v, %v; want the policy's 8h default", role, err)
 	}
-	client, _ := openbao.NewClient(openbao.Endpoint{Address: harness.bao.Address, Timeout: 5 * time.Second})
+	client, _ := openbao.NewClient(openbao.Endpoint{Address: harness.bao.Address, Namespace: harness.bao.Namespace, Timeout: 5 * time.Second})
 	secretID, err := openbao.UnwrapSecretID(ctx, client, credential.WrappedSecretID)
 	if err != nil {
 		t.Fatalf("UnwrapSecretID() = %v", err)
@@ -427,7 +427,7 @@ func TestUnbindingAnUnreportedTokenOfADisconnectedAgentSaysItStaysValid(t *testi
 // tokenValid reports whether token still authenticates to OpenBao.
 func tokenValid(t *testing.T, bao *baotest.Server, token openbao.Token) bool {
 	t.Helper()
-	client, err := bao.Root.Clone()
+	client, err := bao.Root.CloneWithHeaders()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +465,7 @@ func TestUnbindingReportsATokenOpenBaoDidNotRevoke(t *testing.T) {
 	if withdrawn == baotest.ControllerPolicy {
 		t.Fatal("the controller policy does not grant revoke-accessor")
 	}
-	if err := harness.bao.Root.Sys().PutPolicy("wyrwood-controller", withdrawn); err != nil {
+	if err := harness.bao.Root.Sys().PutPolicy(baotest.ControllerName, withdrawn); err != nil {
 		t.Fatal(err)
 	}
 	err = controller.DeleteBinding(ctx, binding.ID, "operator-1")
@@ -567,7 +567,7 @@ func appRoleLogin(t *testing.T, bao *baotest.Server, role string) (openbao.Token
 	if err != nil || secret == nil {
 		return openbao.Token{}, fmt.Errorf("secret-id: %v", err)
 	}
-	client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Timeout: 5 * time.Second})
+	client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Namespace: bao.Namespace, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}

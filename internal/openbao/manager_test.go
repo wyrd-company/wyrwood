@@ -24,7 +24,7 @@ func testManager(t *testing.T) (*baotest.Server, *Manager) {
 	t.Helper()
 	server := baotest.Start(t)
 	roleID, secretFile := server.ControllerCredentials(t)
-	client, err := NewClient(Endpoint{Address: server.Address, Timeout: 5 * time.Second})
+	client, err := NewClient(Endpoint{Address: server.Address, Namespace: server.Namespace, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 		t.Fatalf("WrappedSecretID() = %v", err)
 	}
 
-	agentClient, err := NewClient(Endpoint{Address: server.Address, Timeout: 5 * time.Second})
+	agentClient, err := NewClient(Endpoint{Address: server.Address, Namespace: server.Namespace, Timeout: 5 * time.Second})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	if _, err := AppRoleLogin(ctx, agentClient, "approle", roleID, secretID); err == nil {
 		t.Fatal("secret identifier was usable twice")
 	}
-	reader, _ := agentClient.Clone()
+	reader, _ := agentClient.CloneWithHeaders()
 	reader.SetToken(token.Value())
 	secret, err := reader.KVv2("kv").Get(ctx, "teams/teal/example")
 	if err != nil || secret.Data["value"] != "teal-secret" {
