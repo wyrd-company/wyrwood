@@ -52,10 +52,10 @@ jobs:
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           docker buildx create --name wyrwood --use
           docker buildx build \
-            --platform linux/amd64,linux/arm64 \
-            --build-arg VERSION="$RELEASE_VERSION" \
-            --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
-            --label org.opencontainers.image.version="$RELEASE_VERSION" \
-            --tag "$image:$RELEASE_VERSION" \
-            --tag "$image:latest" \
-            --push .
+          --platform linux/amd64,linux/arm64 \
+          --build-arg VERSION="$RELEASE_VERSION" \
+          --label org.opencontainers.image.source="https://github.com/$GITHUB_REPOSITORY" \
+          --label org.opencontainers.image.version="$RELEASE_VERSION" \
+          --tag "$image:$RELEASE_VERSION" \
+          --tag "$image:latest" \
+          --push .
