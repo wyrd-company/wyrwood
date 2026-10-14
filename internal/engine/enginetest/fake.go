@@ -29,6 +29,7 @@ type Fake struct {
 	FailCreate  int
 	FailRemove  int
 	FailInspect int
+	FailStart   int
 	// InspectError is what a failed inspect returns; nil means unavailable.
 	InspectError error
 }
@@ -225,6 +226,11 @@ func (fake *Fake) Create(_ context.Context, name string, body []byte) (string, e
 func (fake *Fake) Start(_ context.Context, id string) error {
 	fake.call("start")
 	fake.mu.Lock()
+	if fake.FailStart > 0 {
+		fake.FailStart--
+		fake.mu.Unlock()
+		return engine.ErrUnavailable
+	}
 	container, ok := fake.containers[id]
 	if ok {
 		container.State.Status = "running"

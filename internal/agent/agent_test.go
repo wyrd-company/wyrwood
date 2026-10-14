@@ -10,6 +10,7 @@ package agent
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -355,6 +356,41 @@ func TestRecreateOnNewBindingAndUnbind(t *testing.T) {
 	}
 	eventually(t, "unbound directory removal", func() bool {
 		_, err := os.Stat(filepath.Join(paths.Runtime, "containers", "app"))
+		return os.IsNotExist(err)
+	})
+}
+
+func TestInterruptionReportReachesTheController(t *testing.T) {
+	ctx := context.Background()
+	bao := baotest.Start(t)
+	controller := controllertest.Start(t, bao)
+	paths := newPaths(t)
+	first := login(t, paths, controller.URL, controller.Fingerprint)
+	if err := controller.DecideAgent(ctx, first.AgentFingerprint, true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
+	document.Contract.Enforcement = policy.EnforcementRecreate
+	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	key := protocol.Key{Kind: protocol.KeyName, Value: "app"}
+	bound, err := controller.CreateBinding(ctx, "host-a", key, "recreate", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// An earlier agent process stopped app and exited before creating it.
+	journal, _ := json.Marshal(recreateJournal{Version: 1, Binding: bound.ID, Key: key})
+	if err := writeOwnerOnly(paths.RecreateJournal("app"), journal, false); err != nil {
+		t.Fatal(err)
+	}
+	startAgent(t, paths, enginetest.New(), true)
+	eventually(t, "recreate-failed at the controller", func() bool {
+		results, _ := controller.Store().ContractResults(ctx)
+		return results[bound.ID].Outcome == protocol.OutcomeRecreateFailed
+	})
+	eventually(t, "journal removal after delivery", func() bool {
+		_, err := os.Stat(paths.RecreateJournal("app"))
 		return os.IsNotExist(err)
 	})
 }
