@@ -313,6 +313,45 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	}
 }
 
+func TestUnbindingADisconnectedAgentSaysTheTokenStaysValid(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	controller := harness.controller
+	key := newAgentKey(t)
+	_, _ = harness.dial("host-a", key)
+	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = controller.DeleteBinding(ctx, binding.ID, "operator-1")
+	var operation *OperationError
+	if !errors.As(err, &operation) || operation.Code != events.ErrorControllerUnavailable ||
+		!strings.Contains(operation.Message, "stays valid") {
+		t.Fatalf("DeleteBinding(disconnected agent) = %v", err)
+	}
+	if _, err := controller.Store().Binding(ctx, binding.ID); err == nil {
+		t.Fatal("binding still stored")
+	}
+	if _, err := controller.OpenBao().RoleID(ctx, binding.Role); err == nil {
+		t.Fatal("deleted binding's AppRole still exists")
+	}
+	recorded := false
+	for _, event := range controller.Events().Recent(1000) {
+		if event.Operation == events.OperationBindingDeleted {
+			recorded = event.ErrorCode == events.ErrorControllerUnavailable
+		}
+	}
+	if !recorded {
+		t.Fatal("binding-deleted event does not record the disconnected agent")
+	}
+}
+
 func TestSessionRejectsMessagesBeforeHelloAndUnknownTypes(t *testing.T) {
 	ctx := context.Background()
 	harness := startHarness(t)

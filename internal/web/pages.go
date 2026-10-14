@@ -74,12 +74,14 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 // notices are fixed messages selected by a redirect's query, so no request
 // data is ever echoed into a page.
 var notices = map[string]string{
-	"approved":   "Agent approved. It can connect now.",
-	"rejected":   "Agent key rejected.",
-	"bound":      "Policy bound. The agent receives it on its next report.",
-	"changed":    "Binding moved to the new policy. The agent obtains a fresh token.",
-	"recreate":   "Recreate requested. The agent reports the result.",
-	"unbound":    "Binding removed and its AppRole deleted. The agent revokes the token.",
+	"approved": "Agent approved. It can connect now.",
+	"rejected": "Agent key rejected.",
+	"bound":    "Policy bound. The agent receives it on its next report.",
+	"changed":  "Binding moved to the new policy. The agent obtains a fresh token.",
+	"recreate": "Recreate requested. The agent reports the result.",
+	"unbound":  "Binding removed and its AppRole deleted. The agent revokes the token.",
+	"unbound-offline": "Binding removed and its AppRole deleted. The agent is not connected, so the container's token " +
+		"stays valid until the agent reconnects and revokes it, or until the token expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",
 	"key":        "Transit key created.",
 	"rotated":    "Transit key rotated. Agents list the new version on the next request.",
@@ -470,7 +472,7 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
 	server.render(writer, request, "confirm", confirmPage{
 		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
-		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The agent revokes the container's token and removes its consumer directory; the container's sockets stop answering.",
+		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The agent revokes the container's token and removes its consumer directory; the container's sockets stop answering. If the agent is not connected, the token stays valid until the agent reconnects or the token expires.",
 		Action: "/bindings/" + url.PathEscape(binding.ID) + "/unbind", Button: "Unbind and revoke AppRole", Danger: true, Back: back,
 	})
 }
@@ -478,7 +480,14 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 func (server *Server) handleUnbind(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
 	_, back := server.bindingBack(request.Context(), id)
-	if err := server.controller.DeleteBinding(request.Context(), id, operatorSubject(request)); err != nil {
+	err := server.controller.DeleteBinding(request.Context(), id, operatorSubject(request))
+	var operation *controller.OperationError
+	if errors.As(err, &operation) && operation.Code == events.ErrorControllerUnavailable {
+		// The binding is gone; only the revocation waits for the agent.
+		http.Redirect(writer, request, back+"&notice=unbound-offline", http.StatusSeeOther)
+		return
+	}
+	if err != nil {
 		base := server.layout(request, "Containers", "containers")
 		base.Problem = problemMessage(err)
 		server.renderProblem(writer, request, base, back)

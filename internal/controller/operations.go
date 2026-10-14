@@ -208,15 +208,20 @@ func (controller *Controller) ChangeBinding(ctx context.Context, id, policyName,
 }
 
 // DeleteBinding retires a binding: the agent revokes its token, and the
-// binding's AppRole is deleted.
+// binding's AppRole is deleted. Deleting the AppRole stops new logins but
+// does not revoke a token already issued, so when the agent is not
+// connected the binding is still removed and the error says that the
+// token stays valid until the agent reconnects or the token expires.
 func (controller *Controller) DeleteBinding(ctx context.Context, id, operator string) error {
 	started := controller.now()
 	binding, err := controller.store.Binding(ctx, id)
 	if err != nil {
 		return operationError(events.ErrorNotBound, "the binding does not exist")
 	}
-	_ = controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID})
 	code := events.ErrorNone
+	if err := controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}); err != nil {
+		code = events.ErrorControllerUnavailable
+	}
 	if err := controller.openbao.DeleteRole(ctx, binding.Role); err != nil {
 		code = openBaoError(err)
 	}
@@ -230,10 +235,15 @@ func (controller *Controller) DeleteBinding(ctx context.Context, id, operator st
 		return operationError(code, "the binding could not be removed")
 	}
 	controller.hub.pushAgent(ctx, binding.Agent)
-	if code != events.ErrorNone {
+	switch code {
+	case events.ErrorNone:
+		return nil
+	case events.ErrorControllerUnavailable:
+		return operationError(code, "the binding was removed, but its agent is not connected: the container's token "+
+			"stays valid until the agent reconnects and revokes it, or until the token expires")
+	default:
 		return operationError(code, "the binding was removed but OpenBao could not delete its AppRole")
 	}
-	return nil
 }
 
 // RequestRecreate asks the agent to recreate a bound container with its contract.
