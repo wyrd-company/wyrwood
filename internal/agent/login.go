@@ -104,9 +104,13 @@ func Login(ctx context.Context, options LoginOptions) (LoginResult, error) {
 	if err != nil {
 		return result, ErrUnreachable
 	}
+	// The timeout and ctx bound the SSH handshake as well as the dial.
+	_ = connection.SetDeadline(time.Now().Add(options.Timeout))
+	stop := context.AfterFunc(ctx, func() { _ = connection.Close() })
 	clientConnection, channels, requests, err := ssh.NewClientConn(connection, address, &ssh.ClientConfig{
 		User: hostname, Auth: []ssh.AuthMethod{ssh.PublicKeys(signer)}, HostKeyCallback: callback,
 	})
+	stop()
 	approved := err == nil
 	if approved {
 		_ = ssh.NewClient(clientConnection, channels, requests).Close()
