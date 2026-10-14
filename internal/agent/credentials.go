@@ -19,6 +19,11 @@ import (
 )
 
 // credentials holds one OpenBao token per binding in memory only.
+//
+// Each credential delivery carries a generation taken when the agent
+// receives it. Receiving a newer credential, changing the binding's policy,
+// and retiring the binding each advance the generation, so a delivery that
+// completes late cannot replace a newer token or outlive its binding.
 type credentials struct {
 	timeout time.Duration
 	now     func() time.Time
@@ -26,10 +31,12 @@ type credentials struct {
 	record  func(events.Event)
 	keyOf   func(binding string) string
 
-	mu       sync.Mutex
-	endpoint protocol.OpenBao
-	client   *api.Client
-	held     map[string]*heldToken
+	mu         sync.Mutex
+	endpoint   protocol.OpenBao
+	client     *api.Client
+	held       map[string]*heldToken
+	next       uint64
+	generation map[string]uint64
 }
 
 type heldToken struct {
@@ -40,7 +47,7 @@ type heldToken struct {
 func newCredentials(timeout time.Duration, request func(string), record func(events.Event), keyOf func(string) string) *credentials {
 	return &credentials{
 		timeout: timeout, now: time.Now, request: request, record: record, keyOf: keyOf,
-		held: map[string]*heldToken{},
+		held: map[string]*heldToken{}, generation: map[string]uint64{},
 	}
 }
 
@@ -80,9 +87,31 @@ func (manager *credentials) current(binding string) (openbao.Token, bool) {
 	return held.token, true
 }
 
+// begin starts a credential delivery for binding and returns its
+// generation. Call it in message order, before deliver runs.
+func (manager *credentials) begin(binding string) uint64 {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return manager.advanceLocked(binding)
+}
+
+// invalidate makes every delivery already begun for binding stale.
+func (manager *credentials) invalidate(binding string) {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	manager.advanceLocked(binding)
+}
+
+func (manager *credentials) advanceLocked(binding string) uint64 {
+	manager.next++
+	manager.generation[binding] = manager.next
+	return manager.next
+}
+
 // deliver unwraps a credential, logs in, and replaces the binding's token.
-// The previous token is revoked once the new one is held.
-func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential) {
+// The previous token is revoked once the new one is held. A token from a
+// stale delivery is revoked instead of held.
+func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64) {
 	client := manager.openBaoClient()
 	started := manager.now()
 	if client == nil {
@@ -102,6 +131,12 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 	}
 	renewCtx, renewCancel := context.WithCancel(context.Background())
 	manager.mu.Lock()
+	if manager.generation[credential.Binding] != generation {
+		manager.mu.Unlock()
+		renewCancel()
+		manager.revoke(credential.Binding, token)
+		return
+	}
 	previous := manager.held[credential.Binding]
 	manager.held[credential.Binding] = &heldToken{token: token, cancel: renewCancel}
 	manager.mu.Unlock()
@@ -167,11 +202,13 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 	}
 }
 
-// retire stops renewal and revokes the binding's token.
+// retire stops renewal and revokes the binding's token. Deliveries already
+// begun for the binding become stale.
 func (manager *credentials) retire(binding string) {
 	manager.mu.Lock()
 	held, ok := manager.held[binding]
 	delete(manager.held, binding)
+	delete(manager.generation, binding)
 	manager.mu.Unlock()
 	if !ok {
 		return
@@ -209,6 +246,7 @@ func (manager *credentials) stopAll() {
 	manager.mu.Lock()
 	held := manager.held
 	manager.held = map[string]*heldToken{}
+	manager.generation = map[string]uint64{}
 	manager.mu.Unlock()
 	var wait sync.WaitGroup
 	for binding, token := range held {

@@ -184,7 +184,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 		case protocol.PolicySet:
 			agent.applyPolicySet(ctx, typed)
 		case protocol.Credential:
-			go agent.creds.deliver(ctx, typed)
+			go agent.creds.deliver(ctx, typed, agent.creds.begin(typed.Binding))
 		case protocol.RecreateRequest:
 			agent.requestRecreate(ctx, typed.Binding)
 		case protocol.Unbind:

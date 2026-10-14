@@ -562,7 +562,13 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 	var fresh []protocol.Binding
 	for _, bound := range set.Bindings {
 		current[bound.Binding] = true
-		if old, ok := previous[bound.Binding]; !ok || old.Policy.Revision != bound.Policy.Revision || old.Policy.Name != bound.Policy.Name {
+		old, ok := previous[bound.Binding]
+		if ok && old.Policy.Name != bound.Policy.Name {
+			// The controller issues a credential for the new policy; a
+			// delivery for the old policy must not install its token.
+			agent.creds.invalidate(bound.Binding)
+		}
+		if !ok || old.Policy.Revision != bound.Policy.Revision || old.Policy.Name != bound.Policy.Name {
 			agent.record(events.Event{Operation: events.OperationBindingReceived, Outcome: events.OutcomeOK, Binding: bound.Binding,
 				ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value), Policy: bound.Policy.Name})
 		}
