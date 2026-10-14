@@ -6,6 +6,7 @@ relationships:
   references:
     - command-line-interface
     - operational-events
+    - web-interface
 ---
 
 Wyrwood provides human-readable output for interactive use and closed,
@@ -27,17 +28,26 @@ fingerprint failures by exit status without parsing error text.
 The controller's web interface shows agents with pending approvals,
 containers per agent with binding and conformance state, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
-behind a reverse proxy.
+behind a reverse proxy that terminates TLS.
+
+Operators sign in through the site's OpenID Connect provider. The controller
+admits an account only when its groups claim names a group listed under
+`oidc.allowed-groups`, and checks membership at every sign-in. Remove someone
+from the group in the provider to revoke their access at their next sign-in;
+their open session ends at the session time-to-live or when an operator ends
+it from **Security**. While the provider is unreachable the interface cannot
+be used, but agents keep serving containers.
 
 ## Operational events
 
 The agent and the controller each retain a bounded event history. Agent
 events cover container observation, bindings, contract checks and recreates,
 token login and renewal, vault requests by mount category, and SSH identity
-listing, signing, and certificate issuance. Controller events cover agent
-approval, sessions, policy saves, bindings, and credential issuance. Events
-contain no tokens, secret values, request bodies, paths, signatures, or raw
-upstream errors.
+listing, signing, and certificate issuance. Controller events cover operator
+sign-in and sign-out, agent approval, sessions, policy saves, bindings, and
+credential issuance, and name the operator who acted. Events contain no
+tokens, secret values, request bodies, paths, signatures, or raw upstream
+errors.
 
 ## Commands
 

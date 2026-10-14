@@ -16,19 +16,21 @@
         "ssh-list", "ssh-sign", "ssh-certificate", "ssh-session-bind",
         "agent-approved", "agent-rejected", "session-opened", "session-closed",
         "policy-saved", "binding-created", "binding-changed", "binding-deleted",
-        "credential-issued", "recreate-requested"
+        "credential-issued", "recreate-requested",
+        "operator-signed-in", "operator-signed-out"
       ]
     },
     "outcome": { "type": "string", "enum": ["ok", "denied", "failed", "timeout"] },
     "latency-ns": { "type": "integer", "minimum": 0 },
     "error": {
       "type": "string",
-      "enum": ["engine-unavailable", "controller-unavailable", "openbao-unavailable", "openbao-denied", "openbao-timeout", "no-token", "not-bound", "policy-denied", "recreate-not-allowed", "protocol", "internal"]
+      "enum": ["engine-unavailable", "controller-unavailable", "openbao-unavailable", "openbao-denied", "openbao-timeout", "no-token", "not-bound", "policy-denied", "recreate-not-allowed", "identity-provider-unavailable", "operator-not-allowed", "sign-in-invalid", "protocol", "internal"]
     },
     "agent": { "type": "string", "maxLength": 253 },
     "binding": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
     "container-key": { "type": "string", "maxLength": 512 },
     "policy": { "type": "string", "maxLength": 64 },
+    "operator": { "type": "string", "minLength": 1, "maxLength": 255 },
     "fingerprint": { "type": "string", "pattern": "^SHA256:[A-Za-z0-9+/]{43}$" },
     "mount": { "type": "string", "enum": ["kv", "transit", "ssh", "sys", "auth", "other"] },
     "method": { "type": "string", "enum": ["GET", "LIST", "POST", "PUT", "DELETE"] }

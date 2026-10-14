@@ -10,7 +10,11 @@ description: >-
   that identifies the consumer, the binding identifier, a key fingerprint
   for signing and certificate operations, and the OpenBao mount category for
   vault requests. Controller records may carry the agent name, binding
-  identifier, and policy name. A fingerprint is intentionally correlatable
+  identifier, policy name, and the OpenID Connect subject of the operator who
+  acted. `operator-signed-in` and `operator-signed-out` carry the operator
+  subject. A refused sign-in carries `operator-not-allowed`,
+  `identity-provider-unavailable`, or `sign-in-invalid` and no claim values,
+  group names, codes, or tokens. A fingerprint is intentionally correlatable
   across events.
 
   Records contain no token, secret identifier, wrapping token, HCL, request

@@ -6,4 +6,4 @@ description: >-
   restart does not interrupt running containers.
 end-descendant-type: technical-design
 evidence:
-  - A single operator governs every host today; high availability of the controller is not required.
+  - A small group of operators governs every host today; high availability of the controller is not required.

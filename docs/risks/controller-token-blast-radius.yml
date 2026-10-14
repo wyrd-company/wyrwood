@@ -10,8 +10,9 @@ description: >-
   for policies, AppRoles, Transit keys, and wrapping; the controller runs as a
   container with its credential supplied as a mounted file rather than an
   environment variable; the web interface binds to a local or reverse-proxied
-  address; agents authenticate with approved keys only; every policy and
-  binding change is an operational event.
+  address and admits only operators in a configured group of the site's
+  identity provider; agents authenticate with approved keys only; every
+  policy and binding change is an operational event that names the operator.
 categories:
   - security
 likelihood: 2

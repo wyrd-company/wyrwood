@@ -14,8 +14,14 @@ containers.
 ## Controller
 
 The controller is published as a container image. It needs an OpenBao
-AppRole whose policy covers the Wyrwood prefix, a state volume, and a
-configuration file. The secret identifier is read from a mounted file.
+AppRole whose policy covers the Wyrwood prefix, an OpenID Connect client for
+operator sign-in, a state volume, and a configuration file. The AppRole
+secret identifier and the client secret are read from mounted files.
+
+In your identity provider, for example Pocket ID, create a confidential
+client with PKCE, set its redirect URL to
+`https://<controller public host>/auth/callback`, and create the group whose
+members may operate Wyrwood.
 
 ```bash
 mkdir -p ~/wyrwood/state
@@ -29,6 +35,14 @@ openbao:
   approle:
     role-id: REPLACE_WITH_ROLE_ID
     secret-id-file: /run/secrets/openbao-secret-id
+oidc:
+  provider-name: Pocket ID
+  issuer: https://id.example.internal
+  client-id: REPLACE_WITH_CLIENT_ID
+  client-secret-file: /run/secrets/oidc-client-secret
+  redirect-url: https://wyrwood.example.internal/auth/callback
+  allowed-groups:
+    - wyrwood-operators
 YAML
 
 docker run -d --name wyrwood-controller \
@@ -36,6 +50,7 @@ docker run -d --name wyrwood-controller \
   -v ~/wyrwood/state:/var/lib/wyrwood \
   -v ~/wyrwood/controller.yml:/etc/wyrwood/controller.yml:ro \
   -v ~/wyrwood/secret-id:/run/secrets/openbao-secret-id:ro \
+  -v ~/wyrwood/oidc-client-secret:/run/secrets/oidc-client-secret:ro \
   ghcr.io/wyrd-company/wyrwood:latest
 ```
 

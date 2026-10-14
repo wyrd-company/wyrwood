@@ -1,0 +1,134 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  assumes:
+    - one-controller-per-site
+  mitigates:
+    - controller-token-blast-radius
+  exposes:
+    - identity-provider-grants-operator-access
+  related-to:
+    - controller
+    - container-contract
+objective: >-
+  Give operators one place to approve agents, see every reported container,
+  bind policies, edit policies and the OpenBao keys they name, and read
+  events, signed in through the site's OpenID Connect identity provider.
+background:
+  current-design: >-
+    The controller design names the pages of a web interface and protects it
+    with a single operator password hashed on the state volume.
+  problems:
+    - A shared password has no second factor and cannot be revoked per person.
+    - Only one person can operate the controller.
+    - Events cannot say which operator approved an agent or changed a binding.
+design-challenges:
+  delegated-authentication: >-
+    The controller must admit operators without storing a password, code, or
+    passkey, and must refuse an account the identity provider signs in but
+    that is not meant to operate Wyrwood.
+  visible-identity: >-
+    A binding attaches by a container key that may differ from the name the
+    operator sees. The interface must show which key a binding used and what a
+    container is missing, not only that something is wrong.
+  destructive-actions: >-
+    Recreate discards a container's writable layer and unbind revokes its
+    token. Both must be deliberate and must say what they do before they run.
+  availability: >-
+    The interface depends on the identity provider and OpenBao; agents do not.
+    Their outages must be reported plainly without implying that containers
+    stopped being served.
+proposed-design:
+  high-level-overview: >-
+    The interface is served by the controller process as server-rendered
+    pages with a fixed navigation: Agents, Containers, Policies, OpenBao keys,
+    Events, and Security. It is bound to a configurable address that defaults
+    to loopback and is intended to sit behind a reverse proxy that terminates
+    TLS. The visual design, with every page and state described here, is the
+    Wyrwood Web UI canvas at https://claude.ai/artifact/KvNxxRNgPS9UnWJ7FpfSmy.
+  sign-in: >-
+    An unauthenticated request shows a sign-in page with one action, Continue
+    with the configured provider name, rather than redirecting immediately, so
+    that failures have a page to land on. The action starts the OpenID Connect
+    authorization-code flow with PKCE as a confidential client, requesting the
+    `openid`, `profile`, `email`, and `groups` scopes, with a `state` and a
+    `nonce` bound to a short-lived pre-authentication cookie. The callback at
+    `/auth/callback` exchanges the code using the client secret read from a
+    mounted file, verifies the ID token signature against the issuer's
+    published keys, and checks issuer, audience, expiry, and nonce. Discovery
+    and keys are fetched from the configured issuer and cached.
+  operator-admission: >-
+    An operator is an account whose groups claim contains at least one group
+    listed in the controller configuration's allowed groups. Membership is
+    checked at every sign-in and never cached beyond the session. An account
+    outside every allowed group returns to the sign-in page with a message
+    that names the signed-in account and says it is not in an allowed group.
+    A provider that cannot be reached returns to the sign-in page with a
+    message that agents keep serving containers meanwhile.
+  sessions: >-
+    A successful sign-in creates a server-side session in SQLite and sets an
+    opaque `HttpOnly`, `Secure`, `SameSite=Lax` cookie. A session lasts for the
+    configured session time-to-live and ends early on sign-out. State-changing
+    requests require a per-session anti-forgery token. The controller records
+    each operator's subject, display name, and email at sign-in so events and
+    pages can name the operator. Signing out ends the controller session only;
+    the provider session is the provider's.
+  security-page: >-
+    Shows the signed-in operator, the group that admitted them, the allowed
+    groups, the issuer, client identifier, redirect URI, and whether
+    discovery is reachable. Passkeys and account recovery are managed in the
+    identity provider; the page links there. It lists the operator's own
+    sessions and can end all but the current one. Allowed groups and provider
+    settings are read-only in the interface and change only in configuration.
+  agents-page: >-
+    Shows the controller SSH host-key fingerprint with the instruction to
+    compare it with `wyrwood agent login` output. Pending keys appear first
+    with their presented hostname, key fingerprint, and first-seen time, and
+    approve and reject actions. Approved agents list session state, container
+    and binding counts, binding health by category, and last report time; a
+    disconnected agent says it is serving from cache.
+  containers-page: >-
+    Lists one agent's containers at a time with name, image, key kind, bound
+    policy, and one state: conforms, non-conforming, degraded, or not bound.
+    Selecting a container opens a panel. For an unbound container the panel
+    offers every candidate key in precedence order with the most stable one
+    preselected and labelled, and a policy choice showing each policy's
+    enforcement. Choosing a recreate policy shows, before binding, that the
+    container is recreated once and its writable layer discarded. For a bound
+    container the panel shows the policy, the key kind and value used, token
+    state, each contract item as present or missing, and actions to change
+    policy, request a recreate, and unbind and revoke the AppRole.
+  policies-page: >-
+    Edits the HCL directly with OpenBao's validation result for the current
+    revision, the token time-to-live, the Transit keys and SSH-engine roles
+    the ssh-agent endpoint offers, and the contract: mount target, environment
+    with the `{mount-target}` token, access group, and enforcement. A key or
+    role the HCL does not permit is flagged as one whose use will be denied.
+    The header shows the revision and how many containers on how many agents
+    the policy is bound to. Saving validates through OpenBao before recording
+    the revision.
+  keys-page: >-
+    Lists Transit keys under the configured Transit mount with type, latest
+    version, SSH fingerprint, and the policies that name each, and SSH-engine
+    roles under the configured SSH mount with allowed users, certificate
+    time-to-live, and the policies that name each. Keys can be created and
+    rotated; roles can be created. No secret value is read or shown.
+  events-page: >-
+    Lists controller and agent events newest first with time, source,
+    operation, outcome with categorical error, subject, operator where
+    recorded, and latency, filterable by outcome and source. It shows only the
+    fields the operational-event schema allows.
+  accessibility: >-
+    Every page works at phone width: the navigation stacks above the content
+    and wide tables scroll inside their own box. Controls are native buttons,
+    links, and labelled inputs with visible focus, at least 44 pixels high.
+    Text meets a 4.5:1 contrast ratio, and states are distinguished by text,
+    not color alone.
+verification: >-
+  Unit tests cover ID token validation failures for issuer, audience, expiry,
+  nonce, and signature; group admission with no groups claim, no allowed
+  group, and one allowed group among several; state and PKCE mismatch on the
+  callback; session expiry and sign-out; and anti-forgery rejection. The
+  integration gate runs a test OpenID Connect provider, signs in an allowed
+  and a disallowed account, and verifies that an operator event names the
+  operator. A browser test walks sign-in, agent approval, and binding at
+  desktop and phone widths.

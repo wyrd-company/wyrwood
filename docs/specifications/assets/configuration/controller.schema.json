@@ -4,13 +4,14 @@
   "title": "Wyrwood controller configuration",
   "type": "object",
   "additionalProperties": false,
-  "required": ["openbao"],
+  "required": ["openbao", "oidc"],
   "properties": {
     "http": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "listen": { "type": "string", "default": "127.0.0.1:8080" }
+        "listen": { "type": "string", "default": "127.0.0.1:8080" },
+        "session-ttl": { "type": "string", "default": "12h" }
       }
     },
     "ssh": {
@@ -47,6 +48,35 @@
         },
         "transit-mount": { "type": "string", "default": "transit" },
         "ssh-mount": { "type": "string", "default": "ssh" }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "client-id",
+        "client-secret-file",
+        "redirect-url",
+        "allowed-groups"
+      ],
+      "properties": {
+        "provider-name": {
+          "type": "string",
+          "maxLength": 64,
+          "default": "your identity provider"
+        },
+        "issuer": { "type": "string", "format": "uri" },
+        "client-id": { "type": "string" },
+        "client-secret-file": { "type": "string" },
+        "redirect-url": { "type": "string", "format": "uri" },
+        "groups-claim": { "type": "string", "default": "groups" },
+        "allowed-groups": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
       }
     }
   }

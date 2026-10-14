@@ -1,0 +1,40 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - controller
+    - web-interface
+description: >-
+  The web interface governs which containers receive which secrets and keys,
+  so whoever signs in to it holds the controller's full authority. How an
+  operator proves who they are, and who counts as an operator, decides
+  whether the controller also becomes a credential store and a mail sender.
+considered-options:
+  "1": >-
+    A single operator password hashed on the state volume.
+  "2": >-
+    Controller-native sign-in: a one-time code sent to an operator email
+    address, with passkeys the controller registers and verifies itself.
+  "3": >-
+    OpenID Connect against a site identity provider such as Pocket ID. The
+    controller redirects to the provider, receives an ID token through the
+    authorization-code flow with PKCE as a confidential client, and admits
+    an account only when its groups claim names a group listed in the
+    controller configuration.
+decision-outcome:
+  chosen-option: 3
+  justification: >-
+    The controller stores no operator credential, sends no mail, and verifies
+    no passkey; the identity provider already does all three for the site.
+    Group membership lets more than one person operate the controller and
+    lets an administrator remove access in one place. Option 1 is a shared
+    secret with no second factor. Option 2 makes the controller a mail sender
+    and a WebAuthn relying party to duplicate what the provider offers.
+expected-outcomes:
+  positive:
+    - No operator password, code, or passkey is stored by the controller.
+    - Access is granted and revoked through group membership in the identity provider.
+    - Several operators can share one controller, and events name which operator acted.
+  negative:
+    - The web interface is unusable while the identity provider is unreachable; agents keep serving.
+    - Compromise of the identity provider or an allowed account grants operator access.
+    - The controller needs a public redirect URI behind its reverse proxy.

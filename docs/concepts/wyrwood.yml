@@ -21,6 +21,11 @@ properties:
     One service, delivered as a container image, that owns Wyrwood policy. It
     serves a web interface, an SSH server that agents connect to, and the only
     OpenBao credential that can write policies and AppRoles.
+  operator:
+    >-
+    A person who signs in to the web interface through the site's OpenID
+    Connect provider and belongs to a group the controller configuration
+    allows. The controller stores no operator credential.
   agent:
     >-
     One daemon per host, delivered as an operating-system package, that holds
@@ -107,7 +112,7 @@ features:
 benefits:
   - A container that is copied, exported, or compromised yields no reusable credential.
   - Rotating a key or secret in OpenBao takes effect for every container without a restart.
-  - One operator governs policy for every host from one place.
+  - Operators govern policy for every host from one place, and events name who changed what.
   - Which containers hold which authority is visible, not inferred.
 open-questions:
   Q01: >-

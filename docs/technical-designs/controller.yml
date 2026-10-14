@@ -7,6 +7,7 @@ relationships:
   related-to:
     - agent
     - container-contract
+    - web-interface
 objective: >-
   Provide one service per site that owns Wyrwood policy, is the only holder of
   a policy-writing OpenBao credential, enrolls agents over SSH, shows every
@@ -104,21 +105,23 @@ proposed-design:
     reverse proxy. Pages: agents with pending approvals; containers per agent
     with binding and conformance state; policies with HCL and contract
     editors; OpenBao key management under the configured mounts; events.
-    Authentication is a single operator password hashed on the state volume;
-    multi-operator access is outside this design.
+    Operators sign in through the site's OpenID Connect provider and are
+    admitted by membership in a group the configuration allows; pages,
+    sessions, and admission are defined by the web-interface design.
   operational-events: >-
-    The controller records bounded events for agent approval and rejection,
-    session open and close, policy saves, binding changes, AppRole creation
-    and deletion, credential issuance, and recreate requests. Events carry
-    agent name, container key, policy name, and categorical outcome. They
+    The controller records bounded events for operator sign-in, agent
+    approval and rejection, session open and close, policy saves, binding
+    changes, AppRole creation and deletion, credential issuance, and recreate
+    requests. Events carry agent name, container key, policy name, the
+    operator who acted when an operator acted, and categorical outcome. They
     contain no HCL, no secret identifier, no wrapping token, and no request
     body.
   packaging: >-
     The image is built from the same Go module as the agent and published to
     the GitHub Container Registry for the repository. It runs as a non-root
-    user, reads its OpenBao AppRole secret identifier from a mounted file, and
-    needs two volumes: state and the SSH host key. Configuration is one YAML
-    file mounted read-only.
+    user, reads its OpenBao AppRole secret identifier and its OpenID Connect
+    client secret from mounted files, and needs two volumes: state and the
+    SSH host key. Configuration is one YAML file mounted read-only.
   verification: >-
     Unit tests cover policy validation, binding key precedence, AppRole
     lifecycle against an OpenBao test server, pending-key handling, and session

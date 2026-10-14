@@ -23,8 +23,10 @@ sudo wyrwood agent login ssh://controller.example.internal:2222
 sudo systemctl enable --now wyrwood-agent
 ```
 
-In the controller's web interface, open **Agents** and approve the pending
-key. The host's containers appear once the agent reports in.
+Sign in to the controller's web interface through your identity provider,
+open **Agents**, and approve the pending key after comparing its fingerprint
+with the one the login command printed. The host's containers appear once
+the agent reports in.
 
 ## Write a policy
 

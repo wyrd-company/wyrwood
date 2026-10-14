@@ -79,12 +79,14 @@ under `/var/lib/wyrwood`. No token or secret is ever written there.
 ## Controller configuration
 
 `/etc/wyrwood/controller.yml` names the listen addresses, the state
-directory, and the OpenBao connection. The AppRole secret identifier is read
-from a file:
+directory, the OpenBao connection, and the OpenID Connect provider operators
+sign in through. The AppRole secret identifier and the client secret are read
+from files:
 
 ```yaml
 http:
   listen: 127.0.0.1:8080
+  session-ttl: 12h
 ssh:
   listen: 0.0.0.0:2222
 openbao:
@@ -94,7 +96,24 @@ openbao:
     secret-id-file: /run/secrets/openbao-secret-id
   transit-mount: transit
   ssh-mount: ssh
+oidc:
+  provider-name: Pocket ID
+  issuer: https://id.example.internal
+  client-id: REPLACE_WITH_CLIENT_ID
+  client-secret-file: /run/secrets/oidc-client-secret
+  redirect-url: https://wyrwood.example.internal/auth/callback
+  groups-claim: groups
+  allowed-groups:
+    - wyrwood-operators
 ```
+
+Register the controller with the provider as a confidential client using the
+authorization-code flow with PKCE, with the redirect URL above. The URL is the
+public address behind your reverse proxy, not the loopback listen address.
+The provider must include group membership in the ID token, which Wyrwood
+requests with the `groups` scope. An account is admitted only when one of its
+groups is listed under `allowed-groups`; the web interface cannot change the
+list.
 
 The controller's own OpenBao policy should cover only the Wyrwood prefix:
 `sys/policies/acl/wyrwood-*`, `auth/approle/role/wyrwood-*`,

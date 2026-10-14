@@ -24,9 +24,21 @@ description: >-
   controller manages. The secret identifier is read from the named file at
   startup and never from an environment variable or the document itself.
 
+  The controller document also records operator sign-in under `oidc`: the
+  issuer URL, the client identifier, the file that holds the client secret,
+  the public redirect URL ending in `/auth/callback`, the name of the groups
+  claim, the allowed groups, and the provider name shown on the sign-in
+  button. `oidc` is required and `allowed-groups` must name at least one
+  group. The client secret follows the same rule as the AppRole secret
+  identifier. `http.session-ttl` bounds an operator session. Defaults: groups
+  claim `groups`, session time-to-live 12 hours.
+
   Timeouts use Go duration syntax between 100 milliseconds and 30 seconds,
-  except the OpenBao sign timeout, which allows up to 2 minutes.
+  except the OpenBao sign timeout, which allows up to 2 minutes. The session
+  time-to-live uses the same syntax between 15 minutes and 24 hours.
 validation-criteria: >-
   A document conforms when it validates against its JSON Schema asset and the
   Go parser accepts it with unknown fields rejected. Tests cover defaults,
-  bounds, path canonicalization, and rejection of inline secrets.
+  bounds, path canonicalization, rejection of inline secrets, and rejection
+  of an `oidc` section without allowed groups or with a redirect URL that is
+  not absolute.
