@@ -18,13 +18,23 @@ AppRole whose policy covers the Wyrwood prefix, an OpenID Connect client for
 operator sign-in, a state volume, and a configuration file. The AppRole
 secret identifier and the client secret are read from mounted files.
 
+The image runs as user and group 65532. State lives in a named volume, which
+Docker creates with that ownership from the image. The two secret files must
+be readable by that user.
+
 In your identity provider, for example Pocket ID, create a confidential
 client with PKCE, set its redirect URL to
 `https://<controller public host>/auth/callback`, and create the group whose
 members may operate Wyrwood.
 
 ```bash
-mkdir -p ~/wyrwood/state
+mkdir -p ~/wyrwood
+# Paste each secret when prompted, then press Ctrl-D.
+cat > ~/wyrwood/secret-id
+cat > ~/wyrwood/oidc-client-secret
+sudo chown 65532:65532 ~/wyrwood/secret-id ~/wyrwood/oidc-client-secret
+sudo chmod 0400 ~/wyrwood/secret-id ~/wyrwood/oidc-client-secret
+
 cat > ~/wyrwood/controller.yml <<'YAML'
 http:
   # Inside the container; the published port below keeps it on host loopback.
@@ -48,7 +58,7 @@ YAML
 
 docker run -d --name wyrwood-controller \
   -p 127.0.0.1:8080:8080 -p 2222:2222 \
-  -v ~/wyrwood/state:/var/lib/wyrwood \
+  -v wyrwood-state:/var/lib/wyrwood \
   -v ~/wyrwood/controller.yml:/etc/wyrwood/controller.yml:ro \
   -v ~/wyrwood/secret-id:/run/secrets/openbao-secret-id:ro \
   -v ~/wyrwood/oidc-client-secret:/run/secrets/oidc-client-secret:ro \

@@ -27,7 +27,9 @@ request. Private keys never exist on the host or in the container.
 
 ## Quick start
 
-Run the controller:
+Run the controller. The image runs as user 65532, so the secret files must
+be readable by that user; [Installation](docs/install.md) shows the
+configuration and how to prepare them.
 
 ```console
 docker run -d --name wyrwood-controller \
@@ -35,6 +37,7 @@ docker run -d --name wyrwood-controller \
   -v wyrwood-state:/var/lib/wyrwood \
   -v ./controller.yml:/etc/wyrwood/controller.yml:ro \
   -v ./secret-id:/run/secrets/openbao-secret-id:ro \
+  -v ./oidc-client-secret:/run/secrets/oidc-client-secret:ro \
   ghcr.io/wyrd-company/wyrwood:latest
 ```
 
