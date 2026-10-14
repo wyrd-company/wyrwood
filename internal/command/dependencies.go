@@ -8,12 +8,18 @@ package command
 import (
 	"context"
 	"errors"
+	"io"
+	"log"
+	"net"
 	"os"
 
 	"github.com/wyrd-company/wyrwood/internal/agent"
+	"github.com/wyrd-company/wyrwood/internal/binding"
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/engine"
+	"github.com/wyrd-company/wyrwood/internal/sshagent"
+	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
 )
 
 // errUnavailable marks a command whose implementation is not linked into this build.
@@ -54,13 +60,31 @@ func runAgentDaemon(ctx context.Context, paths agent.Paths) error {
 		return errConfiguration
 	}
 	agent.Version = version
+	// Library diagnostics, such as ssh-agent request failures, are already
+	// recorded as categorical events and are not repeated to the journal.
+	log.SetOutput(io.Discard)
 	instance, err := agent.New(agent.Options{
 		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineSocket), Log: os.Stderr,
+		Endpoints: endpoints{vault: vaultproxy.New(configuration.OpenBaoTimeout), ssh: sshagent.New(configuration.SignTimeout)},
 	})
 	if err != nil {
 		return err
 	}
 	return instance.Run(ctx)
+}
+
+// endpoints serves both consumer sockets.
+type endpoints struct {
+	vault *vaultproxy.Proxy
+	ssh   *sshagent.Endpoint
+}
+
+func (set endpoints) ServeVault(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
+	set.vault.Serve(listener, lookup, record)
+}
+
+func (set endpoints) ServeSSHAgent(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
+	set.ssh.Serve(listener, lookup, record)
 }
 
 func serveController(ctx context.Context, path string) error {
