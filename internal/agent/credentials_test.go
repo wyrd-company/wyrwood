@@ -297,3 +297,38 @@ func TestPolicyChangeInvalidatesInFlightDelivery(t *testing.T) {
 		t.Fatalf("held token from the previous policy = %q", got)
 	}
 }
+
+func TestBindingAbsentFromANewPolicySetRevokesItsToken(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	paths := newPaths(t)
+	if err := os.MkdirAll(paths.State, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	configuration := config.Agent{ConsumerRoot: filepath.Join(paths.Runtime, "containers"), OpenBaoTimeout: 5 * time.Second}
+	instance, err := New(Options{Config: configuration, Paths: paths, Engine: enginetest.New(), Endpoints: probeEndpoints{},
+		Hostname: "host-a", CanAssign: func(uint32) bool { return true }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(instance.shutdown)
+	endpoint := protocol.OpenBao{Address: fake.server.URL}
+	instance.applyPolicySet(ctx, protocol.PolicySet{OpenBao: endpoint, Bindings: []protocol.Binding{{
+		Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"},
+		Policy: policy.Policy{Name: "alpha", Contract: policy.Contract{Enforcement: policy.EnforcementReport}},
+	}}})
+	instance.creds.deliver(ctx, credential("bnd-1", "role-a"), instance.creds.begin("bnd-1"))
+	if got := heldValue(instance.creds, "bnd-1"); got != "token-role-a" {
+		t.Fatalf("held token = %q", got)
+	}
+	// The binding was deleted while the agent was disconnected; the set it
+	// receives on reconnecting no longer carries it.
+	instance.applyPolicySet(ctx, protocol.PolicySet{OpenBao: endpoint, Bindings: []protocol.Binding{}})
+	if got := heldValue(instance.creds, "bnd-1"); got != "" {
+		t.Fatalf("held token after the binding left the set = %q", got)
+	}
+	if !fake.wasRevoked("token-role-a") {
+		t.Fatal("the retired binding's token was not revoked")
+	}
+}
