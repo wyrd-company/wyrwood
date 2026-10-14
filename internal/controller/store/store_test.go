@@ -136,8 +136,17 @@ func TestPoliciesBindingsInventoryAndResults(t *testing.T) {
 	if err := store.SaveTokenAccessor(ctx, "b-missing", "accessor", now); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("SaveTokenAccessor(unknown binding) = %v", err)
 	}
-	if err := store.DeleteBinding(ctx, "b-1"); err != nil {
-		t.Fatal(err)
+	if accessor, err := store.RetireBinding(ctx, "b-1", now); err != nil || accessor != "accessor-second" {
+		t.Fatalf("RetireBinding() = %q, %v; want the latest accessor", accessor, err)
+	}
+	if agent, err := store.RetiredBindingAgent(ctx, "b-1"); err != nil || agent != "host-a" {
+		t.Fatalf("RetiredBindingAgent() = %q, %v", agent, err)
+	}
+	if _, err := store.RetiredBindingAgent(ctx, "b-never"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("RetiredBindingAgent(never bound) = %v", err)
+	}
+	if _, err := store.RetireBinding(ctx, "b-1", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("RetireBinding(again) = %v", err)
 	}
 	results, _ = store.ContractResults(ctx)
 	if len(results) != 0 {

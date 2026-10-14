@@ -368,25 +368,44 @@ func ContainerBinding(container protocol.Container, bindings []store.Binding) (s
 }
 
 // recordAccessor keeps the accessor an agent reports for its own binding and
-// acknowledges it once it is durable. A report for a binding that does not
-// exist or never belonged to the agent is acknowledged and dropped. A
-// storage failure is not acknowledged, so the agent reports again.
+// acknowledges it once it is durable. A report for a binding the agent held
+// and that was since retired is revoked instead, since the binding's
+// deletion could not have seen it. A report for a binding that never
+// belonged to the agent is acknowledged and dropped. Storage and OpenBao
+// failures are not acknowledged, so the agent reports again.
 func (session *agentSession) recordAccessor(ctx context.Context, report protocol.TokenAccessor) error {
 	controller := session.controller
 	binding, err := controller.store.Binding(ctx, report.Binding)
 	switch {
-	case errors.Is(err, store.ErrNotFound), err == nil && binding.Agent != session.agent:
+	case err == nil && binding.Agent != session.agent:
+		return session.conn.Send(report.Acknowledge())
+	case err == nil:
+		err = controller.store.SaveTokenAccessor(ctx, report.Binding, report.Accessor, controller.now())
+		if err == nil {
+			return session.conn.Send(report.Acknowledge())
+		}
+		// The binding may have been retired since it was read.
+		if _, lookup := controller.store.Binding(ctx, report.Binding); !errors.Is(lookup, store.ErrNotFound) {
+			controller.logf("token accessor not recorded")
+			return nil
+		}
+	case !errors.Is(err, store.ErrNotFound):
+		controller.logf("token accessor not recorded")
+		return nil
+	}
+	owner, err := controller.store.RetiredBindingAgent(ctx, report.Binding)
+	switch {
+	case errors.Is(err, store.ErrNotFound), err == nil && owner != session.agent:
 		return session.conn.Send(report.Acknowledge())
 	case err != nil:
 		controller.logf("token accessor not recorded")
 		return nil
 	}
-	if err := controller.store.SaveTokenAccessor(ctx, report.Binding, report.Accessor, controller.now()); err != nil {
-		// The binding may have been deleted since it was read.
-		if _, lookup := controller.store.Binding(ctx, report.Binding); !errors.Is(lookup, store.ErrNotFound) {
-			controller.logf("token accessor not recorded")
-			return nil
-		}
+	revokeCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+	defer cancel()
+	if err := controller.openbao.RevokeAccessor(revokeCtx, report.Accessor); err != nil {
+		controller.logf("token of a retired binding not revoked")
+		return nil
 	}
 	return session.conn.Send(report.Acknowledge())
 }

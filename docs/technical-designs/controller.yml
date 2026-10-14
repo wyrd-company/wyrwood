@@ -94,9 +94,13 @@ proposed-design:
     new token's accessor until the controller acknowledges it, and the
     controller keeps the latest one per binding; tokens replaced by rotation
     are revoked by the agent. Deleting a binding tells a connected agent to
-    revoke the binding's token, revokes that token by its accessor whether or
-    not the agent is connected, and deletes the AppRole, which stops new
-    logins. When revocation fails, or the agent is not connected and has
+    revoke the binding's token, then deletes the AppRole, which stops new
+    logins and voids outstanding secret identifiers. It then retires the
+    binding, reading its latest accessor in the same transaction, and revokes
+    that token whether or not the agent is connected. A retired binding's
+    identifier is kept with its agent, so an accessor that agent reports
+    after the deletion, for a login that completed before it, is revoked on
+    arrival. When revocation fails, or the agent is not connected and has
     reported no accessor, the binding is still deleted and the deletion
     reports that the token stays valid until the agent revokes it or it
     expires. Changing a binding's policy updates

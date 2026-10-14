@@ -77,6 +77,11 @@ var migrations = []string{
 		containers TEXT NOT NULL,
 		reported_at INTEGER NOT NULL
 	);
+	CREATE TABLE retired_bindings (
+		id TEXT PRIMARY KEY,
+		agent TEXT NOT NULL,
+		retired_at INTEGER NOT NULL
+	);
 	CREATE TABLE binding_tokens (
 		binding TEXT PRIMARY KEY REFERENCES bindings(id) ON DELETE CASCADE,
 		accessor TEXT NOT NULL,
@@ -437,16 +442,49 @@ func (store *Store) ChangeBindingPolicy(ctx context.Context, id, policyName stri
 	return nil
 }
 
-// DeleteBinding removes a binding.
-func (store *Store) DeleteBinding(ctx context.Context, id string) error {
-	result, err := store.db.ExecContext(ctx, `DELETE FROM bindings WHERE id = ?`, id)
+// RetireBinding removes a binding and records that it belonged to its
+// agent, so a token accessor the agent reports for it later can still be
+// revoked. It returns the accessor last recorded for the binding, or an
+// empty string when none was, read in the same transaction as the removal
+// so no report lands between them. It fails with ErrNotFound when the
+// binding does not exist.
+func (store *Store) RetireBinding(ctx context.Context, id string, now time.Time) (string, error) {
+	transaction, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
-		return err
+		return "", err
 	}
-	if changed, _ := result.RowsAffected(); changed == 0 {
-		return ErrNotFound
+	defer func() { _ = transaction.Rollback() }()
+	var agent string
+	if err := transaction.QueryRowContext(ctx, `SELECT agent FROM bindings WHERE id = ?`, id).Scan(&agent); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
 	}
-	return nil
+	var accessor string
+	err = transaction.QueryRowContext(ctx, `SELECT accessor FROM binding_tokens WHERE binding = ?`, id).Scan(&accessor)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return "", err
+	}
+	if _, err := transaction.ExecContext(ctx, `INSERT INTO retired_bindings (id, agent, retired_at) VALUES (?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET agent = excluded.agent, retired_at = excluded.retired_at`, id, agent, unix(now)); err != nil {
+		return "", err
+	}
+	if _, err := transaction.ExecContext(ctx, `DELETE FROM bindings WHERE id = ?`, id); err != nil {
+		return "", err
+	}
+	return accessor, transaction.Commit()
+}
+
+// RetiredBindingAgent returns the agent a retired binding belonged to, or
+// ErrNotFound when no binding with that identifier was retired.
+func (store *Store) RetiredBindingAgent(ctx context.Context, id string) (string, error) {
+	var agent string
+	err := store.db.QueryRowContext(ctx, `SELECT agent FROM retired_bindings WHERE id = ?`, id).Scan(&agent)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", ErrNotFound
+	}
+	return agent, err
 }
 
 // Binding returns one binding.

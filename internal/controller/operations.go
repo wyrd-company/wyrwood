@@ -211,34 +211,38 @@ func (controller *Controller) ChangeBinding(ctx context.Context, id, policyName,
 }
 
 // DeleteBinding retires a binding. A connected agent is told to revoke
-// the binding's token; the controller also revokes it by the accessor the
-// agent reported, whether or not the agent is connected, and deletes the
-// AppRole. When the token could not be revoked, because revocation failed
-// or the agent is not connected and reported no accessor, the binding is
-// still removed and the error says the token stays valid until it expires.
+// the binding's token. The AppRole is deleted first, which stops new logins
+// and voids outstanding secret identifiers; then the binding is retired and
+// the token is revoked by the latest accessor the agent reported, whether or
+// not the agent is connected. An accessor the agent reports after this is
+// revoked as it arrives. When the token could not be revoked, because
+// revocation failed or the agent is not connected and reported no accessor,
+// the binding is still removed and the error says the token stays valid
+// until it expires.
 func (controller *Controller) DeleteBinding(ctx context.Context, id, operator string) error {
 	started := controller.now()
 	binding, err := controller.store.Binding(ctx, id)
 	if err != nil {
 		return operationError(events.ErrorNotBound, "the binding does not exist")
 	}
-	accessor, accessorErr := controller.store.TokenAccessor(ctx, id)
 	connected := controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}) == nil
-	var tokenCode, roleCode events.ErrorCode
+	var roleCode, tokenCode events.ErrorCode
+	if err := controller.openbao.DeleteRole(ctx, binding.Role); err != nil {
+		roleCode = openBaoError(err)
+	}
+	accessor, retireErr := controller.store.RetireBinding(ctx, id, controller.now())
 	switch {
-	case accessorErr == nil:
+	case retireErr != nil:
+	case accessor != "":
 		if err := controller.openbao.RevokeAccessor(ctx, accessor); err != nil {
 			tokenCode = openBaoError(err)
 		}
 	case !connected:
 		tokenCode = events.ErrorControllerUnavailable
 	}
-	if err := controller.openbao.DeleteRole(ctx, binding.Role); err != nil {
-		roleCode = openBaoError(err)
-	}
 	code := events.ErrorNone
 	switch {
-	case controller.store.DeleteBinding(ctx, id) != nil:
+	case retireErr != nil:
 		code = events.ErrorInternal
 	case tokenCode != "":
 		code = tokenCode

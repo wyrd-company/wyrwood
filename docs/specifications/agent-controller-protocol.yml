@@ -30,7 +30,8 @@ description: >-
   obtained for it. The agent sends it after each login and again on each new
   session and each full reconcile until the controller acknowledges it. The
   controller keeps the latest one per binding and uses it only to revoke that
-  token when the binding is deleted.
+  token when the binding is deleted; one reported for a binding the agent
+  held that is already deleted is revoked on arrival.
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory: binding identifier, the matched key, the
@@ -46,9 +47,10 @@ description: >-
   belongs to another agent; a result it could not store is not acknowledged.
   The agent keeps a failed recreate's report until that acknowledgement
   arrives. `accessor-recorded` acknowledges one `token-accessor` by echoing
-  its binding and accessor, once the controller has stored it or discarded
-  it because the binding does not exist or never belonged to the agent; a
-  report the controller could not store is not acknowledged.
+  its binding and accessor, once the controller has stored it, revoked it for
+  a deleted binding, or discarded it because the binding never belonged to
+  the agent; a report the controller could not store or revoke is not
+  acknowledged.
 
   Neither direction ever carries a token, an unwrapped secret identifier, an
   environment value, or a secret value. A token accessor cannot

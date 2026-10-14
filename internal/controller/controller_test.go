@@ -50,6 +50,13 @@ func freeAddress(t *testing.T) string {
 
 func startHarness(t *testing.T) *harness {
 	t.Helper()
+	return startHarnessWith(t, nil)
+}
+
+// startHarnessWith runs a controller whose OpenBao manager is wrapped by
+// wrap when it is not nil.
+func startHarnessWith(t *testing.T, wrap func(OpenBao) OpenBao) *harness {
+	t.Helper()
 	bao := baotest.Start(t)
 	roleID, secretFile := bao.ControllerCredentials(t)
 	state := t.TempDir()
@@ -58,7 +65,16 @@ func startHarness(t *testing.T) *harness {
 		OpenBao: config.ControllerOpenBao{Address: bao.Address, AppRoleMount: "approle", RoleID: roleID,
 			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
 	}
-	controller, err := New(configuration, Options{})
+	options := Options{}
+	if wrap != nil {
+		client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Timeout: 5 * time.Second})
+		if err != nil {
+			t.Fatal(err)
+		}
+		options.OpenBao = wrap(openbao.NewManager(client, openbao.Mounts{AppRole: "approle", Transit: "transit", SSH: "ssh"},
+			roleID, func() (string, error) { return config.ReadSecretFile(secretFile) }))
+	}
+	controller, err := New(configuration, options)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,6 +530,187 @@ func TestAnAgentCannotReportAnotherAgentsTokenAccessor(t *testing.T) {
 	}
 	if recorded, err := controller.Store().TokenAccessor(ctx, theirs.ID); err == nil {
 		t.Fatalf("another agent's binding recorded accessor %q", recorded)
+	}
+}
+
+// pausingOpenBao runs a hook inside DeleteRole and RevokeAccessor, before
+// the real call, to interleave work with a binding's deletion.
+type pausingOpenBao struct {
+	OpenBao
+	beforeDeleteRole     func()
+	beforeRevokeAccessor func()
+}
+
+func (wrapped *pausingOpenBao) DeleteRole(ctx context.Context, role string) error {
+	if wrapped.beforeDeleteRole != nil {
+		wrapped.beforeDeleteRole()
+	}
+	return wrapped.OpenBao.DeleteRole(ctx, role)
+}
+
+func (wrapped *pausingOpenBao) RevokeAccessor(ctx context.Context, accessor string) error {
+	if wrapped.beforeRevokeAccessor != nil {
+		wrapped.beforeRevokeAccessor()
+	}
+	return wrapped.OpenBao.RevokeAccessor(ctx, accessor)
+}
+
+// appRoleLogin logs in through role with a fresh secret identifier, as an
+// agent holding a credential would.
+func appRoleLogin(t *testing.T, bao *baotest.Server, role string) (openbao.Token, error) {
+	t.Helper()
+	roleID, err := bao.Root.Logical().Read("auth/approle/role/" + role + "/role-id")
+	if err != nil || roleID == nil {
+		return openbao.Token{}, fmt.Errorf("role-id: %v", err)
+	}
+	secret, err := bao.Root.Logical().Write("auth/approle/role/"+role+"/secret-id", nil)
+	if err != nil || secret == nil {
+		return openbao.Token{}, fmt.Errorf("secret-id: %v", err)
+	}
+	client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return openbao.AppRoleLogin(context.Background(), client, "approle",
+		fmt.Sprint(roleID.Data["role_id"]), fmt.Sprint(secret.Data["secret_id"]))
+}
+
+// reportAccessor sends a token-accessor report and waits for its acknowledgement.
+func reportAccessor(t *testing.T, connection *agentConnection, binding string, token openbao.Token) {
+	t.Helper()
+	report := protocol.TokenAccessor{Binding: binding, Accessor: token.Accessor}
+	if err := connection.conn.Send(report); err != nil {
+		t.Fatal(err)
+	}
+	for {
+		switch message := connection.receive(t).(type) {
+		case protocol.AccessorRecorded:
+			if message != report.Acknowledge() {
+				t.Fatalf("acknowledgement = %#v, want %#v", message, report.Acknowledge())
+			}
+			return
+		case protocol.Unbind, protocol.PolicySet, protocol.Credential:
+		default:
+			t.Fatalf("unexpected message %#v", message)
+		}
+	}
+}
+
+func TestUnbindingRevokesATokenRotatedDuringTheDeletion(t *testing.T) {
+	ctx := context.Background()
+	wrapped := &pausingOpenBao{}
+	harness := startHarnessWith(t, func(manager OpenBao) OpenBao { wrapped.OpenBao = manager; return wrapped })
+	controller := harness.controller
+	key := newAgentKey(t)
+	_, _ = harness.dial("host-a", key)
+	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := harness.dial("host-a", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := appRoleLogin(t, harness.bao, binding.Role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reportAccessor(t, connection, binding.ID, first)
+	// The agent rotates while the deletion is under way: a new token is
+	// issued and reported before the AppRole is deleted.
+	var rotated openbao.Token
+	wrapped.beforeDeleteRole = func() {
+		if rotated, err = appRoleLogin(t, harness.bao, binding.Role); err != nil {
+			t.Errorf("login before the AppRole is deleted: %v", err)
+			return
+		}
+		reportAccessor(t, connection, binding.ID, rotated)
+	}
+	// By the time the token is revoked, no new login is possible.
+	var lateLogin error
+	wrapped.beforeRevokeAccessor = func() { _, lateLogin = appRoleLogin(t, harness.bao, binding.Role) }
+	if err := controller.DeleteBinding(ctx, binding.ID, "operator-1"); err != nil {
+		t.Fatalf("DeleteBinding() = %v", err)
+	}
+	if lateLogin == nil {
+		t.Fatal("a login succeeded after the binding's AppRole should have been deleted")
+	}
+	if tokenValid(t, harness.bao, rotated) {
+		t.Fatal("the token rotated in during the deletion is still valid")
+	}
+}
+
+func TestAccessorReportedAfterUnbindingIsRevoked(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	controller := harness.controller
+	key := newAgentKey(t)
+	_, _ = harness.dial("host-a", key)
+	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The agent logged in, but its report was still in flight when the
+	// binding was deleted.
+	late, err := appRoleLogin(t, harness.bao, binding.Role)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var operation *OperationError
+	if err := controller.DeleteBinding(ctx, binding.ID, "operator-1"); !errors.As(err, &operation) || !operation.TokenLive {
+		t.Fatalf("DeleteBinding(nothing reported) = %v", err)
+	}
+	connection, err := harness.dial("host-a", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	reportAccessor(t, connection, binding.ID, late)
+	if tokenValid(t, harness.bao, late) {
+		t.Fatal("a token reported for a retired binding is still valid")
+	}
+	// Another agent cannot have a retired binding's report revoked for it.
+	other := newAgentKey(t)
+	_, _ = harness.dial("host-b", other)
+	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(other.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	issued, err := harness.bao.Root.Auth().Token().Create(&api.TokenCreateRequest{TTL: "1h"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	foreign := openbao.NewToken(issued.Auth.ClientToken, time.Hour)
+	foreign.Accessor = issued.Auth.Accessor
+	intruder, err := harness.dial("host-b", other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer intruder.client.Close()
+	if err := intruder.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	reportAccessor(t, intruder, binding.ID, foreign)
+	if !tokenValid(t, harness.bao, foreign) {
+		t.Fatal("another agent's report for a retired binding revoked a token")
 	}
 }
 
