@@ -8,8 +8,10 @@ package command
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"os/signal"
 	"syscall"
 )
@@ -71,5 +73,12 @@ func configPath(options options) string {
 }
 
 func controllerFailure(err error) failure {
-	return failureOperational
+	switch {
+	case errors.Is(err, errConfiguration):
+		return failureConfiguration
+	case errors.Is(err, os.ErrNotExist), errors.Is(err, os.ErrPermission):
+		return failureStateDirectory
+	default:
+		return failureOperational
+	}
 }

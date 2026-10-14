@@ -53,3 +53,26 @@ func TestUsageFailuresAreCategorical(t *testing.T) {
 		t.Fatalf("json usage = %d %q", status, stderr)
 	}
 }
+
+func TestControllerHostKeyProjections(t *testing.T) {
+	deps := defaultDependencies()
+	deps.controllerHostKey = func(path string) (string, error) {
+		if path != "/etc/wyrwood/controller.yml" {
+			t.Fatalf("config path = %q", path)
+		}
+		return "SHA256:abc", nil
+	}
+	status, stdout, _ := runForTest(t, deps, "controller", "host-key")
+	if status != exitSuccess || stdout != "SHA256:abc\n" {
+		t.Fatalf("host-key = %d %q", status, stdout)
+	}
+	status, stdout, _ = runForTest(t, deps, "controller", "host-key", "--output", "json")
+	if status != exitSuccess || stdout != "{\"version\":1,\"fingerprint\":\"SHA256:abc\"}\n" {
+		t.Fatalf("host-key json = %d %q", status, stdout)
+	}
+	deps.controllerHostKey = func(string) (string, error) { return "", errConfiguration }
+	status, _, stderr := runForTest(t, deps, "controller", "host-key", "--config", "/tmp/secret/path.yml")
+	if status != exitOperational || strings.Contains(stderr, "/tmp/secret") {
+		t.Fatalf("host-key failure = %d %q", status, stderr)
+	}
+}
