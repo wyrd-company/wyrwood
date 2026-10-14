@@ -65,8 +65,8 @@ proposed-design:
     login is stored beside it. The SSH username is the hostname. Login prints
     the public key fingerprint, connects, displays the controller's host-key
     fingerprint for acceptance, and reports whether the controller has
-    approved the key. Nothing else is stored durably except cached policy and
-    operational events.
+    approved the key. Nothing else is stored durably except cached policy,
+    operational events, and the journal of each recreate in progress.
   engine-observation: >-
     On start the agent lists all containers, then subscribes to engine events
     for create, start, die, destroy, and rename. Each event triggers a

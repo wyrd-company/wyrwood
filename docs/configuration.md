@@ -73,8 +73,9 @@ engine:
   allow-recreate: false
 ```
 
-The agent key, accepted controller fingerprint, cached policy, and events live
-under `/var/lib/wyrwood`. No token or secret is ever written there.
+The agent key, accepted controller fingerprint, cached policy, events, and
+the journal of each recreate in progress live under `/var/lib/wyrwood`. No
+token or secret is ever written there.
 
 ## Controller configuration
 
