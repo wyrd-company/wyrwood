@@ -40,9 +40,12 @@ decision-outcome:
 expected-outcomes:
   positive:
     - Binding a policy is enough to make a container conform, when the policy says so.
-    - Engine write access is explicit and limited to one operation at bind time.
+    - The agent's engine writes are explicit and limited to one operation at bind time.
     - Non-conforming containers are visible in the controller.
   negative:
     - Recreate discards the container's writable layer and interrupts attached sessions.
     - The agent must reproduce a container definition from inspect output faithfully.
-    - A host whose agent allows recreate has an agent with effective engine write access.
+    - >-
+      The agent user has full engine access on every host through docker group
+      membership; the recreate setting limits what the agent executable does,
+      not what its identity can do.

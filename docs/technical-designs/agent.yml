@@ -45,9 +45,11 @@ design-challenges:
     directory, so the agent replaces sockets inside the directory and never
     the directory itself.
   engine-write-boundary: >-
-    The engine socket grants full control. The agent must use only read
-    operations unless the host configuration allows recreate, and must keep
-    the write path isolated to the one recreate operation.
+    The engine socket grants full control to every member of the docker
+    group, the agent user included. The agent must use only read operations
+    unless the host configuration allows recreate, and must keep the write
+    path isolated to the one recreate operation. That rule binds the agent
+    executable; the operating system does not enforce it.
 proposed-design:
   high-level-overview: >-
     The agent is the same Go executable as the controller, run in agent mode as
