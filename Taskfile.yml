@@ -50,6 +50,13 @@ tasks:
       - python3 scripts/check-release-toolchain.py
       - cd scripts && ./check-publishing-secret-contract.sh
 
+  demo:
+    desc: >-
+      Record docs/assets/demo.gif and the web interface screenshots
+      (needs Docker Engine, sudo, agent-browser, vhs, ffmpeg, and gifsicle)
+    cmds:
+      - docs/demo/record.sh
+
   docs:check:
     desc: Lint repository artifacts
     cmds:

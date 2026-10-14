@@ -30,6 +30,8 @@ containers per agent with binding and conformance state, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
 behind a reverse proxy that terminates TLS.
 
+![OpenBao keys page with Transit keys and SSH-engine roles](assets/web-keys.png)
+
 Operators sign in through the site's OpenID Connect provider. The controller
 admits an account only when its groups claim names a group listed under
 `oidc.allowed-groups`, and checks membership at every sign-in. Remove someone
@@ -48,6 +50,8 @@ sign-in and sign-out, agent approval, sessions, policy saves, bindings, and
 credential issuance, and name the operator who acted. Events contain no
 tokens, secret values, request bodies, paths, signatures, or raw upstream
 errors.
+
+![Controller events, newest first](assets/web-events.png)
 
 ## Commands
 

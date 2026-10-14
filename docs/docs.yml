@@ -21,3 +21,11 @@ install:
     command: sudo dnf install wyrwood
   - label: AUR
     command: paru -S wyrwood-bin
+assets:
+  - assets/demo.gif
+  - assets/web-agents.png
+  - assets/web-policy.png
+  - assets/web-bind.png
+  - assets/web-containers.png
+  - assets/web-keys.png
+  - assets/web-events.png

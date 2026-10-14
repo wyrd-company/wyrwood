@@ -13,6 +13,8 @@ Wyrwood delivers OpenBao-backed secrets and signing to containers through a
 per-container directory of Unix sockets. A container holds no token, no key,
 and no secret file.
 
+![Wyrwood web interface and command-line demo](assets/demo.gif)
+
 Wyrwood has two parts:
 
 - The **controller** runs once per site as a container. It owns policy, serves

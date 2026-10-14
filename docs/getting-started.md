@@ -28,6 +28,8 @@ open **Agents**, and approve the pending key after comparing its fingerprint
 with the one the login command printed. The host's containers appear once
 the agent reports in.
 
+![Agents page with one key pending approval](assets/web-agents.png)
+
 ## Write a policy
 
 Open **Policies** and create one. A policy has three parts:
@@ -57,6 +59,8 @@ Open **Policies** and create one. A policy has three parts:
    Leave enforcement at `report` unless you want the agent to recreate the
    container with the mount applied when you bind it.
 
+![Policy editor with a saved policy](assets/web-policy.png)
+
 ## Bind a container
 
 Open **Containers**, select the container, and choose the policy. The
@@ -64,11 +68,15 @@ controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.
 
+![Binding a container to a recreate policy](assets/web-bind.png)
+
 A container created without the mount is reported as non-conforming. Either
 add the mount and environment to the container's definition and recreate it
 yourself, or set the policy's enforcement to `recreate` and bind again. A
 recreate stops, removes, and creates the container once. Anything outside a
 mount or volume is discarded, and an attached editor session reconnects.
+
+![A bound container that conforms to its contract](assets/web-containers.png)
 
 For a devcontainer, the equivalent definition is:
 
