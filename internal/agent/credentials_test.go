@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,12 +27,15 @@ import (
 
 // fakeOpenBao answers unwrap, AppRole login, renew-self, and revoke-self.
 // Wrapping tokens in failUnwrap are refused; logins for a role in gates wait
-// until the gate closes.
+// until the gate closes; a role in ttl receives that lease in seconds; every
+// renewal is refused while failRenew is set.
 type fakeOpenBao struct {
 	server *httptest.Server
 
 	mu         sync.Mutex
 	failUnwrap map[string]bool
+	failRenew  bool
+	ttl        map[string]int
 	gates      map[string]chan struct{}
 	logins     map[string]int
 	revoked    []string
@@ -39,7 +43,7 @@ type fakeOpenBao struct {
 
 func newFakeOpenBao(t *testing.T) *fakeOpenBao {
 	t.Helper()
-	fake := &fakeOpenBao{failUnwrap: map[string]bool{}, gates: map[string]chan struct{}{}, logins: map[string]int{}}
+	fake := &fakeOpenBao{failUnwrap: map[string]bool{}, ttl: map[string]int{}, gates: map[string]chan struct{}{}, logins: map[string]int{}}
 	fake.server = httptest.NewServer(http.HandlerFunc(fake.serve))
 	t.Cleanup(fake.server.Close)
 	return fake
@@ -66,14 +70,25 @@ func (fake *fakeOpenBao) serve(w http.ResponseWriter, r *http.Request) {
 		fake.mu.Lock()
 		fake.logins[body.RoleID]++
 		gate := fake.gates[body.RoleID]
+		lease, ok := fake.ttl[body.RoleID]
 		fake.mu.Unlock()
 		if gate != nil {
 			<-gate
 		}
+		if !ok {
+			lease = 3600
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"auth": map[string]any{
-			"client_token": "token-" + body.RoleID, "lease_duration": 3600, "renewable": true,
+			"client_token": "token-" + body.RoleID, "lease_duration": lease, "renewable": true,
 		}})
 	case strings.HasSuffix(r.URL.Path, "/renew-self"):
+		fake.mu.Lock()
+		fail := fake.failRenew
+		fake.mu.Unlock()
+		if fail {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"auth": map[string]any{
 			"client_token": token, "lease_duration": 3600, "renewable": true,
 		}})
@@ -115,6 +130,7 @@ func (fake *fakeOpenBao) wasRevoked(token string) bool {
 func newTestCredentials(t *testing.T, fake *fakeOpenBao, request func(string)) *credentials {
 	t.Helper()
 	manager := newCredentials(5*time.Second, request, func(events.Event) {}, func(string) string { return "" })
+	manager.retryDelay = 10 * time.Millisecond
 	if err := manager.setEndpoint(protocol.OpenBao{Address: fake.server.URL}); err != nil {
 		t.Fatal(err)
 	}
@@ -132,6 +148,66 @@ func heldValue(manager *credentials, binding string) string {
 		return ""
 	}
 	return token.Value()
+}
+
+func TestFailedDeliveryRequestsAnotherCredential(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	fake.failUnwrap["wrap-role-1"] = true
+	var manager *credentials
+	var requests atomic.Int32
+	manager = newTestCredentials(t, fake, func(binding string) {
+		// The controller answers the request with a fresh credential.
+		if requests.Add(1) == 1 {
+			go manager.deliver(ctx, credential(binding, "role-2"), manager.begin(binding))
+		}
+	})
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"))
+	eventually(t, "a token after the failed delivery", func() bool { return heldValue(manager, "bnd-1") == "token-role-2" })
+	time.Sleep(100 * time.Millisecond)
+	if got := requests.Load(); got != 1 {
+		t.Fatalf("credential requests = %d, want 1 once a token is held", got)
+	}
+}
+
+func TestRetryContinuesUntilTheBindingRetires(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	fake.failUnwrap["wrap-role-1"] = true
+	var requests atomic.Int32
+	// The controller never issues: each request goes unanswered.
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"))
+	eventually(t, "repeated credential requests", func() bool { return requests.Load() >= 2 })
+	manager.retire("bnd-1")
+	settled := requests.Load()
+	time.Sleep(200 * time.Millisecond)
+	if got := requests.Load(); got > settled+1 {
+		t.Fatalf("credential requests after retirement = %d, want at most %d", got, settled+1)
+	}
+}
+
+func TestExpiredTokenKeepsRequestingCredentials(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	fake.ttl["role-1"] = 1
+	fake.failRenew = true
+	var requests atomic.Int32
+	// The controller never issues: each request goes unanswered.
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"))
+	if got := heldValue(manager, "bnd-1"); got != "token-role-1" {
+		t.Fatalf("held token = %q, want token-role-1", got)
+	}
+	// Renewal fails once, asks once, and finds the token expired; only the
+	// retry loop asks again after that.
+	eventually(t, "credential requests after the token expired", func() bool { return requests.Load() >= 3 })
+	if got := heldValue(manager, "bnd-1"); got != "" {
+		t.Fatalf("held token after expiry = %q", got)
+	}
 }
 
 func TestStaleLoginCompletionIsRevoked(t *testing.T) {
@@ -164,7 +240,8 @@ func TestRetiredBindingDiscardsInFlightLogin(t *testing.T) {
 	ctx := context.Background()
 	fake := newFakeOpenBao(t)
 	release := fake.gate("role-a")
-	manager := newTestCredentials(t, fake, func(string) {})
+	var requests atomic.Int32
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
 	done := make(chan struct{})
 	generation := manager.begin("bnd-1")
 	go func() {

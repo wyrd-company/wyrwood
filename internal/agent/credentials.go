@@ -25,11 +25,12 @@ import (
 // and retiring the binding each advance the generation, so a delivery that
 // completes late cannot replace a newer token or outlive its binding.
 type credentials struct {
-	timeout time.Duration
-	now     func() time.Time
-	request func(binding string)
-	record  func(events.Event)
-	keyOf   func(binding string) string
+	timeout    time.Duration
+	retryDelay time.Duration
+	now        func() time.Time
+	request    func(binding string)
+	record     func(events.Event)
+	keyOf      func(binding string) string
 
 	mu         sync.Mutex
 	endpoint   protocol.OpenBao
@@ -46,7 +47,7 @@ type heldToken struct {
 
 func newCredentials(timeout time.Duration, request func(string), record func(events.Event), keyOf func(string) string) *credentials {
 	return &credentials{
-		timeout: timeout, now: time.Now, request: request, record: record, keyOf: keyOf,
+		timeout: timeout, retryDelay: time.Second, now: time.Now, request: request, record: record, keyOf: keyOf,
 		held: map[string]*heldToken{}, generation: map[string]uint64{},
 	}
 }
@@ -110,12 +111,14 @@ func (manager *credentials) advanceLocked(binding string) uint64 {
 
 // deliver unwraps a credential, logs in, and replaces the binding's token.
 // The previous token is revoked once the new one is held. A token from a
-// stale delivery is revoked instead of held.
+// stale delivery is revoked instead of held. A failed delivery asks the
+// controller for another credential until a newer delivery begins.
 func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64) {
 	client := manager.openBaoClient()
 	started := manager.now()
 	if client == nil {
 		manager.recordOutcome(events.OperationLogin, credential.Binding, started, errNoEndpoint)
+		go manager.retry(ctx, credential.Binding, generation)
 		return
 	}
 	operation, cancel := context.WithTimeout(ctx, manager.timeout)
@@ -127,6 +130,7 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 	}
 	manager.recordOutcome(events.OperationLogin, credential.Binding, started, err)
 	if err != nil {
+		go manager.retry(ctx, credential.Binding, generation)
 		return
 	}
 	renewCtx, renewCancel := context.WithCancel(context.Background())
@@ -148,6 +152,31 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 }
 
 var errNoEndpoint = &openbao.Error{Category: openbao.CategoryUnavailable}
+
+// retry asks the controller for a fresh credential with exponential backoff
+// until a newer delivery begins or the binding retires. A token still held
+// from an earlier delivery does not stop it: that token is the one being
+// replaced. The controller may fail to issue, so asking once is not enough.
+func (manager *credentials) retry(ctx context.Context, binding string, generation uint64) {
+	delay := manager.retryDelay
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		manager.mu.Lock()
+		current := manager.generation[binding] == generation
+		manager.mu.Unlock()
+		if !current {
+			return
+		}
+		manager.request(binding)
+		if delay < time.Minute {
+			delay *= 2
+		}
+	}
+}
 
 // maintain renews at half the remaining time-to-live and asks the
 // controller for a fresh credential when renewal fails or runs short.
@@ -182,10 +211,15 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 			manager.request(binding)
 			if !held.token.Valid(manager.now()) {
 				manager.mu.Lock()
-				if manager.held[binding] == held {
+				expired := manager.held[binding] == held
+				if expired {
 					delete(manager.held, binding)
 				}
+				generation := manager.generation[binding]
 				manager.mu.Unlock()
+				if expired {
+					go manager.retry(ctx, binding, generation)
+				}
 				return
 			}
 			continue
