@@ -21,6 +21,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/engine/enginetest"
 	"github.com/wyrd-company/wyrwood/internal/events"
+	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
@@ -330,5 +331,65 @@ func TestBindingAbsentFromANewPolicySetRevokesItsToken(t *testing.T) {
 	}
 	if !fake.wasRevoked("token-role-a") {
 		t.Fatal("the retired binding's token was not revoked")
+	}
+}
+
+// shortLivedCredential writes an AppRole with the given token time-to-live
+// and maximum lifetime and returns a credential for it, as the controller
+// would issue.
+func shortLivedCredential(t *testing.T, server *baotest.Server, binding string, ttl, maxTTL time.Duration) protocol.Credential {
+	t.Helper()
+	role := "wyrwood-" + binding
+	if _, err := server.Root.Logical().Write("auth/approle/role/"+role, map[string]any{
+		"token_ttl": int(ttl / time.Second), "token_max_ttl": int(maxTTL / time.Second), "secret_id_num_uses": 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	roleID, err := server.Root.Logical().Read("auth/approle/role/" + role + "/role-id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapping, err := server.Root.Clone()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wrapping.SetToken(baotest.RootToken)
+	wrapping.SetWrappingLookupFunc(func(string, string) string { return "60s" })
+	wrapped, err := wrapping.Logical().Write("auth/approle/role/"+role+"/secret-id", nil)
+	if err != nil || wrapped.WrapInfo == nil {
+		t.Fatalf("wrapped secret identifier = %v, %v", wrapped, err)
+	}
+	return protocol.Credential{Binding: binding, AppRoleMount: "approle", RoleID: roleID.Data["role_id"].(string),
+		WrappedSecretID: wrapped.WrapInfo.Token}
+}
+
+func TestCappedRenewalRequestsAReplacementBeforeExpiry(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := baotest.Start(t)
+	var manager *credentials
+	type request struct{ valid bool }
+	requests := make(chan request, 16)
+	manager = newCredentials(5*time.Second, func(binding string) {
+		_, valid := manager.current(binding)
+		requests <- request{valid: valid}
+	}, func(events.Event) {}, func(string) string { return "" })
+	if err := manager.setEndpoint(protocol.OpenBao{Address: server.Address}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(manager.stopAll)
+	// Renewals at 1s and 2s return the full 2s; the one at 3s is capped
+	// to the 1s left before the 4s maximum.
+	manager.deliver(ctx, shortLivedCredential(t, server, "bnd-1", 2*time.Second, 4*time.Second), manager.begin("bnd-1"))
+	if _, ok := manager.current("bnd-1"); !ok {
+		t.Fatal("no token after login")
+	}
+	select {
+	case first := <-requests:
+		if !first.valid {
+			t.Fatal("the first replacement request came after the token expired")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no replacement request before the maximum lifetime")
 	}
 }

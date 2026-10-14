@@ -41,7 +41,11 @@ type credentials struct {
 }
 
 type heldToken struct {
-	token  openbao.Token
+	token openbao.Token
+	// period is the time-to-live the token had at login, which each
+	// renewal asks for again. A renewal that returns less was capped by
+	// the token's maximum lifetime.
+	period time.Duration
 	cancel context.CancelFunc
 }
 
@@ -142,7 +146,7 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 		return
 	}
 	previous := manager.held[credential.Binding]
-	manager.held[credential.Binding] = &heldToken{token: token, cancel: renewCancel}
+	manager.held[credential.Binding] = &heldToken{token: token, period: token.TTL, cancel: renewCancel}
 	manager.mu.Unlock()
 	if previous != nil {
 		previous.cancel()
@@ -179,7 +183,8 @@ func (manager *credentials) retry(ctx context.Context, binding string, generatio
 }
 
 // maintain renews at half the remaining time-to-live and asks the
-// controller for a fresh credential when renewal fails or runs short.
+// controller for a fresh credential when renewal fails or the token's
+// maximum lifetime caps it.
 func (manager *credentials) maintain(ctx context.Context, binding string) {
 	for {
 		manager.mu.Lock()
@@ -199,9 +204,10 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 		}
 		client := manager.openBaoClient()
 		started := manager.now()
-		previousTTL := held.token.TTL
+		increment := held.token
+		increment.TTL = held.period
 		operation, cancel := context.WithTimeout(ctx, manager.timeout)
-		renewed, err := openbao.RenewSelf(operation, client, held.token)
+		renewed, err := openbao.RenewSelf(operation, client, increment)
 		cancel()
 		if ctx.Err() != nil {
 			return
@@ -229,8 +235,9 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 			held.token = renewed
 		}
 		manager.mu.Unlock()
-		if renewed.TTL < previousTTL/2 || !renewed.Renewable {
-			// The token approaches its maximum lifetime; replace it.
+		if renewed.TTL < held.period || !renewed.Renewable {
+			// The token's maximum lifetime capped the renewal; replace it
+			// while it is still valid.
 			manager.request(binding)
 		}
 	}
