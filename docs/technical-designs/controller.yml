@@ -88,8 +88,11 @@ proposed-design:
     A binding pairs a policy with a container key on one agent. Creating a
     binding creates the AppRole `wyrwood-<agent>-<binding>` with the policy's
     HCL attached, the policy's token time-to-live, and secret-id usage limited
-    to one. Deleting a binding deletes the AppRole, which revokes outstanding
-    tokens. Changing a binding's policy updates the AppRole's token policies so
+    to one. Deleting a binding tells the agent to revoke the binding's token
+    and deletes the AppRole, which stops new logins but does not revoke a
+    token already issued. When the agent is not connected, the deletion
+    reports that the token stays valid until the agent reconnects and revokes
+    it or the token expires. Changing a binding's policy updates the AppRole's token policies so
     the next token the agent obtains carries the new policy; the agent re-logs
     in on the push.
   container-keys: >-

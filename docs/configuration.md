@@ -46,7 +46,9 @@ tried in order: devcontainer identity labels, compose project and service
 labels, container name. The controller creates one AppRole per binding with
 the policy attached. Changing the policy updates the AppRole, and the agent
 obtains a new token on the push. Deleting the binding deletes the AppRole and
-revokes its tokens.
+tells the agent to revoke the container's token. If the agent is not
+connected, that token stays valid until the agent reconnects or the token
+expires.
 
 ## Contract enforcement
 
