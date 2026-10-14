@@ -163,7 +163,7 @@ func TestInterruptedRecreateIsReported(t *testing.T) {
 	}
 }
 
-func TestInterruptionReportSurvivesRestartsUntilSent(t *testing.T) {
+func TestInterruptionReportSurvivesRestartsUntilRecorded(t *testing.T) {
 	ctx := context.Background()
 	paths := newPaths(t)
 	bound := recreateBinding()
@@ -185,13 +185,18 @@ func TestInterruptionReportSurvivesRestartsUntilSent(t *testing.T) {
 	if result := second.results[bound.Binding]; !sameResult(result, want) {
 		t.Fatalf("result after a second restart = %#v, want %#v", result, want)
 	}
-	second.resultSent(protocol.ContractResult{Binding: "bnd-other", Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed})
-	if _, err := os.Stat(paths.RecreateJournal("app")); err != nil {
-		t.Fatalf("journal after another binding's result was sent: %v", err)
+	for _, other := range []protocol.ResultRecorded{
+		{Binding: "bnd-other", Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed},
+		{Binding: bound.Binding, Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonStartFailed},
+	} {
+		second.resultRecorded(other)
+		if _, err := os.Stat(paths.RecreateJournal("app")); err != nil {
+			t.Fatalf("journal after %#v was recorded: %v", other, err)
+		}
 	}
-	second.resultSent(want)
+	second.resultRecorded(want.Acknowledge())
 	if _, err := os.Stat(paths.RecreateJournal("app")); !os.IsNotExist(err) {
-		t.Fatalf("journal after its result was sent: %v", err)
+		t.Fatalf("journal after its result was recorded: %v", err)
 	}
 }
 
@@ -212,24 +217,45 @@ func TestFailedRecreateKeepsItsJournalUntilSent(t *testing.T) {
 	}
 }
 
-func TestSessionReportsEachSentMessage(t *testing.T) {
+func TestUnacknowledgedFailureIsSentAgainOnReconcile(t *testing.T) {
+	instance := newRecreateAgent(t, enginetest.New())
 	var written bytes.Buffer
-	sent := make(chan protocol.Message, 1)
-	session := newControllerSession(protocol.NewConn(readWriter{Reader: &bytes.Buffer{}, Writer: &written}), io.NopCloser(nil),
-		func(message protocol.Message) { sent <- message })
+	session := newControllerSession(protocol.NewConn(readWriter{Reader: &bytes.Buffer{}, Writer: &written}), io.NopCloser(nil))
 	defer close(session.done)
-	go session.write()
-	result := protocol.ContractResult{Binding: "bnd-1", Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed}
-	session.send(result)
-	select {
-	case message := <-sent:
-		if got, ok := message.(protocol.ContractResult); !ok || !sameResult(got, result) {
-			t.Fatalf("sent = %#v", message)
-		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("the session did not report the sent message")
+	instance.session = session
+	bound := recreateBinding()
+	journal, _ := json.Marshal(recreateJournal{Version: 1, Binding: bound.Binding, Key: bound.Key,
+		Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed})
+	if err := writeOwnerOnly(instance.paths.RecreateJournal("app"), journal, false); err != nil {
+		t.Fatal(err)
 	}
-	if written.Len() == 0 {
-		t.Fatal("nothing was written to the controller connection")
+	// The controller could not store the first report and did not
+	// acknowledge it; each reconcile sends it again.
+	for range 2 {
+		if err := instance.fullReconcile(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	reports := 0
+	for _, message := range drain(session) {
+		if result, ok := message.(protocol.ContractResult); ok && result.Outcome == protocol.OutcomeRecreateFailed {
+			reports++
+		}
+	}
+	if reports != 2 {
+		t.Fatalf("recreate-failed reports = %d, want 2", reports)
+	}
+}
+
+// drain returns the messages queued on session without writing them.
+func drain(session *controllerSession) []protocol.Message {
+	var messages []protocol.Message
+	for {
+		select {
+		case message := <-session.queue:
+			messages = append(messages, message)
+		default:
+			return messages
+		}
 	}
 }

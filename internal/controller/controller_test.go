@@ -258,8 +258,24 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	if again, ok := connection.receive(t).(protocol.Credential); !ok || again.WrappedSecretID == credential.WrappedSecretID {
 		t.Fatalf("credential request = %#v", again)
 	}
-	if err := connection.conn.Send(protocol.ContractResult{Binding: binding.ID, Outcome: protocol.OutcomeConforming}); err != nil {
+	conforming := protocol.ContractResult{Binding: binding.ID, Outcome: protocol.OutcomeConforming}
+	if err := connection.conn.Send(conforming); err != nil {
 		t.Fatal(err)
+	}
+	if recorded, ok := connection.receive(t).(protocol.ResultRecorded); !ok || recorded != conforming.Acknowledge() {
+		t.Fatalf("acknowledgement = %#v", recorded)
+	}
+	stored, _ := controller.Store().ContractResults(ctx)
+	if stored[binding.ID].Outcome != protocol.OutcomeConforming {
+		t.Fatal("acknowledged before the result was stored")
+	}
+	// A result for a binding that no longer exists can never be stored.
+	discarded := protocol.ContractResult{Binding: "missing", Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed}
+	if err := connection.conn.Send(discarded); err != nil {
+		t.Fatal(err)
+	}
+	if recorded, ok := connection.receive(t).(protocol.ResultRecorded); !ok || recorded != discarded.Acknowledge() {
+		t.Fatalf("acknowledgement of a discarded result = %#v", recorded)
 	}
 
 	replacement, err := harness.dial("host-a", key)

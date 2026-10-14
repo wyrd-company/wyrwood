@@ -50,12 +50,14 @@ const (
 	TypeCredential        Type = "credential"
 	TypeRecreateRequest   Type = "recreate-request"
 	TypeUnbind            Type = "unbind"
+	TypeResultRecorded    Type = "result-recorded"
 )
 
 // Types lists every message type in schema order.
 var Types = []Type{
 	TypeHello, TypeInventory, TypeContractResult, TypeCredentialRequest,
 	TypePolicySet, TypeCredential, TypeRecreateRequest, TypeUnbind,
+	TypeResultRecorded,
 }
 
 // Message is one protocol message.
@@ -266,6 +268,20 @@ type Unbind struct {
 	Binding string `json:"binding"`
 }
 
+// ResultRecorded acknowledges a contract result the controller has stored,
+// or discarded because its binding no longer belongs to the agent. It
+// echoes the result's binding, outcome, and reason.
+type ResultRecorded struct {
+	Binding string  `json:"binding"`
+	Outcome Outcome `json:"outcome"`
+	Reason  Reason  `json:"reason,omitempty"`
+}
+
+// Acknowledge returns the acknowledgement of result.
+func (result ContractResult) Acknowledge() ResultRecorded {
+	return ResultRecorded{Binding: result.Binding, Outcome: result.Outcome, Reason: result.Reason}
+}
+
 func (Hello) MessageType() Type             { return TypeHello }
 func (Inventory) MessageType() Type         { return TypeInventory }
 func (ContractResult) MessageType() Type    { return TypeContractResult }
@@ -274,6 +290,7 @@ func (PolicySet) MessageType() Type         { return TypePolicySet }
 func (Credential) MessageType() Type        { return TypeCredential }
 func (RecreateRequest) MessageType() Type   { return TypeRecreateRequest }
 func (Unbind) MessageType() Type            { return TypeUnbind }
+func (ResultRecorded) MessageType() Type    { return TypeResultRecorded }
 
 // Validate checks the hello message.
 func (message Hello) Validate() error { return nil }
@@ -352,6 +369,11 @@ func (message RecreateRequest) Validate() error { return validateID(message.Bind
 
 // Validate checks the binding identifier.
 func (message Unbind) Validate() error { return validateID(message.Binding) }
+
+// Validate checks the acknowledged result's closed vocabularies.
+func (message ResultRecorded) Validate() error {
+	return ContractResult{Binding: message.Binding, Outcome: message.Outcome, Reason: message.Reason}.Validate()
+}
 
 func validateID(value string) error {
 	if !idPattern.MatchString(value) {

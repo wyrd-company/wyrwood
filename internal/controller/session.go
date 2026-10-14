@@ -156,14 +156,26 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 		}
 		return session.push(ctx)
 	case protocol.ContractResult:
+		// The acknowledgement tells the agent it may discard its durable
+		// copy, so it is sent only once the result is stored or can never
+		// be: its binding is gone or belongs to another agent.
 		binding, err := controller.store.Binding(ctx, typed.Binding)
-		if err != nil || binding.Agent != session.agent {
+		switch {
+		case errors.Is(err, store.ErrNotFound), err == nil && binding.Agent != session.agent:
+			return session.conn.Send(typed.Acknowledge())
+		case err != nil:
+			controller.logf("contract result not recorded")
 			return nil
 		}
 		if err := controller.store.SaveContractResult(ctx, typed, controller.now()); err != nil {
-			controller.logf("contract result not recorded")
+			// A save that fails because the binding was deleted meanwhile
+			// is a discard; any other failure leaves the agent's copy.
+			if _, lookup := controller.store.Binding(ctx, typed.Binding); !errors.Is(lookup, store.ErrNotFound) {
+				controller.logf("contract result not recorded")
+				return nil
+			}
 		}
-		return nil
+		return session.conn.Send(typed.Acknowledge())
 	case protocol.CredentialRequest:
 		binding, err := controller.store.Binding(ctx, typed.Binding)
 		if err != nil || binding.Agent != session.agent {

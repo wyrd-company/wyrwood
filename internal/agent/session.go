@@ -28,13 +28,10 @@ type controllerSession struct {
 	closer io.Closer
 	queue  chan protocol.Message
 	done   chan struct{}
-	// sent observes each message the controller connection accepted.
-	sent func(protocol.Message)
 }
 
-func newControllerSession(conn *protocol.Conn, closer io.Closer, sent func(protocol.Message)) *controllerSession {
-	return &controllerSession{conn: conn, closer: closer, queue: make(chan protocol.Message, outboundQueue),
-		done: make(chan struct{}), sent: sent}
+func newControllerSession(conn *protocol.Conn, closer io.Closer) *controllerSession {
+	return &controllerSession{conn: conn, closer: closer, queue: make(chan protocol.Message, outboundQueue), done: make(chan struct{})}
 }
 
 // send enqueues a message without blocking; messages reach the controller
@@ -58,7 +55,6 @@ func (session *controllerSession) write() {
 				_ = session.closer.Close()
 				return
 			}
-			session.sent(message)
 		}
 	}
 }
@@ -148,7 +144,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 		return false, err
 	}
 	_ = connection.SetDeadline(time.Time{})
-	session := newControllerSession(protocol.NewConn(readWriter{Reader: stdout, Writer: stdin}), client, agent.resultSent)
+	session := newControllerSession(protocol.NewConn(readWriter{Reader: stdout, Writer: stdin}), client)
 	defer close(session.done)
 	if err := session.conn.Send(protocol.Hello{AgentVersion: Version, AllowRecreate: agent.config.AllowRecreate}); err != nil {
 		return false, err
@@ -193,6 +189,8 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 			agent.requestRecreate(ctx, typed.Binding)
 		case protocol.Unbind:
 			agent.unbind(ctx, typed.Binding)
+		case protocol.ResultRecorded:
+			agent.resultRecorded(typed)
 		default:
 			return true, protocol.ErrInvalid
 		}

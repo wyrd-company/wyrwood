@@ -28,8 +28,8 @@ var (
 // recreateJournal is written before a recreate stops its container. A
 // successful recreate removes it. A failed recreate, or one an agent exit
 // interrupted, makes it terminal by recording the outcome and reason, and
-// it is removed once that result is sent to the controller, so the report
-// survives restarts. It names the binding and container only; the create
+// it is removed once the controller acknowledges recording that result, so
+// the report survives restarts and controller storage failures. It names the binding and container only; the create
 // request, which carries the container's environment, stays in memory.
 type recreateJournal struct {
 	Version int              `json:"version"`
@@ -184,7 +184,7 @@ func (agent *Agent) performRecreate(ctx context.Context, bound protocol.Binding,
 
 // reportInterruptedRecreatesLocked reports each recreate a previous agent
 // process began and did not finish, using observed, the full engine view,
-// and reports again each failure not yet sent to the controller. For an
+// and sends again each failure the controller has not acknowledged. For an
 // unfinished journal, a container with the journaled name means the
 // recreate got that far and reconcile reports its conformance; an absent
 // one is a failed recreate, recorded in the journal until it is sent.
@@ -221,14 +221,17 @@ func (agent *Agent) reportInterruptedRecreatesLocked(observed map[string]engine.
 				ErrorCode: events.ErrorEngineUnavailable, Binding: journal.Binding,
 				ContainerKey: events.ContainerKey(string(journal.Key.Kind), journal.Key.Value)})
 		}
+		// Clearing the last result makes reportLocked send it again: an
+		// unacknowledged report may have been lost by the controller.
+		delete(agent.results, journal.Binding)
 		agent.reportLocked(journal.result())
 	}
 }
 
-// resultSent removes the terminal journal a sent contract result reports.
-func (agent *Agent) resultSent(message protocol.Message) {
-	result, ok := message.(protocol.ContractResult)
-	if !ok || result.Outcome != protocol.OutcomeRecreateFailed {
+// resultRecorded removes the terminal journal whose result the controller
+// acknowledged recording.
+func (agent *Agent) resultRecorded(recorded protocol.ResultRecorded) {
+	if recorded.Outcome != protocol.OutcomeRecreateFailed {
 		return
 	}
 	entries, err := os.ReadDir(agent.paths.RecreateJournals())
@@ -243,7 +246,7 @@ func (agent *Agent) resultSent(message protocol.Message) {
 		path := agent.paths.RecreateJournal(name)
 		data, err := os.ReadFile(path)
 		var journal recreateJournal
-		if err != nil || json.Unmarshal(data, &journal) != nil || !sameResult(journal.result(), result) || journal.Binding != result.Binding {
+		if err != nil || json.Unmarshal(data, &journal) != nil || journal.result().Acknowledge() != recorded {
 			continue
 		}
 		if err := os.Remove(path); err != nil {

@@ -95,6 +95,8 @@ func Decode(line []byte) (Message, error) {
 		message = &RecreateRequest{}
 	case TypeUnbind:
 		message = &Unbind{}
+	case TypeResultRecorded:
+		message = &ResultRecorded{}
 	default:
 		return nil, fmt.Errorf("%w: unknown type", ErrInvalid)
 	}
@@ -126,6 +128,7 @@ var requiredFields = map[Type][]string{
 	TypeCredential:        {"binding", "approle-mount", "role-id", "wrapped-secret-id"},
 	TypeRecreateRequest:   {"binding"},
 	TypeUnbind:            {"binding"},
+	TypeResultRecorded:    {"binding", "outcome"},
 }
 
 func requireFields(messageType Type, fields map[string]json.RawMessage) error {
@@ -160,6 +163,8 @@ func dereference(message Message) Message {
 	case *RecreateRequest:
 		return *typed
 	case *Unbind:
+		return *typed
+	case *ResultRecorded:
 		return *typed
 	}
 	return message

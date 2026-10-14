@@ -10,6 +10,7 @@ package agent
 import (
 	"bufio"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	gossh "golang.org/x/crypto/ssh"
+	_ "modernc.org/sqlite"
 
 	"github.com/wyrd-company/wyrwood/internal/binding"
 	"github.com/wyrd-company/wyrwood/internal/config"
@@ -390,6 +392,75 @@ func TestInterruptionReportReachesTheController(t *testing.T) {
 		return results[bound.ID].Outcome == protocol.OutcomeRecreateFailed
 	})
 	eventually(t, "journal removal after delivery", func() bool {
+		_, err := os.Stat(paths.RecreateJournal("app"))
+		return os.IsNotExist(err)
+	})
+}
+
+func TestInterruptionReportSurvivesAControllerStorageFailure(t *testing.T) {
+	ctx := context.Background()
+	bao := baotest.Start(t)
+	state := t.TempDir()
+	controller := controllertest.StartIn(t, bao, state, controllertest.FreeAddress(t))
+	paths := newPaths(t)
+	first := login(t, paths, controller.URL, controller.Fingerprint)
+	if err := controller.DecideAgent(ctx, first.AgentFingerprint, true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
+	document.Contract.Enforcement = policy.EnforcementRecreate
+	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	key := protocol.Key{Kind: protocol.KeyName, Value: "app"}
+	bound, err := controller.CreateBinding(ctx, "host-a", key, "recreate", "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	journal, _ := json.Marshal(recreateJournal{Version: 1, Binding: bound.ID, Key: key})
+	if err := writeOwnerOnly(paths.RecreateJournal("app"), journal, false); err != nil {
+		t.Fatal(err)
+	}
+	// The controller's storage refuses every contract result.
+	database, err := sql.Open("sqlite", "file:"+filepath.Join(state, "controller.db")+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	for _, statement := range []string{
+		`CREATE TRIGGER refuse_insert BEFORE INSERT ON contract_results BEGIN SELECT RAISE(ABORT, 'refused'); END`,
+		`CREATE TRIGGER refuse_update BEFORE UPDATE ON contract_results BEGIN SELECT RAISE(ABORT, 'refused'); END`,
+	} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	running := startAgent(t, paths, enginetest.New(), true)
+	eventually(t, "the agent's inventory", func() bool {
+		agents, _ := controller.Store().Agents(ctx)
+		for _, agent := range agents {
+			if agent.Name == "host-a" && !agent.LastReport.IsZero() {
+				return true
+			}
+		}
+		return false
+	})
+	time.Sleep(500 * time.Millisecond)
+	if _, err := os.Stat(paths.RecreateJournal("app")); err != nil {
+		t.Fatalf("journal after the controller failed to store the report: %v", err)
+	}
+	running.stop()
+	for _, statement := range []string{`DROP TRIGGER refuse_insert`, `DROP TRIGGER refuse_update`} {
+		if _, err := database.ExecContext(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	startAgent(t, paths, enginetest.New(), true)
+	eventually(t, "recreate-failed at the controller after the restart", func() bool {
+		results, _ := controller.Store().ContractResults(ctx)
+		return results[bound.ID].Outcome == protocol.OutcomeRecreateFailed
+	})
+	eventually(t, "journal removal after the controller recorded the report", func() bool {
 		_, err := os.Stat(paths.RecreateJournal("app"))
 		return os.IsNotExist(err)
 	})

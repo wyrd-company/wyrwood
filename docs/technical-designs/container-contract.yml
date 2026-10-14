@@ -78,8 +78,10 @@ proposed-design:
     exited mid-recreate is reported as a failed recreate when no container
     with that name exists, so the container is not left absent silently. A
     failed or interrupted recreate records its outcome and reason in the
-    journal, never the create request, and the journal is removed once that
-    result is sent to the controller, so the report survives agent restarts.
+    journal, never the create request, and the journal is removed once the
+    controller acknowledges recording that result, so the report survives
+    agent restarts and controller storage failures. Each reconcile sends an
+    unacknowledged report again.
   bind-time-only: >-
     Recreate is triggered only by a binding message whose policy has recreate
     enforcement and whose binding is new for that container key on this agent.

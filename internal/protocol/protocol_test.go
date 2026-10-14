@@ -40,6 +40,8 @@ func sampleMessages() []Message {
 		Credential{Binding: "b-1", AppRoleMount: "approle", RoleID: "role", WrappedSecretID: "wrapped"},
 		RecreateRequest{Binding: "b-1"},
 		Unbind{Binding: "b-1"},
+		ResultRecorded{Binding: "b-1", Outcome: OutcomeConforming},
+		ResultRecorded{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonStartFailed},
 	}
 }
 
