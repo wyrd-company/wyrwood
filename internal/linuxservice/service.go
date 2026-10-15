@@ -4,8 +4,8 @@
 //   uses: run-the-agent-as-a-system-service
 // ---
 
-// Package linuxservice manages the agent's systemd system unit for hosts
-// that installed from the release archive. Packages install the same unit
+// Package linuxservice manages the agent's systemd system unit for package
+// and release archive installations. Packages install the same unit
 // and tmpfiles entry and create the service user in their post-install
 // scripts.
 package linuxservice
@@ -131,7 +131,11 @@ func (manager *Manager) Manage(action string) (State, error) {
 		if !manager.installed() {
 			return "", ErrNotInstalled
 		}
-		if _, err := manager.Run("systemctl", action, UnitName); err != nil {
+		arguments := []string{action, UnitName}
+		if action == "start" {
+			arguments = []string{"enable", "--now", UnitName}
+		}
+		if _, err := manager.Run("systemctl", arguments...); err != nil {
 			return "", ErrManager
 		}
 		return manager.status()

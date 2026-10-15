@@ -103,7 +103,7 @@ docker exec wyrwood-controller wyrwood controller host-key
 The agent supports Linux on `amd64` and `arm64`. Install a package from the
 Wyrd repository or the Arch User Repository (AUR). Packages create the
 `wyrwood` system user, add it to the `docker` group, and install the system
-unit.
+unit. Packages do not start the agent before enrollment.
 
 ### APT
 
@@ -145,6 +145,19 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin \
   --groups docker wyrwood
 sudo wyrwood agent service install
 ```
+
+### Start the agent
+
+After [enrolling the agent](getting-started.md#enroll-the-agent), start it:
+
+```bash
+sudo wyrwood agent service start
+```
+
+This starts the agent immediately and enables it to start at boot for both
+package and release archive installations. `sudo wyrwood agent service stop`
+stops the agent without disabling startup at boot. To disable startup at
+boot, run `sudo systemctl disable wyrwood-agent`.
 
 ## Verify
 

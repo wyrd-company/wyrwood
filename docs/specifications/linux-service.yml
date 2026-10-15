@@ -9,8 +9,9 @@ description: >-
   Package installation creates the `wyrwood` system user with no login shell,
   adds it to the `docker` group, creates `/etc/wyrwood`, `/var/lib/wyrwood`
   with mode 0700, and the tmpfiles entry for `/run/wyrwood` with mode 0755
-  owned by that user, and installs the unit. The service commands exist for
-  hosts that installed from the release archive.
+  owned by that user, and installs the unit. Start, stop, and status also
+  manage packaged units.
+  Archive installations use install to create the user and unit.
 
   The unit runs `wyrwood agent daemon` as `User=wyrwood`, `Group=wyrwood`,
   with `SupplementaryGroups=docker`, `UMask=0077`, `NoNewPrivileges=yes`,
@@ -23,10 +24,13 @@ description: >-
   controller is unavailable.
 
   Install and remove replace the unit atomically, reload the manager, and
-  enable or disable the unit. Status reports only `not-installed`,
+  enable or disable the unit. Start enables the unit at boot and starts it
+  immediately. Stop stops the running unit without disabling boot startup.
+  Status reports only `not-installed`,
   `inactive`, `active`, or `failed`. Every action supports the command-line
   interface's human and JSON output, and failures are categorical.
 validation-criteria: >-
   Tests verify exact unit bytes, hardening directives, argv order without a
   shell, the tmpfiles entry, package post-install user creation on DEB and
-  RPM, idempotent install, and categorical non-leaking errors.
+  RPM, idempotent install and start, enabling packaged and archive units on
+  start, stop preserving enablement, and categorical non-leaking errors.

@@ -157,7 +157,7 @@ func TestStatusVocabularyAndRemove(t *testing.T) {
 			t.Errorf("status for %q = %s, %v", output, state, err)
 		}
 	}
-	runner.failures["systemctl start wyrwood-agent.service"] = errors.New("raw manager text")
+	runner.failures["systemctl enable --now wyrwood-agent.service"] = errors.New("raw manager text")
 	if _, err := manager.Manage("start"); !errors.Is(err, ErrManager) || strings.Contains(err.Error(), "raw") {
 		t.Fatalf("start failure = %v", err)
 	}
@@ -166,5 +166,63 @@ func TestStatusVocabularyAndRemove(t *testing.T) {
 	}
 	if state, err := manager.Manage("remove"); err != nil || state != StateNotInstalled {
 		t.Fatalf("second remove = %s, %v", state, err)
+	}
+}
+
+func TestStartEnablesInstalledServiceAndStopPreservesEnablement(t *testing.T) {
+	for _, source := range []string{"archive", "package"} {
+		t.Run(source, func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			unitPath := manager.unitPath()
+			if source == "package" {
+				unitPath = manager.packagedUnit()
+			}
+			if err := writeAtomic(unitPath, Unit(PackagedExecutable), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			runner.outputs["systemctl show --property=LoadState,ActiveState wyrwood-agent.service"] = "LoadState=loaded\nActiveState=active\n"
+			for range 2 {
+				runner.calls = nil
+				state, err := manager.Manage("start")
+				if err != nil || state != StateActive {
+					t.Fatalf("start = %s, %v", state, err)
+				}
+				if got := runner.calls; len(got) != 2 || strings.Join(got[0], " ") != "systemctl enable --now wyrwood-agent.service" ||
+					strings.Join(got[1], " ") != "systemctl show --property=LoadState,ActiveState wyrwood-agent.service" {
+					t.Fatalf("start calls = %v", got)
+				}
+			}
+			runner.calls = nil
+			runner.outputs["systemctl show --property=LoadState,ActiveState wyrwood-agent.service"] = "LoadState=loaded\nActiveState=inactive\n"
+			if state, err := manager.Manage("stop"); err != nil || state != StateInactive {
+				t.Fatalf("stop = %s, %v", state, err)
+			}
+			if got := runner.calls; len(got) != 2 || strings.Join(got[0], " ") != "systemctl stop wyrwood-agent.service" ||
+				strings.Join(got[1], " ") != "systemctl show --property=LoadState,ActiveState wyrwood-agent.service" {
+				t.Fatalf("stop calls = %v", got)
+			}
+		})
+	}
+}
+
+func TestServiceActionFailureDoesNotQueryStatus(t *testing.T) {
+	for action, command := range map[string]string{
+		"start": "systemctl enable --now wyrwood-agent.service",
+		"stop":  "systemctl stop wyrwood-agent.service",
+	} {
+		t.Run(action, func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			if err := writeAtomic(manager.packagedUnit(), Unit(PackagedExecutable), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			runner.failures[command] = errors.New("raw manager text")
+			state, err := manager.Manage(action)
+			if state != "" || err != ErrManager {
+				t.Fatalf("%s failure = %s, %v", action, state, err)
+			}
+			if len(runner.calls) != 1 || strings.Join(runner.calls[0], " ") != command {
+				t.Fatalf("failure calls = %v", runner.calls)
+			}
+		})
 	}
 }
