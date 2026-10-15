@@ -41,7 +41,8 @@
         <div><h2 id="h-con">Container contract</h2><span class="hint">What a bound container must have to reach its sockets.</span></div>
         <div class="field"><label for="mount-target">Mount target</label><input id="mount-target" name="mount-target" type="text" value="{{.MountTarget}}"></div>
         <div class="field"><label for="env">Environment</label><textarea id="env" name="env" rows="4">{{.Env}}</textarea><span class="hint">One NAME=value per line. <code>{mount-target}</code> is replaced by the mount target.</span></div>
-        <div class="field"><label for="access-group">Access group (numeric)</label><input id="access-group" name="access-group" type="text" inputmode="numeric" value="{{.AccessGroup}}"><span class="hint">Leave empty for owner-only sockets.</span></div>
+        <div class="field"><label for="access-group">Access group (numeric)</label><input id="access-group" name="access-group" type="text" inputmode="numeric" value="{{.AccessGroup}}"><span class="hint">Use a host group available to the container processes. The agent user must belong to it; restart the agent after adding membership. Host group members can use these sockets with the binding’s permissions.</span></div>
+        {{if not .AccessGroup}}<p class="caution" role="status">No access group: the directory is 0700 and sockets are 0600, owned by the agent user. An access group is effectively required for non-root containers running as another UID.</p>{{end}}
         <fieldset>
           <legend>Enforcement</legend>
           <label class="choice"><input type="radio" name="enforcement" value="report"{{if ne .Enforcement "recreate"}} checked{{end}}><span><strong>Report</strong><br><span class="hint">Check and show what is missing. Never touch the container.</span></span></label>

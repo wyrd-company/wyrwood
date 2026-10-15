@@ -21,6 +21,7 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 
+	contractdiagnostic "github.com/wyrd-company/wyrwood/internal/contract"
 	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
@@ -378,7 +379,11 @@ func contractChecks(contract policy.Contract, container protocol.Container, resu
 		checks = append(checks, item)
 	}
 	if contract.AccessGroup != nil {
-		checks = append(checks, mark("access group "+strconv.FormatUint(uint64(*contract.AccessGroup), 10), !failed[protocol.FailedAccessGroup]))
+		label := "access group " + strconv.FormatUint(uint64(*contract.AccessGroup), 10)
+		if failed[protocol.FailedAccessGroup] {
+			label = contractdiagnostic.UnassignableGroup(*contract.AccessGroup)
+		}
+		checks = append(checks, mark(label, !failed[protocol.FailedAccessGroup]))
 	}
 	if failed[protocol.FailedRecreateNotAllowed] {
 		checks = append(checks, check{Label: "recreate is not allowed on this host", Mark: "BLOCKED", Status: "bad"})

@@ -59,6 +59,24 @@ Open **Policies** and create one. A policy has three parts:
    Leave enforcement at `report` unless you want the agent to recreate the
    container with the mount applied when you bind it.
 
+An access group is effectively required for non-root containers running as
+another UID than the agent. Without it, the agent owns the directory (`0700`)
+and sockets (`0600`); with it, their modes are `0750` and `0660`.
+
+On each host, add the agent user to the chosen group and restart the agent.
+For access group 1000:
+
+```bash
+getent group 1000
+sudo usermod -aG <host-group-name> wyrwood
+sudo systemctl restart wyrwood-agent
+```
+
+Replace `<host-group-name>` with the host group name for GID 1000. Create a
+host group with that GID first if none exists. Packages add `wyrwood` only to
+`docker`. Members of the access group who can reach these sockets can use the
+binding's OpenBao and SSH permissions. See [Access group](configuration.md#access-group).
+
 ![Policy editor with a saved policy](assets/web-policy.png)
 
 ## Bind a container
