@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.3
+
+### Fixes
+
+- Report non-conforming contracts when consumer sockets are unavailable or the container user cannot reach owner-only sockets.
+- Document access-group setup and show group assignment failures in the web interface and agent container listing.
+- Preserve consumer mount directories across manual container recreation so replacement containers receive their sockets.
+
 ## 0.2.2
 
 ### Fixes
