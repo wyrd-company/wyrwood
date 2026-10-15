@@ -472,7 +472,7 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
 	server.render(writer, request, "confirm", confirmPage{
 		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
-		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the agent removes its consumer directory; the container's sockets stop answering.",
+		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the container's sockets stop answering. The agent removes the sockets and leaves their directory in place.",
 		Action: "/bindings/" + url.PathEscape(binding.ID) + "/unbind", Button: "Unbind and revoke AppRole", Danger: true, Back: back,
 	})
 }
