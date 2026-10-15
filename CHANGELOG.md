@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2
+
+### Fixes
+
+- Enable the agent service at boot when starting package or archive installations; stopping the service preserves boot startup.
+- Report OpenBao reachability correctly when a namespace is configured.
+- Replace the placeholder concentric-circle mark with the Wyrwood tree emblem across the web interface: light and dark SVG variants in the app palette, an adaptive SVG favicon, a multi-size favicon.ico, and an Apple touch icon.
+
 ## 0.2.1
 
 ### Fixes
