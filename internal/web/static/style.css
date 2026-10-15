@@ -41,6 +41,7 @@ p { margin: 0; }
 .app { min-height: 100vh; display: flex; flex-wrap: wrap; }
 .nav { flex: 1 1 232px; max-width: 100%; background: var(--nav); color: #E8EDE9; padding: 24px 16px; display: flex; flex-direction: column; gap: 24px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 0 8px; font-size: 18px; font-weight: 600; color: #E8EDE9; text-decoration: none; }
+.brand .logo { width: 26px; height: 26px; flex: none; }
 .nav-links { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
 .nav-links a { min-height: 44px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; border-radius: 6px; color: var(--nav-ink); text-decoration: none; }
 .nav-links a[aria-current="page"] { background: var(--nav-active); color: #FFFFFF; font-weight: 500; }
