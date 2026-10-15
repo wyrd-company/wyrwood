@@ -37,6 +37,20 @@ func testManager(t *testing.T) (*baotest.Server, *Manager) {
 	return server, manager
 }
 
+func TestManagerHealthInNamespace(t *testing.T) {
+	server, manager := testManager(t)
+	ctx := context.Background()
+	if _, err := server.Root.Sys().HealthWithContext(ctx); err == nil {
+		t.Fatal("namespaced health request unexpectedly succeeded")
+	}
+	if err := manager.Health(ctx); err != nil {
+		t.Fatalf("Health() in namespace = %v", err)
+	}
+	if err := manager.WritePolicy(ctx, "wyrwood-teal", `path "kv/data/example" { capabilities = ["read"] }`); err != nil {
+		t.Fatalf("namespaced policy write after Health() = %v", err)
+	}
+}
+
 func TestBindingAppRoleLifecycle(t *testing.T) {
 	ctx := context.Background()
 	server, manager := testManager(t)

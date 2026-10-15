@@ -10,6 +10,7 @@ package openbao
 import (
 	"context"
 	"encoding/json"
+	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -85,5 +86,61 @@ func TestClientIgnoresAmbientSkipVerify(t *testing.T) {
 	}
 	if _, err := UnwrapSecretID(context.Background(), client, "wrapping"); CategoryOf(err) != CategoryUnavailable {
 		t.Fatalf("UnwrapSecretID() = %v, want unavailable", err)
+	}
+}
+
+func TestHealthUsesRootNamespaceWithoutChangingClient(t *testing.T) {
+	for _, namespace := range []string{"", "site"} {
+		t.Run("namespace="+namespace, func(t *testing.T) {
+			setAdversarialEnvironment(t)
+			server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/v1/sys/health" {
+					t.Errorf("health request = %s %s", r.Method, r.URL.Path)
+				}
+				if got := r.Header.Get("X-Vault-Namespace"); got != "" {
+					t.Errorf("health namespace = %q, want root", got)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				if got := r.Header.Get("X-Vault-Token"); got != "" {
+					t.Errorf("health request carried a token")
+				}
+				if got := r.Header.Get("X-Example-Routing"); got != "route" {
+					t.Errorf("routing header = %q, want route", got)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"initialized":true,"sealed":false,"standby":false}`))
+			}))
+			defer server.Close()
+			client, err := NewClient(Endpoint{
+				Address: server.URL, Namespace: namespace, Timeout: 5 * time.Second,
+				CAPEM: pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw}),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			client.SetToken("explicit-token")
+			client.AddHeader("X-Example-Routing", "route")
+			if err := Health(context.Background(), client); err != nil {
+				t.Fatalf("Health() = %v", err)
+			}
+			if client.Namespace() != namespace || client.Token() != "explicit-token" {
+				t.Fatal("Health() changed the source client's namespace or token")
+			}
+		})
+	}
+}
+
+func TestHealthCategorizesFailure(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}))
+	defer server.Close()
+	client, err := NewClient(Endpoint{Address: server.URL, Namespace: "site"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := Health(context.Background(), client); err == nil || CategoryOf(err) != CategoryUnavailable {
+		t.Fatalf("Health() = %v, want unavailable", err)
 	}
 }
