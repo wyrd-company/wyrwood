@@ -64,15 +64,19 @@ func TestDirectoryModesAndSocketReplacement(t *testing.T) {
 	assertMode(t, socketPath, 0o660)
 
 	_ = replacement.Close()
-	if err := directory.Remove(root); err != nil {
+	if err := directory.RemoveSockets(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(directory.Path()); !os.IsNotExist(err) {
-		t.Fatalf("directory still present: %v", err)
+	if inode(t, directory.Path()) != firstInode {
+		t.Fatal("socket cleanup removed or replaced the directory")
 	}
+	if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+		t.Fatalf("socket still present: %v", err)
+	}
+	_ = directory.Close()
 }
 
-func TestRemoveDoesNotFollowARenamedDirectory(t *testing.T) {
+func TestRemoveSocketsDoesNotFollowARenamedDirectory(t *testing.T) {
 	base := t.TempDir()
 	root, err := OpenRoot(filepath.Join(base, "containers"))
 	if err != nil {
@@ -87,6 +91,7 @@ func TestRemoveDoesNotFollowARenamedDirectory(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer listener.Close()
+	defer directory.Close()
 	moved := filepath.Join(base, "moved")
 	if err := os.Rename(directory.Path(), moved); err != nil {
 		t.Fatal(err)
@@ -97,7 +102,7 @@ func TestRemoveDoesNotFollowARenamedDirectory(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(directory.Path(), "keep"), []byte("x"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := directory.Remove(root); err != nil {
+	if err := directory.RemoveSockets(); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(directory.Path(), "keep")); err != nil {
@@ -149,4 +154,34 @@ func inode(t *testing.T, path string) uint64 {
 		t.Fatal(err)
 	}
 	return info.Sys().(*syscall.Stat_t).Ino
+}
+
+func TestRemoveSocketsRejectsNonSocketOccupants(t *testing.T) {
+	root, err := OpenRoot(filepath.Join(t.TempDir(), "containers"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory, err := root.Open("app", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer directory.Close()
+	path := filepath.Join(directory.Path(), VaultSocket)
+	if err := os.WriteFile(path, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := directory.Listen(SSHAgentSocket)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	if err := directory.RemoveSockets(); err == nil {
+		t.Fatal("cleanup accepted a non-socket occupant")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "keep" {
+		t.Fatalf("cleanup changed non-socket file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(directory.Path(), SSHAgentSocket)); !os.IsNotExist(err) {
+		t.Fatalf("other socket was not removed after cleanup error: %v", err)
+	}
 }

@@ -212,9 +212,9 @@ func unlinkSocket(directoryFD int, name string) error {
 	return nil
 }
 
-// Remove unlinks the sockets through the pinned handle, then removes the
-// directory from the root if it is still that same directory and empty.
-func (directory *Directory) Remove(root *Root) error {
+// RemoveSockets unlinks sockets through the pinned handle and leaves the
+// directory in place for a replacement container's bind mount.
+func (directory *Directory) RemoveSockets() error {
 	directory.mu.Lock()
 	defer directory.mu.Unlock()
 	if directory.closed {
@@ -224,22 +224,6 @@ func (directory *Directory) Remove(root *Root) error {
 	for _, name := range []string{VaultSocket, SSHAgentSocket} {
 		result = errors.Join(result, unlinkSocket(directory.fd, name))
 	}
-	var pinned unix.Stat_t
-	if err := unix.Fstat(directory.fd, &pinned); err == nil {
-		rootFD, err := unix.Open(root.path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
-		if err == nil {
-			var current unix.Stat_t
-			if unix.Fstatat(rootFD, directory.name, &current, unix.AT_SYMLINK_NOFOLLOW) == nil &&
-				current.Ino == pinned.Ino && current.Dev == pinned.Dev {
-				if err := unix.Unlinkat(rootFD, directory.name, unix.AT_REMOVEDIR); err != nil && !errors.Is(err, unix.ENOENT) {
-					result = errors.Join(result, err)
-				}
-			}
-			_ = unix.Close(rootFD)
-		}
-	}
-	directory.closed = true
-	result = errors.Join(result, unix.Close(directory.fd))
 	return result
 }
 

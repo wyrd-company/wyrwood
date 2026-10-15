@@ -380,6 +380,12 @@ func (agent *Agent) bindingKey(id string) string {
 // match the observed containers and the current policy set.
 func (agent *Agent) applyLocked(ctx context.Context) {
 	desired := map[string]protocol.Binding{}
+	// A name binding identifies its mount source even before a container exists.
+	for _, bound := range agent.set.Bindings {
+		if bound.Key.Kind == protocol.KeyName && consumer.ValidName(bound.Key.Value) {
+			desired[bound.Key.Value] = bound
+		}
+	}
 	governed := map[string][]engine.Container{}
 	for _, container := range agent.containers {
 		bound, ok := agent.governingLocked(container)
@@ -448,9 +454,12 @@ func (agent *Agent) removeConsumerLocked(name string, state *consumerState) {
 	for _, listener := range state.listeners {
 		_ = listener.Close()
 	}
-	if err := state.directory.Remove(agent.root); err != nil {
-		agent.logf("consumer directory not fully removed")
+	// The controller withdraws unmatched bindings during a manual recreate.
+	// Leave the mount source in place so Docker cannot create it as root.
+	if err := state.directory.RemoveSockets(); err != nil {
+		agent.logf("consumer sockets not fully removed")
 	}
+	_ = state.directory.Close()
 	delete(agent.consumers, name)
 }
 

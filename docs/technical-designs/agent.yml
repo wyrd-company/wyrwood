@@ -97,14 +97,18 @@ proposed-design:
     renewal fails, when the token's maximum lifetime caps a renewal, or when
     the policy push says the binding changed. When a bound container is
     destroyed or unbound, the agent revokes the token and removes the consumer
-    directory. Tokens are never logged, never written, and never exposed
+    sockets. Tokens are never logged, never written, and never exposed
     through the control socket.
   consumer-directories: >-
     A consumer directory is `/run/wyrwood/containers/<container-name>/`, owned
     by the agent user, with mode 0750 and the contract's access group, or
     0700 without one. The sockets inside have mode 0660 or 0600 to match.
-    The directory is created when a bound container is first observed and
-    removed when the binding ends or the container is destroyed. Socket
+    The directory is created when a bound container is first observed, or
+    when a name binding identifies its mount source before observation. Empty
+    agent-owned directories remain after retirement so a manual replacement
+    can mount the same directory without Docker creating a root-owned source.
+    Listeners close and sockets are removed when the binding is withdrawn.
+    Directories with a foreign owner are rejected. Socket
     replacement unlinks and rebinds inside the directory through a pinned
     directory handle so a rename of the directory path cannot redirect
     cleanup. A container that is bound but non-conforming receives a

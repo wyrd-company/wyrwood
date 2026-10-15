@@ -26,6 +26,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/binding"
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/consumer"
 	"github.com/wyrd-company/wyrwood/internal/controller/controllertest"
 	"github.com/wyrd-company/wyrwood/internal/engine"
 	"github.com/wyrd-company/wyrwood/internal/engine/enginetest"
@@ -274,10 +275,10 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	fields := strings.Fields(probe(t, socket))
 	token = fields[2]
 
-	// Destroying the container revokes its token and removes the directory.
+	// Destroying the container revokes its token and removes the sockets.
 	fake.Destroy(func() string { container, _ := fake.ByName("web"); return container.ID }())
-	eventually(t, "consumer directory removal", func() bool {
-		_, err := os.Stat(filepath.Dir(socket))
+	eventually(t, "consumer socket removal", func() bool {
+		_, err := os.Stat(socket)
 		return os.IsNotExist(err)
 	})
 	reader.SetToken(token)
@@ -285,6 +286,26 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		_, err := reader.Auth().Token().LookupSelf()
 		return err != nil
 	})
+	// The stored name binding survives the gap; the replacement reuses the
+	// directory the original container would have mounted.
+	before, err := os.Stat(filepath.Dir(socket))
+	if err != nil {
+		t.Fatalf("retained mount source: %v", err)
+	}
+	fake.Add(web)
+	eventually(t, "replacement sockets with a fresh token", func() bool {
+		for _, name := range []string{consumer.VaultSocket, consumer.SSHAgentSocket} {
+			fields := strings.Fields(probe(t, filepath.Join(filepath.Dir(socket), name)))
+			if len(fields) != 3 || fields[0] != "teal" || fields[1] != "true" || fields[2] == token {
+				return false
+			}
+		}
+		return true
+	})
+	after, err := os.Stat(filepath.Dir(socket))
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("manual recreate replaced mount source: %v", err)
+	}
 	var history Events
 	if err := Query(ctx, paths, ControlRequest{Operation: "events", Limit: 1000}, &history); err != nil {
 		t.Fatal(err)
@@ -356,8 +377,8 @@ func TestRecreateOnNewBindingAndUnbind(t *testing.T) {
 	if err := controller.DeleteBinding(ctx, bound.ID, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	eventually(t, "unbound directory removal", func() bool {
-		_, err := os.Stat(filepath.Join(paths.Runtime, "containers", "app"))
+	eventually(t, "unbound socket removal", func() bool {
+		_, err := os.Stat(filepath.Join(paths.Runtime, "containers", "app", consumer.VaultSocket))
 		return os.IsNotExist(err)
 	})
 }
