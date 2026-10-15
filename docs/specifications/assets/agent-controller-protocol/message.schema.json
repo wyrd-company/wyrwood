@@ -87,7 +87,7 @@
         "type": { "const": "contract-result" },
         "binding": { "$ref": "#/$defs/id" },
         "outcome": { "type": "string", "enum": ["conforming", "non-conforming", "recreating", "recreated", "recreate-failed"] },
-        "failed-items": { "type": "array", "items": { "type": "string", "enum": ["mount", "env", "access-group", "recreate-not-allowed"] } },
+        "failed-items": { "type": "array", "items": { "type": "string", "enum": ["mount", "env", "access-group", "consumer-directory", "socket-access", "recreate-not-allowed"] } },
         "container-id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
         "reason": { "type": "string", "enum": ["engine-error", "create-failed", "start-failed"] }
       }

@@ -29,7 +29,7 @@ func sampleMessages() []Message {
 			Mounts:   []Mount{{Source: "/run/wyrwood/containers/web", Target: "/run/wyrwood"}},
 			EnvNames: []string{"SSH_AUTH_SOCK", "VAULT_ADDR"},
 		}}},
-		ContractResult{Binding: "b-1", Outcome: OutcomeNonConforming, FailedItems: []FailedItem{FailedMount, FailedEnv}},
+		ContractResult{Binding: "b-1", Outcome: OutcomeNonConforming, FailedItems: append([]FailedItem(nil), FailedItems...)},
 		ContractResult{Binding: "b-1", Outcome: OutcomeRecreated, ContainerID: containerID},
 		ContractResult{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonCreateFailed},
 		CredentialRequest{Binding: "b-1"},

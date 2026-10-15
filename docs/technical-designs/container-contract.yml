@@ -56,9 +56,15 @@ proposed-design:
     container's consumer directory and whose target is the contract's mount
     target, when every contract environment name is present with the contract
     value, and when the access group is one the agent user can assign.
-    Validation uses inspect output only; it never executes inside the
-    container. The result lists each failed item by name so the controller can
-    show what is missing.
+    The agent must also hold the consumer directory and both socket listeners
+    for the binding, with the policy's access group applied. An unavailable
+    directory or socket is reported as `consumer-directory`. With no access
+    group, the container user must be root or the numeric agent uid; otherwise
+    `socket-access` is reported. A named non-root user cannot be resolved from
+    inspect output and is reported as unreachable for owner-only sockets.
+    Validation uses inspect output and agent runtime state; it never executes
+    inside the container. The result lists each failed item by name so the
+    controller can show what is missing.
   recreate: >-
     Recreate requires enforcement `recreate` on the policy and recreate
     allowed in the host's agent configuration; otherwise the binding is

@@ -8,6 +8,7 @@ package contract
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"reflect"
 	"sort"
@@ -252,4 +253,19 @@ func contains(values []string, value string) bool {
 		}
 	}
 	return false
+}
+
+func TestOwnerOnlySocketAccess(t *testing.T) {
+	for _, user := range []string{"", "root", "root:1234", "0", "0:1234", fmt.Sprint(os.Geteuid()), fmt.Sprintf("%d:1234", os.Geteuid()), "12345", "12345:0", "app", "app:0"} {
+		t.Run(user, func(t *testing.T) {
+			container, err := engine.ParseInspect([]byte(fmt.Sprintf(`{"Config":{"User":%q}}`, user)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := !strings.HasPrefix(user, "12345") && !strings.HasPrefix(user, "app")
+			if got := OwnerOnlyReachable(container.Config.User); got != want {
+				t.Fatalf("OwnerOnlyReachable(%q) = %v, want %v", user, got, want)
+			}
+		})
+	}
 }

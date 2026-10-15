@@ -53,13 +53,14 @@ type Status struct {
 
 // ContainerStatus is one entry of the containers projection.
 type ContainerStatus struct {
-	Name             string `json:"name"`
-	State            string `json:"state"`
-	BindingKey       string `json:"binding-key,omitempty"`
-	Policy           string `json:"policy,omitempty"`
-	Conformance      string `json:"conformance"`
-	Token            string `json:"token"`
-	AccessGroupError string `json:"access-group-error,omitempty"`
+	Name             string                `json:"name"`
+	State            string                `json:"state"`
+	BindingKey       string                `json:"binding-key,omitempty"`
+	Policy           string                `json:"policy,omitempty"`
+	Conformance      string                `json:"conformance"`
+	Token            string                `json:"token"`
+	AccessGroupError string                `json:"access-group-error,omitempty"`
+	FailedItems      []protocol.FailedItem `json:"failed-items,omitempty"`
 }
 
 // Containers is the containers projection.
@@ -211,6 +212,7 @@ func (agent *Agent) ContainerStatuses() Containers {
 						entry.AccessGroupError = contract.UnassignableGroup(*bound.Policy.Contract.AccessGroup)
 					}
 				}
+				entry.FailedItems = append([]protocol.FailedItem(nil), result.FailedItems...)
 			}
 			if valid, ok := holding[bound.Binding]; ok && valid {
 				entry.Token = "valid"

@@ -186,6 +186,8 @@ var Outcomes = []Outcome{OutcomeConforming, OutcomeNonConforming, OutcomeRecreat
 type FailedItem string
 
 const (
+	FailedConsumerDirectory  FailedItem = "consumer-directory"
+	FailedSocketAccess       FailedItem = "socket-access"
 	FailedMount              FailedItem = "mount"
 	FailedEnv                FailedItem = "env"
 	FailedAccessGroup        FailedItem = "access-group"
@@ -193,7 +195,7 @@ const (
 )
 
 // FailedItems lists every failed-item name in schema order.
-var FailedItems = []FailedItem{FailedMount, FailedEnv, FailedAccessGroup, FailedRecreateNotAllowed}
+var FailedItems = []FailedItem{FailedMount, FailedEnv, FailedAccessGroup, FailedConsumerDirectory, FailedSocketAccess, FailedRecreateNotAllowed}
 
 // Reason is a categorical recreate failure reason.
 type Reason string

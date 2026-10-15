@@ -12,6 +12,7 @@ package contract
 import (
 	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -50,6 +51,18 @@ func Check(container engine.Container, contract policy.Contract, consumerDirecto
 		failed = append(failed, protocol.FailedAccessGroup)
 	}
 	return failed
+}
+
+// OwnerOnlyReachable reports whether the inspected user can reach sockets
+// owned by the agent with owner-only modes. Named non-root users cannot be
+// resolved from inspect output.
+func OwnerOnlyReachable(user string) bool {
+	uid, _, _ := strings.Cut(user, ":")
+	if uid == "" || uid == "root" {
+		return true
+	}
+	numeric, err := strconv.ParseUint(uid, 10, 32)
+	return err == nil && (numeric == 0 || numeric == uint64(os.Geteuid()))
 }
 
 // CreateRequest is the create body and name for a recreated container.
