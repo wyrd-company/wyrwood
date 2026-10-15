@@ -4,20 +4,10 @@
 
 ### Fixes
 
-- Document a dedicated OpenBao namespace as the supported controller deployment,
-  so that a compromised controller or operator can grant nothing outside
-  Wyrwood's namespace. The controller's own policy and AppRole are named outside
-  the `wyrwood-` prefix, and binding AppRoles accept only their own managed
-  policy.
+- Document a dedicated OpenBao namespace as the supported controller deployment, so that a compromised controller or operator can grant nothing outside Wyrwood's namespace. The controller's own policy and AppRole are named outside the `wyrwood-` prefix, and binding AppRoles accept only their own managed policy.
 
 ## 0.2.0
 
 ### Features
 
-- Split Wyrwood into a controller and an agent. The controller owns policy,
-  serves a web interface that operators sign in to through OpenID Connect with
-  group-based admission, and manages OpenBao policies and AppRoles. The agent
-  watches Docker Engine, binds containers to policy, and publishes a
-  per-container vault socket and ssh-agent socket. Keys and secrets live in
-  OpenBao; the host SSH-agent upstream, fingerprint allowlists, and terminal
-  interface are removed.
+- Split Wyrwood into a controller and an agent. The controller owns policy, serves a web interface that operators sign in to through OpenID Connect with group-based admission, and manages OpenBao policies and AppRoles. The agent watches Docker Engine, binds containers to policy, and publishes a per-container vault socket and ssh-agent socket. Keys and secrets live in OpenBao; the host SSH-agent upstream, fingerprint allowlists, and terminal interface are removed.
