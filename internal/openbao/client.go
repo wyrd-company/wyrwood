@@ -196,9 +196,15 @@ func withToken(client *api.Client, token string) (*api.Client, error) {
 	return clone, nil
 }
 
-// Health reports whether OpenBao answers its health endpoint.
+// Health reports whether OpenBao answers its root-only health endpoint.
 func Health(ctx context.Context, client *api.Client) error {
-	_, err := client.Sys().HealthWithContext(ctx)
+	// Keep the shared client's namespace for normal controller and agent calls.
+	probe, err := withToken(client, "")
+	if err != nil {
+		return err
+	}
+	probe.ClearNamespace()
+	_, err = probe.Sys().HealthWithContext(ctx)
 	return categorize(err)
 }
 
