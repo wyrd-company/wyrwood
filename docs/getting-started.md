@@ -20,7 +20,7 @@ fingerprint for you to accept.
 
 ```bash
 sudo wyrwood agent login ssh://controller.example.internal:2222
-sudo systemctl enable --now wyrwood-agent
+sudo wyrwood agent service start
 ```
 
 Sign in to the controller's web interface through your identity provider,
