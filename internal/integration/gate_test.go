@@ -38,6 +38,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/binding"
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/consumer"
+	"github.com/wyrd-company/wyrwood/internal/contract"
 	"github.com/wyrd-company/wyrwood/internal/controller/controllertest"
 	"github.com/wyrd-company/wyrwood/internal/engine"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
@@ -407,12 +408,52 @@ func TestLinuxIntegrationGate(t *testing.T) {
 	if liveBefore == 0 {
 		t.Fatal("no live binding token before destroy")
 	}
+	// Capture the operator's replacement definition before removing the old
+	// container. Use the same name, labels, mount source, and environment.
+	client := engine.NewClient("/var/run/docker.sock")
+	previous, err := client.Inspect(ctx, container.id(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := contract.BuildCreateRequest(previous, document.Contract, consumerDirectory, previous.Image)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.Stat(consumerDirectory)
+	if err != nil {
+		t.Fatal(err)
+	}
 	run(t, "docker", "rm", "--force", container.id(t))
 	eventually(t, "token revocation after destroy", time.Minute, func() bool { return bindingTokens(t, bao, "wyrwood-teal") == 0 })
-	eventually(t, "consumer directory removal", 30*time.Second, func() bool {
-		_, err := os.Stat(consumerDirectory)
+	eventually(t, "consumer socket removal", 30*time.Second, func() bool {
+		_, err := os.Stat(filepath.Join(consumerDirectory, consumer.VaultSocket))
 		return os.IsNotExist(err)
 	})
+	// Manually create the replacement only after the controller has withdrawn
+	// the old match. The consumer directory must still be the mount source.
+	after, err := os.Stat(consumerDirectory)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("manual recreate lost mount source: %v", err)
+	}
+	replacementID, err := client.Create(ctx, request.Name, request.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Start(ctx, replacementID); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "manual replacement vault socket", time.Minute, func() bool {
+		output, err := container.exec(t, "bao", "kv", "get", "-field=value", "kv/teams/teal/example")
+		return err == nil && strings.TrimSpace(output) == gateSecret
+	})
+	eventually(t, "manual replacement ssh socket", time.Minute, func() bool {
+		output, err := container.exec(t, "ssh-add", "-L")
+		return err == nil && strings.Contains(output, "teal-signing")
+	})
+	after, err = os.Stat(consumerDirectory)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("manual replacement changed mount source: %v", err)
+	}
 	restarted.stop()
 }
 

@@ -76,6 +76,48 @@ yourself, or set the policy's enforcement to `recreate` and bind again. A
 recreate stops, removes, and creates the container once. Anything outside a
 mount or volume is discarded, and an attached editor session reconnects.
 
+For a manual recreate, use this order:
+
+1. Bind the existing container and wait for the agent to create
+   `/run/wyrwood/containers/<container-name>` on the host. Use the container's
+   Docker name for this path, including when the binding uses a label key.
+2. Add the mount and environment variables to the replacement definition.
+   Use `--mount type=bind` so Docker fails if the source directory is absent.
+3. Remove the old container and create the replacement with the same binding
+   key. The agent keeps the directory through the gap and restores its sockets
+   when the replacement receives its binding.
+
+For example, replace a container named `app`:
+
+```bash
+docker rm -f app
+docker run -d --name app \
+  --mount type=bind,src=/run/wyrwood/containers/app,dst=/run/wyrwood \
+  -e SSH_AUTH_SOCK=/run/wyrwood/ssh-agent.sock \
+  -e VAULT_ADDR=unix:///run/wyrwood/vault.sock \
+  alpine sleep infinity
+```
+
+Keep the image, other mounts, labels, and options your application needs.
+Avoid `-v` for this mount: Docker creates a missing source as root, and the
+agent rejects directories owned by another user.
+
+If Docker has already created a root-owned source, stop the container before
+repairing it. Check that the directory is empty, then replace it with one owned
+by the agent service user. For the default service configuration without an
+access group:
+
+```bash
+docker stop app
+sudo rmdir /run/wyrwood/containers/app
+sudo install -d -o wyrwood -g wyrwood -m 0700 /run/wyrwood/containers/app
+docker start app
+```
+
+Stop if `rmdir` fails; do not recursively delete the directory. The agent applies
+its configured access group when it opens the repaired directory. Repair before
+starting the container so its bind mount refers to the new directory.
+
 ![A bound container that conforms to its contract](assets/web-containers.png)
 
 For a devcontainer, the equivalent definition is:

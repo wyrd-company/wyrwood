@@ -8,8 +8,10 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wyrd-company/wyrwood/internal/consumer"
@@ -108,5 +110,82 @@ func TestInterruptedRecreateWaitsForAnUninspectedContainer(t *testing.T) {
 	}
 	if _, err := os.Stat(instance.paths.RecreateJournal("app")); err != nil {
 		t.Fatalf("recreate journal while a container is uninspected: %v", err)
+	}
+}
+
+// The policy set contains only matched bindings, so a manual replacement
+// spans a withdrawal and redelivery even though the stored binding survives.
+func TestManualRecreateKeepsConsumerDirectoryAcrossBindingWithdrawal(t *testing.T) {
+	ctx := context.Background()
+	fake, instance := newBoundApp(t)
+	set := instance.set
+	path := instance.root.DirectoryPath("app")
+	held, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer held.Close()
+	before, err := held.Stat()
+	if err != nil {
+		t.Fatal(err)
+	}
+	app, _ := fake.ByName("app")
+	fake.Destroy(app.ID)
+	instance.reconcileContainer(ctx, app.ID)
+	instance.applyPolicySet(ctx, protocol.PolicySet{OpenBao: set.OpenBao})
+	after, err := os.Stat(path)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("consumer directory lost during manual recreate: %v", err)
+	}
+	for _, name := range []string{consumer.VaultSocket, consumer.SSHAgentSocket} {
+		if _, err := os.Lstat(filepath.Join(path, name)); !os.IsNotExist(err) {
+			t.Fatalf("retired socket %s remains: %v", name, err)
+		}
+	}
+	// Restart during the gap, as may happen while the operator edits the definition.
+	instance.shutdown()
+	instance = newRecreateAgentAt(t, fake, instance.paths)
+	instance.loadCache()
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	replacement := runningApp(fake)
+	if replacement.ID == app.ID {
+		t.Fatal("replacement has original container ID")
+	}
+	instance.reconcileContainer(ctx, replacement.ID)
+	instance.applyPolicySet(ctx, set)
+	after, err = os.Stat(path)
+	if err != nil || !os.SameFile(before, after) {
+		t.Fatalf("replacement directory inode changed: %v", err)
+	}
+	for _, name := range []string{consumer.VaultSocket, consumer.SSHAgentSocket} {
+		// Use the held directory handle, as a bind mount does, rather than re-resolving the path.
+		socket := filepath.Join("/proc/self/fd", fmt.Sprint(held.Fd()), name)
+		if got := probe(t, socket); !strings.HasPrefix(got, "report ") {
+			t.Fatalf("replacement socket %s = %q", name, got)
+		}
+	}
+}
+
+func TestNameBindingPreparesDirectoryBeforeContainerExists(t *testing.T) {
+	fake := enginetest.New()
+	instance := newRecreateAgent(t, fake)
+	document := policy.New("report", `path "kv/data/example/*" { capabilities = ["read"] }`)
+	instance.applyPolicySet(context.Background(), protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:1"},
+		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}}})
+	if _, err := os.Stat(instance.root.DirectoryPath("app")); err != nil {
+		t.Fatalf("directory before container exists: %v", err)
+	}
+}
+
+func TestLabelBindingDoesNotCreateDirectoryFromKeyValue(t *testing.T) {
+	fake := enginetest.New()
+	instance := newRecreateAgent(t, fake)
+	document := policy.New("report", `path "kv/data/example/*" { capabilities = ["read"] }`)
+	instance.applyPolicySet(context.Background(), protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:1"},
+		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyDevcontainer, Value: "workspace"}, Policy: document}}})
+	if _, err := os.Stat(instance.root.DirectoryPath("workspace")); !os.IsNotExist(err) {
+		t.Fatalf("label value used as container name: %v", err)
 	}
 }
