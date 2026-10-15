@@ -146,6 +146,33 @@ sudo useradd --system --no-create-home --shell /usr/sbin/nologin \
 sudo wyrwood agent service install
 ```
 
+### Configure the access group
+
+An access group is effectively required for non-root containers running as a
+UID other than the agent user. Without it, the consumer directory is `0700`
+and sockets are `0600`, owned by the agent user; with it, they are `0750` and
+`0660`. Set the policy's numeric access group to a host GID held by the
+container processes.
+
+Packages add the agent user to `docker` only. Add `wyrwood` to each access
+group on the host. For example, for access group 1000:
+
+```bash
+getent group 1000
+sudo usermod -aG <host-group-name> wyrwood
+```
+
+Replace `<host-group-name>` with the host group name for GID 1000. Create a
+host group with that GID first if needed. Start the agent after enrollment if
+it is not running yet. Restart a running agent so it gets the new membership:
+
+```bash
+sudo systemctl restart wyrwood-agent
+```
+
+Members of this host group who can reach the sockets can use the binding's
+OpenBao and SSH permissions. See [Access group](configuration.md#access-group).
+
 ### Start the agent
 
 After [enrolling the agent](getting-started.md#enroll-the-agent), start it:

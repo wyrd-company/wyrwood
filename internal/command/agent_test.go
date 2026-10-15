@@ -122,3 +122,25 @@ func TestServiceProjectionsAndFailures(t *testing.T) {
 		t.Fatalf("unknown action = %d", status)
 	}
 }
+
+func TestAgentContainersShowsAccessGroupError(t *testing.T) {
+	deps := defaultDependencies()
+	const detail = "agent user cannot assign group 1000; add the agent user to this host group and restart the agent"
+	deps.queryAgent = func(_ context.Context, _ agent.ControlRequest, destination any) error {
+		*destination.(*agent.Containers) = agent.Containers{Version: 1, Containers: []agent.ContainerStatus{{Name: "sample", Conformance: "non-conforming", AccessGroupError: detail}}}
+		return nil
+	}
+	for _, format := range []string{"human", "json"} {
+		args := []string{"agent", "containers"}
+		if format == "json" {
+			args = append(args, "--output", "json")
+		}
+		status, stdout, stderr := runForTest(t, deps, args...)
+		if status != exitSuccess || !strings.Contains(stdout, detail) {
+			t.Fatalf("%s: %d %s %s", format, status, stdout, stderr)
+		}
+		if format == "json" && !strings.Contains(stdout, `"access-group-error":`) {
+			t.Fatalf("json field missing: %s", stdout)
+		}
+	}
+}

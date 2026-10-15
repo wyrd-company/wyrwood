@@ -40,6 +40,35 @@ as `wyrwood-teal-devcontainer`. Every Transit key and SSH role the policy
 names must exist under the controller's configured mounts and must also be
 permitted by the HCL.
 
+## Access group
+
+`contract.access-group` is effectively required for non-root containers whose
+processes run as a different UID from the host agent user. Set it to a numeric
+host GID that the container processes have as a primary or supplementary group.
+With an access group, the consumer directory is `0750` and sockets are `0660`.
+Without one, they are `0700` and `0600`, owned by the agent user. A container
+running as another non-root UID cannot use those owner-only sockets.
+
+The agent user must belong to the host group so it can assign that group to
+the directory and sockets. Packages add `wyrwood` to `docker` only; they do
+not add it to your container's access group. For example, if the contract uses
+GID 1000, find its host group name, add the agent user, and restart the agent
+so it receives the new membership:
+
+```bash
+getent group 1000
+sudo usermod -aG <host-group-name> wyrwood
+sudo systemctl restart wyrwood-agent
+```
+
+Replace `<host-group-name>` with the name returned by `getent`. If the GID has
+no host group, create one with that GID first. Repeat on each bound host.
+For a custom service account, use that account instead of `wyrwood`.
+
+Membership grants access: members of that host group who can reach the
+consumer directory can use its sockets with the binding's OpenBao and SSH
+permissions. Choose a group whose members you trust with those permissions.
+
 ## Token lifetime
 
 `token-ttl` is how long a token lives between renewals; `token-max-ttl`, at

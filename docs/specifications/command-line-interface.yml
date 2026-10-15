@@ -23,7 +23,10 @@ description: >-
   `wyrwood agent status`, `wyrwood agent containers`, and `wyrwood agent events`
   query the running daemon through its owner-only control socket and accept no
   path override. `containers` lists each observed container with its name, the
-  binding key it matched, policy name, conformance, and token state.
+  binding key it matched, policy name, conformance, token state, and an
+  access-group error when the agent cannot assign the contract group. The
+  optional JSON field `access-group-error` explains the group membership
+  requirement and agent restart.
   `events` defaults to 100 records and accepts `--limit` from 1 through 1000.
   `wyrwood agent service install|remove|start|stop|status` manages the system
   unit through the Linux service adapter and requires root.

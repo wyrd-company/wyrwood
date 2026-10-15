@@ -22,7 +22,9 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	"github.com/wyrd-company/wyrwood/internal/contract"
 	"github.com/wyrd-company/wyrwood/internal/events"
+	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
 // ControlVersion is the control protocol and projection version.
@@ -51,12 +53,13 @@ type Status struct {
 
 // ContainerStatus is one entry of the containers projection.
 type ContainerStatus struct {
-	Name        string `json:"name"`
-	State       string `json:"state"`
-	BindingKey  string `json:"binding-key,omitempty"`
-	Policy      string `json:"policy,omitempty"`
-	Conformance string `json:"conformance"`
-	Token       string `json:"token"`
+	Name             string `json:"name"`
+	State            string `json:"state"`
+	BindingKey       string `json:"binding-key,omitempty"`
+	Policy           string `json:"policy,omitempty"`
+	Conformance      string `json:"conformance"`
+	Token            string `json:"token"`
+	AccessGroupError string `json:"access-group-error,omitempty"`
 }
 
 // Containers is the containers projection.
@@ -203,6 +206,11 @@ func (agent *Agent) ContainerStatuses() Containers {
 			entry.Conformance = "unknown"
 			if result, ok := agent.results[bound.Binding]; ok {
 				entry.Conformance = string(result.Outcome)
+				for _, item := range result.FailedItems {
+					if item == protocol.FailedAccessGroup && bound.Policy.Contract.AccessGroup != nil {
+						entry.AccessGroupError = contract.UnassignableGroup(*bound.Policy.Contract.AccessGroup)
+					}
+				}
 			}
 			if valid, ok := holding[bound.Binding]; ok && valid {
 				entry.Token = "valid"
