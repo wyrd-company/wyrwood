@@ -14,6 +14,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/agent"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/linuxservice"
+	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
 func TestAgentLoginProjectionsAndExitStatuses(t *testing.T) {
@@ -141,6 +142,20 @@ func TestAgentContainersShowsAccessGroupError(t *testing.T) {
 		}
 		if format == "json" && !strings.Contains(stdout, `"access-group-error":`) {
 			t.Fatalf("json field missing: %s", stdout)
+		}
+	}
+}
+
+func TestAgentContainersShowsFailedItems(t *testing.T) {
+	deps := defaultDependencies()
+	deps.queryAgent = func(_ context.Context, _ agent.ControlRequest, destination any) error {
+		*destination.(*agent.Containers) = agent.Containers{Version: 1, Containers: []agent.ContainerStatus{{Name: "app", Conformance: "non-conforming", FailedItems: []protocol.FailedItem{protocol.FailedConsumerDirectory, protocol.FailedSocketAccess}}}}
+		return nil
+	}
+	for _, args := range [][]string{{"agent", "containers"}, {"agent", "containers", "--output", "json"}} {
+		status, stdout, _ := runForTest(t, deps, args...)
+		if status != exitSuccess || !strings.Contains(stdout, "non-conforming") || !strings.Contains(stdout, "consumer-directory") || !strings.Contains(stdout, "socket-access") {
+			t.Fatalf("containers = %d %q", status, stdout)
 		}
 	}
 }

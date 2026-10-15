@@ -54,6 +54,7 @@ type Container struct {
 	} `json:"State"`
 	Config struct {
 		Image       string            `json:"Image"`
+		User        string            `json:"User"`
 		Labels      map[string]string `json:"Labels"`
 		Env         []string          `json:"Env"`
 		StopTimeout *int              `json:"StopTimeout"`

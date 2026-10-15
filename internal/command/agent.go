@@ -208,9 +208,13 @@ func writeContainers(output io.Writer, containers agent.Containers) {
 		_, _ = fmt.Fprintln(output, "No containers observed.")
 		return
 	}
-	rows := [][]string{{"NAME", "STATE", "KEY", "POLICY", "CONFORMANCE", "TOKEN", "ACCESS GROUP ERROR"}}
+	rows := [][]string{{"NAME", "STATE", "KEY", "POLICY", "CONFORMANCE", "TOKEN", "FAILED ITEMS", "ACCESS GROUP ERROR"}}
 	for _, container := range containers.Containers {
-		rows = append(rows, []string{container.Name, container.State, dash(container.BindingKey), dash(container.Policy), container.Conformance, container.Token, dash(container.AccessGroupError)})
+		var failed []string
+		for _, item := range container.FailedItems {
+			failed = append(failed, string(item))
+		}
+		rows = append(rows, []string{container.Name, container.State, dash(container.BindingKey), dash(container.Policy), container.Conformance, container.Token, dash(strings.Join(failed, ", ")), dash(container.AccessGroupError)})
 	}
 	writeTable(output, rows)
 }

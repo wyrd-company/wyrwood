@@ -385,6 +385,10 @@ func contractChecks(contract policy.Contract, container protocol.Container, resu
 		}
 		checks = append(checks, mark(label, !failed[protocol.FailedAccessGroup]))
 	}
+	checks = append(checks, mark("consumer directory and sockets", !failed[protocol.FailedConsumerDirectory]))
+	if contract.AccessGroup == nil {
+		checks = append(checks, mark("socket access (container user must be root or the agent uid)", !failed[protocol.FailedSocketAccess]))
+	}
 	if failed[protocol.FailedRecreateNotAllowed] {
 		checks = append(checks, check{Label: "recreate is not allowed on this host", Mark: "BLOCKED", Status: "bad"})
 	}
