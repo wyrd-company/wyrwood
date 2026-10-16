@@ -196,7 +196,7 @@ func TestAdminOIDCSetupAdmissionAndTeardown(t *testing.T) {
 		}
 	}
 	if fmt.Sprint(role.Data["bound_claims"]) != "map[groups:[wyrwood_admins]]" {
-		t.Fatal("group constraint missing")
+		t.Error("group constraint missing")
 	}
 	configResponse, _ := server.Root.Logical().Read("auth/" + AdminAuthMount + "/config")
 	if configResponse == nil || configResponse.Data["namespace_in_state"] != true || configResponse.Data["default_role"] != AdminRole {
