@@ -10,11 +10,10 @@ import (
 	"database/sql"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
-func TestVersionOneStateRequiresResetWithoutMutation(t *testing.T) {
+func TestVersionOneStateIsRejectedWithoutMutation(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "controller.db")
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -33,7 +32,7 @@ func TestVersionOneStateRequiresResetWithoutMutation(t *testing.T) {
 	if store, err := Open(path); err == nil {
 		store.Close()
 		t.Fatal("version one accepted")
-	} else if !strings.Contains(err.Error(), "reset controller state and the dedicated OpenBao namespace") {
+	} else if err.Error() != "controller state version 1 is unsupported" {
 		t.Fatal(err)
 	}
 	after, err := os.ReadFile(path)

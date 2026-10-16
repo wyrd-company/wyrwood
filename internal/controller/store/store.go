@@ -155,7 +155,7 @@ func (store *Store) migrate() error {
 		return fmt.Errorf("read schema version: %w", err)
 	}
 	if version == 1 {
-		return errors.New("controller state version 1 is unsupported: reset controller state and the dedicated OpenBao namespace before upgrading")
+		return errors.New("controller state version 1 is unsupported")
 	}
 	if version > 2 {
 		return errors.New("database schema is newer than this controller")

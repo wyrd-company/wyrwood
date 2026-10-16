@@ -10,9 +10,7 @@ relationships:
 
 Policy lives on the controller. Agents receive the policies that match their
 containers and cache resolved assignments. A controller outage can be tolerated
-only
-while the current tokens remain valid. See [Upgrade](upgrade.md) before
-upgrading an existing installation.
+while the current tokens remain valid.
 
 ## Policy document
 

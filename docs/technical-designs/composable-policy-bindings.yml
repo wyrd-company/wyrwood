@@ -25,9 +25,7 @@ background:
 design-challenges:
   approval-boundary: >-
     Composition rejects conflicting contracts and retains every not-
-    forwardable restriction. The upgrade uses clean controller state and an
-    OpenBao namespace reset, with a coordinated version 2 controller, agent,
-    and CLI deployment. Runtime assignment changes revoke reported old
+    forwardable restriction. Runtime assignment changes revoke reported old
     tokens before fresh issuance. Binding tokens contain only their selected
     managed policies; their authors supply token lifecycle ACLs. These rules
     define the implementation contract.
@@ -206,8 +204,8 @@ proposed-design:
     root-controlled host permission. A later policy or binding edit reports
     drift; it does not implicitly recreate an existing container. Explicit
     recreate retains its confirmation and writable-layer warning. Restored
-    cached assignments retain known-binding identities so an upgrade cannot
-    trigger an unintended first-bind recreate. Group changes reapply the
+    cached assignments retain known-binding identities to prevent an
+    unintended first-bind recreate. Group changes reapply the
     existing directory and socket modes through the retained consumer
     directory; an unassignable group is reported through existing diagnostics.
   controller-and-http-api: >-
@@ -248,8 +246,8 @@ proposed-design:
     policy with binding settings. Credential, token-accessor, and
     acknowledgement messages bind to the same assignment identity. Cache
     version 2 stores that assignment and known binding ids without
-    credentials. Version 1 peers and caches are rejected with an upgrade
-    diagnostic; no adapter or conversion exists. Unsupported cache versions
+    credentials. Unsupported peers and caches are rejected. Unsupported cache
+    versions
     cannot authorize sockets or automatic recreate. This is a protocol
     version, not an executable-version pin.
   package-boundaries: >-
@@ -279,34 +277,10 @@ proposed-design:
     policy names, so rejected input cannot fan out into audit writes.
     A policy-edit event identifies its one source policy. Event records retain
     their existing closed shape.
-  upgrade-and-reset: >-
-    The upgrade requires a clean controller state and an OpenBao namespace
-    reset. There is no database, policy-document, binding, or cache migration.
-    Release notes and upgrade documentation state this requirement plainly.
-    The controller detects a version 1 database before mutations and refuses
-    startup with a clean-state diagnostic. The operator backs up state and
-    configuration, stops the controller and agents, resets only the dedicated
-    Wyrwood namespace, provisions a genuinely empty controller volume, and
-    repeats the documented namespace, mount, controller-policy, and AppRole
-    setup. A namespace reset removes stored secrets, Transit keys, SSH roles,
-    CA material, issued tokens, and wrapped credentials; backing up a database
-    alone cannot recover that authority. Agents require reapproval, policies
-    and bindings require re-entry, and a fresh controller key requires a
-    verified pin. Retire v1 caches and resolve recreate journals with services
-    stopped; preserve consumer-directory inodes used by containers. Rebinding
-    uses explicit enforcement so the writable layer is not discarded silently.
-    The parent/root namespace and every other namespace are outside the reset.
-  coordinated-upgrade: >-
-    Controller, agents, and CLI use version 2 together. There are no v1
-    adapters or first-policy fallbacks. Version 1 agents stop receiving new
-    tokens until upgraded; existing tokens can expire during the outage.
-    Automation consuming singular-policy CLI JSON must use the version 2
-    policies array. Agent approval and namespace containment remain required.
   runtime-revocation: >-
     Assignment changes, including subsequent policy-set edits, revoke reported
     old-assignment accessors before fresh issuance. Revocation failure leaves
-    the transition pending. This rule applies throughout normal operation,
-    independently of the upgrade reset. An offline agent loses access through
+    the transition pending. An offline agent loses access through
     a revoked token until it reconnects and receives fresh credentials. A token
     whose accessor was never reported cannot be revoked immediately; its
     existing finite maximum lifetime remains the bound. The controller uses
@@ -337,7 +311,8 @@ proposed-design:
     extra wyrwood-* names, default, root, and controller-policy rejection.
     Credential tests cover policy removal, TTL change without a name change,
     stale login completion, delayed accessors, offline agents, and OpenBao/SQLite
-    partial failure recovery. Clean-state tests reject v1 databases and caches
+    partial failure recovery. Version tests reject unsupported databases and
+    caches
     without mutating them. Recreate tests prove ordinary assignment edits do
     not trigger first-bind recreation. Browser workflows cover multi-selection,
     preview, conflicts, saved settings, effective HCL, renewal warnings, and
