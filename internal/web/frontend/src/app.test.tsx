@@ -22,6 +22,7 @@ const layout: Layout = {
   Operator: "operator@example.com",
   Pending: 2,
   OpenBaoOK: true,
+  OpenBaoURL: "",
   Controller: "controller.example.com",
   Notice: "",
   Problem: "",
@@ -180,6 +181,65 @@ it("keeps sidebar routes, pending count, account identity, and sign out", () => 
   expect(screen.getByLabelText("2 pending")).toBeInTheDocument();
   expect(screen.getByText(layout.Operator)).toBeInTheDocument();
   expectPost("Sign out", "/sign-out");
+});
+
+const openBaoURL =
+  "https://vault.example:8443/proxy/ui/openbao/secrets?namespace=team%2Fsample";
+function expectOpenBaoLink(link: HTMLElement) {
+  expect(link).toHaveAttribute("href", openBaoURL);
+  expect(link).toHaveAttribute("target", "_blank");
+  expect(link).toHaveAttribute("rel", "noopener noreferrer");
+}
+it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
+  const agents = {
+    ...layout,
+    ...versionInfo,
+    HostKey: "sample-fingerprint",
+    PendingKeys: null,
+    Approved: null,
+  };
+  const { unmount } = draw({ page: "agents", data: agents });
+  expect(
+    screen.queryByRole("link", { name: /OpenBao UI/ }),
+  ).not.toBeInTheDocument();
+  unmount();
+  draw({ page: "agents", data: { ...agents, OpenBaoURL: openBaoURL } });
+  const nav = screen.getByRole("navigation", { name: "Primary" });
+  const link = within(nav).getByRole("link", {
+    name: "OpenBao UI (opens in a new tab)",
+  });
+  expectOpenBaoLink(link);
+  expect(link.previousElementSibling).toHaveAttribute("href", "/keys");
+  expect(within(nav).getByRole("link", { name: /Security/ })).toHaveAttribute(
+    "href",
+    "/security",
+  );
+});
+it.each([true, false])(
+  "links the policy editor (new %s) to the OpenBao UI without leaving the form",
+  async (New) => {
+    const user = userEvent.setup();
+    draw({ page: "policy", data: { ...policy, New, OpenBaoURL: openBaoURL } });
+    const heading = screen.getByRole("heading", { name: "OpenBao policy" });
+    const link = within(heading.parentElement!).getByRole("link", {
+      name: /Manage secrets in the OpenBao UI/,
+    });
+    expectOpenBaoLink(link);
+    expect(link.closest("form")).toBe(formFor("Save and validate"));
+    await user.clear(screen.getByLabelText("OpenBao policy HCL"));
+    await user.type(screen.getByLabelText("OpenBao policy HCL"), "unsaved");
+    expectPost("Save and validate", "/policies", {
+      hcl: "unsaved",
+      "token-ttl": policy.TokenTTL,
+      ...(New ? { new: "yes" } : { name: policy.Name }),
+    });
+  },
+);
+it("omits the policy editor OpenBao UI link without a configured URL", () => {
+  draw({ page: "policy", data: policy });
+  expect(
+    screen.queryByRole("link", { name: /OpenBao UI/ }),
+  ).not.toBeInTheDocument();
 });
 
 it("keeps approval decisions, fingerprints, host links, and cached health", () => {

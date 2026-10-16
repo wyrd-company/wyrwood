@@ -64,6 +64,16 @@ func startHarness(t *testing.T, sessionTTL time.Duration) *harness {
 
 func startHarnessWithUpdates(t *testing.T, sessionTTL time.Duration, settings config.UpdateChecks, transport http.RoundTripper) *harness {
 	t.Helper()
+	return startHarnessWithConfig(t, sessionTTL, settings, transport, nil)
+}
+
+func startConfiguredHarness(t *testing.T, sessionTTL time.Duration, configure func(*config.Controller)) *harness {
+	t.Helper()
+	return startHarnessWithConfig(t, sessionTTL, config.UpdateChecks{}, nil, configure)
+}
+
+func startHarnessWithConfig(t *testing.T, sessionTTL time.Duration, settings config.UpdateChecks, transport http.RoundTripper, configure func(*config.Controller)) *harness {
+	t.Helper()
 	bao := baotest.Start(t)
 	provider := oidctest.Start()
 	t.Cleanup(provider.Close)
@@ -80,6 +90,9 @@ func startHarnessWithUpdates(t *testing.T, sessionTTL time.Duration, settings co
 		configuration.OIDC = config.OIDC{
 			ProviderName: "Test ID", Issuer: provider.Issuer(), ClientID: provider.ClientID, ClientSecretFile: secretFile,
 			RedirectURL: site.URL + "/auth/callback", GroupsClaim: "groups", AllowedGroups: []string{"wyrwood-operators", "platform-admins"},
+		}
+		if configure != nil {
+			configure(configuration)
 		}
 	}, nil, controller.Options{ReleaseTransport: transport})
 	server, err := New(running.Controller, Options{Version: "test"})
@@ -380,6 +393,35 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 	}
 	_ = store.ErrNotFound
 	_ = controller.ErrAgentDisconnected
+}
+
+func TestOpenBaoUILinksFollowConfiguration(t *testing.T) {
+	const uiURL = "https://vault.example:8443/proxy/ui/openbao"
+	configured := startConfiguredHarness(t, time.Hour, func(configuration *config.Controller) {
+		configuration.OpenBao.UIURL = uiURL
+	})
+	client := browser(t)
+	configured.signIn(t, client, operator, oidctest.TamperNone)
+	want := configured.controller.Configuration().OpenBao.UISecretsURL()
+	if !strings.HasPrefix(want, uiURL+"/secrets?namespace=") {
+		t.Fatalf("UISecretsURL() = %q", want)
+	}
+	anchor := `<a href="` + want + `" target="_blank" rel="noopener noreferrer"`
+	for path, count := range map[string]int{"/agents": 1, "/policies/edit": 2} {
+		body := get(t, client, configured.site.URL+path).body
+		if strings.Count(body, anchor) != count || strings.Contains(body, configured.provider.ClientSecret) {
+			t.Fatalf("%s OpenBao UI anchors = %d, want %d: %s", path, strings.Count(body, anchor), count, body)
+		}
+	}
+
+	absent := startHarness(t, time.Hour)
+	other := browser(t)
+	absent.signIn(t, other, operator, oidctest.TamperNone)
+	for _, path := range []string{"/agents", "/policies/edit"} {
+		if body := get(t, other, absent.site.URL+path).body; strings.Contains(body, "OpenBao UI") || strings.Contains(body, `target="_blank"`) {
+			t.Fatalf("%s shows OpenBao UI link without ui-url: %s", path, body)
+		}
+	}
 }
 
 func TestPermitsFollowsOpenBaoGlobs(t *testing.T) {

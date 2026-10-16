@@ -23,7 +23,13 @@ description: >-
   address, the SSH listen address, the state directory, the OpenBao address,
   CA file, namespace, AppRole mount, role identifier, and the file that holds
   the secret identifier, and the Transit and SSH-engine mount names the
-  controller manages. The secret identifier is read from the named file at
+  controller manages. Optional `openbao.ui-url` names the public cluster UI
+  base, independent of the API address, including its `/ui/<cluster>` route
+  and any proxy prefix. It is HTTPS (loopback HTTP supports local tests),
+  without userinfo, query, fragment, percent escapes, or empty/dot path
+  segments. A configured UI URL requires a canonical non-root namespace.
+  An absent or empty value hides the namespace UI links. The secret identifier
+  is read from the named file at
   startup and never from an environment variable or the document itself.
 
   The controller document also records operator sign-in under `oidc`: the

@@ -133,6 +133,87 @@ func TestControllerRejections(t *testing.T) {
 	}
 }
 
+func TestControllerOpenBaoUIURL(t *testing.T) {
+	withUI := func(namespace, uiURL string) string {
+		return strings.Replace(minimalController, "  approle:\n",
+			"  namespace: "+namespace+"\n  ui-url: "+uiURL+"\n  approle:\n", 1)
+	}
+	for name, sample := range map[string]struct {
+		namespace, uiURL, base, secrets, callback string
+	}{
+		"internal-address-different-host": {"wyrwood", "https://vault.example/ui/openbao",
+			"https://vault.example/ui/openbao",
+			"https://vault.example/ui/openbao/secrets?namespace=wyrwood",
+			"https://vault.example/ui/openbao/auth/admin-oidc/oidc/callback"},
+		"prefix-port-trailing-slash": {"wyrwood", "https://proxy.example:8443/tools/bao/ui/cluster-a/",
+			"https://proxy.example:8443/tools/bao/ui/cluster-a",
+			"https://proxy.example:8443/tools/bao/ui/cluster-a/secrets?namespace=wyrwood",
+			"https://proxy.example:8443/tools/bao/ui/cluster-a/auth/admin-oidc/oidc/callback"},
+		"nested-namespace": {"/team/wyrwood/", "https://vault.example/ui/openbao",
+			"https://vault.example/ui/openbao",
+			"https://vault.example/ui/openbao/secrets?namespace=team%2Fwyrwood",
+			"https://vault.example/ui/openbao/auth/admin-oidc/oidc/callback"},
+		"loopback-http": {"wyrwood", "http://127.0.0.1:8200/ui/vault",
+			"http://127.0.0.1:8200/ui/vault",
+			"http://127.0.0.1:8200/ui/vault/secrets?namespace=wyrwood",
+			"http://127.0.0.1:8200/ui/vault/auth/admin-oidc/oidc/callback"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			controller, err := ParseController([]byte(withUI(sample.namespace, sample.uiURL)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			openbao := controller.OpenBao
+			if openbao.Address != "https://bao.example.internal:8200" || openbao.UIURL != sample.base ||
+				openbao.UISecretsURL() != sample.secrets || openbao.UICallbackURL() != sample.callback {
+				t.Fatalf("UI URLs = %q, %q, %q", openbao.UIURL, openbao.UISecretsURL(), openbao.UICallbackURL())
+			}
+		})
+	}
+	for name, document := range map[string]string{
+		"absent": minimalController,
+		"empty":  withUI("wyrwood", `""`),
+		"absent-keeps-unusual-namespace": strings.Replace(minimalController, "  approle:\n",
+			"  namespace: root\n  approle:\n", 1),
+	} {
+		t.Run(name, func(t *testing.T) {
+			controller, err := ParseController([]byte(document))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if controller.OpenBao.UIURL != "" || controller.OpenBao.UISecretsURL() != "" || controller.OpenBao.UICallbackURL() != "" {
+				t.Fatalf("UI URLs present for %#v", controller.OpenBao)
+			}
+		})
+	}
+	for name, document := range map[string]string{
+		"public-http":        withUI("wyrwood", "http://vault.example/ui/openbao"),
+		"relative":           withUI("wyrwood", "/ui/openbao"),
+		"other-scheme":       withUI("wyrwood", "ftp://vault.example/ui/openbao"),
+		"userinfo":           withUI("wyrwood", "https://user@vault.example/ui/openbao"),
+		"query":              withUI("wyrwood", "https://vault.example/ui/openbao?namespace=other"),
+		"empty-query":        withUI("wyrwood", "https://vault.example/ui/openbao?"),
+		"fragment":           withUI("wyrwood", "https://vault.example/ui/openbao#secrets"),
+		"percent-escape":     withUI("wyrwood", "https://vault.example/ui/open%2Fbao"),
+		"dot-segment":        withUI("wyrwood", "https://vault.example/ui/../openbao"),
+		"empty-segment":      withUI("wyrwood", "https://vault.example/ui//openbao"),
+		"no-namespace":       strings.Replace(minimalController, "  approle:\n", "  ui-url: https://vault.example/ui/openbao\n  approle:\n", 1),
+		"root-namespace":     withUI("root", "https://vault.example/ui/openbao"),
+		"slash-namespace":    withUI("/", "https://vault.example/ui/openbao"),
+		"traversal":          withUI("team/../wyrwood", "https://vault.example/ui/openbao"),
+		"dot-namespace":      withUI("team/./wyrwood", "https://vault.example/ui/openbao"),
+		"empty-ns-segment":   withUI("team//wyrwood", "https://vault.example/ui/openbao"),
+		"percent-namespace":  withUI("team%2Fwyrwood", "https://vault.example/ui/openbao"),
+		"query-in-namespace": withUI(`"wyrwood&namespace=root"`, "https://vault.example/ui/openbao"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := ParseController([]byte(document)); !errors.Is(err, ErrInvalid) {
+				t.Fatalf("ParseController() = %v, want ErrInvalid", err)
+			}
+		})
+	}
+}
+
 func TestDocumentsValidateAgainstSchemas(t *testing.T) {
 	for _, sample := range []struct {
 		asset    schematest.Asset
@@ -141,6 +222,8 @@ func TestDocumentsValidateAgainstSchemas(t *testing.T) {
 		{schematest.AgentConfiguration, fullAgent},
 		{schematest.AgentConfiguration, "controller:\n  url: ssh://controller\n"},
 		{schematest.ControllerConfiguration, minimalController},
+		{schematest.ControllerConfiguration, strings.Replace(minimalController, "  approle:\n",
+			"  namespace: wyrwood\n  ui-url: https://vault.example/ui/openbao\n  approle:\n", 1)},
 	} {
 		schema := schematest.Compile(t, sample.asset)
 		var value any

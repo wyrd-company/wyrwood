@@ -13,6 +13,23 @@ description: >-
   host-key fingerprint from the state volume so an operator can compare it
   with an agent's login prompt.
 
+  `wyrwood controller openbao-admin configure` provisions the dedicated
+  namespace OIDC role with secret management on explicitly selected existing
+  KV v2 mounts. Required inputs are `--token-file PATH` for a separate
+  namespace provisioning credential, `--client-id ID`, `--client-secret-stdin`,
+  repeatable `--kv-v2-mount MOUNT`, `--token-ttl DURATION`, and
+  `--token-max-ttl DURATION`. Durations are positive whole seconds and the
+  maximum is at least the TTL. `--issuer URL` and `--groups-claim KEY` override
+  the controller's public defaults. `--config PATH` selects the controller
+  document; `openbao.ui-url` supplies the exact browser callback. It never
+  reads the runtime AppRole or controller OIDC secret files.
+  `wyrwood controller openbao-admin remove --token-file PATH [--config PATH]`
+  disables only the owned admin auth mount, revokes its issued sessions, and
+  deletes its policy. Both commands support `--output human|json`; errors
+  report closed stage, category and partial-configuration state, without
+  raw upstream text. No client-secret value is accepted in an argument,
+  environment variable or YAML field. The controller policy is unchanged.
+
   `wyrwood agent login <controller-url>` generates the agent key pair when
   absent, prints its public-key fingerprint, connects to the controller,
   prints the controller's host-key fingerprint, and asks for acceptance unless

@@ -7,6 +7,8 @@
 package config
 
 import (
+	"net"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -58,6 +60,27 @@ type ControllerOpenBao struct {
 	SecretIDFile string
 	TransitMount string
 	SSHMount     string
+	// UIURL is the public OpenBao cluster UI base, without a trailing slash.
+	// Empty hides the OpenBao UI links.
+	UIURL string
+}
+
+// UISecretsURL is the secret-engine list of the configured namespace in the
+// OpenBao UI, or empty when no UI URL is configured.
+func (openbao ControllerOpenBao) UISecretsURL() string {
+	if openbao.UIURL == "" {
+		return ""
+	}
+	return openbao.UIURL + "/secrets?" + url.Values{"namespace": {openbao.Namespace}}.Encode()
+}
+
+// UICallbackURL is the namespace admin OIDC redirect the OpenBao UI receives,
+// or empty when no UI URL is configured.
+func (openbao ControllerOpenBao) UICallbackURL() string {
+	if openbao.UIURL == "" {
+		return ""
+	}
+	return openbao.UIURL + "/auth/admin-oidc/oidc/callback"
 }
 
 // OIDC is the operator sign-in configuration.
@@ -98,6 +121,7 @@ type controllerDocument struct {
 		} `yaml:"approle"`
 		TransitMount *string `yaml:"transit-mount"`
 		SSHMount     *string `yaml:"ssh-mount"`
+		UIURL        *string `yaml:"ui-url"`
 	} `yaml:"openbao"`
 	OIDC *struct {
 		ProviderName     *string  `yaml:"provider-name"`
@@ -237,7 +261,72 @@ func parseControllerOpenBao(document controllerDocument) (ControllerOpenBao, err
 			return ControllerOpenBao{}, invalid("%s must be a mount path without surrounding slashes", field)
 		}
 	}
+	if source.UIURL != nil && *source.UIURL != "" {
+		if result.UIURL, err = publicUIURL(*source.UIURL); err != nil {
+			return ControllerOpenBao{}, err
+		}
+		if !canonicalNamespace(result.Namespace) {
+			return ControllerOpenBao{}, invalid("openbao.ui-url requires openbao.namespace to name a non-root namespace of plain segments")
+		}
+	}
 	return result, nil
+}
+
+// publicUIURL normalizes the browser-reachable OpenBao UI base. It is HTTPS,
+// or HTTP on a loopback host for local tests, and keeps any path prefix.
+func publicUIURL(value string) (string, error) {
+	parsed, err := absoluteURL("openbao.ui-url", value, "https", "http")
+	if err != nil {
+		return "", err
+	}
+	if parsed.Scheme == "http" && !loopbackHost(parsed.Hostname()) {
+		return "", invalid("openbao.ui-url must use https unless the host is loopback")
+	}
+	if parsed.User != nil || parsed.RawQuery != "" || parsed.ForceQuery || parsed.Fragment != "" || parsed.RawFragment != "" {
+		return "", invalid("openbao.ui-url must not contain userinfo, a query, or a fragment")
+	}
+	if parsed.RawPath != "" || strings.Contains(parsed.Path, "%") {
+		return "", invalid("openbao.ui-url path must not contain percent escapes")
+	}
+	path := strings.TrimSuffix(parsed.Path, "/")
+	if path != "" {
+		for _, segment := range strings.Split(strings.TrimPrefix(path, "/"), "/") {
+			if segment == "" || segment == "." || segment == ".." {
+				return "", invalid("openbao.ui-url path must not contain empty or dot segments")
+			}
+		}
+	}
+	parsed.Path = path
+	return parsed.String(), nil
+}
+
+func loopbackHost(host string) bool {
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+// canonicalNamespace accepts a nested non-root namespace whose segments are
+// plain names, so it has one unambiguous query encoding.
+func canonicalNamespace(value string) bool {
+	if value == "" || value == "root" {
+		return false
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+		for _, character := range segment {
+			if !(character == '-' || character == '_' || character == '.' ||
+				(character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') ||
+				(character >= '0' && character <= '9')) {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func parseOIDC(document controllerDocument) (OIDC, error) {

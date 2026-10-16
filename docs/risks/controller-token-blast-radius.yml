@@ -3,8 +3,11 @@ relationships: {}
 slug: controller-token-blast-radius
 title: The controller's OpenBao credential can write policy
 description: >-
-  The controller holds the only Wyrwood credential able to create OpenBao
-  policies and AppRoles. OpenBao does not limit the HCL a token writes to the
+  The controller is the only runtime Wyrwood service with a credential able
+  to create OpenBao policies and AppRoles. A site administrator separately
+  holds the one-shot OIDC provisioning credential described in
+  openbao-admin-access; that policy writer also has effective namespace
+  administration authority. OpenBao does not limit the HCL a token writes to the
   capabilities that token holds, so compromise of the controller grants any
   access in the OpenBao namespace the controller runs in: it can write a
   policy that allows every path, bind it to an AppRole, and log in through

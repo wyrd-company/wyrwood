@@ -9,6 +9,7 @@ relationships:
   related-to:
     - controller
     - container-contract
+    - openbao-admin-access
 objective: >-
   Give operators one place to approve agents, see every reported container,
   bind policies, edit policies and the OpenBao keys they name, and read
@@ -122,6 +123,13 @@ proposed-design:
     The header shows the revision and how many containers on how many agents
     the policy is bound to. Saving validates through OpenBao before recording
     the revision.
+  openbao-ui-links: >-
+    An optional public openbao.ui-url adds a plain OpenBao UI anchor beside
+    OpenBao keys in the sidebar and beside the policy editor's OpenBao policy
+    heading for both new and saved policies. Both use the server-computed
+    namespace-aware URL and open a new tab with noopener noreferrer. Saving or
+    discarding the form is independent of opening the link. OpenBao has its
+    own OIDC admission and browser session as defined by openbao-admin-access.
   keys-page: >-
     Lists Transit keys under the configured Transit mount with type, latest
     version, SSH fingerprint, and the policies that name each, and SSH-engine

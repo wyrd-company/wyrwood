@@ -14,7 +14,7 @@ per-container directory of Unix sockets. A container holds no token, no key,
 and no secret file.
 
 A **controller** runs once per site as a container. It owns policy, serves a
-web interface, and holds the only OpenBao credential that can write policies
+web interface, and holds the runtime OpenBao credential that writes policies
 and AppRoles. An **agent** runs on each Linux host with Docker Engine. It
 enrolls with the controller over SSH, reports every container, binds
 containers to policy, and publishes each bound container's sockets.

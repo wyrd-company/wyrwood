@@ -18,12 +18,14 @@ import (
 
 const defaultControllerConfig = "/etc/wyrwood/controller.yml"
 
-func runController(args []string, stdout, stderr io.Writer, deps dependencies) int {
+func runController(args []string, stdin io.Reader, stdout, stderr io.Writer, deps dependencies) int {
 	if len(args) == 0 {
 		return writeFailure(stderr, outputHuman, "controller", failureUsage)
 	}
 	name := "controller " + args[0]
 	switch args[0] {
+	case "openbao-admin":
+		return runOpenBaoAdmin(args[1:], stdin, stdout, stderr)
 	case "serve":
 		options, positional, problem := parseOptions(args[1:], optionConfig)
 		if options.help {
