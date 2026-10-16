@@ -130,9 +130,12 @@ func (controller *Controller) applyBinding(ctx context.Context, b store.Binding)
 
 // SavePolicy preflights every affected composition before publishing the HCL.
 func (controller *Controller) SavePolicy(ctx context.Context, document policy.Policy, operator string) (policy.Policy, error) {
+	started := controller.now()
 	controller.mutationMu.Lock()
 	saved, agents, err := controller.savePolicy(ctx, document, operator)
 	controller.mutationMu.Unlock()
+	code := mutationErrorCode(err)
+	controller.record(events.Event{Operation: events.OperationPolicySaved, Outcome: outcomeFor(code), ErrorCode: code, Policy: boundedPolicyName(document.Name), Operator: operator, Latency: controller.now().Sub(started)})
 	for agent := range agents {
 		controller.hub.pushAgent(ctx, agent)
 	}
@@ -221,14 +224,22 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 	if transitionErr != nil {
 		return saved, agents, transitionErr
 	}
-	controller.record(events.Event{Operation: events.OperationPolicySaved, Outcome: events.OutcomeOK, Policy: saved.Name, Operator: operator})
 	return saved, agents, nil
 }
 
 func (controller *Controller) CreateBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
+	started := controller.now()
 	controller.mutationMu.Lock()
 	b, err := controller.createBinding(ctx, agent, key, request, operator)
 	controller.mutationMu.Unlock()
+	eventBinding := b
+	if eventBinding.ID == "" {
+		eventBinding.Agent = agent
+		eventBinding.Key = key
+		eventBinding.Policies = request.Policies
+	}
+	code := mutationErrorCode(err)
+	controller.recordBinding(eventBinding, events.Event{Operation: events.OperationBindingCreated, Outcome: outcomeFor(code), ErrorCode: code, Binding: b.ID, Agent: agent, Operator: operator, Latency: controller.now().Sub(started)})
 	if b.ID != "" {
 		controller.hub.pushAgent(ctx, agent)
 	}
@@ -256,15 +267,21 @@ func (controller *Controller) createBinding(ctx context.Context, agent string, k
 	if err := controller.applyBinding(ctx, b); err != nil {
 		return b, operationError(openBaoError(err), "binding saved; OpenBao could not apply its pending assignment")
 	}
-	controller.recordBinding(b, events.Event{Operation: events.OperationBindingCreated, Outcome: events.OutcomeOK, Binding: b.ID, Agent: agent, Operator: operator})
 	b.Applied = true
 	return b, nil
 }
 
 func (controller *Controller) ChangeBinding(ctx context.Context, id string, request BindingRequest, operator string) error {
+	started := controller.now()
 	controller.mutationMu.Lock()
 	b, err := controller.changeBinding(ctx, id, request, operator)
 	controller.mutationMu.Unlock()
+	eventBinding := b
+	if eventBinding.ID == "" {
+		eventBinding.Policies = request.Policies
+	}
+	code := mutationErrorCode(err)
+	controller.recordBinding(eventBinding, events.Event{Operation: events.OperationBindingChanged, Outcome: outcomeFor(code), ErrorCode: code, Binding: id, Agent: b.Agent, Operator: operator, Latency: controller.now().Sub(started)})
 	if b.ID != "" {
 		controller.hub.pushAgent(ctx, b.Agent)
 	}
@@ -280,7 +297,7 @@ func (controller *Controller) changeBinding(ctx context.Context, id string, requ
 	}
 	effective, err := controller.compose(ctx, request.Policies, request.Settings, nil)
 	if err != nil {
-		return store.Binding{}, err
+		return b, err
 	}
 	if effective.Identity() == b.Effective.Identity() {
 		return b, nil
@@ -291,15 +308,14 @@ func (controller *Controller) changeBinding(ctx context.Context, id string, requ
 	b.Revision++
 	b.Applied = false
 	if err := controller.preflight(ctx, []store.Binding{b}); err != nil {
-		return store.Binding{}, err
+		return b, err
 	}
 	if err := controller.store.ChangeBinding(ctx, b); err != nil {
-		return store.Binding{}, operationError(events.ErrorInternal, "the binding could not be updated")
+		return b, operationError(events.ErrorInternal, "the binding could not be updated")
 	}
 	if err := controller.applyBinding(ctx, b); err != nil {
 		return b, operationError(openBaoError(err), "binding saved; token transition pending until the old token can be revoked")
 	}
-	controller.recordBinding(b, events.Event{Operation: events.OperationBindingChanged, Outcome: events.OutcomeOK, Binding: b.ID, Agent: b.Agent, Operator: operator})
 	return b, nil
 }
 
@@ -478,8 +494,12 @@ func (controller *Controller) syncPolicies(ctx context.Context) error {
 }
 
 func (controller *Controller) recordBinding(b store.Binding, event events.Event) {
+	if len(b.Policies) == 0 {
+		controller.record(event)
+		return
+	}
 	for _, name := range b.Policies {
-		event.Policy = name
+		event.Policy = boundedPolicyName(name)
 		controller.record(event)
 	}
 }
@@ -499,4 +519,15 @@ func (controller *Controller) restorePolicy(ctx context.Context, name string, pr
 		controller.policySyncPending = true
 	}
 	return err
+}
+
+func mutationErrorCode(err error) events.ErrorCode {
+	if err == nil {
+		return events.ErrorNone
+	}
+	var operation *OperationError
+	if errors.As(err, &operation) && operation.Code != events.ErrorNone {
+		return operation.Code
+	}
+	return events.ErrorInternal
 }

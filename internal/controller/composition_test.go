@@ -11,6 +11,7 @@ import (
 	"database/sql"
 	"errors"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
+	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 	gossh "golang.org/x/crypto/ssh"
@@ -178,6 +179,16 @@ func TestPendingRevocationBlocksIssuanceAndRecoversWithoutAgent(t *testing.T) {
 	if pending.Applied {
 		t.Fatal("failed transition marked applied")
 	}
+	found := false
+	for _, event := range c.Events().Recent(100) {
+		if event.Operation == events.OperationBindingChanged && event.Binding == b.ID && event.Policy == "alpha" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("pending transition failure event and latency missing")
+	}
+
 	var wire bytes.Buffer
 	session := agentSession{controller: c, agent: "host-a", conn: protocol.NewConn(&wire), credentialed: map[string]string{}}
 	if err := session.issue(ctx, pending); err != nil {
@@ -409,4 +420,27 @@ func newSingleBinding(t *testing.T) (*harness, store.Binding) {
 		t.Fatal(err)
 	}
 	return h, b
+}
+
+func TestFailedPolicyAndBindingMutationsRecordCategoricalEvents(t *testing.T) {
+	h, _ := newSingleBinding(t)
+	ctx := context.Background()
+	c := h.controller
+	invalid := policy.New("missing", policy.StarterHCL)
+	invalid.SSH = &policy.SSH{TransitKeys: []string{"absent"}}
+	if _, err := c.SavePolicy(ctx, invalid, "operator-1"); err == nil {
+		t.Fatal("missing key accepted")
+	}
+	if _, err := c.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "other"}, BindingRequest{Policies: []string{"missing"}}, "operator-1"); err == nil {
+		t.Fatal("missing policy accepted")
+	}
+	found := map[events.Operation]bool{}
+	for _, event := range c.Events().Recent(100) {
+		if event.Policy == "missing" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
+			found[event.Operation] = true
+		}
+	}
+	if !found[events.OperationPolicySaved] || !found[events.OperationBindingCreated] {
+		t.Fatal("mutation failure events missing", found)
+	}
 }
