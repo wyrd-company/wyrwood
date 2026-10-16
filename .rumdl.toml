@@ -3,4 +3,4 @@
 # ---
 
 [global]
-exclude = [".intentional/intents", "CHANGELOG.md"]
+exclude = [".intentional/intents"]
