@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -183,5 +184,21 @@ func TestOpenBaoAdminCLIRejectsMissingOrUnsafeInputs(t *testing.T) {
 	}
 	if got, err := readAdminSecret(strings.NewReader("sample\n")); err != nil || got != "sample" {
 		t.Fatal("valid secret input refused")
+	}
+}
+
+func TestAdminCLIChild(t *testing.T) {
+	if os.Getenv("WYRWOOD_TEST_ADMIN_CLI_CHILD") != "1" {
+		return
+	}
+	os.Exit(Run([]string{"controller", "openbao-admin", "configure", "--token-ttl", "do-not-print-secret"}, os.Stdout, os.Stderr))
+}
+
+func TestOpenBaoAdminProcessOutputNeverEchoesInvalidFlagValue(t *testing.T) {
+	command := exec.Command(os.Args[0], "-test.run=^TestAdminCLIChild$")
+	command.Env = append(os.Environ(), "WYRWOOD_TEST_ADMIN_CLI_CHILD=1")
+	output, err := command.CombinedOutput()
+	if err == nil || strings.Contains(string(output), "do-not-print-secret") || string(output) != "wyrwood controller openbao-admin configure: invalid usage\n" {
+		t.Fatalf("invalid flag value was not contained at process boundary: %q", output)
 	}
 }
