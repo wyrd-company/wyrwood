@@ -8,10 +8,10 @@
 # multi-platform build needs no emulation.
 FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS frontend
 WORKDIR /frontend
-COPY internal/web/frontend/package*.json ./
-RUN npm ci
+COPY internal/web/frontend/package.json internal/web/frontend/pnpm-lock.yaml ./
+RUN corepack enable && pnpm install --frozen-lockfile
 COPY internal/web/frontend ./
-RUN npm run build
+RUN pnpm run build
 
 FROM --platform=$BUILDPLATFORM golang:1.26.4 AS build
 ARG TARGETOS

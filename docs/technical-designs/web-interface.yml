@@ -40,8 +40,9 @@ design-challenges:
 proposed-design:
   high-level-overview: >-
     The controller serves an embedded React interface built with shadcn/ui
-    and Tailwind v4. Vite builds TypeScript sources with npm and a committed
-    lockfile. Each existing Go page handler embeds its page data as escaped
+    and Tailwind v4. Vite builds TypeScript sources with pnpm through Corepack
+    and a committed frozen lockfile. The package manifest declares the pnpm
+    version. Each existing Go page handler embeds its page data as escaped
     JSON in the HTML shell; React renders that page. Navigation uses links,
     and native forms submit to the existing Go handlers with the per-session
     anti-forgery token. The sidebar, account area, and policy editor have

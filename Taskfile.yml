@@ -16,11 +16,11 @@ tasks:
     dir: internal/web/frontend
     sources:
       - package.json
-      - package-lock.json
+      - pnpm-lock.yaml
     generates:
-      - node_modules/.package-lock.json
+      - node_modules/.modules.yaml
     cmds:
-      - npm ci
+      - corepack pnpm install --frozen-lockfile
 
   frontend:build:
     run: once
@@ -32,35 +32,35 @@ tasks:
       - public/**/*
       - index.html
       - package.json
-      - package-lock.json
+      - pnpm-lock.yaml
       - tsconfig.json
       - vite.config.ts
     generates:
       - ../dist/index.html
       - ../dist/assets/*
     cmds:
-      - npm run build
+      - corepack pnpm run build
 
   frontend:check:
     desc: Type-check, format-check, and test the React interface
     dir: internal/web/frontend
     deps: [ frontend:install ]
     cmds:
-      - npm run check
+      - corepack pnpm run check
 
   frontend:test:build:
     desc: Build the React renderer used by the Go workflow tests
     dir: internal/web/frontend
     deps: [ frontend:install ]
     cmds:
-      - npm run build:test
+      - corepack pnpm run build:test
 
   frontend:test:
     desc: Test the React interface
     dir: internal/web/frontend
     deps: [ frontend:install ]
     cmds:
-      - npm test
+      - corepack pnpm run test
 
   format:
     desc: Format Go source files
@@ -80,6 +80,7 @@ tasks:
 
   test:ci:
     desc: Run uncached tests and reject missing integration prerequisites
+    deps: [ frontend:build, frontend:test:build, frontend:test ]
     cmds:
       - bash scripts/test-ci.sh
 
