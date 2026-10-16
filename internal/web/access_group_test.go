@@ -6,7 +6,6 @@
 package web
 
 import (
-	"bytes"
 	"net/http"
 	"net/url"
 	"strings"
@@ -18,16 +17,9 @@ import (
 )
 
 func TestPolicyEditorWarnsWithoutAccessGroup(t *testing.T) {
-	pages, err := parsePages()
-	if err != nil {
-		t.Fatal(err)
-	}
 	for _, group := range []string{"", "1000", "0"} {
-		var output bytes.Buffer
-		if err := pages["policy"].ExecuteTemplate(&output, "layout", policyPage{AccessGroup: group}); err != nil {
-			t.Fatal(err)
-		}
-		warns := strings.Contains(output.String(), "No access group:")
+		output := renderModel(t, "policy", policyPage{AccessGroup: group})
+		warns := strings.Contains(output, "No access group:")
 		if warns != (group == "") {
 			t.Fatalf("group %q warning = %t", group, warns)
 		}
@@ -49,17 +41,10 @@ func TestContractChecksExplainAccessGroupFailure(t *testing.T) {
 			result.FailedItems = []protocol.FailedItem{protocol.FailedAccessGroup}
 		}
 		checks := contractChecks(document, protocol.Container{}, result)
-		var output bytes.Buffer
-		pages, err := parsePages()
-		if err != nil {
-			t.Fatal(err)
-		}
 		page := containersPage{Selected: &containerRow{Bound: true, Checks: checks}}
-		if err := pages["containers"].ExecuteTemplate(&output, "layout", page); err != nil {
-			t.Fatal(err)
-		}
-		if strings.Contains(output.String(), "agent user cannot assign group 1000") != failed {
-			t.Fatalf("failed=%t: %s", failed, output.String())
+		output := renderModel(t, "containers", page)
+		if strings.Contains(output, "agent user cannot assign group 1000") != failed {
+			t.Fatalf("failed=%t: %s", failed, output)
 		}
 	}
 }

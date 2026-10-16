@@ -78,7 +78,7 @@ up() {
 	done
 	mkdir -p "$root/bin" "$root/controller"
 	: >"$owned"
-	(cd "$repository" && go build -o "$root/bin/wyrwood" ./cmd/wyrwood)
+	(cd "$repository" && task frontend:build && go build -o "$root/bin/wyrwood" ./cmd/wyrwood)
 	docker build --quiet --tag "$workload_image" "$repository/internal/integration/testdata" >/dev/null
 
 	docker run -d --name wyrwood-demo-bao -p "127.0.0.1:$bao_port:8200" \

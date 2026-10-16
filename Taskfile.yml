@@ -10,6 +10,58 @@ tasks:
     cmds:
       - task --list
 
+  frontend:install:
+    run: once
+    desc: Install the locked frontend dependencies
+    dir: internal/web/frontend
+    sources:
+      - package.json
+      - package-lock.json
+    generates:
+      - node_modules/.package-lock.json
+    cmds:
+      - npm ci
+
+  frontend:build:
+    run: once
+    desc: Build the React interface for embedding in the Go binary
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    sources:
+      - src/**/*
+      - public/**/*
+      - index.html
+      - package.json
+      - package-lock.json
+      - tsconfig.json
+      - vite.config.ts
+    generates:
+      - ../dist/index.html
+      - ../dist/assets/*
+    cmds:
+      - npm run build
+
+  frontend:check:
+    desc: Type-check, format-check, and test the React interface
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - npm run check
+
+  frontend:test:build:
+    desc: Build the React renderer used by the Go workflow tests
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - npm run build:test
+
+  frontend:test:
+    desc: Test the React interface
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - npm test
+
   format:
     desc: Format Go source files
     cmds:
@@ -21,7 +73,8 @@ tasks:
       - test -z "$(gofmt -l .)"
 
   test:
-    desc: Run the test suite
+    desc: Run the Go and React test suites
+    deps: [ frontend:build, frontend:test:build, frontend:test ]
     cmds:
       - go test ./...
 
@@ -59,11 +112,13 @@ tasks:
     desc: >-
       Run the real Linux integration gate as root with Docker Engine, bao,
       the devcontainer CLI, and sshd (WYRWOOD_GATE_IMAGE overrides the image)
+    deps: [ frontend:build ]
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
 
   vet:
     desc: Run Go static analysis
+    deps: [ frontend:build ]
     cmds:
       - go vet ./...
 
@@ -90,6 +145,7 @@ tasks:
 
   build:
     desc: Build the Wyrwood executable
+    deps: [ frontend:build ]
     cmds:
       - go build ./cmd/wyrwood
 
@@ -101,6 +157,7 @@ tasks:
   release:ci:
     desc: Run portable validation required before a release
     deps:
+      - frontend:check
       - build
       - format:check
       - release:check
@@ -141,6 +198,7 @@ tasks:
 
   release:snapshot:
     desc: Build local release artifacts without publishing
+    deps: [ frontend:build ]
     cmds:
       - >-
         RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
@@ -155,6 +213,7 @@ tasks:
   check:
     desc: Run all repository checks
     deps:
+      - frontend:check
       - build
       - docs:check
       - format:check

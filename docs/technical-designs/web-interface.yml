@@ -39,8 +39,15 @@ design-challenges:
     stopped being served.
 proposed-design:
   high-level-overview: >-
-    The interface is served by the controller process as server-rendered
-    pages with a fixed navigation: Agents, Containers, Policies, OpenBao keys,
+    The controller serves an embedded React interface built with shadcn/ui
+    and Tailwind v4. Vite builds TypeScript sources with npm and a committed
+    lockfile. Each existing Go page handler embeds its page data as escaped
+    JSON in the HTML shell; React renders that page. Navigation uses links,
+    and native forms submit to the existing Go handlers with the per-session
+    anti-forgery token. The sidebar, account area, and policy editor have
+    separate components. Bundled scripts load from the controller origin; no
+    inline executable script or third-party asset host is needed. The fixed
+    navigation is: Agents, Containers, Policies, OpenBao keys,
     Events, and Security. It is bound to a configurable address that defaults
     to loopback and is intended to sit behind a reverse proxy that terminates
     TLS. The visual design, with every page and state described here, is the
