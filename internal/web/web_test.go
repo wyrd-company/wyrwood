@@ -436,13 +436,17 @@ func TestAgentsPageDisplaysBuildVersionsAndUnknownLegacyVersion(t *testing.T) {
 	harness.server.version = "3.4.5"
 	client := browser(t)
 	harness.signIn(t, client, operator, oidctest.TamperNone)
-	for _, sample := range []struct{ name, version string }{
-		{"sample-known", "2.9.1+sample"},
-		{"sample-legacy", ""},
-		{"sample-same", "3.4.5+sample"},
-		{"sample-newer", "4.0.0"},
-		{"sample-development", "dev"},
-	} {
+	samples := []struct {
+		name, version string
+		outdated      bool
+	}{
+		{"sample-known", "2.9.1+sample", true},
+		{"sample-legacy", "", false},
+		{"sample-same", "3.4.5+sample", false},
+		{"sample-newer", "4.0.0", false},
+		{"sample-development", "dev", false},
+	}
+	for _, sample := range samples {
 		key := mustKey(t)
 		fingerprint := gossh.FingerprintSHA256(key.PublicKey())
 		if _, err := harness.controller.Store().RecordKey(ctx, fingerprint, sample.name, "ssh-ed25519 AAAA", time.Now()); err != nil {
@@ -461,10 +465,26 @@ func TestAgentsPageDisplaysBuildVersionsAndUnknownLegacyVersion(t *testing.T) {
 			t.Errorf("agents page missing %q: %s", text, result.body)
 		}
 	}
-	if count := strings.Count(result.body, "Out of date"); count != 1 {
-		t.Fatalf("out-of-date badges = %d, want only the older agent", count)
+	rows := regexp.MustCompile(`(?s)<tr\b[^>]*>.*?</tr>`).FindAllString(result.body, -1)
+	for _, sample := range samples {
+		var row string
+		for _, candidate := range rows {
+			if strings.Contains(candidate, ">"+sample.name+"</a>") {
+				row = candidate
+				break
+			}
+		}
+		if row == "" {
+			t.Errorf("missing row for %s", sample.name)
+			continue
+		}
+		if got := strings.Contains(row, "Out of date"); got != sample.outdated {
+			t.Errorf("%s out-of-date badge = %t, want %t: %s", sample.name, got, sample.outdated, row)
+		}
+		if got := strings.Contains(row, "Update available"); got != (sample.version == "") {
+			t.Errorf("%s unknown-version update badge = %t: %s", sample.name, got, row)
+		}
 	}
-
 }
 
 type releaseTransport func(*http.Request) (*http.Response, error)
