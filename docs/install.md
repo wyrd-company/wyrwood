@@ -130,6 +130,15 @@ sudo dnf install wyrwood
 
 ### Arch User Repository
 
+`wyrwood-bin` installs the agent and proxy service files, tmpfiles rules,
+and package lifecycle hooks. Its install hook runs the same account and
+service setup as the DEB/RPM packages. A fresh installation stays stopped
+until enrollment.
+
+Before upgrading an installation that lacks the ALPM hook, complete
+[Prepare an AUR upgrade](#prepare-an-aur-upgrade) so a failed service stop
+aborts the package transaction. Then install or upgrade with your AUR helper:
+
 ```bash
 paru -S wyrwood-bin
 ```
@@ -194,9 +203,8 @@ wyrwood version
 
 DEB/RPM and prepared AUR upgrades restart an active agent and its proxy
 automatically. An inactive agent stays inactive and boot enablement is
-preserved. For release
-archive upgrades, replace the executable and run the service installation
-again:
+preserved. For release archive upgrades, replace the executable and run
+the service installation again:
 
 ```bash
 sudo wyrwood agent service install
