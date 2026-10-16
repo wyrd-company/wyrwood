@@ -9,8 +9,8 @@ description: >-
   wyrwood-engine-proxy.service. Install, remove, start, and stop require root.
   Installation creates the non-login users wyrwood and wyrwood-engine, with
   agent state under /var/lib/wyrwood mode 0700. The agent is wyrwood:wyrwood
-  without docker membership. The proxy is wyrwood-engine:wyrwood with
-  SupplementaryGroups=docker. Consumer access groups remain assigned to
+  without docker membership or ambient capabilities. The proxy is
+  wyrwood-engine:wyrwood with SupplementaryGroups=docker. Consumer access groups remain assigned to
   wyrwood; docker cannot also serve as a consumer access group.
 
   The agent's unit wants and is ordered after the proxy. The proxy has
@@ -42,6 +42,9 @@ description: >-
   Stop, membership, reload, or restart errors fail installation. Remaining
   wyrwood processes with docker credentials and unsafe operator overrides
   require root correction; there is no fallback to direct Engine access.
+  Effective unit inspection rejects docker by name or numeric GID and rejects
+  non-empty AmbientCapabilities. Explicit supplementary groups require a
+  verified Docker group GID; incomplete privilege inspection blocks installation.
 
   Archive service install performs the same transition, preserves existing
   boot enablement, and enables a fresh service installation. Start enables

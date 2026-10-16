@@ -42,6 +42,9 @@ func TestForwardingUsesOnlyConfiguredSocketAndRedacts(t *testing.T) {
 		if r.Host != "engine" || r.URL.Path != "/images/registry.example/sample:tag/json" {
 			t.Errorf("wrong target %s %s", r.Host, r.URL.Path)
 		}
+		if r.RequestURI != "/images/registry.example%2Fsample:tag/json" {
+			t.Errorf("image reference changed on wire: %s", r.RequestURI)
+		}
 		for _, key := range []string{"Authorization", "X-Registry-Auth", "Forwarded", "X-Forwarded-For", "Idempotency-Key", "X-Idempotency-Key"} {
 			if _, ok := r.Header[key]; ok {
 				t.Errorf("forwarded %s", key)

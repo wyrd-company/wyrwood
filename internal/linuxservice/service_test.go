@@ -90,7 +90,8 @@ func (recorder *recorder) run(name string, arguments ...string) (string, error) 
 
 func newManager(t *testing.T, euid int) (*Manager, *recorder) {
 	t.Helper()
-	runner := &recorder{failures: map[string]error{}, outputs: map[string]string{"systemctl show --property=User,Group,SupplementaryGroups wyrwood-agent.service": "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=\n"}}
+	runner := &recorder{failures: map[string]error{}, outputs: map[string]string{"systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service": "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=\nAmbientCapabilities=\n"}}
+	runner.outputs["getent group docker"] = "docker:x:51003:\n"
 	return &Manager{Root: t.TempDir(), Executable: "/opt/wyrwood/bin/wyrwood", Run: runner.run, EUID: func() int { return euid }}, runner
 }
 

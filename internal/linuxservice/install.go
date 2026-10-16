@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -174,7 +175,7 @@ func (manager *Manager) reconcileAgentUnit(packaged bool) error {
 }
 
 func (manager *Manager) verifyEffectiveUnit() error {
-	output, err := manager.Run("systemctl", "show", "--property=User,Group,SupplementaryGroups", UnitName)
+	output, err := manager.Run("systemctl", "show", "--property=User,Group,SupplementaryGroups,AmbientCapabilities", UnitName)
 	if err != nil {
 		return ErrManager
 	}
@@ -185,11 +186,40 @@ func (manager *Manager) verifyEffectiveUnit() error {
 			values[key] = value
 		}
 	}
+	for _, property := range []string{"User", "Group", "SupplementaryGroups", "AmbientCapabilities"} {
+		if _, present := values[property]; !present {
+			return ErrUnsafeInstallation
+		}
+	}
 	if values["User"] != "wyrwood" || values["Group"] != "wyrwood" {
 		return ErrUnsafeInstallation
 	}
-	for _, group := range strings.Fields(values["SupplementaryGroups"]) {
-		if group == "docker" {
+	// Ambient privileges can cross the UID/socket boundary even when Docker's
+	// socket is absent during installation or daemon startup.
+	if strings.TrimSpace(values["AmbientCapabilities"]) != "" {
+		return ErrUnsafeInstallation
+	}
+	groups := strings.Fields(values["SupplementaryGroups"])
+	if len(groups) == 0 {
+		return nil
+	}
+	// systemd preserves numeric GID tokens in show output. Compare IDs, not
+	// just the name, before accepting an operator's supplementary groups.
+	docker, err := manager.Run("getent", "group", "docker")
+	if err != nil {
+		return ErrManager
+	}
+	fields := strings.Split(strings.TrimSpace(docker), ":")
+	if len(fields) < 3 {
+		return ErrManager
+	}
+	dockerGID, err := strconv.ParseUint(fields[2], 10, 32)
+	if err != nil {
+		return ErrManager
+	}
+	for _, group := range groups {
+		gid, numericErr := strconv.ParseUint(group, 10, 32)
+		if group == "docker" || (numericErr == nil && gid == dockerGID) {
 			return ErrUnsafeInstallation
 		}
 	}

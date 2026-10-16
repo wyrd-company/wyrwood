@@ -87,7 +87,7 @@ func TestUnsafeOverridesAndFailuresNeverRestart(t *testing.T) {
 			runner.outputs["systemctl show --property=LoadState,ActiveState wyrwood-agent.service"] = "LoadState=loaded\nActiveState=active\n"
 			runner.outputs["id -nG wyrwood"] = "wyrwood docker other\n"
 			if failure == "unsafe override" {
-				runner.outputs["systemctl show --property=User,Group,SupplementaryGroups wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=docker\n"
+				runner.outputs["systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=docker\nAmbientCapabilities=\n"
 			} else {
 				runner.failures[failure] = errors.New("failure")
 			}
@@ -151,5 +151,110 @@ func TestRemainingPrivilegedProcessBlocksUpgrade(t *testing.T) {
 	_ = os.RemoveAll(filepath.Dir(status))
 	if _, err := manager.Manage("install"); err != nil {
 		t.Fatal("did not recover after operator correction", err)
+	}
+}
+
+func TestEffectiveUnitRejectsNumericDockerAndAmbientCapabilities(t *testing.T) {
+	for _, sample := range []struct{ name, groups, capabilities string }{
+		{name: "docker-name", groups: "docker"},
+		{name: "docker-gid", groups: "51003"},
+		{name: "padded-docker-gid", groups: "consumer-a 00051003 51004"},
+		{name: "ptrace", capabilities: "cap_sys_ptrace"},
+		{name: "dac-override", capabilities: "cap_dac_override"},
+		{name: "ambient-capabilities", groups: "consumer-a 51004", capabilities: "cap_net_bind_service"},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			custom := string(legacyUnit(manager.Executable)) + "\n# operator customization\n"
+			if err := writeAtomic(manager.unitPath(), []byte(custom), 0644); err != nil {
+				t.Fatal(err)
+			}
+			runner.outputs["systemctl show --property=LoadState,ActiveState wyrwood-agent.service"] = "LoadState=loaded\nActiveState=active\n"
+			runner.outputs["systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=" + sample.groups + "\nAmbientCapabilities=" + sample.capabilities + "\n"
+			if _, err := manager.Manage("install"); !errors.Is(err, ErrUnsafeInstallation) {
+				t.Fatalf("unsafe unit accepted: %v", err)
+			}
+			sequence := calls(runner)
+			if !slices.Contains(sequence, "systemctl stop wyrwood-agent.service") || slices.Contains(sequence, "systemctl start wyrwood-agent.service") {
+				t.Fatal("unsafe service not left stopped", sequence)
+			}
+			data, err := os.ReadFile(manager.unitPath())
+			if err != nil || string(data) != custom {
+				t.Fatal("operator unit was overwritten", err)
+			}
+		})
+	}
+}
+
+func TestEffectiveUnitPreservesUnrelatedGroupsWithoutCapabilities(t *testing.T) {
+	manager, runner := newManager(t, 0)
+	runner.outputs["systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=consumer-a 51004\nAmbientCapabilities=\n"
+	if _, err := manager.Manage("install"); err != nil {
+		t.Fatalf("unrelated groups rejected: %v", err)
+	}
+}
+
+func TestEffectiveUnitRequiresCompletePrivilegeEvidence(t *testing.T) {
+	for _, property := range []string{"User=wyrwood\n", "Group=wyrwood\n", "SupplementaryGroups=\n", "AmbientCapabilities=\n"} {
+		t.Run(strings.TrimSpace(property), func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			key := "systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"
+			runner.outputs[key] = strings.Replace(runner.outputs[key], property, "", 1)
+			if _, err := manager.Manage("install"); !errors.Is(err, ErrUnsafeInstallation) {
+				t.Fatalf("incomplete unit inspection accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestEffectiveUnitRequiresDockerGIDForSupplementaryGroups(t *testing.T) {
+	for _, sample := range []struct {
+		name, record string
+		failure      error
+	}{
+		{name: "lookup-failure", record: "docker:x:51003:\n", failure: errors.New("lookup unavailable")},
+		{name: "malformed-record", record: "docker\n"},
+		{name: "invalid-gid", record: "docker:x:invalid:\n"},
+	} {
+		t.Run(sample.name, func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			runner.outputs["systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=51004\nAmbientCapabilities=\n"
+			runner.outputs["getent group docker"] = sample.record
+			runner.failures["getent group docker"] = sample.failure
+			if _, err := manager.Manage("install"); !errors.Is(err, ErrManager) {
+				t.Fatalf("unverified GID accepted: %v", err)
+			}
+		})
+	}
+}
+
+func TestEffectiveUnitAllowsDefaultUnitWithoutDockerGroup(t *testing.T) {
+	manager, runner := newManager(t, 0)
+	runner.failures["getent group docker"] = errors.New("group absent before Docker installation")
+	if _, err := manager.Manage("install"); err != nil {
+		t.Fatalf("default unit rejected: %v", err)
+	}
+}
+
+func TestEffectiveUnitUsesResolvedDockerGID(t *testing.T) {
+	for _, sample := range []struct {
+		group  string
+		denied bool
+	}{
+		{group: "52003", denied: true},
+		{group: "51003", denied: false},
+	} {
+		t.Run(sample.group, func(t *testing.T) {
+			manager, runner := newManager(t, 0)
+			runner.outputs["getent group docker"] = "docker:x:52003:\n"
+			runner.outputs["systemctl show --property=User,Group,SupplementaryGroups,AmbientCapabilities wyrwood-agent.service"] = "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=" + sample.group + "\nAmbientCapabilities=\n"
+			err := manager.verifyEffectiveUnit()
+			if sample.denied && !errors.Is(err, ErrUnsafeInstallation) {
+				t.Fatalf("resolved Docker GID accepted: %v", err)
+			}
+			if !sample.denied && err != nil {
+				t.Fatalf("unrelated GID rejected: %v", err)
+			}
+		})
 	}
 }

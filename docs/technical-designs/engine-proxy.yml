@@ -41,9 +41,9 @@ proposed-design:
     `wyrwood agent engine-proxy` from the installed executable. It uses the
     dedicated non-login user wyrwood-engine, primary group wyrwood, and
     SupplementaryGroups=docker. The agent runs as wyrwood:wyrwood with its
-    consumer access groups and without docker membership. All eight Engine
-    client operations travel over a Unix socket to the proxy. The proxy
-    uses Go net/http and httputil.ReverseProxy with a Wyrwood authorization
+    consumer access groups, without docker membership or ambient capabilities.
+    All eight Engine client operations travel over a Unix socket to the proxy.
+    The proxy uses Go net/http and httputil.ReverseProxy with a Wyrwood authorization
     handler and a Unix-only upstream transport. The application launches no
     subprocess for proxying and introduces no third-party Go dependency.
   configuration-authority: >-
@@ -245,9 +245,12 @@ proposed-design:
     the packaged unit with docker access. A locally modified unit or drop-in
     that retains raw Engine access blocks automatic completion and reports
     the root action needed; installation preserves unrelated operator
-    customizations. daemon-reload follows file replacement. An agent active
-    before upgrade is started with the new dependency and fresh process
-    groups; an inactive agent stays inactive, and boot enablement is
+    customizations. Effective unit inspection checks supplementary groups
+    against both docker and its numeric GID and requires AmbientCapabilities
+    to be empty. Explicit supplementary groups require a verified Docker GID;
+    missing privilege properties block completion. daemon-reload follows file
+    replacement. An agent active before upgrade is started with the new
+    dependency and fresh process groups; an inactive agent stays inactive, and boot enablement is
     preserved. Failure after stopping leaves the agent stopped with a
     categorical installation failure, never restored to direct Engine
     access. Fresh installs remain stopped until enrollment. Removal stops

@@ -217,6 +217,8 @@ separate host group and update the contract before upgrading.
 
 Known generated `/etc` unit overrides are replaced. Unsafe local units or
 drop-ins and remaining processes with Docker access block installation.
+This includes a numeric Docker GID or non-empty `AmbientCapabilities` in
+the agent unit.
 Correct the reported configuration as root and rerun service install; do
 not restore agent Docker access. Keys, policy cache, consumer directories,
 and recreate journals are retained.
