@@ -152,18 +152,18 @@ type readWriter struct {
 	io.Writer
 }
 
-func TestHelloVersionIsOptional(t *testing.T) {
+func TestHelloAgentVersionIsOptional(t *testing.T) {
 	schema := schematest.Compile(t, schematest.AgentControllerMessage)
 	for _, line := range []string{
-		`{"version":1,"type":"hello","allow-recreate":false}`,
-		`{"version":1,"type":"hello","allow-recreate":false,"agent-version":""}`,
+		`{"version":2,"type":"hello","allow-recreate":false}`,
+		`{"version":2,"type":"hello","allow-recreate":false,"agent-version":""}`,
 	} {
 		if err := schematest.Validate(schema, []byte(line)); err != nil {
-			t.Fatalf("legacy hello does not validate: %v", err)
+			t.Fatalf("hello without a reported agent version does not validate: %v", err)
 		}
 		message, err := Decode([]byte(line))
 		if err != nil || message != (Hello{}) {
-			t.Fatalf("legacy hello = %#v, %v", message, err)
+			t.Fatalf("hello without a reported agent version = %#v, %v", message, err)
 		}
 	}
 }
