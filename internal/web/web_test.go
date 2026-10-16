@@ -521,11 +521,15 @@ func TestReleaseObservationReachesAgentsPageAndPreservesOfflineResult(t *testing
 }
 
 func TestBlockedReleaseCheckDoesNotBlockControllerOrPages(t *testing.T) {
+	forceStop := make(chan struct{})
 	var canceled atomic.Bool
 	harness := startHarnessWithUpdates(t, time.Hour, config.UpdateChecks{Enabled: true, Timeout: time.Hour}, releaseTransport(func(request *http.Request) (*http.Response, error) {
-		<-request.Context().Done()
-		canceled.Store(true)
-		return nil, request.Context().Err()
+		select {
+		case <-request.Context().Done():
+			canceled.Store(true)
+		case <-forceStop:
+		}
+		return nil, errors.New("release request stopped")
 	}))
 	client := browser(t)
 	page := harness.signIn(t, client, operator, oidctest.TamperNone)
@@ -540,7 +544,14 @@ func TestBlockedReleaseCheckDoesNotBlockControllerOrPages(t *testing.T) {
 	if response.StatusCode != http.StatusNoContent {
 		t.Fatalf("health = %d", response.StatusCode)
 	}
-	harness.controller.Stop()
+	stopped := make(chan struct{})
+	t.Cleanup(func() { close(forceStop); <-stopped })
+	go func() { harness.controller.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("controller shutdown did not cancel release request")
+	}
 	if !canceled.Load() {
 		t.Fatal("controller shutdown left release request running")
 	}
