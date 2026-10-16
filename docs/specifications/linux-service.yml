@@ -33,6 +33,11 @@ description: >-
   overrides, and reload the manager. The active agent restarts with the new
   proxy dependency and fresh groups; inactive agents stay inactive and boot
   enablement is preserved. Fresh packages remain stopped for enrollment.
+  AUR requires the packaged ALPM PreTransaction hook with AbortOnFail before
+  upgrade; installations lacking it need a root bootstrap from the verified
+  release archive. Pacman scriptlets alone cannot abort file replacement.
+  Post-install service setup errors require root correction and a repeated
+  service install even when pacman completes the package transaction.
   With no running systemd manager, installation updates persistent files.
   Stop, membership, reload, or restart errors fail installation. Remaining
   wyrwood processes with docker credentials and unsafe operator overrides

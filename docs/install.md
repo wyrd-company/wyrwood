@@ -192,8 +192,9 @@ boot, run `sudo systemctl disable wyrwood-agent`.
 wyrwood version
 ```
 
-DEB/RPM upgrades restart an active agent and its proxy automatically. An
-inactive agent stays inactive and boot enablement is preserved. For release
+DEB/RPM and prepared AUR upgrades restart an active agent and its proxy
+automatically. An inactive agent stays inactive and boot enablement is
+preserved. For release
 archive upgrades, replace the executable and run the service installation
 again:
 
@@ -214,6 +215,33 @@ and recreate journals are retained.
 
 Consumer sockets are restored from cached policy before the agent contacts
 the controller, so bound containers keep their endpoints across the restart.
+
+## Prepare an AUR upgrade
+
+Pacman does not abort package replacement when an install scriptlet fails.
+Wyrwood uses an ALPM `PreTransaction` hook with `AbortOnFail` to stop the old
+agent before replacing its executable and units. An installation without this
+hook needs a root bootstrap **before its first upgrade**.
+
+Download the target release archive and verify its SHA-256 against that
+release's `checksums.txt`. Extract it. From the extracted directory, install
+the stop script first, then the hook:
+
+```bash
+sudo install -Dm644 packaging/preinstall.sh /usr/lib/wyrwood/preinstall.sh
+sudo install -Dm644 packaging/wyrwood-engine-upgrade.hook \
+  /usr/share/libalpm/hooks/wyrwood-engine-upgrade.hook
+```
+
+Then upgrade `wyrwood-bin` with your AUR helper. The package retains these
+files for subsequent upgrades. A failed pre-transaction stop aborts the
+transaction. Correct the error and retry; do not bypass the hook.
+
+Pacman can finish file installation even when post-install service setup
+fails. Check its diagnostics and `sudo wyrwood agent service status`.
+Correct any error and run `sudo wyrwood agent service install` before
+starting the agent. A package transaction exit status alone does not prove
+that service activation completed.
 
 ## Engine permission
 

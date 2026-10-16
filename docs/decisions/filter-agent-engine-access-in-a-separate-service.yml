@@ -65,6 +65,9 @@ decision-outcome:
     payload authority only on hosts that explicitly enable recreate and
     the documented account/unit upgrade transition. It does not
     claim that an opted-in host is protected from a compromised agent.
+    AUR upgrades require an ALPM AbortOnFail pre-transaction hook, bootstrapped
+    by root before upgrading an installation that lacks it. Package scriptlet
+    failures cannot enforce the required stop-before-replacement guarantee.
 expected-outcomes:
   positive:
     - Hosts with recreate disabled deny Engine mutation outside the agent process.
@@ -78,3 +81,4 @@ expected-outcomes:
     - Active upgrades interrupt the agent and proxy; consumer sockets recover through cached policy.
     - Contracts using docker as their consumer access group need a separate group.
     - Wyrwood maintains the authorization handler and its negative-path security tests.
+    - AUR installations without the ALPM hook require a root bootstrap before upgrade.

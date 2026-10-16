@@ -113,7 +113,9 @@ def create_manifest(artifacts_dir: Path, version: str, commit: str) -> dict[str,
                     "files": {
                         "packaging/wyrwood-agent.service": "/usr/lib/systemd/system/wyrwood-agent.service",
                         "packaging/wyrwood-engine-proxy.service": "/usr/lib/systemd/system/wyrwood-engine-proxy.service",
-                        "packaging/wyrwood.tmpfiles": "/usr/lib/tmpfiles.d/wyrwood.conf"
+                        "packaging/wyrwood.tmpfiles": "/usr/lib/tmpfiles.d/wyrwood.conf",
+                        "packaging/preinstall.sh": "/usr/lib/wyrwood/preinstall.sh",
+                        "packaging/wyrwood-engine-upgrade.hook": "/usr/share/libalpm/hooks/wyrwood-engine-upgrade.hook"
                     },
                     "hooks": {
                         "pre-install": "packaging/preinstall.sh",

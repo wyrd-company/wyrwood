@@ -1,0 +1,32 @@
+$schema: https://refinery.systems/ontology/decision-record
+status: accepted
+relationships:
+  contextualizes:
+    - engine-proxy
+    - linux-service
+description: >-
+  An active agent must stop before replacement of its executable and units
+  so that no process retains inherited raw Engine access. Pacman ignores
+  failure returns from pre-install and pre-upgrade package scriptlets.
+considered-options:
+  "1": >-
+    Require a successful explicit systemctl stop before the first AUR
+    upgrade and document the package manager's scriptlet limitation.
+  "2": >-
+    Bootstrap a root-owned ALPM PreTransaction hook with AbortOnFail before
+    upgrading an installation that lacks the hook. Run the shared stop
+    script through /bin/sh. Package both files for subsequent upgrades.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    The hook preserves the approved stop-before-replacement failure
+    contract. A failed stop aborts the transaction before package files
+    change. An explicit operator stop alone does not enforce this contract
+    at the package transaction boundary.
+expected-outcomes:
+  positive:
+    - A failed pre-transaction stop prevents AUR file replacement.
+    - The package retains the hook and stop script for subsequent upgrades.
+  negative:
+    - Installations without the hook need a root bootstrap before upgrade.
+    - Pacman post-install scriptlet failures still require operator correction.
