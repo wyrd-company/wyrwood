@@ -180,6 +180,9 @@ it("keeps sidebar routes, pending count, account identity, and sign out", async 
   );
   expect(screen.getByLabelText("2 pending")).toBeInTheDocument();
   expect(screen.getByText(layout.Operator)).toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "Controller version" }),
+  ).toHaveTextContent(versionInfo.Version);
   const account = within(nav).getByRole("button", { name: /Account/ });
   expect(account).toHaveAttribute("aria-haspopup", "menu");
   expect(account).toHaveAttribute("aria-expanded", "false");
@@ -206,7 +209,13 @@ it.each(["{Enter}", " ", "{ArrowDown}"])(
     const user = userEvent.setup();
     draw({
       page: "agents",
-      data: { ...layout, HostKey: "", PendingKeys: null, Approved: null },
+      data: {
+        ...layout,
+        ...versionInfo,
+        HostKey: "",
+        PendingKeys: null,
+        Approved: null,
+      },
     });
     const account = screen.getByRole("button", { name: /Account/ });
     account.focus();
@@ -230,7 +239,13 @@ it.each(["pointer", "Enter", "Space"])(
     const user = userEvent.setup();
     draw({
       page: "agents",
-      data: { ...layout, HostKey: "", PendingKeys: null, Approved: null },
+      data: {
+        ...layout,
+        ...versionInfo,
+        HostKey: "",
+        PendingKeys: null,
+        Approved: null,
+      },
     });
     const account = screen.getByRole("button", { name: /Account/ });
     account.focus();
@@ -263,6 +278,7 @@ it("marks Security as the current menu item", async () => {
     data: {
       ...layout,
       Current: "security",
+      ...versionInfo,
       HostKey: "",
       PendingKeys: null,
       Approved: null,
