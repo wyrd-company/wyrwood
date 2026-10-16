@@ -193,6 +193,7 @@ function expectOpenBaoLink(link: HTMLElement) {
 it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
   const agents = {
     ...layout,
+    ...versionInfo,
     HostKey: "sample-fingerprint",
     PendingKeys: null,
     Approved: null,
