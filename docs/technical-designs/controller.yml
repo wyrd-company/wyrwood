@@ -107,7 +107,9 @@ proposed-design:
     revoke the binding's token, then deletes the AppRole, which stops new
     logins and voids outstanding secret identifiers. It then retires the
     binding, reading its latest accessor in the same transaction, and revokes
-    that token whether or not the agent is connected. A retired binding's
+    that token whether or not the agent is connected. OpenBao reports
+    `token not found` only once the token can no longer authenticate, so the
+    controller treats it as already revoked. A retired binding's
     identifier is kept with its agent, so an accessor that agent reports
     after the deletion, for a login that completed before it, is revoked on
     arrival. When revocation fails, or the agent is not connected and has

@@ -9,7 +9,9 @@ package openbao
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"sort"
 	"strconv"
 	"strings"
@@ -226,6 +228,13 @@ func (manager *Manager) RevokeAccessor(ctx context.Context, accessor string) err
 		return err
 	}
 	_, err = client.Logical().WriteWithContext(ctx, "auth/token/revoke-accessor", map[string]any{"accessor": accessor})
+	// Overlapping self-revocation can leave the accessor index visible after
+	// the token stops authenticating. OpenBao reports this exact response.
+	var response *api.ResponseError
+	if errors.As(err, &response) && response.StatusCode == http.StatusBadRequest &&
+		len(response.Errors) == 1 && response.Errors[0] == "token not found" {
+		return nil
+	}
 	return categorize(err)
 }
 
