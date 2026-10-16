@@ -22,13 +22,6 @@ background:
     - Operators need a way to add secret values directly in OpenBao.
     - Controller sign-in does not issue an OpenBao token for a person.
 design-challenges:
-  approval-boundary: >-
-    The permission choice requires explicit approval before implementation.
-    Option A grants secret management on named existing KV v2 mounts. Option B
-    grants full administration of the dedicated namespace. The detailed
-    contract below is option A, the recommendation. Option B substitutes the
-    namespace policy described below. The proposed decision record records
-    this recommendation, not approval to implement a grant.
   bootstrap-authority: >-
     A credential that can write the admin policy and configure the OIDC role
     can grant arbitrary namespace authority, regardless of the narrow names
@@ -38,7 +31,7 @@ design-challenges:
     Membership in wyrwood_admins admits a person to this role. OpenBao identity
     entity or external-group policies are independent site grants. A dedicated
     auth mount creates a separate alias boundary; the site administrator keeps
-    these aliases free of supplemental policies when deploying option A.
+    these aliases free of supplemental policies for this role.
 proposed-design:
   high-level-overview: >-
     An OpenBao site administrator runs a one-shot Wyrwood CLI command with a
@@ -72,7 +65,7 @@ proposed-design:
     controller configuration. Issuer and groups-claim default to the existing
     controller OIDC issuer and groups-claim; explicit --issuer and --groups-claim
     overrides support a different provider registration. These are public
-    values. --kv-v2-mount is repeatable and required for option A; each value
+    values. --kv-v2-mount is repeatable and required; each value
     names a complete existing KV v2 mount, not a secret prefix. It is validated
     as a canonical mount path without ACL wildcard characters, empty segments,
     dot segments, or reserved sys, auth, identity, or cubbyhole prefixes. Mount
@@ -191,7 +184,7 @@ proposed-design:
     policy mapping is configured. The issuer must release the group to this
     client with these scopes. Existing site identity grants require separate
     review; the role grant is exactly namespace-admin.
-  secret-management-policy-option-a: |-
+  secret-management-policy: |-
     For each selected KV v2 mount M, generate these grants. With --kv-v2-mount
     kv, the exact secret paths are:
 
@@ -230,25 +223,6 @@ proposed-design:
     tokens. The default policy is excluded; its site-customized contents cannot
     add privileges. Mount discovery uses OpenBao's UI endpoint behavior based
     on the granted KV paths rather than a direct grant on internal/ui/mounts.
-  namespace-administration-policy-option-b: |-
-    Option B replaces the complete option-A policy with:
-
-    ```hcl
-    path "*" {
-    capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
-    }
-    ```
-
-    This grants all secrets, mount and auth management, identity and token
-    administration, all ACL policy writes, and supported namespace
-    administration within the target namespace and its descendants. It can
-    overwrite the controller's policy and AppRole, every binding AppRole,
-    wyrwood-* policies, namespace-admin itself, and its OIDC role and config.
-    It can mint replacement credentials and disrupt containers. Namespace
-    isolation still excludes parent, sibling, and root namespaces; it is not
-    an OpenBao root token. The bootstrap identity and controller policy are
-    identical for A and B. The CLI does not expose both grants as runtime
-    choices until a permission scope is approved for implementation.
   client-secret-handling: >-
     The administrator registers a distinct confidential OIDC client for
     OpenBao and pipes its secret through stdin. The CLI accepts no literal
@@ -313,7 +287,7 @@ proposed-design:
     OpenBao logins; issued tokens live until revoked or their explicit maximum
     lifetime, including renewals. The controller's ability to write arbitrary
     HCL into wyrwood-* policies remains namespace-administrative in effect.
-    Option A bounds the direct OpenBao role grant, not the existing authority
+    The policy bounds the direct OpenBao role grant, not the existing authority
     of a person who is also a Wyrwood operator. The controller AppRole policy
     receives no sys/auth/* or auth/admin-oidc/* grant, and no startup bootstrap.
   teardown: >-
@@ -331,9 +305,9 @@ proposed-design:
     token, and removes ui-url from controller configuration to hide the links.
     Wyrwood does not administer the external identity provider. OpenBao entity
     aliases left by logins do not grant access after mount removal; any identity
-    cleanup uses the site's process and has no extra CLI permission. Under
-    option B, credentials an administrator minted through other auth methods
-    remain separate grants and require a site audit and revocation. Removing
+    cleanup uses the site's process and has no extra CLI permission. Other
+    independent credentials from other auth methods require the site's own
+    audit and revocation process. Removing
     ui-url or signing out of Wyrwood alone never revokes OpenBao access.
   compatibility: >-
     This is an additive CLI, optional configuration field, and pair of links.
@@ -341,8 +315,7 @@ proposed-design:
     ui-url leaves the interface as configured. No database migration, credential
     migration, new dependency, or frontend package is needed. Configuration,
     command-line-interface, web-interface, and operations documentation describe
-    the additive configuration field, commands, and anchors when the approved
-    grant is implemented.
+    the additive configuration field, commands, and anchors for namespace admin access.
   verification: >-
     Implementation validation uses isolated OpenBao and the existing OIDC test
     provider. Prove setup with the documented provisioning ACL, denial of setup
@@ -350,12 +323,11 @@ proposed-design:
     Exercise allowed, missing, malformed, wrong-case, and unrelated groups,
     wrong issuer and audience, and mismatched callback. Assert token policies,
     empty identity policies, no default policy, renewals bounded by the explicit
-    maximum, and no child-token creation for A. For each selected KV v2 mount,
+    maximum, and no child-token creation. For each selected KV v2 mount,
     create, read, update, list, soft-delete, undelete, and destroy generic test
     secrets; deny other mounts, mount changes, policy writes (including the
     controller and wyrwood-* policies), controller and binding AppRoles, auth
-    config, and parent/sibling/root access. For B, explicitly prove its intended
-    controller-policy and AppRole writes in a disposable namespace. Verify
+    config, and parent/sibling/root access. Verify
     refusal of conflicting resources, safe reruns, partial-stage failures,
     reconfiguration, teardown preserving secrets and workload authentication,
     and denial of issued OIDC tokens after mount removal. Sentinel credentials

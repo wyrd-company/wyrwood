@@ -28,17 +28,15 @@ considered-options:
 decision-outcome:
   chosen-option: 1
   justification: >-
-    Option 1 is the proposed choice submitted for explicit permission approval;
-    this record and its design commit do not authorize implementation. It
+    Option 1 is accepted. Secret management on explicitly selected KV v2 mounts
     provides the authority to add and maintain ad-hoc secrets while keeping
     direct controller-credential and auth administration with the site
-    administrator. Option 2 is available when full namespace administration is
-    the intended meaning of admin access. The technical design is the single
-    source for the exact paths, command, credential handling, and teardown of
-    either option. Approval of either option also covers the separate
-    provisioning credential, unauthenticated auth-mount listing, independent
-    OIDC client registration, explicit token lifetimes, and credential-flow
-    TLS validation described there.
+    administrator. Option 2 grants direct writes to the controller policy,
+    controller AppRole, and wyrwood-* binding policies beyond this purpose.
+    The accepted grant includes the separate provisioning credential,
+    unauthenticated auth-mount listing, independent OIDC client registration,
+    explicit token lifetimes, and credential-flow TLS validation described in
+    openbao-admin-access. The controller policy remains unchanged.
 expected-outcomes:
   positive:
     - Human OpenBao sessions name the authenticated identity.
