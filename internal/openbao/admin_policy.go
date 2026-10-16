@@ -8,7 +8,6 @@ package openbao
 import (
 	"fmt"
 	"net"
-	"net/http"
 	"net/url"
 	"slices"
 	"strings"
@@ -43,8 +42,6 @@ func NewAdminClient(endpoint Endpoint, token string) (*api.Client, error) {
 		return nil, err
 	}
 	client.SetToken(token)
-	// Redirects could forward the explicit namespace/token to another server.
-	client.SetCheckRedirect(func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse })
 	return client, nil
 }
 

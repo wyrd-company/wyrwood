@@ -397,3 +397,21 @@ func TestAdminRemovePreservesPolicyWhenDisableFails(t *testing.T) {
 		t.Fatal("failed disable removed policy or lost categorical stage")
 	}
 }
+
+func TestAdminSetupRefusesRootClientBeforeMutation(t *testing.T) {
+	server := baotest.Start(t)
+	provider := oidctest.Start()
+	defer provider.Close()
+	if err := server.TopLevel.Sys().Mount("kv", &api.MountInput{Type: "kv", Options: map[string]string{"version": "2"}}); err != nil {
+		t.Fatal(err)
+	}
+	err := ConfigureAdmin(context.Background(), server.TopLevel, adminSettings(provider), provider.ClientSecret)
+	var failure *AdminError
+	if !errors.As(err, &failure) || failure.Stage != "preflight" || failure.Partial {
+		t.Fatal("root namespace was not rejected before writes")
+	}
+	policy, _ := server.TopLevel.Sys().GetPolicy(AdminPolicyName)
+	if policy != "" {
+		t.Fatal("root namespace policy was written")
+	}
+}
