@@ -55,7 +55,11 @@ export function Account({ data }: { data: Layout }) {
             </a>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem asChild>
+          <DropdownMenuItem
+            asChild
+            // Pointer selection must not unmount the button before native submit.
+            onSelect={(event) => event.preventDefault()}
+          >
             <button
               type="submit"
               form={signOutForm}

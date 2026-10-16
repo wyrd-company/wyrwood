@@ -251,6 +251,8 @@ it.each(["pointer", "Enter", "Space"])(
       await user.keyboard(activation === "Enter" ? "{Enter}" : " ");
     }
     expect(submitted).toBe(true);
+    // Real browsers need the button connected for its native submit action.
+    expect(signOut).toBeInTheDocument();
   },
 );
 
