@@ -244,6 +244,22 @@ func (session *agentSession) push(ctx context.Context) error {
 // issue sends a fresh AppRole credential for binding. OpenBao failures are
 // recorded and do not end the session; the agent asks again later.
 func (session *agentSession) issue(ctx context.Context, binding store.Binding) error {
+	credential := session.prepareCredential(ctx, binding)
+	if credential == nil {
+		return nil
+	}
+	// Delivery can block on an agent's SSH window. No controller-wide lock is
+	// held here; assignment checks reject a credential superseded in transit.
+	if err := session.conn.Send(*credential); err != nil {
+		return err
+	}
+	session.mu.Lock()
+	session.credentialed[binding.ID] = credential.Assignment
+	session.mu.Unlock()
+	return nil
+}
+
+func (session *agentSession) prepareCredential(ctx context.Context, binding store.Binding) *protocol.Credential {
 	controller := session.controller
 	controller.mutationMu.Lock()
 	defer controller.mutationMu.Unlock()
@@ -272,20 +288,11 @@ func (session *agentSession) issue(ctx context.Context, binding store.Binding) e
 	if err != nil {
 		code = openBaoError(err)
 	}
-	controller.recordBinding(binding, events.Event{Operation: events.OperationCredentialIssued, Outcome: outcomeFor(code), ErrorCode: code,
-		Agent: session.agent, Binding: binding.ID, Latency: controller.now().Sub(started)})
+	controller.recordBinding(binding, events.Event{Operation: events.OperationCredentialIssued, Outcome: outcomeFor(code), ErrorCode: code, Agent: session.agent, Binding: binding.ID, Latency: controller.now().Sub(started)})
 	if err != nil {
 		return nil
 	}
-	if err := session.conn.Send(protocol.Credential{
-		Binding: binding.ID, Assignment: binding.Assignment(), AppRoleMount: controller.openbao.Mounts().AppRole, RoleID: roleID, WrappedSecretID: wrapped,
-	}); err != nil {
-		return err
-	}
-	session.mu.Lock()
-	session.credentialed[binding.ID] = binding.Assignment()
-	session.mu.Unlock()
-	return nil
+	return &protocol.Credential{Binding: binding.ID, Assignment: binding.Assignment(), AppRoleMount: controller.openbao.Mounts().AppRole, RoleID: roleID, WrappedSecretID: wrapped}
 }
 
 func (hub *hub) session(agent string) *agentSession {

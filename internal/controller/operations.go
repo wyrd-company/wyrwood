@@ -313,22 +313,22 @@ func (controller *Controller) changeBinding(ctx context.Context, id string, requ
 // the binding is still removed and the error says the token stays valid
 // until it expires.
 func (controller *Controller) DeleteBinding(ctx context.Context, id, operator string) error {
-	controller.mutationMu.Lock()
 	binding, _ := controller.store.Binding(ctx, id)
-	err := controller.deleteBinding(ctx, id, operator)
+	connected := binding.ID != "" && controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}) == nil
+	controller.mutationMu.Lock()
+	err := controller.deleteBinding(ctx, id, operator, connected)
 	controller.mutationMu.Unlock()
 	if binding.ID != "" {
 		controller.hub.pushAgent(ctx, binding.Agent)
 	}
 	return err
 }
-func (controller *Controller) deleteBinding(ctx context.Context, id, operator string) error {
+func (controller *Controller) deleteBinding(ctx context.Context, id, operator string, connected bool) error {
 	started := controller.now()
 	binding, err := controller.store.Binding(ctx, id)
 	if err != nil {
 		return operationError(events.ErrorNotBound, "the binding does not exist")
 	}
-	connected := controller.hub.send(binding.Agent, protocol.Unbind{Binding: binding.ID}) == nil
 	var roleCode, tokenCode events.ErrorCode
 	if err := controller.openbao.DeleteRole(ctx, binding.Role); err != nil {
 		roleCode = openBaoError(err)

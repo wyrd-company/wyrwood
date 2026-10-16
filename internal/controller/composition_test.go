@@ -10,12 +10,16 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 	gossh "golang.org/x/crypto/ssh"
+	"io"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
+	"time"
 )
 
 func TestMultiplePoliciesIssueExactOwnTokenAndRevokeOnOfflineChange(t *testing.T) {
@@ -320,4 +324,89 @@ func (wrapped *lostPolicyResponse) WritePolicy(ctx context.Context, name, hcl st
 		return errors.New("test lost response")
 	}
 	return nil
+}
+
+func TestStalledCredentialDeliveryDoesNotBlockUnrelatedPolicySave(t *testing.T) {
+	h, b := newSingleBinding(t)
+	stalled := &stalledStream{started: make(chan struct{}), release: make(chan struct{})}
+	session := agentSession{controller: h.controller, agent: b.Agent, conn: protocol.NewConn(stalled), credentialed: map[string]string{}}
+	done := make(chan error, 1)
+	go func() { done <- session.issue(context.Background(), b) }()
+	defer func() { close(stalled.release); <-done }()
+	<-stalled.started
+	saved := make(chan error, 1)
+	go func() {
+		_, err := h.controller.SavePolicy(context.Background(), policy.New("unrelated", policy.StarterHCL), "operator-1")
+		saved <- err
+	}()
+	select {
+	case err := <-saved:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("stalled agent blocked unrelated policy save")
+	}
+}
+
+func TestStalledUnbindDeliveryDoesNotBlockUnrelatedPolicySave(t *testing.T) {
+	h, b := newSingleBinding(t)
+	stalled := &stalledStream{started: make(chan struct{}), release: make(chan struct{})}
+	session := &agentSession{controller: h.controller, agent: b.Agent, conn: protocol.NewConn(stalled)}
+	h.controller.hub.mu.Lock()
+	h.controller.hub.sessions[b.Agent] = session
+	h.controller.hub.mu.Unlock()
+	defer func() {
+		h.controller.hub.mu.Lock()
+		delete(h.controller.hub.sessions, b.Agent)
+		h.controller.hub.mu.Unlock()
+	}()
+	done := make(chan struct{})
+	go func() { _ = h.controller.DeleteBinding(context.Background(), b.ID, "operator-1"); close(done) }()
+	defer func() { close(stalled.release); <-done }()
+	<-stalled.started
+	saved := make(chan error, 1)
+	go func() {
+		_, err := h.controller.SavePolicy(context.Background(), policy.New("unrelated", policy.StarterHCL), "operator-1")
+		saved <- err
+	}()
+	select {
+	case err := <-saved:
+		if err != nil {
+			t.Fatal(err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("stalled unbind blocked unrelated policy save")
+	}
+}
+
+type stalledStream struct {
+	started, release chan struct{}
+	once             sync.Once
+}
+
+func (stream *stalledStream) Read([]byte) (int, error) { return 0, io.EOF }
+func (stream *stalledStream) Write(p []byte) (int, error) {
+	stream.once.Do(func() { close(stream.started) })
+	<-stream.release
+	return len(p), nil
+}
+
+func newSingleBinding(t *testing.T) (*harness, store.Binding) {
+	t.Helper()
+	ctx := context.Background()
+	h := startHarness(t)
+	key := newAgentKey(t)
+	_, _ = h.dial("host-a", key)
+	if err := h.controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.controller.SavePolicy(ctx, policy.New("alpha", policy.StarterHCL), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	b, err := h.controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "example"}, BindingRequest{Policies: []string{"alpha"}}, "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return h, b
 }
