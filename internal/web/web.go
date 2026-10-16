@@ -4,16 +4,17 @@
 //   uses: controller
 // ---
 
-// Package web serves the controller's operator interface: server-rendered
-// pages behind OpenID Connect sign-in with group admission.
+// Package web serves the embedded React operator interface behind
+// OpenID Connect sign-in with group admission.
 package web
 
 import (
 	"bytes"
 	"context"
 	"embed"
+	"encoding/json"
 	"errors"
-	"html/template"
+	"fmt"
 	"io/fs"
 	"net"
 	"net/http"
@@ -26,14 +27,14 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/controller"
 )
 
-//go:embed templates/*.html static/*
+//go:embed dist
 var assets embed.FS
 
 // Server is the web interface for one controller.
 type Server struct {
 	controller *controller.Controller
 	provider   *provider
-	pages      map[string]*template.Template
+	shell      []byte
 	version    string
 	now        func() time.Time
 
@@ -62,36 +63,18 @@ func New(instance *controller.Controller, options Options) (*Server, error) {
 	if server.version == "" {
 		server.version = "dev"
 	}
-	pages, err := parsePages()
+	shell, err := assets.ReadFile("dist/index.html")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load embedded frontend (run task frontend:build): %w", err)
 	}
-	server.pages = pages
+	server.shell = shell
 	return server, nil
-}
-
-func parsePages() (map[string]*template.Template, error) {
-	functions := template.FuncMap{
-		"ago":   ago,
-		"until": until,
-		"stamp": func(value time.Time) string { return value.UTC().Format("2006-01-02 15:04:05Z") },
-		"add":   func(left, right int) int { return left + right },
-	}
-	pages := map[string]*template.Template{}
-	for _, name := range []string{"sign-in", "agents", "containers", "confirm", "policies", "policy", "keys", "events", "security"} {
-		page, err := template.New(name).Funcs(functions).ParseFS(assets, "templates/layout.html", "templates/"+name+".html")
-		if err != nil {
-			return nil, err
-		}
-		pages[name] = page
-	}
-	return pages, nil
 }
 
 // Handler returns the routed HTTP handler.
 func (server *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	static, _ := fs.Sub(assets, "static")
+	static, _ := fs.Sub(assets, "dist")
 	mux.Handle("GET /static/", http.StripPrefix("/static/", http.FileServerFS(static)))
 	mux.HandleFunc("GET /sign-in", server.handleSignInPage)
 	mux.HandleFunc("POST /auth/start", server.handleSignInStart)
@@ -129,7 +112,7 @@ func (server *Server) Handler() http.Handler {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		header := writer.Header()
-		header.Set("Content-Security-Policy", "default-src 'none'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self' *; frame-ancestors 'none'; base-uri 'none'")
+		header.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self' *; frame-ancestors 'none'; base-uri 'none'")
 		header.Set("X-Content-Type-Options", "nosniff")
 		header.Set("Referrer-Policy", "same-origin")
 		header.Set("X-Frame-Options", "DENY")
@@ -159,13 +142,21 @@ func (server *Server) Serve(ctx context.Context) error {
 }
 
 func (server *Server) render(writer http.ResponseWriter, request *http.Request, name string, data any) {
-	var buffer bytes.Buffer
-	if err := server.pages[name].ExecuteTemplate(&buffer, "layout", data); err != nil {
+	// encoding/json escapes HTML delimiters, including </script>, so page data
+	// cannot terminate this inert data block. All executable code is bundled.
+	payload, err := json.Marshal(struct {
+		Page string `json:"page"`
+		Data any    `json:"data"`
+	}{name, data})
+	if err != nil {
 		http.Error(writer, "The page could not be rendered.", http.StatusInternalServerError)
 		return
 	}
+	block := append([]byte(`<script id="wyrwood-page" type="application/json">`), payload...)
+	block = append(block, []byte(`</script>`)...)
+	body := bytes.Replace(server.shell, []byte("<!--wyrwood-page-->"), block, 1)
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = writer.Write(buffer.Bytes())
+	_, _ = writer.Write(body)
 }
 
 func (server *Server) controllerHost() string {
@@ -181,10 +172,6 @@ func ago(value time.Time) string {
 		return "never"
 	}
 	return humanDuration(time.Since(value)) + " ago"
-}
-
-func until(value time.Time) string {
-	return "in " + humanDuration(time.Until(value))
 }
 
 func humanDuration(duration time.Duration) string {

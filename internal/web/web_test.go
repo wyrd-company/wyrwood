@@ -11,7 +11,6 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
-	"html"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -105,7 +104,7 @@ func get(t *testing.T, client *http.Client, target string) page {
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
-	return page{status: response.StatusCode, url: response.Request.URL.String(), body: html.UnescapeString(string(body))}
+	return page{status: response.StatusCode, url: response.Request.URL.String(), body: renderedPage(t, body)}
 }
 
 func post(t *testing.T, client *http.Client, target string, form url.Values) page {
@@ -116,7 +115,7 @@ func post(t *testing.T, client *http.Client, target string, form url.Values) pag
 	}
 	defer response.Body.Close()
 	body, _ := io.ReadAll(response.Body)
-	return page{status: response.StatusCode, url: response.Request.URL.String(), body: html.UnescapeString(string(body))}
+	return page{status: response.StatusCode, url: response.Request.URL.String(), body: renderedPage(t, body)}
 }
 
 func (harness *harness) signIn(t *testing.T, client *http.Client, account oidctest.Account, tamper oidctest.Tamper) page {
@@ -315,7 +314,7 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 		"token-ttl": {"30m"}, "token-max-ttl": {"4h"}, "mount-target": {"/run/wyrwood"}, "env": {"VAULT_ADDR=unix://{mount-target}/vault.sock"},
 		"transit-keys": {""}, "enforcement": {"recreate"}})
 	if !strings.Contains(saved.body, "Policy saved") || !strings.Contains(saved.body, "Revision 1") ||
-		!strings.Contains(saved.body, `name="token-max-ttl" type="text" value="4h"`) {
+		!regexp.MustCompile(`<input type="text"[^>]*name="token-max-ttl" value="4h"`).MatchString(saved.body) {
 		t.Fatalf("save = %s", saved.body)
 	}
 

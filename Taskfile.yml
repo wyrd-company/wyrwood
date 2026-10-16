@@ -10,6 +10,58 @@ tasks:
     cmds:
       - task --list
 
+  frontend:install:
+    run: once
+    desc: Install the locked frontend dependencies
+    dir: internal/web/frontend
+    sources:
+      - package.json
+      - pnpm-lock.yaml
+    generates:
+      - node_modules/.modules.yaml
+    cmds:
+      - corepack pnpm install --frozen-lockfile
+
+  frontend:build:
+    run: once
+    desc: Build the React interface for embedding in the Go binary
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    sources:
+      - src/**/*
+      - public/**/*
+      - index.html
+      - package.json
+      - pnpm-lock.yaml
+      - tsconfig.json
+      - vite.config.ts
+    generates:
+      - ../dist/index.html
+      - ../dist/assets/*
+    cmds:
+      - corepack pnpm run build
+
+  frontend:check:
+    desc: Type-check, format-check, and test the React interface
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - corepack pnpm run check
+
+  frontend:test:build:
+    desc: Build the React renderer used by the Go workflow tests
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - corepack pnpm run build:test
+
+  frontend:test:
+    desc: Test the React interface
+    dir: internal/web/frontend
+    deps: [ frontend:install ]
+    cmds:
+      - corepack pnpm run test
+
   format:
     desc: Format Go source files
     cmds:
@@ -21,12 +73,14 @@ tasks:
       - test -z "$(gofmt -l .)"
 
   test:
-    desc: Run the test suite
+    desc: Run the Go and React test suites
+    deps: [ frontend:build, frontend:test:build, frontend:test ]
     cmds:
       - go test ./...
 
   test:ci:
     desc: Run uncached tests and reject missing integration prerequisites
+    deps: [ frontend:build, frontend:test:build, frontend:test ]
     cmds:
       - bash scripts/test-ci.sh
 
@@ -59,11 +113,13 @@ tasks:
     desc: >-
       Run the real Linux integration gate as root with Docker Engine, bao,
       the devcontainer CLI, and sshd (WYRWOOD_GATE_IMAGE overrides the image)
+    deps: [ frontend:build ]
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
 
   vet:
     desc: Run Go static analysis
+    deps: [ frontend:build ]
     cmds:
       - go vet ./...
 
@@ -90,6 +146,7 @@ tasks:
 
   build:
     desc: Build the Wyrwood executable
+    deps: [ frontend:build ]
     cmds:
       - go build ./cmd/wyrwood
 
@@ -101,6 +158,7 @@ tasks:
   release:ci:
     desc: Run portable validation required before a release
     deps:
+      - frontend:check
       - build
       - format:check
       - release:check
@@ -141,6 +199,7 @@ tasks:
 
   release:snapshot:
     desc: Build local release artifacts without publishing
+    deps: [ frontend:build ]
     cmds:
       - >-
         RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
@@ -155,6 +214,7 @@ tasks:
   check:
     desc: Run all repository checks
     deps:
+      - frontend:check
       - build
       - docs:check
       - format:check

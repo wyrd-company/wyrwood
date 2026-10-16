@@ -73,6 +73,23 @@ covering each delivery path. Decisions live in `docs/decisions` and risks in
 
 ## Development
 
+Builds require Go, Node.js 24 with Corepack, and Task. Corepack uses the pnpm
+version declared in `internal/web/frontend/package.json`. `task build` installs
+from the frozen frontend lockfile and builds the interface for embedding in
+`wyrwood`. The executable and controller image need no Node.js runtime or
+external UI files. Generated frontend assets are not committed.
+
+The interface sources are in `internal/web/frontend`. They use React,
+TypeScript, shadcn/ui components, Tailwind v4, and Vite. `task check` checks
+frontend types, formatting, and component tests alongside the Go gates.
+`task test` builds a test-only React renderer so the Go workflow tests inspect
+the same components that run in the browser. Set `WYRWOOD_BAO` to a `bao`
+binary to run OpenBao-backed tests; those tests skip when it is unavailable.
+After editing the UI, run `task build` and restart the controller. For
+continuous asset builds, run `corepack pnpm run watch` in
+`internal/web/frontend`, then rebuild and restart the Go controller to embed
+each result.
+
 ```console
 task check
 task test
