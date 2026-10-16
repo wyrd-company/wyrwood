@@ -50,4 +50,4 @@ expected-outcomes:
     - >-
       A person admitted to Wyrwood retains its existing effective namespace
       authority through policy writes.
-    - Option A requires the site administrator to create additional secret mounts.
+    - Option 1 requires the site administrator to create additional secret mounts.
