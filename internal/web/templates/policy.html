@@ -34,6 +34,10 @@
             <div class="field"><label for="transit-keys">Transit keys</label><textarea id="transit-keys" name="transit-keys" rows="4">{{.TransitKeys}}</textarea><span class="hint">One key name per line.</span></div>
             <div class="field"><label for="ca-roles">SSH-engine roles</label><textarea id="ca-roles" name="ca-roles" rows="4">{{.CARoles}}</textarea><span class="hint">One role name per line.</span></div>
           </div>
+          <div class="grid-2">
+            <div class="field"><label for="not-forwardable-transit-keys">Not-forwardable Transit keys</label><textarea id="not-forwardable-transit-keys" name="not-forwardable-transit-keys" rows="2">{{.NotForwardableTransitKeys}}</textarea><span class="hint">One offered key name per line. Refuse signing after a verified forwarding bind.</span></div>
+            <div class="field"><label for="not-forwardable-ca-roles">Not-forwardable SSH-engine roles</label><textarea id="not-forwardable-ca-roles" name="not-forwardable-ca-roles" rows="2">{{.NotForwardableCARoles}}</textarea><span class="hint">One offered role name per line. Other identities remain forwardable.</span></div>
+          </div>
           {{range .Unpermitted}}<p class="caution">{{.}} is not allowed by the HCL; using it will be denied.</p>{{end}}
         </section>
       </div>

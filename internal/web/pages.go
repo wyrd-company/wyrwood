@@ -579,6 +579,9 @@ type policyPage struct {
 	Enforcement string
 	Unpermitted []string
 	PolicyPath  string
+
+	NotForwardableTransitKeys string
+	NotForwardableCARoles     string
 }
 
 func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *http.Request) {
@@ -614,6 +617,10 @@ func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 	}
 	page.TransitKeys = strings.Join(document.TransitKeys(), "\n")
 	page.CARoles = strings.Join(document.CARoles(), "\n")
+	if document.SSH != nil && document.SSH.NotForwardable != nil {
+		page.NotForwardableTransitKeys = strings.Join(document.SSH.NotForwardable.TransitKeys, "\n")
+		page.NotForwardableCARoles = strings.Join(document.SSH.NotForwardable.CARoles, "\n")
+	}
 	page.MountTarget = document.Contract.MountTarget
 	var env []string
 	names := make([]string, 0, len(document.Contract.Env))
@@ -701,6 +708,8 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 		page.Problem = parseErr.Error()
 	}
 	server.fillPolicyPage(&page, document)
+	page.NotForwardableTransitKeys = request.PostFormValue("not-forwardable-transit-keys")
+	page.NotForwardableCARoles = request.PostFormValue("not-forwardable-ca-roles")
 	page.TransitKeys, page.CARoles, page.Env, page.AccessGroup = request.PostFormValue("transit-keys"), request.PostFormValue("ca-roles"),
 		request.PostFormValue("env"), request.PostFormValue("access-group")
 	if stored, err := server.controller.Store().Policy(request.Context(), document.Name); err == nil {
@@ -715,8 +724,13 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 	document.OpenBao.TokenTTL = strings.TrimSpace(request.PostFormValue("token-ttl"))
 	document.OpenBao.TokenMaxTTL = strings.TrimSpace(request.PostFormValue("token-max-ttl"))
 	transit, roles := lines(request.PostFormValue("transit-keys")), lines(request.PostFormValue("ca-roles"))
-	if len(transit) > 0 || len(roles) > 0 {
+	restrictedKeys := lines(request.PostFormValue("not-forwardable-transit-keys"))
+	restrictedRoles := lines(request.PostFormValue("not-forwardable-ca-roles"))
+	if len(transit) > 0 || len(roles) > 0 || len(restrictedKeys) > 0 || len(restrictedRoles) > 0 {
 		document.SSH = &policy.SSH{TransitKeys: transit, CARoles: roles}
+		if len(restrictedKeys) > 0 || len(restrictedRoles) > 0 {
+			document.SSH.NotForwardable = &policy.SSHIdentityNames{TransitKeys: restrictedKeys, CARoles: restrictedRoles}
+		}
 	}
 	document.Contract.MountTarget = strings.TrimSpace(request.PostFormValue("mount-target"))
 	document.Contract.Env = map[string]string{}

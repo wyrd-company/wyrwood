@@ -17,6 +17,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -169,12 +170,15 @@ type session struct {
 	lookup       binding.Lookup
 	record       binding.Recorder
 	certificates *certificateCache
+	// Retain the forwarding fact for this connection without storing bind payloads.
+	forwarded bool
 }
 
 type identity struct {
-	key         *sshagent.Key
-	transit     *openbao.TransitKey
-	certificate *certificate
+	key            *sshagent.Key
+	transit        *openbao.TransitKey
+	certificate    *certificate
+	notForwardable bool
 }
 
 func (session *session) current() (binding.View, error) {
@@ -193,6 +197,11 @@ func (session *session) identities(view binding.View) ([]identity, error) {
 	endpoint := session.endpoint
 	var result []identity
 	var firstErr error
+	var restrictedKeys, restrictedRoles []string
+	if view.Policy.SSH != nil && view.Policy.SSH.NotForwardable != nil {
+		restrictedKeys = view.Policy.SSH.NotForwardable.TransitKeys
+		restrictedRoles = view.Policy.SSH.NotForwardable.CARoles
+	}
 	for _, name := range view.Policy.TransitKeys() {
 		ctx, cancel := context.WithTimeout(context.Background(), endpoint.Timeout)
 		key, err := openbao.TransitPublicKey(ctx, view.Client, view.Token, view.Mounts.Transit, name)
@@ -205,8 +214,9 @@ func (session *session) identities(view binding.View) ([]identity, error) {
 		}
 		transit := key
 		result = append(result, identity{
-			key:     &sshagent.Key{Format: key.PublicKey.Type(), Blob: key.PublicKey.Marshal(), Comment: name},
-			transit: &transit,
+			key:            &sshagent.Key{Format: key.PublicKey.Type(), Blob: key.PublicKey.Marshal(), Comment: name},
+			transit:        &transit,
+			notForwardable: slices.Contains(restrictedKeys, name),
 		})
 	}
 	for _, role := range view.Policy.CARoles() {
@@ -225,8 +235,9 @@ func (session *session) identities(view binding.View) ([]identity, error) {
 			}
 		}
 		result = append(result, identity{
-			key:         &sshagent.Key{Format: entry.certificate.Type(), Blob: entry.certificate.Marshal(), Comment: role},
-			certificate: entry,
+			key:            &sshagent.Key{Format: entry.certificate.Type(), Blob: entry.certificate.Marshal(), Comment: role},
+			certificate:    entry,
+			notForwardable: slices.Contains(restrictedRoles, role),
 		})
 	}
 	if len(result) == 0 && firstErr != nil {
@@ -283,6 +294,10 @@ func (session *session) SignWithFlags(key ssh.PublicKey, data []byte, flags ssha
 		if !bytes.Equal(item.key.Blob, blob) {
 			continue
 		}
+		if session.forwarded && item.notForwardable {
+			recordOutcome(session.record, events.OperationSSHSign, view, fingerprint, started, session.endpoint.Now(), errRefused)
+			return nil, errRefused
+		}
 		var signature *ssh.Signature
 		if item.transit != nil {
 			signature, err = session.signTransit(view, *item.transit, data, flags)
@@ -332,17 +347,14 @@ func signCertificate(signer ssh.Signer, data []byte, flags sshagent.SignatureFla
 }
 
 // Extension accepts session-bind@openssh.com and denies every other
-// extension. A bind whose host-key signature verifies is acknowledged and
-// recorded as an event; it is not stored, because no policy restricts use by
-// destination or forwarding.
+// extension. Verified binds record an event and retain whether forwarding
+// occurred on this connection, so later non-forwarding binds cannot clear it.
 func (session *session) Extension(extensionType string, contents []byte) ([]byte, error) {
 	if extensionType != "session-bind@openssh.com" {
 		return nil, sshagent.ErrExtensionUnsupported
 	}
 	started := session.endpoint.Now()
 	view, _ := session.lookup()
-	// The wire format ends with the forwarding flag; it is parsed only so
-	// that the message decodes.
 	var message struct {
 		HostKey    []byte
 		SessionID  []byte
@@ -364,6 +376,7 @@ func (session *session) Extension(extensionType string, contents []byte) ([]byte
 		recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), errRefused)
 		return nil, errRefused
 	}
+	session.forwarded = session.forwarded || message.Forwarding
 	recordOutcome(session.record, events.OperationSSHSessionBind, view, "", started, session.endpoint.Now(), nil)
 	return nil, nil
 }

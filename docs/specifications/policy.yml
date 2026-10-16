@@ -20,6 +20,15 @@ description: >-
   certificates. Every key and role named must also be permitted by the HCL
   policy, or the endpoint reports a denial for it.
 
+  `ssh.not-forwardable.transit-keys` and `ssh.not-forwardable.ca-roles`
+  select offered identities by their Transit key name or SSH-engine role name.
+  Identities are forwardable by default. For a selected identity, signing is
+  refused on a connection that has accepted any verified session bind with
+  forwarding set. Unbound and non-forwarding connections can still sign.
+  Listing is unchanged. The current policy is checked on every sign request.
+  These selectors do not add identities to the offered lists. Clients that
+  send no forwarding bind are outside this forwarding check.
+
   `contract.mount-target` is the absolute container path for the consumer
   directory. `contract.env` maps environment names to values; the token
   `{mount-target}` is replaced by the mount target. `contract.access-group` is

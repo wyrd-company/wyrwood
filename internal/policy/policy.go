@@ -73,6 +73,13 @@ type OpenBao struct {
 
 // SSH names the Transit keys and SSH-engine roles the ssh-agent endpoint offers.
 type SSH struct {
+	TransitKeys    []string          `json:"transit-keys,omitempty"`
+	CARoles        []string          `json:"ca-roles,omitempty"`
+	NotForwardable *SSHIdentityNames `json:"not-forwardable,omitempty"`
+}
+
+// SSHIdentityNames selects identities separately for each OpenBao source.
+type SSHIdentityNames struct {
 	TransitKeys []string `json:"transit-keys,omitempty"`
 	CARoles     []string `json:"ca-roles,omitempty"`
 }
@@ -153,6 +160,14 @@ func (policy Policy) Validate() error {
 		}
 		if err := validateIdentities("SSH role", policy.SSH.CARoles); err != nil {
 			return err
+		}
+		if selected := policy.SSH.NotForwardable; selected != nil {
+			if err := validateIdentities("not-forwardable transit key", selected.TransitKeys); err != nil {
+				return err
+			}
+			if err := validateIdentities("not-forwardable SSH role", selected.CARoles); err != nil {
+				return err
+			}
 		}
 	}
 	return policy.Contract.Validate()
@@ -253,6 +268,12 @@ func (policy Policy) Clone() Policy {
 	clone := policy
 	if policy.SSH != nil {
 		ssh := SSH{TransitKeys: policy.TransitKeys(), CARoles: policy.CARoles()}
+		if selected := policy.SSH.NotForwardable; selected != nil {
+			ssh.NotForwardable = &SSHIdentityNames{
+				TransitKeys: append([]string(nil), selected.TransitKeys...),
+				CARoles:     append([]string(nil), selected.CARoles...),
+			}
+		}
 		clone.SSH = &ssh
 	}
 	if policy.Contract.Env != nil {

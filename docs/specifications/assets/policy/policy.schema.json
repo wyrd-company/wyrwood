@@ -23,7 +23,15 @@
       "additionalProperties": false,
       "properties": {
         "transit-keys": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
-        "ca-roles": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 }
+        "ca-roles": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
+        "not-forwardable": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "transit-keys": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
+            "ca-roles": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 }
+          }
+        }
       }
     },
     "contract": {

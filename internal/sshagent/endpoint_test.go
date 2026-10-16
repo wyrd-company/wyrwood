@@ -361,7 +361,7 @@ func sessionBind(t *testing.T, host ssh.Signer, forwarding bool, corrupt bool) [
 	}{host.PublicKey().Marshal(), sessionID, ssh.Marshal(signature), forwarding})
 }
 
-func TestSessionBindIsAcceptedWithoutStorage(t *testing.T) {
+func TestSessionBindAcceptsManyVerifiedBinds(t *testing.T) {
 	_, fixture := setup(t)
 	client := dial(t, fixture.socket)
 	_, hostKey, err := ed25519.GenerateKey(rand.Reader)
@@ -373,7 +373,7 @@ func TestSessionBindIsAcceptedWithoutStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 	// More binds than OpenSSH's per-connection limit, forwarded and not:
-	// nothing is stored, so none is refused.
+	// only the forwarding fact is retained, so no bind-count limit is needed.
 	for index := range 20 {
 		if _, err := client.Extension("session-bind@openssh.com", sessionBind(t, host, index%2 == 0, false)); err != nil {
 			t.Fatalf("session-bind %d = %v", index, err)
