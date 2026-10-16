@@ -22,6 +22,8 @@ Usage:
 Controller:
   controller serve [--config PATH]      Run the controller
   controller host-key [--config PATH]   Print the controller SSH host-key fingerprint
+  controller openbao-admin configure|remove
+                                        Configure namespace OIDC secret access
 
 Agent:
   agent login <ssh://host:port> [--accept-fingerprint SHA256:...]
@@ -76,7 +78,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, deps dependen
 		_, _ = fmt.Fprintln(stdout, "wyrwood "+version)
 		return exitSuccess
 	case "controller":
-		return runController(args[1:], stdout, stderr, deps)
+		return runController(args[1:], stdin, stdout, stderr, deps)
 	case "agent":
 		return runAgent(args[1:], stdin, stdout, stderr, deps)
 	default:

@@ -8,8 +8,9 @@ relationships:
     - agent
     - container-contract
     - web-interface
+    - openbao-admin-access
 objective: >-
-  Provide one service per site that owns Wyrwood policy, is the only holder of
+  Provide one service per site that owns Wyrwood policy, is the only runtime service that holds
   a policy-writing OpenBao credential, enrolls agents over SSH, shows every
   reported container, and issues per-binding OpenBao credentials to agents
   without ever exposing them to containers.
