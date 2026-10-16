@@ -79,6 +79,12 @@ task test
 task build
 ```
 
+Pull requests and pushes to `main` run `task ci`. This runs `task check` with
+uncached, verbose tests and fails when OpenBao or real-engine prerequisites
+are missing. CI installs OpenBao and pulls the test image. For local runs,
+set `WYRWOOD_BAO` to a `bao` executable and `WYRWOOD_TEST_IMAGE` to a local
+container image. `task test` permits prerequisite skips for development.
+
 ## Releases
 
 Intentional is the only version and release mechanism. Record a change with

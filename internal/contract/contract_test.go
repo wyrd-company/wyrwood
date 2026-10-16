@@ -9,6 +9,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
 	"os"
 	"reflect"
 	"sort"
@@ -186,7 +188,11 @@ func TestRecreateAgainstRealEngine(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := client.Start(ctx, id); err != nil {
-		t.Fatal(err)
+		message := containerStartError(t, ctx, id)
+		if missingMemoryCgroup(message) {
+			t.Skipf("cgroup v2 memory.max unavailable: %s", message)
+		}
+		t.Fatalf("Start() = %v: %s", err, message)
 	}
 	before, err := client.Inspect(ctx, id)
 	if err != nil {
@@ -224,6 +230,55 @@ func TestRecreateAgainstRealEngine(t *testing.T) {
 	beforeVolumes, afterVolumes := volumeNames(before), volumeNames(after)
 	if !reflect.DeepEqual(beforeVolumes, afterVolumes) {
 		t.Fatalf("anonymous volumes changed: %v -> %v", beforeVolumes, afterVolumes)
+	}
+}
+
+// The engine client returns categorical errors. Read Docker's diagnostic only
+// after fixture startup fails so that unrelated startup failures stay failures.
+func containerStartError(t *testing.T, ctx context.Context, id string) string {
+	t.Helper()
+	transport := &http.Transport{DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+		return (&net.Dialer{}).DialContext(ctx, "unix", "/var/run/docker.sock")
+	}}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport}
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://docker/containers/"+id+"/json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var inspected struct {
+		State struct{ Error string }
+	}
+	if err := json.NewDecoder(response.Body).Decode(&inspected); err != nil || response.StatusCode != http.StatusOK {
+		t.Fatalf("inspect startup failure: HTTP %d, %v", response.StatusCode, err)
+	}
+	return inspected.State.Error
+}
+
+func missingMemoryCgroup(message string) bool {
+	return strings.Contains(message, "memory.max") && strings.Contains(message, "no such file or directory")
+}
+
+func TestMissingMemoryCgroup(t *testing.T) {
+	for _, test := range []struct {
+		message string
+		want    bool
+	}{
+		{"open /sys/fs/cgroup/example/memory.max: no such file or directory", true},
+		{"open /sys/fs/cgroup/example/memory.max: permission denied", false},
+		{"open /sys/fs/cgroup/example/cpu.max: no such file or directory", false},
+		{"container failed to start", false},
+	} {
+		t.Run(test.message, func(t *testing.T) {
+			if got := missingMemoryCgroup(test.message); got != test.want {
+				t.Fatalf("missingMemoryCgroup(%q) = %v, want %v", test.message, got, test.want)
+			}
+		})
 	}
 }
 
