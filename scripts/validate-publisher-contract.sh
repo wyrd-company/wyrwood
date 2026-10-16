@@ -60,6 +60,7 @@ submitted_manifest="$inbox/$submitted_path"
 python3 "$repository_script" validate-queue \
   "$inbox" "$inbox_commit" "$submitted_path" "$allowlist"
 python3 "$repository_script" stage "$submitted_manifest" "$artifacts" "$stage" "$public_key"
-python3 "$repository_script" render-aur "$submitted_manifest" "$aur"
+python3 "$repository_script" render-aur "$submitted_manifest" "$aur" --artifacts "$artifacts"
 test -s "$stage/.new-rpms"
 test -s "$aur/PKGBUILD"
+test -s "$aur/wyrwood-bin.install"

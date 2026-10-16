@@ -6,6 +6,7 @@ relationships:
     - devcontainer-cli-creates-devcontainers
   related-to:
     - agent
+    - engine-proxy
 objective: >-
   Define what a container must look like to receive its sockets, validate a
   bound container against that definition, and when the policy opts in, apply
@@ -70,7 +71,9 @@ proposed-design:
     controller can show what is missing.
   recreate: >-
     Recreate requires enforcement `recreate` on the policy and recreate
-    allowed in the host's agent configuration; otherwise the binding is
+    allowed in the host's root-controlled configuration. The separate Engine
+    proxy enforces that host permission on stop, remove, create, and start;
+    otherwise the binding is
     reported as non-conforming with the reason that recreate is not permitted
     on this host. The agent inspects the container, builds a create request
     that preserves every field the challenge lists, merges the contract's

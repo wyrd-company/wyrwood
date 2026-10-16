@@ -1,0 +1,320 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  mitigates:
+    - agent-compromise-exposes-host-container-secrets
+  assumes:
+    - docker-engine-is-the-only-runtime
+  related-to:
+    - agent
+    - container-contract
+objective: >-
+  Enforce the host's Engine read and recreate permissions in a process with
+  a different identity from the agent, and remove the agent's direct Engine
+  access while preserving container observation and opt-in recreation.
+background:
+  current-design: >-
+    The agent's Engine client uses list, container inspect, events, image
+    inspect, stop, remove, create, and start. Both the packaged systemd unit
+    and the archive service manager grant SupplementaryGroups=docker.
+    Installation also adds wyrwood to docker in the host account database.
+    allow-recreate is checked inside the agent. Docker group membership
+    permits an agent process to bypass that check.
+  problems:
+    - Agent compromise grants Engine writes even on hosts with recreate disabled.
+    - Updating unit directives alone leaves stored group membership and live process groups intact.
+    - An unrestricted create endpoint permits host takeover even behind an endpoint filter.
+design-challenges:
+  recreate-authority: >-
+    Faithful recreation retains the inspected HostConfig, including privileged
+    containers, devices, capabilities, namespaces, and existing host mounts.
+    An endpoint filter cannot distinguish such a legitimate recreation from
+    an attacker-supplied create body. The host's recreate opt-in therefore
+    remains a grant of potentially host-root authority.
+  read-authority: >-
+    Container inspect returns environment values, mount sources, labels, and
+    other host container metadata. The agent needs raw inspect sections to
+    build a faithful create request. Engine observation is not a secret
+    isolation boundary between containers on the same host.
+proposed-design:
+  high-level-overview: >-
+    A separate systemd system service, wyrwood-engine-proxy.service, runs
+    `wyrwood agent engine-proxy` from the installed executable. It uses the
+    dedicated non-login user wyrwood-engine, primary group wyrwood, and
+    SupplementaryGroups=docker. The agent runs as wyrwood:wyrwood with its
+    consumer access groups, without docker membership or ambient capabilities.
+    All eight Engine client operations travel over a Unix socket to the proxy.
+    The proxy uses Go net/http and httputil.ReverseProxy with a Wyrwood authorization
+    handler and a Unix-only upstream transport. The application launches no
+    subprocess for proxying and introduces no third-party Go dependency.
+  configuration-authority: >-
+    /etc/wyrwood and its ancestor directories are root-owned and not writable
+    by either service identity. /etc/wyrwood/agent.yml is a regular,
+    root-owned file with mode 0644 or a stricter readable mode. The proxy
+    verifies ownership and absence of group/other write permission through
+    opened directory and file handles, and parses the strict bounded
+    configuration itself. Root-controlled symlinks are supported when both
+    the link's ancestor chain and the resolved file's ancestor chain meet
+    the same ownership rules; resolution cannot traverse an agent-writable
+    location. Missing or malformed configuration prevents listening.
+    An omitted engine.allow-recreate means false.
+    The agent cannot supply or override this value in HTTP, environment
+    variables, its control socket, controller messages, or a create body.
+    Root-managed unit arguments select the configuration file for the proxy.
+    An explicitly selected file meets the same ownership requirements.
+  socket-configuration: >-
+    engine.socket retains its meaning as the upstream Engine Unix socket,
+    default /var/run/docker.sock. engine.proxy-socket names the filtered
+    socket and defaults to /run/wyrwood-engine/engine.sock. The agent dials
+    engine.proxy-socket; the proxy dials engine.socket. Neither process uses
+    DOCKER_HOST, HTTP proxy environment variables, DNS, or a TCP Engine
+    transport. The two configured sockets must resolve to different paths.
+    A custom proxy socket uses a directory with the ownership and access
+    rules of /run/wyrwood-engine; it cannot be inside an agent-owned directory.
+    Existing custom upstream socket paths remain supported.
+  endpoint-matching: >-
+    The following eight method/path pairs are the entire allow-list. Paths
+    are case sensitive and match to the end. A single optional prefix
+    /v<major>.<minor>, with decimal components, is accepted and forwarded
+    unchanged; this is syntax recognition, not a pinned API version check.
+    The current client uses unversioned paths. A container identifier is one
+    Docker ID or name segment containing ASCII letters, digits, underscore,
+    dot, or hyphen, beginning with a letter or digit. Dot-only segments,
+    encoded separators, double encoding, duplicate slashes, trailing slashes,
+    backslashes, and path traversal are rejected rather than cleaned or
+    redirected. An image reference is one escaped route parameter followed
+    by the literal /json suffix; percent-encoded slashes within that parameter
+    support registry-qualified image references. Decode that parameter once,
+    validate its route boundaries, and forward its canonical escaped form.
+    Classification and forwarding use the same validated path. Origin-form
+    HTTP requests only; CONNECT, absolute-form targets, protocol upgrades,
+    and method override headers are rejected. No URL from the request can
+    select the upstream socket or destination host.
+  read-allow-list: >-
+    GET /containers/json accepts exactly all=1 and no body; this includes
+    stopped containers. GET /containers/<id>/json accepts no query or body.
+    GET /events accepts exactly one filters parameter whose decoded JSON
+    object contains only type=[container] and event=[create,start,die,destroy,
+    rename], with each listed value present once and order immaterial; it
+    accepts no body. GET /images/<reference>/json accepts no query or body.
+    These four routes are enabled regardless of allow-recreate. Every other
+    GET or HEAD route, including container logs, archive, export, stats,
+    filesystem changes, image export, /info, /version, and /_ping, is denied.
+    The agent performs no API discovery or ping call.
+  recreate-allow-list: >-
+    With engine.allow-recreate=true, POST /containers/<id>/stop accepts
+    exactly one t parameter containing a signed decimal integer of at least
+    -1, following Docker's stop timeout semantics, and no body.
+    DELETE /containers/<id> accepts exactly v=0 and force=0, with no body,
+    so removal preserves volumes and does not force a running container's
+    removal. POST /containers/create accepts exactly one nonempty name
+    parameter containing a Docker container name and an application/json
+    create body. POST /containers/<id>/start accepts no query or body.
+    With allow-recreate=false, all four routes are denied before forwarding
+    or reading a create body. Each request is authorized, including requests
+    on an existing keep-alive connection. Other POST, DELETE, PUT, PATCH,
+    OPTIONS, and HEAD requests are denied. In particular, exec, attach,
+    restart, kill, pause, rename, update, archive writes, image pull/build,
+    volumes, networks, plugins, and swarm APIs are inaccessible.
+  query-and-body-handling: >-
+    Unknown, duplicated, malformed, or additional query parameters are
+    rejected. Queries are parsed once and rebuilt from validated values.
+    JSON event filters reject duplicate object keys and extra values.
+    The accepted create body is streamed unchanged to preserve the Engine's
+    supported create fields and existing recreation fidelity. It is not
+    constrained by a new Wyrwood body-size policy. HTTP framing is parsed
+    by net/http; ambiguous framing fails before upstream forwarding.
+    Hop-by-hop, forwarding, authorization, registry-auth, Idempotency-Key,
+    and X-Idempotency-Key headers are removed. No method override is honored.
+    The upstream HTTP Host is fixed. Client headers cannot opt a mutation
+    into the HTTP transport's automatic replay behavior.
+  permission-boundary: >-
+    /run/wyrwood-engine is owned by wyrwood-engine:wyrwood with mode 0750.
+    engine.sock is owned by wyrwood-engine:wyrwood with mode 0660. The
+    agent can connect but cannot unlink, replace, or create entries in the
+    directory. Only root and wyrwood can initiate accepted connections;
+    the proxy checks Linux SO_PEERCRED so another member of group wyrwood
+    does not acquire agent authority. The proxy can remove a stale socket
+    only inside its verified directory and only when it is a socket owned
+    by its own UID. A conflicting file or unexpected owner prevents startup.
+    The raw Engine socket remains root:docker, mode 0660, or an equivalent
+    host-controlled custom socket accessible to the proxy identity alone
+    among the two services. Installation does not chmod or chown that socket.
+    Agent startup under the wyrwood identity rejects docker group membership
+    or effective direct access to the upstream socket, including access
+    through an ACL or another supplementary group. A root-run diagnostic
+    daemon still uses the proxy; root is outside this threat boundary.
+  service-isolation: >-
+    systemd creates the proxy runtime directory with RuntimeDirectory=
+    wyrwood-engine and RuntimeDirectoryMode=0750. The proxy uses UMask=0077,
+    NoNewPrivileges=yes, ProtectSystem=strict, RestrictAddressFamilies=AF_UNIX,
+    and an empty CapabilityBoundingSet. ReadWritePaths names only its runtime
+    directory. Agent durable state and consumer sockets remain owned by
+    wyrwood under /var/lib/wyrwood and /run/wyrwood. The proxy has no token,
+    agent SSH key, policy cache, recreate journal, controller session, or
+    consumer listeners. Its Docker group membership remains host-root
+    authority if the proxy itself is compromised.
+  service-lifecycle: >-
+    The agent unit Wants=wyrwood-engine-proxy.service and is ordered After it.
+    The proxy is ordered after docker.service and has PartOf=
+    wyrwood-agent.service so agent stop and restart also stop and restart
+    the proxy. Agent startup pulls the proxy in without a separately enabled
+    proxy unit. Both retain Restart=on-failure, RestartSec=2s, and
+    TimeoutStopSec=15s. A proxy failure leaves the agent serving existing
+    consumer sockets with its existing credential lifecycle while Engine
+    observation reports unavailable and reconnects through the existing
+    loop. There is no direct-socket fallback. Proxy shutdown cancels in-flight
+    upstream requests, closes all client connections and the event stream,
+    and removes its socket. It adds no shutdown grace period or request,
+    read, write, event-stream, or idle timeout. Existing agent Engine deadlines
+    and the container stop timeout remain the operation bounds.
+  configuration-activation: >-
+    Each proxy process holds one validated configuration snapshot for its
+    lifetime. A root operator activates a permission change with
+    `systemctl restart wyrwood-agent.service`, which also restarts the proxy
+    and drops existing connections. Editing the file alone changes neither
+    process's active permission. The new proxy reads the host setting itself;
+    a stale or modified agent setting cannot grant writes. Setting false
+    before that coordinated restart denies subsequent writes even when the
+    agent asks to finish a recreate. An interrupted recreate follows the
+    existing journal and operator recovery contract.
+  failure-behavior: >-
+    A denied route or permission receives HTTP 403 with a fixed categorical
+    JSON message; a malformed request receives 400. Neither reaches the
+    Engine. A dial or upstream transport failure receives a categorical 502
+    when headers have not been sent; a failed stream is closed. Engine HTTP
+    statuses and bodies pass through for authorized operations, and the
+    existing Engine client maps errors to its categorical public errors.
+    The proxy never follows redirects, retries mutations, or replays a create
+    after an ambiguous upstream outcome. An interrupted request may already
+    have reached Docker; existing recreate failure reporting and journals
+    remain authoritative for recovery. The event response streams and flushes
+    without whole-response buffering. Logs contain only operation categories,
+    status classes, and service lifecycle outcomes, with no raw URI, query,
+    create/inspect body, Engine error, or environment value.
+  recreate-security-limit: >-
+    The proxy enforces the host opt-in, exact endpoints, and safe remove
+    parameters. It does not authenticate controller bindings or enforce
+    bind-time-only recreation, target membership, create-to-remove pairing,
+    or equality with an independently inspected definition. Those checks
+    remain in the agent. With allow-recreate=true, a compromised agent can
+    stop or remove any host container and create and start an arbitrary
+    privileged container, including one mounting the host filesystem or raw
+    Engine socket. A route allow-list does not remove host-root capability
+    from that opt-in. With false, an agent compromise retains container
+    inspect metadata, in-memory OpenBao tokens, and SSH signing authority
+    but cannot mutate Docker through the proxy. The host must separately
+    prevent wyrwood from reaching another unprotected Engine listener.
+  upgrade-contract: >-
+    Package and archive service installation implement the same root-run,
+    idempotent transition. This transition changes service account and unit
+    privileges; it does not migrate controller data, agent keys, policy cache,
+    consumer directories, or recreate journals. A package pre-install hook
+    records whether the agent was active in a root-owned runtime marker and
+    stops that unit and its cgroup before replacing executable or units.
+    With no systemd manager running it updates persistent files only. A
+    failed stop or a remaining wyrwood process holding Engine access blocks
+    completion with an actionable error; it does not leave an old privileged
+    daemon running behind a reported successful upgrade.
+    Post-install creates the proxy user, removes only wyrwood's docker
+    membership if present, preserves every other supplementary group, and
+    installs both units and the proxy runtime directory configuration.
+    It removes SupplementaryGroups=docker from the agent unit and grants
+    it only to the proxy. Removing the account database membership is
+    required even when the unit line is absent. The active-process restart
+    is required even after the database entry is removed.
+  aur-upgrade-contract: >-
+    Pacman scriptlet failures do not abort package replacement. A root-installed
+    ALPM PreTransaction hook with AbortOnFail runs the same pre-install stop
+    script before an AUR transaction. Before the first upgrade from a package
+    without this hook, the operator bootstraps both the hook and its script
+    from a verified release archive into /etc/pacman.d/hooks and /etc/wyrwood.
+    These paths avoid conflicts with incoming package-owned files under /usr.
+    After successful service installation the operator removes the bootstrap
+    override so that ALPM uses the packaged hook. The AUR package retains both files for
+    subsequent transactions. A missing bootstrap is an unmet upgrade
+    precondition; a package scriptlet alone does not provide this guarantee.
+    Native post-install errors require operator correction and a repeated
+    service installation; pacman's transaction exit status is not evidence
+    that service activation completed. A stopped service is never restarted
+    by the failed transition.
+  upgrade-unit-overrides: >-
+    Package /usr/lib/systemd/system units, archive-generated /etc/systemd/
+    system units, tmpfiles entries, and the service manager's generated bytes
+    describe the same pair of services. Installation recognizes and replaces
+    an unmodified Wyrwood-generated agent unit in /etc so it cannot shadow
+    the packaged unit with docker access. A locally modified unit or drop-in
+    that retains raw Engine access blocks automatic completion and reports
+    the root action needed; installation preserves unrelated operator
+    customizations. Effective unit inspection checks supplementary groups
+    against both docker and its numeric GID and requires AmbientCapabilities
+    to be empty. Explicit supplementary groups require a verified Docker GID;
+    missing privilege properties block completion. daemon-reload follows file
+    replacement. An agent active before upgrade is started with the new
+    dependency and fresh process groups; an inactive agent stays inactive, and boot enablement is
+    preserved. Failure after stopping leaves the agent stopped with a
+    categorical installation failure, never restored to direct Engine
+    access. Fresh installs remain stopped until enrollment. Removal stops
+    both units and removes their installed service/runtime configuration
+    while retaining agent identity and durable state.
+  capability-compatibility: >-
+    Container list/inspect, event reconciliation, image lookup, report mode,
+    faithful recreation, start-after-remove-failure, and consumer group
+    assignment remain supported. The docker group cannot also serve as a
+    consumer access group held by the agent; such a contract is reported
+    non-conforming and needs a separate access group. Custom Engine socket
+    ACLs or unit overrides that give wyrwood raw Engine access require root
+    correction. These permission changes and the active-service restart on
+    upgrade form part of the security decision. There is no automatic
+    rollback to direct access and no data migration machinery.
+  artifact-integration: >-
+    The agent and container-contract designs reference this boundary. The
+    Linux service specification, configuration specification and JSON schema,
+    command-line grammar, risk description, installation instructions, and
+    operations instructions describe both units, socket paths, host opt-in,
+    coordinated restart, consumer group limitation, and residual authority.
+    GoReleaser packages both systemd units and the matching lifecycle hooks;
+    archive service install/remove/start/stop/status covers the same service
+    pair. The existing Docker dependency remains a host prerequisite.
+    The release manifest and repository-publisher contract carry the same
+    lifecycle behavior into AUR packages; a DEB/RPM-only hook change is
+    insufficient. Publisher compatibility validation covers all published
+    Linux package formats before release.
+  external-proxy-evidence: >-
+    Tecnativa v0.5.0 source is commit
+    2e118a0c0c66e1831f68b7afd6d49ad3e2f96b5d, including
+    https://github.com/Tecnativa/docker-socket-proxy/blob/v0.5.0/haproxy.cfg
+    and its Dockerfile and entrypoint. Its section ACLs and mutation switch
+    do not express this design's exact policy. Wollomatic 1.13.1 source is
+    commit bc6606ade30b0cc071cda0a1eeb5b4c518a3246b, including
+    https://github.com/wollomatic/socket-proxy/blob/1.13.1/cmd/socket-proxy/handlehttprequest.go
+    and main.go. Its per-method path regexes and Unix listener are useful
+    adoption capabilities; query forwarding, URL-bearing denial logs, and
+    listener identity need Wyrwood integration. Both projects have maintained
+    releases and reviewable source; popularity alone does not settle policy
+    fit. If an external proxy is selected, its dependency/update ownership,
+    release-source security review, and Renovate or equivalent update
+    workflow are part of adoption.
+  verification: >-
+    A recording Unix HTTP upstream proves every allowed method/path/query
+    reaches Docker and every denied request leaves the upstream untouched.
+    Cover both permission settings and a single keep-alive connection;
+    version prefixes, registry-qualified escaped images, malformed paths,
+    duplicate queries, body/framing attacks, upgrades, and method overrides;
+    stream delivery before EOF and request cancellation; fixed transport
+    errors and log redaction; every mutation gate, including start/stop,
+    create before body read, and volume-preserving removal. Mutation checks
+    remove each authorization guard and require a named test failure.
+    Root Linux tests run the two UIDs against a protected fake Engine socket
+    and prove the agent cannot open the raw socket, replace the proxy socket,
+    alter its configuration, or impersonate the proxy. A third UID sharing
+    wyrwood's group is denied by peer credentials. A real Docker test observes
+    and recreates a generic container through the proxy, and verifies write
+    denial with recreate disabled. DEB/RPM hooks and archive management tests
+    exercise fresh install, repeated install, active upgrade, inactive
+    upgrade, missing docker membership, consumer group preservation, old
+    generated /etc unit precedence, unsafe custom overrides, and failures
+    during stop, group removal, reload, and restart. A live systemd upgrade
+    test starts from an installed 0.2.3 service, retains a bound consumer,
+    upgrades, and checks the new process's actual groups and raw-socket
+    denial. task check and task test run with WYRWOOD_BAO set to the available
+    bao executable; skipped external gates are recorded as unverified.

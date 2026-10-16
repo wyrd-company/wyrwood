@@ -19,6 +19,7 @@
       "additionalProperties": false,
       "properties": {
         "socket": { "type": "string", "default": "/var/run/docker.sock" },
+        "proxy-socket": { "type": "string", "default": "/run/wyrwood-engine/engine.sock" },
         "allow-recreate": { "type": "boolean", "default": false }
       }
     },

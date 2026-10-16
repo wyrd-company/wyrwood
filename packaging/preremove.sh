@@ -3,14 +3,14 @@
 # relationships:
 #   implements: linux-service
 # ---
-set -e
+set -eu
 
-# Debian passes "remove" and RPM passes 0 when the package is removed rather
-# than upgraded.
+# Debian uses "remove", RPM uses 0; upgrades keep boot enablement intact.
 case "$1" in
 remove | 0)
-	if [ -d /run/systemd/system ]; then
-		systemctl disable --now wyrwood-agent.service >/dev/null 2>&1 || true
-	fi
-	;;
+ if [ -d /run/systemd/system ]; then
+  systemctl disable --now wyrwood-agent.service
+  systemctl stop wyrwood-engine-proxy.service
+ fi
+ ;;
 esac

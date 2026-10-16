@@ -60,12 +60,36 @@ errors.
 | `wyrwood controller serve` | Run the controller. |
 | `wyrwood controller host-key` | Print the controller's SSH host-key fingerprint. |
 | `wyrwood agent login <url>` | Generate the agent key, accept the controller fingerprint, and request approval. |
-| `wyrwood agent daemon` | Run the agent directly. |
+| `wyrwood agent daemon` | Run the agent through its Engine proxy. |
+| `wyrwood agent engine-proxy [--config PATH]` | Run the filtering Engine boundary. |
 | `wyrwood agent status` | Inspect agent, controller session, and binding health. |
 | `wyrwood agent containers` | List observed containers with binding, conformance, and token state. |
 | `wyrwood agent events` | Read the newest bounded operational events. |
-| `wyrwood agent service install\|remove\|start\|stop\|status` | Manage the system unit. |
+| `wyrwood agent service install\|remove\|start\|stop\|status` | Manage the system service pair. |
 | `wyrwood version` | Print the executable version. |
 
 Run `wyrwood help` for the top-level grammar or append `--help` to a command
 for its options.
+
+## Agent and Engine proxy
+
+`wyrwood-agent.service` runs as `wyrwood`. Its dependency
+`wyrwood-engine-proxy.service` runs as `wyrwood-engine` with Docker access.
+Restart the agent to activate both its configuration and the proxy's
+root-controlled `allow-recreate` setting:
+
+```bash
+sudo systemctl restart wyrwood-agent.service
+sudo systemctl status wyrwood-agent.service wyrwood-engine-proxy.service
+```
+
+The proxy permits four reads: container list, container inspect, filtered
+container events, and image inspect. Stop, remove without volumes or force,
+create, and start are allowed only with host recreate enabled. All other
+Engine routes are denied. A recreate-enabled host still grants possible
+host-root authority to a compromised agent.
+
+A proxy failure leaves Engine operations unavailable while existing consumer
+sockets continue serving. Reconnect uses the filtered socket and full reconciliation;
+it does not switch to the raw Engine socket. A restart during recreation
+follows the [existing recovery procedure](configuration.md#contract-enforcement).

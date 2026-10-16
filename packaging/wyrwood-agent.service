@@ -5,15 +5,14 @@
 [Unit]
 Description=Wyrwood agent
 Documentation=https://github.com/wyrd-company/wyrwood
-After=docker.service network-online.target
-Wants=network-online.target
+After=docker.service network-online.target wyrwood-engine-proxy.service
+Wants=network-online.target wyrwood-engine-proxy.service
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/wyrwood agent daemon
 User=wyrwood
 Group=wyrwood
-SupplementaryGroups=docker
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict

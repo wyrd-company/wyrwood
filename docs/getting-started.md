@@ -73,8 +73,9 @@ sudo systemctl restart wyrwood-agent
 ```
 
 Replace `<host-group-name>` with the host group name for GID 1000. Create a
-host group with that GID first if none exists. Packages add `wyrwood` only to
-`docker`. Members of the access group who can reach these sockets can use the
+host group with that GID first if none exists. Use a separate group from
+`docker`; the agent has no direct Docker access. Members of the access group
+who can reach these sockets can use the
 binding's OpenBao and SSH permissions. See [Access group](configuration.md#access-group).
 
 ![Policy editor with a saved policy](assets/web-policy.png)

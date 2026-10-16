@@ -28,8 +28,11 @@ description: >-
   optional JSON field `access-group-error` explains the group membership
   requirement and agent restart.
   `events` defaults to 100 records and accepts `--limit` from 1 through 1000.
+  `wyrwood agent engine-proxy [--config PATH]` runs the separate filtering
+  Engine boundary from root-controlled configuration. Package hooks use the
+  root-only `wyrwood agent service package-install` maintenance action.
   `wyrwood agent service install|remove|start|stop|status` manages the system
-  unit through the Linux service adapter and requires root.
+  service pair through the Linux service adapter and requires root.
 
   `wyrwood version` prints the executable version. Human-readable output is
   the default. `--output json` emits exactly one versioned, closed JSON object

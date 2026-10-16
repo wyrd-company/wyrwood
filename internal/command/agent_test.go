@@ -159,3 +159,22 @@ func TestAgentContainersShowsFailedItems(t *testing.T) {
 		}
 	}
 }
+
+func TestEngineProxyCommandUsesOnlyRootConfigurationPath(t *testing.T) {
+	deps := defaultDependencies()
+	var paths []string
+	deps.runEngineProxy = func(_ context.Context, path string) error { paths = append(paths, path); return nil }
+	for _, args := range [][]string{{"agent", "engine-proxy"}, {"agent", "engine-proxy", "--config", "/etc/sample/agent.yml"}} {
+		if status, _, stderr := runForTest(t, deps, args...); status != exitSuccess {
+			t.Fatal(status, stderr)
+		}
+	}
+	if strings.Join(paths, ",") != "/etc/wyrwood/agent.yml,/etc/sample/agent.yml" {
+		t.Fatal(paths)
+	}
+	for _, args := range [][]string{{"agent", "engine-proxy", "--allow-recreate", "true"}, {"agent", "engine-proxy", "--config="}, {"agent", "engine-proxy", "extra"}} {
+		if status, _, _ := runForTest(t, deps, args...); status != exitUsage {
+			t.Fatal("accepted permission override", args)
+		}
+	}
+}

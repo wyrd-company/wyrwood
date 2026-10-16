@@ -18,6 +18,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/engine"
+	"github.com/wyrd-company/wyrwood/internal/engineproxy"
 	"github.com/wyrd-company/wyrwood/internal/linuxservice"
 	"github.com/wyrd-company/wyrwood/internal/sshagent"
 	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
@@ -34,6 +35,7 @@ type dependencies struct {
 	serveController   func(ctx context.Context, configPath string) error
 	controllerHostKey func(configPath string) (string, error)
 	runAgent          func(ctx context.Context) error
+	runEngineProxy    func(ctx context.Context, path string) error
 	agentLogin        func(ctx context.Context, options agent.LoginOptions) (agent.LoginResult, error)
 	queryAgent        func(ctx context.Context, request agent.ControlRequest, destination any) error
 	manageService     func(action string) (string, error)
@@ -45,6 +47,7 @@ func defaultDependencies() dependencies {
 		serveController:   serveController,
 		controllerHostKey: controllerHostKey,
 		runAgent:          func(ctx context.Context) error { return runAgentDaemon(ctx, paths) },
+		runEngineProxy:    func(ctx context.Context, path string) error { return engineproxy.Run(ctx, path, os.Stderr) },
 		agentLogin: func(ctx context.Context, options agent.LoginOptions) (agent.LoginResult, error) {
 			options.Paths = paths
 			return agent.Login(ctx, options)
@@ -68,12 +71,15 @@ func runAgentDaemon(ctx context.Context, paths agent.Paths) error {
 	if err != nil {
 		return errConfiguration
 	}
+	if err := engineproxy.CheckAgentAccess(configuration.EngineSocket); err != nil {
+		return err
+	}
 	agent.Version = version
 	// Library diagnostics, such as ssh-agent request failures, are already
 	// recorded as categorical events and are not repeated to the journal.
 	log.SetOutput(io.Discard)
 	instance, err := agent.New(agent.Options{
-		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineSocket), Log: os.Stderr,
+		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineProxySocket), Log: os.Stderr,
 		Endpoints: endpoints{vault: vaultproxy.New(configuration.OpenBaoTimeout), ssh: sshagent.New(configuration.SignTimeout)},
 	})
 	if err != nil {

@@ -33,7 +33,7 @@ root_token=wyrwood-demo-root
 # The controller and every mount it uses live in a dedicated namespace.
 bao_namespace=wyrwood
 engine=$root/engine
-agent_paths=(/etc/wyrwood /var/lib/wyrwood /run/wyrwood)
+agent_paths=(/etc/wyrwood /var/lib/wyrwood /run/wyrwood /run/wyrwood-engine)
 # up records that it created the agent paths, so down never removes the
 # state of an agent this demo did not configure.
 owned=$root/agent-paths-owned
@@ -188,10 +188,13 @@ up() {
 }
 
 agent() {
+ sudo install -d -m 0750 -o root -g root /run/wyrwood-engine
+ sudo -b sh -c "exec '$root/bin/wyrwood' agent engine-proxy >'$root/proxy.log' 2>&1" </dev/null >/dev/null 2>&1
 	sudo -b sh -c "exec '$root/bin/wyrwood' agent daemon >'$root/agent.log' 2>&1" </dev/null >/dev/null 2>&1
 }
 
 down() {
+ sudo pkill -f "^$root/bin/wyrwood agent engine-proxy" 2>/dev/null || true
 	sudo pkill -f "^$root/bin/wyrwood agent daemon" 2>/dev/null || true
 	if [ -f "$root/controller.pid" ]; then
 		kill "$(cat "$root/controller.pid")" 2>/dev/null || true
