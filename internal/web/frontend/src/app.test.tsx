@@ -243,7 +243,6 @@ it.each([true, false])(
     await user.type(screen.getByLabelText("OpenBao policy HCL"), "unsaved");
     expectPost("Save and validate", "/policies", {
       hcl: "unsaved",
-      "token-ttl": policy.TokenTTL,
       ...(New ? { new: "yes" } : { name: policy.Name }),
     });
   },
