@@ -189,3 +189,19 @@ func TestLabelBindingDoesNotCreateDirectoryFromKeyValue(t *testing.T) {
 		t.Fatalf("label value used as container name: %v", err)
 	}
 }
+
+func TestVersionOnePolicyCacheIsIgnoredWithoutMutation(t *testing.T) {
+	instance := newRecreateAgent(t, enginetest.New())
+	legacy := []byte(`{"version":1,"set":{"openbao":{"address":"http://127.0.0.1:1"},"bindings":[{"binding":"bnd-1","key":{"kind":"name","value":"app"},"policy":{"name":"example","revision":1,"openbao":{"policy":"","token-ttl":"1h","token-max-ttl":"8h"},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}}]},"bindings":["bnd-1"]}`)
+	if err := writeOwnerOnly(instance.paths.PolicyCache(), legacy, false); err != nil {
+		t.Fatal(err)
+	}
+	instance.loadCache()
+	if instance.setLoaded || len(instance.set.Bindings) != 0 {
+		t.Fatal("version one cache was accepted")
+	}
+	after, err := os.ReadFile(instance.paths.PolicyCache())
+	if err != nil || string(after) != string(legacy) {
+		t.Fatal("refused cache was mutated")
+	}
+}
