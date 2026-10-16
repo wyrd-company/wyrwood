@@ -6,7 +6,6 @@
 package web
 
 import (
-	"bytes"
 	"strings"
 	"testing"
 
@@ -43,16 +42,9 @@ func TestContractChecksShowSocketFailures(t *testing.T) {
 			if found != 2 {
 				t.Fatalf("socket checks = %d, want 2", found)
 			}
-			pages, err := parsePages()
-			if err != nil {
-				t.Fatal(err)
-			}
-			var output bytes.Buffer
-			if err := pages["containers"].ExecuteTemplate(&output, "layout", containersPage{Selected: &containerRow{Bound: true, Checks: checks}}); err != nil {
-				t.Fatal(err)
-			}
-			if !strings.Contains(output.String(), "socket access (") || (accessGroup != nil && !strings.Contains(output.String(), "verifiable member of access group 1000")) {
-				t.Fatalf("socket access diagnostic missing: %s", output.String())
+			output := renderModel(t, "containers", containersPage{Selected: &containerRow{Bound: true, Checks: checks}})
+			if !strings.Contains(output, "socket access (") || (accessGroup != nil && !strings.Contains(output, "verifiable member of access group 1000")) {
+				t.Fatalf("socket access diagnostic missing: %s", output)
 			}
 		}
 	}
