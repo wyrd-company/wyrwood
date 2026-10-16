@@ -27,11 +27,13 @@ background:
     - A multi-policy binding needs explicit composition and credential transition rules.
 design-challenges:
   approval-boundary: >-
-    The issue establishes multiple policies and binding-owned TTL, access
-    group, and enforcement. The choices below remain proposals for operator
-    approval. Committing this design records the options; it does not approve
-    a permission change, migration, or compatibility break. Each recommended
-    rule is conditional on its corresponding choice.
+    Composition rejects conflicting contracts and retains every not-
+    forwardable restriction. The upgrade uses clean controller state and an
+    OpenBao namespace reset, with a coordinated version 2 controller, agent,
+    and CLI deployment. Runtime assignment changes revoke reported old
+    tokens before fresh issuance. Binding tokens contain only their selected
+    managed policies; their authors supply token lifecycle ACLs. These rules
+    define the implementation contract.
   external-state: >-
     SQLite and OpenBao do not share a transaction. Binding updates must
     distinguish desired configuration from an applied AppRole and an agent's
@@ -62,7 +64,7 @@ proposed-design:
     The controller validates every selected name and resolves every reference;
     unknown names, an empty selection, and repeated names are errors.
     Canonical storage and display sort policy names; selection order has no
-    precedence in the recommended composition. The settings object contains
+    precedence in composition. The settings object contains
     token-ttl, token-max-ttl, access-group, and enforcement. Both lifetime
     fields move together: token-ttl defaults to 1h, token-max-ttl to 8h, and
     maximum lifetime must be at least TTL. These retain the existing duration
@@ -105,12 +107,10 @@ proposed-design:
     offering and the ACL grant come from different selected policies. Wyrwood
     does not infer an ACL grant from an offered identity. Not-forwardable
     selectors union by source type, then intersect with the effective offered
-    identities; a selector alone never adds an identity. The recommended
-    forwarding choice treats a restriction from any selected policy as
-    effective. Listing and signing consult the current result on every request,
+    identities; a selector alone never adds an identity. A restriction from any selected policy is effective. Listing and signing consult the current result on every request,
     including already open SSH-agent connections.
   contract-composition: >-
-    The recommended contract choice requires equal canonical mount-target
+    Composition requires equal canonical mount-target
     values in all selected policies. Environment entries union by variable
     name. Distinct names combine; equal values for a shared name deduplicate;
     different values conflict. Values are compared after expanding
@@ -157,15 +157,17 @@ proposed-design:
     OpenBao adds default to issued tokens unless token_no_default_policy is
     true. The current role writer does not set that flag. Exact explicit
     token_policies therefore does not prove exact issued token policies.
-    The recommended default-policy choice sets the flag, checks the actual
+    The role writer sets the flag and the agent checks the actual
     login token policy set against S(b), and refuses unexpected policies,
     including identity-derived additions. It relies on selected authored HCL
     for auth/token/lookup-self read and auth/token/renew-self and
     auth/token/revoke-self update when these operations are used. The preview
     calls out these lifecycle requirements; it does not silently append
     privileges. The vault proxy's existing token-endpoint restrictions remain
-    in force. This choice needs approval for existing deployments that rely on
-    default, and its upgrade consequences apply to either upgrade option.
+    in force. The policy editor starts new policies with these three self-operation
+    grants. Saving a policy or binding without an explicit renewal grant
+    produces a clear advisory warning. A warning preserves deliberate
+    non-renewing use and does not replace OpenBao authorization.
   assignment-and-credentials: >-
     Effective assignments identify binding revision plus the sorted source
     policy name/revision pairs. Credential messages and accessor reports carry
@@ -176,8 +178,7 @@ proposed-design:
     installed. This includes settings and source revision edits even when
     selected names stay equal. An HCL edit under an already attached name
     takes effect in OpenBao for existing tokens; changing role membership does not change the
-    policy names on an already issued token. The recommended revocation choice
-    records the desired transition, updates the AppRole, revokes the previous
+    policy names on an already issued token. Runtime revocation records the desired transition, updates the AppRole, revokes the previous
     reported accessor, then permits fresh credential delivery. The agent stops
     using a superseded token and self-revokes it. Accessors reported for old
     assignments are revoked without replacing the current accessor record.
@@ -235,15 +236,15 @@ proposed-design:
     String matching is not an authorization check. Shared editor components
     do not depend on account-menu, version-reporting, or OIDC-admission state.
   agent-protocol-and-cache: >-
-    The target agent-controller version 2 assignment carries binding id, key,
+    The agent-controller version 2 assignment carries binding id, key,
     binding revision, source name/revision pairs, and the composed runtime
-    policy with binding settings. Credential, token-accessor, and acknowledgement
-    messages bind to the same assignment identity. Cache version 2 stores that
-    assignment and known binding ids without credentials. This is a protocol
-    version change, not a pinned executable-version check. The compatibility
-    choice determines whether version 1 peers are rejected with a diagnostic
-    or handled by an explicit adapter. Malformed or unsupported cache versions
-    are not treated as empty new bindings eligible for automatic recreate.
+    policy with binding settings. Credential, token-accessor, and
+    acknowledgement messages bind to the same assignment identity. Cache
+    version 2 stores that assignment and known binding ids without
+    credentials. Version 1 peers and caches are rejected with an upgrade
+    diagnostic; no adapter or conversion exists. Unsupported cache versions
+    cannot authorize sockets or automatic recreate. This is a protocol
+    version, not an executable-version pin.
   package-boundaries: >-
     internal/policy owns reusable source documents and deterministic composition
     types and rules without store or HTTP dependencies. A separate effective
@@ -268,99 +269,53 @@ proposed-design:
     Binding events identify the binding, revision, and policy names; a
     policy-edit event identifies its one source policy. Event filtering matches
     any member name rather than joining names into a misleading singular field.
-    Event schema evolution follows the selected client compatibility option.
-  upgrade-option-a: >-
-    Recommended: support a transactional schema-version-1 migration. Add the
-    membership table and binding settings, map each bindings.policy to one
-    membership row, and copy both TTLs, access group, and enforcement from its
-    referenced stored policy into each binding. Materialize existing defaults
-    only when a legacy field is absent; preserve an explicit GID 0 and explicit
-    report or recreate. Preserve policy and binding identities, policy revisions,
-    HCL, role names, creation metadata, inventories, approval state, retirement
-    records, accessors, and recreate results. Give bindings an initial revision.
-    Strip the moved fields from stored policy JSON only after copying and
-    validating every binding in the same transaction. An invalid or missing
-    referenced document aborts and leaves schema version 1 intact. Unbound
-    policies retain HCL, SSH, and contract but lose policy-level runtime defaults;
-    export the old policy documents before conversion if those defaults matter.
-    Upgrade code uses a dedicated legacy decoder, not relaxed target validation.
-    Version-1 agent caches map a single policy to one source and copy its runtime
-    settings while preserving known-binding ids; journal and result identities
-    remain valid. A migrated cache alone never grants a fresh credential.
-    Controller startup reconciles binding AppRoles before fresh issuance. The
-    default-policy choice can require operator HCL updates and a fresh login.
-    Back up the SQLite database consistently before upgrade. An older controller
-    refuses the newer schema; rollback requires the matching database backup
-    and reconciliation of external AppRoles. Migration adds no OpenBao permission
-    and creates no credentials in storage. Mixed-version client support is a
-    separate choice, not an implication of data migration.
-  upgrade-option-b: >-
-    Alternative: support a clean-state upgrade only. The new controller detects
-    schema version 1 before mutations and refuses startup with export, unbind,
-    backup, and clean-state instructions. The operator exports reusable policy
-    HCL and SSH/contract data, records runtime settings, unbinds using the old
-    controller while agents are reachable, verifies revocation or waits for
-    outstanding tokens to expire, and provisions a new database. Agents are
-    reapproved and containers rebound with explicit settings. Old agent caches
-    are retired with the service stopped; known-binding and recreate consequences
-    are explicit during rebind. Recreated bindings can trigger first-bind
-    recreate, so the operator chooses enforcement deliberately. Old OpenBao
-    roles are removed through normal unbind; deleting a database alone does not
-    revoke tokens. Unreported accessors retain the existing lifetime bound.
-    There is no silent reset, dropped table, or automatic data discard. This
-    choice breaks stored-state compatibility and requires operator downtime
-    and reconfiguration; namespace and controller permissions are unchanged.
-  client-compatibility-options: >-
-    A, recommended: a coordinated controller, agent, and CLI upgrade with strict
-    version 2 protocol, cache, and containers output. Version 1 clients receive
-    an unsupported-protocol diagnostic; no first-policy fallback hides extra
-    grants. Cached-state conversion is provided only with migration option A.
-    This breaks mixed-version operation and singular-policy consumers, without
-    changing admission permissions or credential storage. B: retain explicit
-    version 1 adapters for controller-agent and local CLI/control projections.
-    A version 1 agent can receive only singleton bindings in its legacy shape;
-    multi-policy assignment remains pending with an upgrade diagnostic rather
-    than a flattened invented policy identity. This preserves supported singleton
-    operation during a rolling upgrade but delays multi-policy use on old agents
-    and requires additional adapter verification. A version 1 CLI consumer sees
-    an explicit upgrade-required result for multi-policy entries, not partial data.
-  contract-choice: >-
-    A, recommended: reject unequal mount targets and unequal expanded values
-    for the same env name. This adds no automatic override or credential grant;
-    operators must edit conflicting reusable contracts before binding. Every
-    valid singleton remains expressible. B: add explicit binding-level mount/env
-    overrides, shown with provenance and confirmed before application. This
-    expands the data model and lets an operator replace a selected policy's
-    container requirements; socket placement and a recreate can change. It does
-    not itself add HCL grants. Selection-order precedence is not recommended.
-  forwarding-choice: >-
-    A, recommended: any selected policy's not-forwardable selector restricts
-    that effective identity. Combining an unrestricted source cannot remove
-    the restriction. This can narrow forwarding for the newly combined binding;
-    it does not alter HCL or credential scope. B: reject a composition when
-    policies offering the same identity disagree on its forwarding restriction.
-    This requires explicit source alignment and leaves existing singleton
-    forwarding behavior intact; no restriction is silently weakened.
+    Events use the version 2 policy-list shape.
+  upgrade-and-reset: >-
+    The upgrade requires a clean controller state and an OpenBao namespace
+    reset. There is no database, policy-document, binding, or cache migration.
+    Release notes and upgrade documentation state this requirement plainly.
+    The controller detects a version 1 database before mutations and refuses
+    startup with a clean-state diagnostic. The operator backs up state and
+    configuration, stops the controller and agents, resets only the dedicated
+    Wyrwood namespace, provisions a genuinely empty controller volume, and
+    repeats the documented namespace, mount, controller-policy, and AppRole
+    setup. A namespace reset removes stored secrets, Transit keys, SSH roles,
+    CA material, issued tokens, and wrapped credentials; backing up a database
+    alone cannot recover that authority. Agents require reapproval, policies
+    and bindings require re-entry, and a fresh controller key requires a
+    verified pin. Retire v1 caches and resolve recreate journals with services
+    stopped; preserve consumer-directory inodes used by containers. Rebinding
+    uses explicit enforcement so the writable layer is not discarded silently.
+    The parent/root namespace and every other namespace are outside the reset.
+  coordinated-upgrade: >-
+    Controller, agents, and CLI use version 2 together. There are no v1
+    adapters or first-policy fallbacks. Version 1 agents stop receiving new
+    tokens until upgraded; existing tokens can expire during the outage.
+    Automation consuming singular-policy CLI JSON must use the version 2
+    policies array. Agent approval and namespace containment remain required.
+  runtime-revocation: >-
+    Assignment changes, including subsequent policy-set edits, revoke reported
+    old-assignment accessors before fresh issuance. Revocation failure leaves
+    the transition pending. This rule applies throughout normal operation,
+    independently of the upgrade reset. An offline agent loses access through
+    a revoked token until it reconnects and receives fresh credentials. A token
+    whose accessor was never reported cannot be revoked immediately; its
+    existing finite maximum lifetime remains the bound. The controller uses
+    its existing revoke-accessor permission, without lookup/list permission
+    or a new timeout mechanic.
   default-policy-choice: >-
-    A, recommended: disable implicit default and require authored lifecycle
-    ACLs in the selected policy union. This preserves exact own-policy token
-    membership but breaks reliance on default until operators provide the
-    necessary self permissions; no hidden grant is added. B: preserve OpenBao's
-    implicit default and expose its presence in the effective view. This retains
-    existing lifecycle behavior and the existing explicit token_policies guard,
-    but requires an explicit exception to the requested own-policies-only rule
-    and inherits any permissions the OpenBao administrator assigns to default.
-  revocation-choice: >-
-    A, recommended: revoke reported old-assignment accessors as part of
-    assignment changes, including membership or lifetime, and hold issuance
-    pending on failure. This
-    uses the existing revoke-accessor permission and temporarily interrupts that
-    binding during a failed transition; unreported offline tokens retain their
-    existing lifetime bound. B: replace and self-revoke only when the agent next
-    receives a credential, retaining the old token until then or maximum lifetime.
-    This preserves the existing transition behavior and availability, but a
-    removed policy remains usable by that token during disconnection. Neither
-    option adds accessor lookup/list permission or a new expiry mechanic.
+    Binding AppRoles set token_no_default_policy=true. Their exact
+    token_policies list is the selected wyrwood-<policy-name> set; there is
+    no lifecycle baseline and no implicit default exception. Each policy
+    author includes auth/token/lookup-self read and auth/token/renew-self
+    and auth/token/revoke-self update in authored HCL. New policies start
+    with a visible starter snippet. The policy editor, binding preview, and
+    saved effective view warn when the selected HCL has no explicit renewal
+    grant. Warnings preserve deliberately short-lived tokens and are
+    advisory; comments or text matches cannot authorize an operation.
+    OpenBao evaluates actual capabilities. Missing renewal permission can
+    lead to token expiry when a fresh credential is unavailable. Controller
+    bootstrap authentication retains its own documented contract.
   verification: >-
     Composition tests cover disjoint and overlapping HCL sources, identical
     path capability unions, deny and wildcard precedence against real OpenBao,
@@ -373,13 +328,11 @@ proposed-design:
     extra wyrwood-* names, default, root, and controller-policy rejection.
     Credential tests cover policy removal, TTL change without a name change,
     stale login completion, delayed accessors, offline agents, and OpenBao/SQLite
-    partial failure recovery. Recreate tests prove edits and cache conversion
-    do not retrigger first-bind recreation. Approved migration support is tested
-    with exact schema-version-1 databases and caches, defaults, GID 0, shared
-    policies, unbound policies, invalid documents, rollback on failure, and
-    idempotent restart. Approved clean-state behavior is tested to leave old
-    databases untouched. Browser workflows cover multi-selection, preview,
-    conflicts, saved settings, effective HCL, and recreate acknowledgement.
+    partial failure recovery. Clean-state tests reject v1 databases and caches
+    without mutating them. Recreate tests prove ordinary assignment edits do
+    not trigger first-bind recreation. Browser workflows cover multi-selection,
+    preview, conflicts, saved settings, effective HCL, renewal warnings, and
+    recreate acknowledgement.
     Repository gates are task check, task test, and task ci with WYRWOOD_BAO
     set; hosted CI is required at the implementation PR handoff.
   authoritative-references: >-
