@@ -169,6 +169,49 @@ requests with the `groups` scope. An account is admitted only when one of its
 groups is listed under `allowed-groups`; the web interface cannot change the
 list.
 
+## Release checks
+
+The **Agents** page shows the controller build version and each approved
+agent's version. An agent older than the controller is marked **Out of date**.
+An agent that omits its version can still connect and shows **unknown** with
+**Update available**. Development builds remain visible; they are not compared
+as release versions.
+
+![Controller and agent versions with update status](assets/web-versions.png)
+
+Release checks are disabled by default. To enable outbound HTTPS requests from
+the controller to GitHub, add this to `controller.yml` and restart the controller:
+
+```yaml
+update-checks:
+  enabled: true
+  interval: 24h
+  timeout: 10s
+```
+
+`interval` and `timeout` are configurable positive Go durations, such as `6h`
+and `20s`. There is no additional interval floor or timeout ceiling beyond a
+positive duration that Go can represent. Choose an interval appropriate for
+external release checks; very short intervals increase requests to GitHub.
+The defaults are 24 hours and 10 seconds. An enabled controller checks
+at startup, then waits the configured interval after each attempt. The timeout
+bounds each complete check. Checks run in the background, without blocking
+startup, agent sessions, or pages. Failed checks wait for the same interval;
+there is no immediate retry.
+
+The controller reads the public `wyrd-company/wyrwood/releases/latest` redirect
+using an HTTP client, without the GitHub API or a credential. It compares the
+release tag with its build version using SemVer, including prereleases and build
+metadata. The page shows **Update available** with the release link when a newer
+release exists. **Up to date** requires a successful check and a comparable build
+version.
+
+For an offline or air-gapped controller, leave `enabled` false or omit
+`update-checks`. No release request is made. If an enabled check fails, the page
+shows **Update check unavailable**, writes a fixed failure category to the
+controller journal, and retains the last successful result with
+its age. Observations are held in memory and start empty after a restart.
+
 ## OpenBao namespace
 
 The controller runs in a dedicated OpenBao namespace. OpenBao does not limit

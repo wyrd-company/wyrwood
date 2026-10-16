@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -21,6 +22,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,6 +59,11 @@ func (swap *swappable) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 
 func startHarness(t *testing.T, sessionTTL time.Duration) *harness {
 	t.Helper()
+	return startHarnessWithUpdates(t, sessionTTL, config.UpdateChecks{}, nil)
+}
+
+func startHarnessWithUpdates(t *testing.T, sessionTTL time.Duration, settings config.UpdateChecks, transport http.RoundTripper) *harness {
+	t.Helper()
 	bao := baotest.Start(t)
 	provider := oidctest.Start()
 	t.Cleanup(provider.Close)
@@ -69,11 +76,12 @@ func startHarness(t *testing.T, sessionTTL time.Duration) *harness {
 	}
 	running := controllertest.StartConfigured(t, bao, t.TempDir(), controllertest.FreeAddress(t), func(configuration *config.Controller) {
 		configuration.SessionTTL = sessionTTL
+		configuration.UpdateChecks = settings
 		configuration.OIDC = config.OIDC{
 			ProviderName: "Test ID", Issuer: provider.Issuer(), ClientID: provider.ClientID, ClientSecretFile: secretFile,
 			RedirectURL: site.URL + "/auth/callback", GroupsClaim: "groups", AllowedGroups: []string{"wyrwood-operators", "platform-admins"},
 		}
-	}, nil)
+	}, nil, controller.Options{ReleaseTransport: transport})
 	server, err := New(running.Controller, Options{Version: "test"})
 	if err != nil {
 		t.Fatal(err)
@@ -420,4 +428,165 @@ func mustKey(t *testing.T) gossh.Signer {
 		t.Fatal(err)
 	}
 	return signer
+}
+
+func TestAgentsPageDisplaysBuildVersionsAndUnknownLegacyVersion(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t, time.Hour)
+	harness.server.version = "3.4.5"
+	client := browser(t)
+	harness.signIn(t, client, operator, oidctest.TamperNone)
+	samples := []struct {
+		name, version string
+		outdated      bool
+	}{
+		{"sample-known", "2.9.1+sample", true},
+		{"sample-legacy", "", false},
+		{"sample-same", "3.4.5+sample", false},
+		{"sample-newer", "4.0.0", false},
+		{"sample-development", "dev", false},
+	}
+	for _, sample := range samples {
+		key := mustKey(t)
+		fingerprint := gossh.FingerprintSHA256(key.PublicKey())
+		if _, err := harness.controller.Store().RecordKey(ctx, fingerprint, sample.name, "ssh-ed25519 AAAA", time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.controller.DecideAgent(ctx, fingerprint, true, "sample-operator"); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.controller.Store().RecordConnection(ctx, fingerprint, sample.version, false, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result := get(t, client, harness.site.URL+"/agents")
+	for _, text := range []string{"Controller version", "3.4.5", "2.9.1+sample", "unknown", "Update available", "Out of date"} {
+		if !strings.Contains(result.body, text) {
+			t.Errorf("agents page missing %q: %s", text, result.body)
+		}
+	}
+	rows := regexp.MustCompile(`(?s)<tr\b[^>]*>.*?</tr>`).FindAllString(result.body, -1)
+	for _, sample := range samples {
+		var row string
+		for _, candidate := range rows {
+			if strings.Contains(candidate, ">"+sample.name+"</a>") {
+				row = candidate
+				break
+			}
+		}
+		if row == "" {
+			t.Errorf("missing row for %s", sample.name)
+			continue
+		}
+		if got := strings.Contains(row, "Out of date"); got != sample.outdated {
+			t.Errorf("%s out-of-date badge = %t, want %t: %s", sample.name, got, sample.outdated, row)
+		}
+		if got := strings.Contains(row, "Update available"); got != (sample.version == "") {
+			t.Errorf("%s unknown-version update badge = %t: %s", sample.name, got, row)
+		}
+	}
+}
+
+type releaseTransport func(*http.Request) (*http.Response, error)
+
+func (transport releaseTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	return transport(request)
+}
+
+func TestReleaseObservationReachesAgentsPageAndPreservesOfflineResult(t *testing.T) {
+	var offline atomic.Bool
+	harness := startHarnessWithUpdates(t, time.Hour, config.UpdateChecks{Enabled: true, Interval: 10 * time.Millisecond, Timeout: time.Second}, releaseTransport(func(request *http.Request) (*http.Response, error) {
+		if request.URL.String() != "https://github.com/wyrd-company/wyrwood/releases/latest" {
+			t.Errorf("release URL = %s", request.URL)
+		}
+		if offline.Load() {
+			return nil, errors.New("offline")
+		}
+		return &http.Response{StatusCode: http.StatusFound, Header: http.Header{"Location": {"https://github.com/wyrd-company/wyrwood/releases/tag/4.5.6"}}, Body: io.NopCloser(strings.NewReader("")), Request: request}, nil
+	}))
+	harness.server.version = "3.4.5"
+	waitRelease := func(unavailable bool) {
+		t.Helper()
+		deadline := time.Now().Add(5 * time.Second)
+		for {
+			status := harness.controller.Updates()
+			if status.Latest == "4.5.6" && status.Unavailable == unavailable {
+				return
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("release observation = %#v", status)
+			}
+			time.Sleep(time.Millisecond)
+		}
+	}
+	waitRelease(false)
+	client := browser(t)
+	page := harness.signIn(t, client, operator, oidctest.TamperNone)
+	for _, text := range []string{"3.4.5", "Update available", "4.5.6", "Last successful check"} {
+		if !strings.Contains(page.body, text) {
+			t.Errorf("release page missing %q: %s", text, page.body)
+		}
+	}
+	offline.Store(true)
+	waitRelease(true)
+	page = get(t, client, harness.site.URL+"/agents")
+	for _, text := range []string{"Update check unavailable", "4.5.6", "Update available", "Last successful check"} {
+		if !strings.Contains(page.body, text) {
+			t.Errorf("offline page missing %q: %s", text, page.body)
+		}
+	}
+	if strings.Contains(page.body, "Up to date.") {
+		t.Fatal("failed check claimed current version")
+	}
+}
+
+func TestBlockedReleaseCheckDoesNotBlockControllerOrPages(t *testing.T) {
+	forceStop := make(chan struct{})
+	var canceled atomic.Bool
+	harness := startHarnessWithUpdates(t, time.Hour, config.UpdateChecks{Enabled: true, Timeout: time.Hour}, releaseTransport(func(request *http.Request) (*http.Response, error) {
+		select {
+		case <-request.Context().Done():
+			canceled.Store(true)
+		case <-forceStop:
+		}
+		return nil, errors.New("release request stopped")
+	}))
+	client := browser(t)
+	page := harness.signIn(t, client, operator, oidctest.TamperNone)
+	if !strings.Contains(page.body, "Checking for updates") {
+		t.Fatalf("page while public check waits = %s", page.body)
+	}
+	response, err := client.Get(harness.site.URL + "/healthz")
+	if err != nil {
+		t.Fatal(err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("health = %d", response.StatusCode)
+	}
+	stopped := make(chan struct{})
+	t.Cleanup(func() { close(forceStop); <-stopped })
+	go func() { harness.controller.Stop(); close(stopped) }()
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("controller shutdown did not cancel release request")
+	}
+	if !canceled.Load() {
+		t.Fatal("controller shutdown left release request running")
+	}
+}
+
+func TestDisabledReleaseChecksDoNotRunFromControllerOrPages(t *testing.T) {
+	var calls atomic.Int32
+	harness := startHarnessWithUpdates(t, time.Hour, config.UpdateChecks{}, releaseTransport(func(request *http.Request) (*http.Response, error) {
+		calls.Add(1)
+		return nil, errors.New("unexpected outbound request")
+	}))
+	client := browser(t)
+	harness.signIn(t, client, operator, oidctest.TamperNone)
+	page := get(t, client, harness.site.URL+"/agents")
+	if calls.Load() != 0 || !strings.Contains(page.body, "Update checks disabled") {
+		t.Fatalf("disabled status, requests=%d: %s", calls.Load(), page.body)
+	}
 }

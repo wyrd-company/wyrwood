@@ -56,7 +56,7 @@ func StartIn(t testing.TB, bao *baotest.Server, state, sshAddress string) *Contr
 // StartConfigured runs a controller after configure adjusts its
 // configuration, serving HTTP with serveHTTP when it is non-nil.
 func StartConfigured(t testing.TB, bao *baotest.Server, state, sshAddress string, configure func(*config.Controller),
-	serveHTTP func(*controller.Controller) func(context.Context) error) *Controller {
+	serveHTTP func(*controller.Controller) func(context.Context) error, options ...controller.Options) *Controller {
 	t.Helper()
 	roleID, secretFile := bao.ControllerCredentials(t)
 	configuration := config.Controller{
@@ -67,7 +67,11 @@ func StartConfigured(t testing.TB, bao *baotest.Server, state, sshAddress string
 	if configure != nil {
 		configure(&configuration)
 	}
-	instance, err := controller.New(configuration, controller.Options{})
+	var instanceOptions controller.Options
+	if len(options) > 0 {
+		instanceOptions = options[0]
+	}
+	instance, err := controller.New(configuration, instanceOptions)
 	if err != nil {
 		t.Fatal(err)
 	}

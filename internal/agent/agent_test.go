@@ -722,3 +722,22 @@ func assertNoSecrets(t *testing.T, paths Paths, secrets ...string) {
 	}
 	_ = gossh.FingerprintSHA256
 }
+
+func TestAgentReportsBuildVersion(t *testing.T) {
+	previous := Version
+	Version = "3.4.5-rc.1+sample"
+	t.Cleanup(func() { Version = previous })
+	bao := baotest.Start(t)
+	controller := controllertest.Start(t, bao)
+	paths := newPaths(t)
+	result := login(t, paths, controller.URL, controller.Fingerprint)
+	ctx := context.Background()
+	if err := controller.DecideAgent(ctx, result.AgentFingerprint, true, "sample-operator"); err != nil {
+		t.Fatal(err)
+	}
+	startAgent(t, paths, enginetest.New(), false)
+	eventually(t, "agent build version", func() bool {
+		record, err := controller.Store().Agent(ctx, result.AgentFingerprint)
+		return err == nil && record.AgentVersion == Version
+	})
+}

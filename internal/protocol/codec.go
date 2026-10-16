@@ -124,7 +124,7 @@ func Decode(line []byte) (Message, error) {
 }
 
 var requiredFields = map[Type][]string{
-	TypeHello:             {"agent-version", "allow-recreate"},
+	TypeHello:             {"allow-recreate"},
 	TypeInventory:         {"containers"},
 	TypeContractResult:    {"binding", "outcome"},
 	TypeCredentialRequest: {"binding"},

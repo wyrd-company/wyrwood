@@ -88,12 +88,20 @@ proposed-design:
     sessions and can end all but the current one. Allowed groups and provider
     settings are read-only in the interface and change only in configuration.
   agents-page: >-
-    Shows the controller SSH host-key fingerprint with the instruction to
+    Shows the controller build version and SSH host-key fingerprint with the
+    instruction to
     compare it with `wyrwood agent login` output. Pending keys appear first
     with their presented hostname, key fingerprint, and first-seen time, and
     approve and reject actions. Approved agents list session state, container
-    and binding counts, binding health by category, and last report time; a
-    disconnected agent says it is serving from cache.
+    and binding counts, build version, binding health by category, and last
+    report time; a
+    disconnected agent says it is serving from cache. An agent that omits its
+    build version is shown as unknown with an update available. SemVer compares
+    an agent with the controller; an older agent is marked out of date.
+    The controller version panel shows whether opt-in release checks are
+    disabled, checking, unavailable, up to date, or have found an update.
+    A failed check retains the last successful release and its observation age.
+    Development versions are displayed without a release comparison.
   containers-page: >-
     Lists one agent's containers at a time with name, image, key kind, bound
     policy, and one state: conforms, non-conforming, degraded, or not bound.

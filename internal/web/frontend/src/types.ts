@@ -20,13 +20,26 @@ export interface SignInData extends Layout {
   Version: string;
   Account: string;
 }
+export interface UpdateStatus {
+  Enabled: boolean;
+  Latest: string;
+  Checked: string;
+  LastSuccess: string;
+  Unavailable: boolean;
+}
 export interface AgentsData extends Layout {
+  Updates: UpdateStatus;
+  UpdateAvailable: boolean;
+  VersionComparable: boolean;
+  Version: string;
   HostKey: string;
   PendingKeys:
     { Name: string; Fingerprint: string; FirstSeen: string }[] | null;
   Approved:
     | {
         Name: string;
+        Version: string;
+        OutOfDate: boolean;
         Connected: boolean;
         Containers: number;
         Bound: number;

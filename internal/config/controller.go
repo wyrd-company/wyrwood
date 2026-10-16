@@ -13,6 +13,8 @@ import (
 
 // Controller defaults.
 const (
+	DefaultUpdateInterval  = 24 * time.Hour
+	DefaultUpdateTimeout   = 10 * time.Second
 	DefaultHTTPListen      = "127.0.0.1:8080"
 	DefaultSSHListen       = "0.0.0.0:2222"
 	DefaultStateDirectory  = "/var/lib/wyrwood"
@@ -36,6 +38,14 @@ type Controller struct {
 	StateDirectory string
 	OpenBao        ControllerOpenBao
 	OIDC           OIDC
+	UpdateChecks   UpdateChecks
+}
+
+// UpdateChecks controls optional outbound release checks.
+type UpdateChecks struct {
+	Enabled  bool
+	Interval time.Duration
+	Timeout  time.Duration
 }
 
 // ControllerOpenBao is the controller's OpenBao connection.
@@ -62,6 +72,11 @@ type OIDC struct {
 }
 
 type controllerDocument struct {
+	UpdateChecks *struct {
+		Enabled  bool    `yaml:"enabled"`
+		Interval *string `yaml:"interval"`
+		Timeout  *string `yaml:"timeout"`
+	} `yaml:"update-checks"`
 	HTTP *struct {
 		Listen     *string `yaml:"listen"`
 		SessionTTL *string `yaml:"session-ttl"`
@@ -115,6 +130,27 @@ func ParseController(data []byte) (Controller, error) {
 		SessionTTL:     defaultSessionTTL,
 		SSHListen:      DefaultSSHListen,
 		StateDirectory: DefaultStateDirectory,
+		UpdateChecks:   UpdateChecks{Interval: DefaultUpdateInterval, Timeout: DefaultUpdateTimeout},
+	}
+	if document.UpdateChecks != nil {
+		result.UpdateChecks.Enabled = document.UpdateChecks.Enabled
+		for _, field := range []struct {
+			name   string
+			value  *string
+			target *time.Duration
+		}{
+			{"update-checks.interval", document.UpdateChecks.Interval, &result.UpdateChecks.Interval},
+			{"update-checks.timeout", document.UpdateChecks.Timeout, &result.UpdateChecks.Timeout},
+		} {
+			if field.value == nil {
+				continue
+			}
+			duration, err := time.ParseDuration(*field.value)
+			if err != nil || duration <= 0 {
+				return Controller{}, invalid("%s must be a positive Go duration", field.name)
+			}
+			*field.target = duration
+		}
 	}
 	var err error
 	if document.HTTP != nil {

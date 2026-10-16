@@ -60,7 +60,7 @@
     "hello": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "agent-version", "allow-recreate"],
+      "required": ["version", "type", "allow-recreate"],
       "properties": {
         "version": { "const": 1 },
         "type": { "const": "hello" },
