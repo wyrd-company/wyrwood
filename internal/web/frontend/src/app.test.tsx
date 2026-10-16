@@ -300,7 +300,8 @@ function expectOpenBaoLink(link: HTMLElement) {
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");
 }
-it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
+it("offers the OpenBao UI beside OpenBao keys only when configured", async () => {
+  const user = userEvent.setup();
   const agents = {
     ...layout,
     ...versionInfo,
@@ -320,7 +321,8 @@ it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
   });
   expectOpenBaoLink(link);
   expect(link.previousElementSibling).toHaveAttribute("href", "/keys");
-  expect(within(nav).getByRole("link", { name: /Security/ })).toHaveAttribute(
+  await user.click(within(nav).getByRole("button", { name: /Account/ }));
+  expect(screen.getByRole("menuitem", { name: "Security" })).toHaveAttribute(
     "href",
     "/security",
   );
