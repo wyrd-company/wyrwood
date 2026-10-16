@@ -1,0 +1,79 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - engine-proxy
+    - agent
+    - linux-service
+description: >-
+  The agent needs Engine observation on every host and faithful container
+  recreation on hosts that opt in. Its docker group membership makes the
+  in-process allow-recreate check bypassable. A different service identity
+  must enforce the host permission. The design choice also determines which
+  component holds host-root authority, how account privileges change on
+  upgrade, and who maintains the HTTP authorization policy.
+considered-options:
+  "1": >-
+    Build the Wyrwood-specific authorization handler in Go on the standard
+    library HTTP reverse proxy. Run it as a separate wyrwood-engine identity
+    in the existing executable, load root-controlled host configuration,
+    enforce the eight method/path pairs and their query constraints, and
+    remove the agent's docker membership on installation and upgrade.
+    Keep create payloads faithful to the existing Engine contract. Hosts
+    with allow-recreate=true retain potentially host-root agent authority.
+  "2": >-
+    Adopt an existing proxy. Tecnativa docker-socket-proxy v0.5.0 uses HAProxy
+    section-prefix ACLs. CONTAINERS and IMAGES allow more read endpoints than
+    Wyrwood needs; POST enables mutation methods in those sections. Its
+    start/stop switches do not provide a narrow create/remove policy.
+    A custom HAProxy configuration can implement exact method/path/query
+    ACLs, Unix listeners, and streaming, with a separate package dependency
+    and Wyrwood-owned configuration generation and redaction rules.
+    Wollomatic socket-proxy 1.13.1 is a closer candidate: separate method
+    regex allow-lists, a Unix listener, and a standard-library Go transport.
+    Its handler matches URL.Path and forwards queries/create bodies;
+    Wyrwood still needs host-config activation, query validation,
+    peer-identity enforcement, and categorical log handling. Adapt or
+    contribute those integrations rather than treating method regexes as
+    recreate authorization. Endpoint-only adoption has the same residual
+    host-root authority with allow-recreate=true as option 1.
+  "3": >-
+    Design a recreate broker before implementation. Keep the four Engine
+    reads, replace arbitrary mutation forwarding with a typed recreate
+    operation, and have the trusted broker inspect the original container
+    itself and validate every permitted change against that snapshot.
+    The broker needs a trusted source for permitted contract deltas and
+    target authority, including recovery after removal. Preserve supported
+    privileged containers through explicitly defined rules rather than
+    silently rejecting their recreation. This requires a further security
+    design decision about the agent/controller/broker responsibility split.
+decision-outcome:
+  chosen-option: 1
+  justification: >-
+    Recommend option 1 for the host-opt-in and exact-endpoint boundary in
+    engine-proxy. The reusable HTTP transport is adopted from Go's standard
+    library. Wyrwood owns the domain authorization, root configuration,
+    socket identity, redaction, and package transition in every option.
+    Tecnativa's stock rules exceed the needed API surface; a custom HAProxy
+    deployment adds a runtime and generated policy to the native package.
+    Wollomatic provides a viable method/path proxy but needs adaptation for
+    Wyrwood's query, peer, and log contracts and is a standalone main package,
+    not an importable integration API. Its extra deployment and update
+    contract does not replace those Wyrwood responsibilities. Option 3
+    provides a stronger recreation boundary but needs an additional trusted
+    authorization contract. Approval of option 1 accepts unrestricted create
+    payload authority only on hosts that explicitly enable recreate, and
+    approves the documented account/unit upgrade transition. It does not
+    claim that an opted-in host is protected from a compromised agent.
+expected-outcomes:
+  positive:
+    - Hosts with recreate disabled deny Engine mutation outside the agent process.
+    - The agent cannot change the host permission or replace the proxy listener.
+    - Observation and supported faithful recreation keep the existing Engine client contract.
+    - Packaged and archive installations drop both stored and live docker membership.
+  negative:
+    - The proxy identity retains host-root Docker access and becomes part of the trusted boundary.
+    - Recreate-enabled agents retain arbitrary create/start authority and possible host takeover.
+    - Inspect access exposes container environment values and other host container metadata.
+    - Active upgrades interrupt the agent and proxy; consumer sockets recover through cached policy.
+    - Contracts using docker as their consumer access group need a separate group.
+    - Wyrwood maintains the authorization handler and its negative-path security tests.
