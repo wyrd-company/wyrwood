@@ -4,7 +4,6 @@
 // ---
 import type { Page } from "./types";
 import { Sidebar } from "./components/sidebar";
-import { Account } from "./components/account";
 import { SignIn } from "./pages/sign-in";
 import { Agents } from "./pages/agents";
 import { Containers } from "./pages/containers";
@@ -44,7 +43,6 @@ export function App({ page }: { page: Page }) {
       <div className="page">
         <header className="topbar">
           <h1>{page.data.Title}</h1>
-          <Account data={page.data} />
         </header>
         <Content page={page} />
       </div>
