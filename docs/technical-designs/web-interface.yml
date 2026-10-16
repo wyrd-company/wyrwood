@@ -55,9 +55,11 @@ proposed-design:
     primitives. Its items are Security and Sign out. Security links to
     `/security`; Sign out submits a native POST form to `/sign-out` with
     the per-session anti-forgery token. The menu supports keyboard navigation,
-    screen-reader semantics, and focus restoration on dismissal. It is bound
-    to a configurable address that defaults
-    to loopback and is intended to sit behind a reverse proxy that terminates
+    screen-reader semantics, and focus restoration on dismissal. Beside the
+    page, the sidebar stays in the viewport and scrolls independently when
+    its controls exceed the viewport height. Above the page, the sidebar
+    uses its content height. The controller binds to a configurable address
+    that defaults to loopback and sits behind a reverse proxy that terminates
     TLS. The visual design, with every page and state described here, is the
     Wyrwood Web UI canvas at https://claude.ai/artifact/KvNxxRNgPS9UnWJ7FpfSmy.
   sign-in: >-

@@ -106,6 +106,7 @@ p {
   min-height: 100vh;
   display: flex;
   flex-wrap: wrap;
+  container-type: inline-size;
 }
 .nav {
   flex: 1 1 232px;
@@ -116,6 +117,16 @@ p {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+/* The sidebar and page fit beside each other at 232px + 560px. */
+@container (min-width: 792px) {
+  .nav {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    align-self: flex-start;
+    overflow-y: auto;
+  }
 }
 .brand {
   display: flex;
