@@ -10,6 +10,8 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
@@ -21,7 +23,7 @@ import (
 )
 
 func TestConformanceRequiresConsumerSockets(t *testing.T) {
-	for _, scenario := range []string{"ready", "directory unavailable", "vault unavailable", "ssh unavailable", "no endpoints", "one listener", "wrong binding", "wrong group", "owner-only denied", "group sockets"} {
+	for _, scenario := range []string{"ready", "directory unavailable", "vault unavailable", "ssh unavailable", "no endpoints", "one listener", "wrong binding", "wrong group", "owner-only denied", "group sockets", "group denied", "group supplementary", "group named user", "group root"} {
 		t.Run(scenario, func(t *testing.T) {
 			paths := newPaths(t)
 			if err := os.MkdirAll(paths.State, 0o700); err != nil {
@@ -42,14 +44,26 @@ func TestConformanceRequiresConsumerSockets(t *testing.T) {
 				instance.config.AllowRecreate = true
 				instance.engine = enginetest.New()
 			}
-			if scenario == "group sockets" {
+			if strings.HasPrefix(scenario, "group ") {
 				group := uint32(os.Getegid())
 				document.Contract.AccessGroup = &group
 			}
 			bound := protocol.Binding{Binding: "b-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}
 			app := engine.Container{ID: "container-1", Name: "/app"}
-			if scenario == "owner-only denied" || scenario == "group sockets" {
+			if scenario == "owner-only denied" || strings.HasPrefix(scenario, "group ") {
 				app.Config.User = "12345"
+			}
+			switch scenario {
+			case "group sockets":
+				app.Config.User += ":" + strconv.Itoa(os.Getegid())
+			case "group denied":
+				app.Config.User += ":" + strconv.Itoa(os.Getegid()+1)
+			case "group supplementary":
+				app.HostConfig.GroupAdd = []string{strconv.Itoa(os.Getegid())}
+			case "group named user":
+				app.Config.User = "app:" + strconv.Itoa(os.Getegid())
+			case "group root":
+				app.Config.User = "0:12345"
 			}
 			app.Mounts = []engine.Mount{{Type: "bind", Source: instance.root.DirectoryPath("app"), Destination: document.Contract.MountTarget}}
 			for _, entry := range document.Contract.ExpandedEnv() {
@@ -97,10 +111,10 @@ func TestConformanceRequiresConsumerSockets(t *testing.T) {
 			result := instance.results[bound.Binding]
 			wantOutcome := protocol.OutcomeNonConforming
 			wantItems := []protocol.FailedItem{protocol.FailedConsumerDirectory}
-			if scenario == "owner-only denied" {
+			if scenario == "owner-only denied" || scenario == "group denied" || scenario == "group named user" {
 				wantItems = []protocol.FailedItem{protocol.FailedSocketAccess}
 			}
-			if scenario == "ready" || scenario == "group sockets" {
+			if scenario == "ready" || scenario == "group sockets" || scenario == "group supplementary" || scenario == "group root" {
 				wantOutcome, wantItems = protocol.OutcomeConforming, nil
 			}
 			if result.Outcome != wantOutcome || !reflect.DeepEqual(result.FailedItems, wantItems) {

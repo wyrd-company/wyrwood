@@ -65,6 +65,30 @@ func OwnerOnlyReachable(user string) bool {
 	return err == nil && (numeric == 0 || numeric == uint64(os.Geteuid()))
 }
 
+// SocketReachable reports whether inspect output verifies that the container
+// user can reach the agent's sockets through ownership or the access group.
+// Named non-root users and named groups cannot be resolved from inspect output.
+func SocketReachable(container engine.Container, accessGroup *uint32) bool {
+	if OwnerOnlyReachable(container.Config.User) {
+		return true
+	}
+	if accessGroup == nil {
+		return false
+	}
+	uid, gid, _ := strings.Cut(container.Config.User, ":")
+	if _, err := strconv.ParseUint(uid, 10, 32); err != nil {
+		return false
+	}
+	groups := append([]string{gid}, container.HostConfig.GroupAdd...)
+	for _, group := range groups {
+		numeric, err := strconv.ParseUint(group, 10, 32)
+		if err == nil && numeric == uint64(*accessGroup) {
+			return true
+		}
+	}
+	return false
+}
+
 // CreateRequest is the create body and name for a recreated container.
 type CreateRequest struct {
 	Name    string

@@ -6,6 +6,8 @@
 package web
 
 import (
+	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
@@ -14,27 +16,44 @@ import (
 )
 
 func TestContractChecksShowSocketFailures(t *testing.T) {
-	for _, outcome := range []protocol.Outcome{"", protocol.OutcomeConforming, protocol.OutcomeNonConforming} {
-		result := store.ContractResult{Outcome: outcome}
-		wantMark := "OK"
-		if outcome == "" {
-			wantMark = "UNKNOWN"
-		}
-		if outcome == protocol.OutcomeNonConforming {
-			result.FailedItems = []protocol.FailedItem{protocol.FailedConsumerDirectory, protocol.FailedSocketAccess}
-			wantMark = "MISSING"
-		}
-		found := 0
-		for _, item := range contractChecks(policy.DefaultContract(), protocol.Container{}, result) {
-			if item.Label == "consumer directory and sockets" || item.Label == "socket access (container user must be root or the agent uid)" {
-				found++
-				if item.Mark != wantMark {
-					t.Errorf("%s: %s, want %s", item.Label, item.Mark, wantMark)
+	group := uint32(1000)
+	for _, accessGroup := range []*uint32{nil, &group} {
+		document := policy.DefaultContract()
+		document.AccessGroup = accessGroup
+		for _, outcome := range []protocol.Outcome{"", protocol.OutcomeConforming, protocol.OutcomeNonConforming} {
+			result := store.ContractResult{Outcome: outcome}
+			wantMark := "OK"
+			if outcome == "" {
+				wantMark = "UNKNOWN"
+			}
+			if outcome == protocol.OutcomeNonConforming {
+				result.FailedItems = []protocol.FailedItem{protocol.FailedConsumerDirectory, protocol.FailedSocketAccess}
+				wantMark = "MISSING"
+			}
+			found := 0
+			checks := contractChecks(document, protocol.Container{}, result)
+			for _, item := range checks {
+				if item.Label == "consumer directory and sockets" || strings.HasPrefix(item.Label, "socket access (") {
+					found++
+					if item.Mark != wantMark {
+						t.Errorf("%s: %s, want %s", item.Label, item.Mark, wantMark)
+					}
 				}
 			}
-		}
-		if found != 2 {
-			t.Fatalf("socket checks = %d, want 2", found)
+			if found != 2 {
+				t.Fatalf("socket checks = %d, want 2", found)
+			}
+			pages, err := parsePages()
+			if err != nil {
+				t.Fatal(err)
+			}
+			var output bytes.Buffer
+			if err := pages["containers"].ExecuteTemplate(&output, "layout", containersPage{Selected: &containerRow{Bound: true, Checks: checks}}); err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(output.String(), "socket access (") || (accessGroup != nil && !strings.Contains(output.String(), "verifiable member of access group 1000")) {
+				t.Fatalf("socket access diagnostic missing: %s", output.String())
+			}
 		}
 	}
 }

@@ -59,6 +59,9 @@ type Container struct {
 		Env         []string          `json:"Env"`
 		StopTimeout *int              `json:"StopTimeout"`
 	} `json:"Config"`
+	HostConfig struct {
+		GroupAdd []string `json:"GroupAdd"`
+	} `json:"HostConfig"`
 	Mounts []Mount `json:"Mounts"`
 
 	Raw struct {

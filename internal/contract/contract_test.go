@@ -266,6 +266,50 @@ func TestOwnerOnlySocketAccess(t *testing.T) {
 			if got := OwnerOnlyReachable(container.Config.User); got != want {
 				t.Fatalf("OwnerOnlyReachable(%q) = %v, want %v", user, got, want)
 			}
+			if got := SocketReachable(container, nil); got != want {
+				t.Fatalf("SocketReachable(%q, nil) = %v, want %v", user, got, want)
+			}
+		})
+	}
+}
+
+func TestAccessGroupSocketAccess(t *testing.T) {
+	group := uint32(1000)
+	for _, test := range []struct {
+		name, user string
+		groups     []string
+		want       bool
+	}{
+		{"outside group", "2000:2000", nil, false},
+		{"primary group", "2000:1000", nil, true},
+		{"supplementary group", "2000:2000", []string{"3000", "1000"}, true},
+		{"supplementary group without primary", "2000", []string{"1000"}, true},
+		{"wrong supplementary group", "2000:2000", []string{"3000"}, false},
+		{"unknown primary group", "2000", nil, false},
+		{"named primary group", "2000:staff", nil, false},
+		{"named supplementary group", "2000:2000", []string{"staff"}, false},
+		{"named user", "app:1000", nil, false},
+		{"named user with supplementary group", "app", []string{"1000"}, false},
+		{"default root", "", nil, true},
+		{"numeric root", "0:2000", nil, true},
+		{"named root", "root:2000", nil, true},
+		{"agent uid", fmt.Sprintf("%d:2000", os.Geteuid()), nil, true},
+		{"leading zero group", "2000:01000", nil, true},
+		{"leading zero supplementary group", "2000:2000", []string{"01000"}, true},
+		{"invalid uid", "4294967296:1000", nil, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			raw, err := json.Marshal(map[string]any{"Config": map[string]any{"User": test.user}, "HostConfig": map[string]any{"GroupAdd": test.groups}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			container, err := engine.ParseInspect(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := SocketReachable(container, &group); got != test.want {
+				t.Fatalf("SocketReachable(user=%q, groups=%v) = %v, want %v", test.user, test.groups, got, test.want)
+			}
 		})
 	}
 }
