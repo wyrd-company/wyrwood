@@ -1,4 +1,5 @@
 $schema: https://refinery.systems/ontology/decision-record
+status: accepted
 relationships:
   contextualizes:
     - engine-proxy
@@ -49,7 +50,7 @@ considered-options:
 decision-outcome:
   chosen-option: 1
   justification: >-
-    Recommend option 1 for the host-opt-in and exact-endpoint boundary in
+    Option 1 implements the host-opt-in and exact-endpoint boundary in
     engine-proxy. The reusable HTTP transport is adopted from Go's standard
     library. Wyrwood owns the domain authorization, root configuration,
     socket identity, redaction, and package transition in every option.
@@ -60,9 +61,9 @@ decision-outcome:
     not an importable integration API. Its extra deployment and update
     contract does not replace those Wyrwood responsibilities. Option 3
     provides a stronger recreation boundary but needs an additional trusted
-    authorization contract. Approval of option 1 accepts unrestricted create
-    payload authority only on hosts that explicitly enable recreate, and
-    approves the documented account/unit upgrade transition. It does not
+    authorization contract. The decision accepts unrestricted create
+    payload authority only on hosts that explicitly enable recreate and
+    the documented account/unit upgrade transition. It does not
     claim that an opted-in host is protected from a compromised agent.
 expected-outcomes:
   positive:
