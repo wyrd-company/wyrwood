@@ -199,20 +199,14 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		if openbao.CategoryOf(err) == openbao.CategoryInvalid {
 			return fail("OpenBao rejected the HCL policy")
 		}
-		return fail("OpenBao could not store the HCL policy")
+		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
+			return fail("OpenBao policy publication was uncertain; restoration is pending and fresh issuance is blocked")
+		}
+		return fail("OpenBao could not store the HCL policy; its change was rolled back")
 	}
 	saved, err := controller.store.SavePolicyBindings(ctx, document, affected, operator, controller.now())
 	if err != nil {
-		rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operationTimeout)
-		defer cancel()
-		var rollback error
-		if lookup == nil {
-			rollback = controller.openbao.WritePolicy(rollbackCtx, old.Policy.OpenBaoPolicyName(), old.Policy.OpenBao.Policy)
-		} else {
-			rollback = controller.openbao.DeletePolicy(rollbackCtx, document.OpenBaoPolicyName())
-		}
-		if rollback != nil {
-			controller.policySyncPending = true
+		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
 			return fail("the policy could not be recorded; OpenBao restoration is pending and fresh issuance is blocked")
 		}
 		return fail("the policy could not be recorded; the OpenBao change was rolled back")
@@ -488,4 +482,21 @@ func (controller *Controller) recordBinding(b store.Binding, event events.Event)
 		event.Policy = name
 		controller.record(event)
 	}
+}
+
+// An interrupted response can hide a successful remote write. Restore the
+// authoritative source on either a remote or local publication failure.
+func (controller *Controller) restorePolicy(ctx context.Context, name string, previous store.StoredPolicy, existed bool) error {
+	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operationTimeout)
+	defer cancel()
+	var err error
+	if existed {
+		err = controller.openbao.WritePolicy(rollbackCtx, previous.Policy.OpenBaoPolicyName(), previous.Policy.OpenBao.Policy)
+	} else {
+		err = controller.openbao.DeletePolicy(rollbackCtx, "wyrwood-"+name)
+	}
+	if err != nil {
+		controller.policySyncPending = true
+	}
+	return err
 }

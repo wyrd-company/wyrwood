@@ -286,3 +286,38 @@ func TestOpenBaoCombinesOverlappingPoliciesWithDenyAndPathPriority(t *testing.T)
 		}
 	}
 }
+
+func TestUncertainRemotePolicyWriteRestoresStoredHCL(t *testing.T) {
+	ctx := context.Background()
+	h := startHarness(t)
+	c := h.controller
+	original := policy.New("alpha", policy.StarterHCL)
+	if _, err := c.SavePolicy(ctx, original, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	candidate := original.Clone()
+	candidate.OpenBao.Policy += `path "kv/data/example" { capabilities = ["read"] }`
+	c.openbao = &lostPolicyResponse{OpenBao: c.openbao, failHCL: candidate.OpenBao.Policy}
+	if _, err := c.SavePolicy(ctx, candidate, "operator-1"); err == nil {
+		t.Fatal("uncertain publication reported success")
+	}
+	actual, err := h.bao.Root.Sys().GetPolicy("wyrwood-alpha")
+	if err != nil || actual != original.OpenBao.Policy {
+		t.Fatal("remote write survived an uncertain response")
+	}
+}
+
+type lostPolicyResponse struct {
+	OpenBao
+	failHCL string
+}
+
+func (wrapped *lostPolicyResponse) WritePolicy(ctx context.Context, name, hcl string) error {
+	if err := wrapped.OpenBao.WritePolicy(ctx, name, hcl); err != nil {
+		return err
+	}
+	if hcl == wrapped.failHCL {
+		return errors.New("test lost response")
+	}
+	return nil
+}
