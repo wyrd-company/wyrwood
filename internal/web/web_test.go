@@ -421,3 +421,33 @@ func mustKey(t *testing.T) gossh.Signer {
 	}
 	return signer
 }
+
+func TestAgentsPageDisplaysBuildVersionsAndUnknownLegacyVersion(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t, time.Hour)
+	harness.server.version = "3.4.5"
+	client := browser(t)
+	harness.signIn(t, client, operator, oidctest.TamperNone)
+	for _, sample := range []struct{ name, version string }{
+		{"sample-known", "2.9.1+sample"},
+		{"sample-legacy", ""},
+	} {
+		key := mustKey(t)
+		fingerprint := gossh.FingerprintSHA256(key.PublicKey())
+		if _, err := harness.controller.Store().RecordKey(ctx, fingerprint, sample.name, "ssh-ed25519 AAAA", time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.controller.DecideAgent(ctx, fingerprint, true, "sample-operator"); err != nil {
+			t.Fatal(err)
+		}
+		if err := harness.controller.Store().RecordConnection(ctx, fingerprint, sample.version, false, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	result := get(t, client, harness.site.URL+"/agents")
+	for _, text := range []string{"Controller version", "3.4.5", "2.9.1+sample", "unknown", "Update available"} {
+		if !strings.Contains(result.body, text) {
+			t.Errorf("agents page missing %q: %s", text, result.body)
+		}
+	}
+}

@@ -151,3 +151,19 @@ type readWriter struct {
 	io.Reader
 	io.Writer
 }
+
+func TestHelloVersionIsOptional(t *testing.T) {
+	schema := schematest.Compile(t, schematest.AgentControllerMessage)
+	for _, line := range []string{
+		`{"version":1,"type":"hello","allow-recreate":false}`,
+		`{"version":1,"type":"hello","allow-recreate":false,"agent-version":""}`,
+	} {
+		if err := schematest.Validate(schema, []byte(line)); err != nil {
+			t.Fatalf("legacy hello does not validate: %v", err)
+		}
+		message, err := Decode([]byte(line))
+		if err != nil || message != (Hello{}) {
+			t.Fatalf("legacy hello = %#v, %v", message, err)
+		}
+	}
+}

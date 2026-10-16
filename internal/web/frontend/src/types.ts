@@ -21,12 +21,14 @@ export interface SignInData extends Layout {
   Account: string;
 }
 export interface AgentsData extends Layout {
+  Version: string;
   HostKey: string;
   PendingKeys:
     { Name: string; Fingerprint: string; FirstSeen: string }[] | null;
   Approved:
     | {
         Name: string;
+        Version: string;
         Connected: boolean;
         Containers: number;
         Bound: number;

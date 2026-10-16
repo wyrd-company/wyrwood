@@ -17,6 +17,12 @@ export function Agents({ data: d }: { data: AgentsData }) {
   return (
     <main>
       <Notice text={d.Notice} />
+      <Panel aria-labelledby="h-version">
+        <h2 id="h-version">Controller version</h2>
+        <p>
+          <code>{d.Version}</code>
+        </p>
+      </Panel>
       <Panel aria-labelledby="h-hk">
         <div className="section-head">
           <div>
@@ -89,6 +95,7 @@ export function Agents({ data: d }: { data: AgentsData }) {
           <Table
             columns={[
               "Agent",
+              "Version",
               "Session",
               "Containers",
               "Bound",
@@ -103,6 +110,15 @@ export function Agents({ data: d }: { data: AgentsData }) {
                 <th scope="row">
                   <a href={containerURL(agent.Name)}>{agent.Name}</a>
                 </th>
+                <td>
+                  <code>{agent.Version || "unknown"}</code>
+                  {!agent.Version && (
+                    <>
+                      {" "}
+                      <Status kind="degraded">Update available</Status>
+                    </>
+                  )}
+                </td>
                 <td>
                   <span className={`dot ${agent.Connected ? "" : "off"}`} />
                   {agent.Connected ? "Connected" : "Disconnected"}

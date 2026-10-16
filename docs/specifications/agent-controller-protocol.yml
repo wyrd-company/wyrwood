@@ -16,8 +16,9 @@ description: >-
   the agent verifies it against the fingerprint accepted at login and
   refuses to connect on mismatch.
 
-  Agent to controller: `hello` carries the agent version and whether recreate
-  is allowed on the host. `inventory` carries the complete current container
+  Agent to controller: `hello` carries the optional agent build version and
+  whether recreate is allowed on the host. An omitted version is unknown; the
+  controller accepts the session. `inventory` carries the complete current container
   list; each entry has the engine identifier, name, state, image reference,
   candidate keys in precedence order as `{kind, value}` with kinds
   `devcontainer`, `compose`, and `name`, and the contract check inputs:

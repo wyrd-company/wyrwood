@@ -109,6 +109,7 @@ func problemMessage(err error) string {
 type agentsPage struct {
 	layout
 	HostKey     string
+	Version     string
 	PendingKeys []pendingAgent
 	Approved    []approvedAgent
 }
@@ -120,6 +121,7 @@ type pendingAgent struct {
 }
 
 type approvedAgent struct {
+	Version    string
 	Name       string
 	Connected  bool
 	Containers int
@@ -135,7 +137,7 @@ type healthCount struct {
 
 func (server *Server) handleAgents(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
-	page := agentsPage{layout: server.layout(request, "Agents", "agents"), HostKey: server.controller.HostKeyFingerprint()}
+	page := agentsPage{layout: server.layout(request, "Agents", "agents"), HostKey: server.controller.HostKeyFingerprint(), Version: server.version}
 	agents, err := server.controller.Store().Agents(ctx)
 	if err != nil {
 		http.Error(writer, "Agents could not be read.", http.StatusInternalServerError)
@@ -149,7 +151,7 @@ func (server *Server) handleAgents(writer http.ResponseWriter, request *http.Req
 		case store.AgentApproved:
 			containers, _, _ := server.controller.Store().Inventory(ctx, agent.Name)
 			bindings, _ := server.controller.Store().Bindings(ctx, agent.Name)
-			entry := approvedAgent{Name: agent.Name, Connected: server.controller.Connected(agent.Name), Containers: len(containers), LastReport: agent.LastReport}
+			entry := approvedAgent{Version: agent.AgentVersion, Name: agent.Name, Connected: server.controller.Connected(agent.Name), Containers: len(containers), LastReport: agent.LastReport}
 			counts := map[string]int{}
 			for _, container := range containers {
 				if binding, ok := controller.ContainerBinding(container, bindings); ok {

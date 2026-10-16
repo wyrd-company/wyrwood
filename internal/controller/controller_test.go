@@ -768,3 +768,41 @@ func TestRoleNameIsBoundedToTheManagedPrefix(t *testing.T) {
 		t.Fatal()
 	}
 }
+
+func TestAgentVersionIsOptionalAndReplacedOnReconnect(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	key := newAgentKey(t)
+	if connection, err := harness.dial("sample-host", key); err == nil {
+		connection.client.Close()
+		t.Fatal("unapproved key authenticated")
+	}
+	fingerprint := gossh.FingerprintSHA256(key.PublicKey())
+	if err := harness.controller.DecideAgent(ctx, fingerprint, true, "sample-operator"); err != nil {
+		t.Fatal(err)
+	}
+	for _, version := range []string{"3.4.5+sample", ""} {
+		connection, err := harness.dial("sample-host", key)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Encode omits an empty agent-version, matching legacy messages.
+		if err := connection.conn.Send(protocol.Hello{AgentVersion: version}); err != nil {
+			connection.client.Close()
+			t.Fatal(err)
+		}
+		if err := connection.conn.Send(protocol.Inventory{}); err != nil {
+			connection.client.Close()
+			t.Fatal(err)
+		}
+		if _, ok := connection.receive(t).(protocol.PolicySet); !ok {
+			connection.client.Close()
+			t.Fatal("agent did not receive policy set")
+		}
+		record, err := harness.controller.Store().Agent(ctx, fingerprint)
+		connection.client.Close()
+		if err != nil || record.AgentVersion != version {
+			t.Fatalf("recorded version = %q, %v; want %q", record.AgentVersion, err, version)
+		}
+	}
+}

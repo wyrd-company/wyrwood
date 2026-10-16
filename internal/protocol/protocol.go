@@ -159,7 +159,7 @@ func (container Container) Validate() error {
 
 // Hello opens an agent session.
 type Hello struct {
-	AgentVersion  string `json:"agent-version"`
+	AgentVersion  string `json:"agent-version,omitempty"`
 	AllowRecreate bool   `json:"allow-recreate"`
 }
 

@@ -136,6 +136,7 @@ it("keeps sidebar routes, pending count, account identity, and sign out", () => 
     page: "agents",
     data: {
       ...layout,
+      Version: "3.4.5",
       HostKey: "sample-fingerprint",
       PendingKeys: null,
       Approved: null,
@@ -167,6 +168,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
     page: "agents",
     data: {
       ...layout,
+      Version: "3.4.5",
       HostKey: "controller-fingerprint",
       PendingKeys: [
         {
@@ -178,6 +180,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
       Approved: [
         {
           Name: "sample/host",
+          Version: "2.9.1",
           Connected: false,
           Containers: 1,
           Bound: 1,
@@ -204,6 +207,38 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
   );
   expect(screen.getByText(/serving from cache/)).toBeInTheDocument();
   expect(screen.getByText("1 degraded")).toBeInTheDocument();
+});
+
+it("shows controller and agent build versions, including legacy agents", () => {
+  draw({
+    page: "agents",
+    data: {
+      ...layout,
+      Version: "3.4.5",
+      HostKey: "sample-fingerprint",
+      PendingKeys: null,
+      Approved: ["2.9.1+sample", ""].map((Version, index) => ({
+        Name: `sample-host-${index}`,
+        Version,
+        Connected: false,
+        Containers: 0,
+        Bound: 0,
+        Health: null,
+        LastReport: "0001-01-01T00:00:00Z",
+      })),
+    },
+  });
+  const controller = screen.getByRole("region", { name: "Controller version" });
+  expect(within(controller).getByText("3.4.5")).toBeInTheDocument();
+  const known = screen
+    .getByRole("link", { name: "sample-host-0" })
+    .closest("tr")!;
+  expect(within(known).getByText("2.9.1+sample")).toBeInTheDocument();
+  const legacy = screen
+    .getByRole("link", { name: "sample-host-1" })
+    .closest("tr")!;
+  expect(within(legacy).getByText("unknown")).toBeInTheDocument();
+  expect(within(legacy).getByText("Update available")).toBeInTheDocument();
 });
 
 it("preserves every policy value, edit/new identity, validation feedback and access-group warning", async () => {
