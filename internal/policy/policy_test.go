@@ -7,6 +7,7 @@ package policy
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -20,6 +21,7 @@ func samplePolicy() Policy {
 	result := New("teal-team", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
 	result.Revision = 3
 	result.SSH = &SSH{TransitKeys: []string{"teal-signing"}, CARoles: []string{"teal-hosts"}}
+	result.SSH.NotForwardable = &SSHIdentityNames{TransitKeys: []string{"teal-signing"}, CARoles: []string{"teal-hosts"}}
 	result.Contract.AccessGroup = &group
 	result.Contract.Enforcement = EnforcementRecreate
 	return result
@@ -111,6 +113,11 @@ func TestTokenTTLAndNames(t *testing.T) {
 	clone := candidate.Clone()
 	clone.SSH.TransitKeys[0] = "changed"
 	clone.Contract.Env["VAULT_ADDR"] = "changed"
+	clone.SSH.NotForwardable.TransitKeys[0] = "changed"
+	clone.SSH.NotForwardable.CARoles[0] = "changed"
+	if candidate.SSH.NotForwardable.TransitKeys[0] == "changed" || candidate.SSH.NotForwardable.CARoles[0] == "changed" {
+		t.Fatal("Clone() shares forwarding selectors")
+	}
 	if candidate.SSH.TransitKeys[0] == "changed" || strings.Contains(candidate.Contract.Env["VAULT_ADDR"], "changed") {
 		t.Fatal("Clone() shares state")
 	}
@@ -144,5 +151,30 @@ func TestTokenMaxTTL(t *testing.T) {
 	candidate.OpenBao.TokenTTL, candidate.OpenBao.TokenMaxTTL = "1h", "8"
 	if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), "token maximum lifetime") {
 		t.Fatalf("Validate(malformed maximum) = %v", err)
+	}
+}
+
+func TestInvalidNotForwardableSelectors(t *testing.T) {
+	schema := schematest.Compile(t, schematest.Policy)
+	manyNames := make([]string, 65)
+	for index := range manyNames {
+		manyNames[index] = fmt.Sprintf("sample-%d", index)
+	}
+	for _, source := range []string{"transit-keys", "ca-roles"} {
+		for name, names := range map[string][]string{
+			"invalid-name": {"a b"}, "duplicate": {"sample", "sample"},
+			"long-name": {strings.Repeat("x", 129)}, "too-many": manyNames,
+		} {
+			t.Run(source+"/"+name, func(t *testing.T) {
+				selected, _ := json.Marshal(map[string][]string{source: names})
+				data := []byte(`{"name":"sample","openbao":{"policy":""},"ssh":{"not-forwardable":` + string(selected) + `},"contract":{"mount-target":"/run/wyrwood","enforcement":"report"}}`)
+				if _, err := Decode(data); err == nil {
+					t.Fatal("Go accepted invalid selectors")
+				}
+				if err := schematest.Validate(schema, data); err == nil {
+					t.Fatal("schema accepted invalid selectors")
+				}
+			})
+		}
 	}
 }

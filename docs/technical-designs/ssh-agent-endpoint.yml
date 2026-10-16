@@ -64,8 +64,13 @@ proposed-design:
     listing and refuses signing for it immediately.
   session-binding: >-
     `session-bind@openssh.com` is accepted when its host-key signature
-    verifies and is recorded only as an event. Binds are not stored, and no
-    identity is restricted by destination or by forwarding.
+    verifies. The connection retains whether any accepted bind has forwarding
+    set, and signing then refuses identities selected by the current policy's
+    `ssh.not-forwardable.transit-keys` or `ssh.not-forwardable.ca-roles`.
+    Later non-forwarding binds do not clear that state. The state is confined
+    to one connection and stores no bind payloads. Identity listing is unchanged.
+    Identities are forwardable unless selected. No destination restriction is
+    enforced, and clients that omit forwarding binds remain outside this check.
   events: >-
     Identity listing, signing by fingerprint, certificate issuance, and
     session binding record categorical events with latency. No payload,
