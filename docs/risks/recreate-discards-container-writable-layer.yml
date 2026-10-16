@@ -7,7 +7,7 @@ description: >-
   again. Anything not on a mount or volume is lost, including editor servers
   installed into the container and work saved outside mounted paths. An
   attached editor session is interrupted. Mitigation: recreate runs only once,
-  when a policy with recreate enforcement is first bound, while the operator is
+  when a binding with recreate enforcement is first applied, while the operator is
   present in the controller; later drift is reported, not recreated; anonymous
   volumes are carried over by name; the controller shows the recreate as an
   explicit event before and after.

@@ -33,7 +33,7 @@ func TestADedicatedNamespaceContainsAnEscalatedBinding(t *testing.T) {
 	if err := manager.WritePolicy(ctx, "wyrwood-escape", everything); err != nil {
 		t.Fatalf("WritePolicy(everything) = %v", err)
 	}
-	if err := manager.WriteRole(ctx, "wyrwood-escape", "wyrwood-escape", time.Hour, time.Hour); err != nil {
+	if err := manager.WriteRole(ctx, "wyrwood-escape", []string{"wyrwood-escape"}, time.Hour, time.Hour); err != nil {
 		t.Fatalf("WriteRole() = %v", err)
 	}
 	roleID, err := manager.RoleID(ctx, "wyrwood-escape")

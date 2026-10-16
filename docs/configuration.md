@@ -9,8 +9,10 @@ relationships:
 ---
 
 Policy lives on the controller. Agents receive the policies that match their
-containers and cache them so a controller restart does not interrupt running
-containers.
+containers and cache resolved assignments. A controller outage can be tolerated
+only
+while the current tokens remain valid. See [Upgrade](upgrade.md) before
+upgrading an existing installation.
 
 ## Policy document
 
@@ -19,8 +21,9 @@ name: teal-devcontainer
 openbao:
   policy: |
     path "kv/data/teams/teal/*" { capabilities = ["read"] }
-  token-ttl: 1h
-  token-max-ttl: 8h
+    path "auth/token/lookup-self" { capabilities = ["read"] }
+    path "auth/token/renew-self" { capabilities = ["update"] }
+    path "auth/token/revoke-self" { capabilities = ["update"] }
 ssh:
   transit-keys:
     - teal-github
@@ -31,8 +34,6 @@ contract:
   env:
     SSH_AUTH_SOCK: "{mount-target}/ssh-agent.sock"
     VAULT_ADDR: "unix://{mount-target}/vault.sock"
-  access-group: 1000
-  enforcement: report
 ```
 
 The controller validates the HCL through OpenBao before saving and writes it
@@ -42,7 +43,8 @@ permitted by the HCL.
 
 ## Access group
 
-`contract.access-group` is effectively required for non-root containers whose
+The binding's `settings.access-group` is effectively required for non-root
+containers whose
 processes run as a different UID from the host agent user. Set it to a numeric
 host GID that the container processes have as a primary or supplementary group.
 With an access group, the consumer directory is `0750` and sockets are `0660`.
@@ -51,7 +53,7 @@ running as another non-root UID cannot use those owner-only sockets.
 
 The agent user must belong to the host group so it can assign that group to
 the directory and sockets. Add `wyrwood` to the consumer access group;
-`docker` cannot serve as that group. For example, if the contract uses
+`docker` cannot serve as that group. For example, if the binding uses
 GID 1000, find its host group name, add the agent user, and restart the agent
 so it receives the new membership:
 
@@ -80,23 +82,64 @@ controller outage can last before workloads lose secret access.
 
 ## Bindings
 
-A binding attaches one policy to one container key on one agent. Keys are
-tried in order: devcontainer identity labels, compose project and service
-labels, container name. The controller creates one AppRole per binding with
-the policy attached. Changing the policy updates the AppRole, and the agent
-obtains a new token on the push. The agent reports each new token's accessor
-to the controller. Deleting the binding deletes the AppRole and revokes the
-container's token by that accessor, whether or not the agent is connected. If
-OpenBao refuses the revocation, or the agent is not connected and has not yet
-reported an accessor, the deletion says so, and the token stays valid until
-the agent revokes it or it expires.
+A binding attaches one or more policies to one container key on one agent.
+Keys are tried in order: devcontainer identity labels, compose project and
+service labels, container name. Token lifetime, access group, and enforcement
+are binding settings, independent of the reusable policies:
+
+```json
+{
+  "policies": ["teal-devcontainer", "shared-read"],
+  "settings": {
+    "token-ttl": "1h",
+    "token-max-ttl": "8h",
+    "access-group": 1000,
+    "enforcement": "report"
+  }
+}
+```
+
+The web interface selects policies with checkboxes. **Preview effective
+policy** shows source names and revisions, combined HCL, offered identities,
+forwarding restrictions, contract, and settings before saving. Binding edits
+submit the current revision; a stale edit must be reloaded.
+
+HCL remains in separate OpenBao policies. OpenBao evaluates their union with
+its normal path priority and deny rules; the displayed HCL includes each
+source in stable name order. Transit keys and SSH roles are deduplicated
+separately. A not-forwardable selector in any source restricts the selected
+identity. Sources must require the same mount target. Environment entries
+are merged after expanding `{mount-target}`; different values for one name
+are rejected. A conflicting source edit is rejected before saving.
+
+The controller creates one AppRole per binding carrying exactly the selected
+`wyrwood-<policy-name>` policies. It disables the implicit `default` policy;
+there is no managed lifecycle policy. Each author must include the three
+self-operation paths shown above. The policy editor starts with those lines.
+The editor, preview, and saved effective view warn when there is no explicit
+`renew-self` update grant. This is advisory so deliberately non-renewing tokens
+remain supported; OpenBao decides actual capabilities, including wildcards and
+deny rules. A token without renewal permission can expire during a controller
+outage.
+
+Changing the selected policies, a source revision, or binding settings creates
+a new assignment. The controller updates the AppRole and revokes the reported
+old token before issuing fresh credentials. An offline agent's containers lose
+access until the agent reconnects. A failed transition remains pending and
+blocks fresh issuance; startup and subsequent credential requests attempt the
+pending transition. An unreported token remains bounded by its maximum TTL.
+Late old-assignment accessor reports are revoked rather than saved as current.
+
+Deleting a binding deletes its AppRole and revokes the reported token even
+while the agent is offline. If revocation fails, the response says that the
+token can remain valid until the agent revokes it or it expires.
 
 ## Contract enforcement
 
 `report` is the default. The agent checks the mount, the environment names and
 values, and the access group on every reconcile and reports what is missing.
 
-`recreate` makes the agent apply the contract once, when the policy is first
+`recreate` makes the agent apply the contract once, when the binding is first
 bound to a container. The agent stops, removes, and creates the container from
 its inspected definition with the mount and environment merged in. Later drift
 is reported, not recreated. The host's agent configuration must also allow
@@ -234,7 +277,7 @@ all send it.
 Name the controller's own policy and AppRole outside the `wyrwood-` prefix,
 for example `controller`. The controller writes only `wyrwood-` names, so it
 cannot rewrite its own policy or AppRole. Every binding AppRole carries only
-its own `wyrwood-` policy.
+its selected `wyrwood-` policies and no implicit `default` policy.
 
 The controller's policy, for the default `approle`, `transit`, and `ssh`
 mounts:

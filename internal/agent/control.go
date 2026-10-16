@@ -28,7 +28,7 @@ import (
 )
 
 // ControlVersion is the control protocol and projection version.
-const ControlVersion = 1
+const ControlVersion = 2
 
 const maximumControlRequestBytes = 4096
 
@@ -56,7 +56,8 @@ type ContainerStatus struct {
 	Name             string                `json:"name"`
 	State            string                `json:"state"`
 	BindingKey       string                `json:"binding-key,omitempty"`
-	Policy           string                `json:"policy,omitempty"`
+	Policies         []string              `json:"policies"`
+	Assignment       string                `json:"assignment,omitempty"`
 	Conformance      string                `json:"conformance"`
 	Token            string                `json:"token"`
 	AccessGroupError string                `json:"access-group-error,omitempty"`
@@ -200,10 +201,11 @@ func (agent *Agent) ContainerStatuses() Containers {
 	defer agent.mu.Unlock()
 	result := Containers{Version: ControlVersion, Containers: []ContainerStatus{}}
 	for _, container := range agent.containers {
-		entry := ContainerStatus{Name: container.ShortName(), State: container.State.Status, Conformance: "not-bound", Token: "none"}
+		entry := ContainerStatus{Policies: []string{}, Name: container.ShortName(), State: container.State.Status, Conformance: "not-bound", Token: "none"}
 		if bound, ok := agent.governingLocked(container); ok {
 			entry.BindingKey = events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)
-			entry.Policy = bound.Policy.Name
+			entry.Policies = bound.Policy.Names()
+			entry.Assignment = bound.Assignment
 			entry.Conformance = "unknown"
 			if result, ok := agent.results[bound.Binding]; ok {
 				entry.Conformance = string(result.Outcome)

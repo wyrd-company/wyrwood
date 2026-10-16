@@ -106,34 +106,16 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
           defaultValue={d.HCL}
         />
       </div>
-      <div className="max-w-60">
-        <Field
-          label="Token time-to-live"
-          id="ttl"
-          hint="Minutes or hours, such as 30m or 1h. Applied to each binding's AppRole."
-        >
-          <Input
-            id="ttl"
-            name="token-ttl"
-            type="text"
-            defaultValue={d.TokenTTL}
-          />
-        </Field>
-      </div>
-      <div className="max-w-60">
-        <Field
-          label="Token maximum lifetime"
-          id="max-ttl"
-          hint="At least the time-to-live, such as 8h. After it the agent needs a fresh credential from the controller."
-        >
-          <Input
-            id="max-ttl"
-            name="token-max-ttl"
-            type="text"
-            defaultValue={d.TokenMaxTTL}
-          />
-        </Field>
-      </div>
+      <p className="hint">
+        Binding tokens have no OpenBao default policy. Include lookup-self
+        (read), renew-self (update), and revoke-self (update) in your HCL. TTL,
+        access group, and enforcement are set on each binding.
+      </p>
+      {d.Warnings?.map((warning) => (
+        <p className="caution" role="status" key={warning}>
+          {warning}
+        </p>
+      ))}
     </Panel>
   );
 }
@@ -236,60 +218,6 @@ function ContainerContract({ data: d }: { data: PolicyData }) {
       >
         <Textarea id="env" name="env" rows={4} defaultValue={d.Env} />
       </Field>
-      <Field
-        label="Access group (numeric)"
-        id="access-group"
-        hint="Use a host group available to the container processes. The agent user must belong to it; restart the agent after adding membership. Host group members can use these sockets with the binding’s permissions."
-      >
-        <Input
-          id="access-group"
-          name="access-group"
-          type="text"
-          inputMode="numeric"
-          defaultValue={d.AccessGroup}
-        />
-      </Field>
-      {!d.AccessGroup && (
-        <p className="caution" role="status">
-          No access group: the directory is 0700 and sockets are 0600, owned by
-          the agent user. An access group is effectively required for non-root
-          containers running as another UID.
-        </p>
-      )}
-      <fieldset>
-        <legend>Enforcement</legend>
-        <label className="choice">
-          <input
-            type="radio"
-            name="enforcement"
-            value="report"
-            defaultChecked={d.Enforcement !== "recreate"}
-          />
-          <span>
-            <strong>Report</strong>
-            <br />
-            <span className="hint">
-              Check and show what is missing. Never touch the container.
-            </span>
-          </span>
-        </label>
-        <label className="choice">
-          <input
-            type="radio"
-            name="enforcement"
-            value="recreate"
-            defaultChecked={d.Enforcement === "recreate"}
-          />
-          <span>
-            <strong>Recreate at bind time</strong>
-            <br />
-            <span className="hint">
-              Recreate once when first bound, on hosts that allow it. Discards
-              the writable layer.
-            </span>
-          </span>
-        </label>
-      </fieldset>
     </Panel>
   );
 }

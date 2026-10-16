@@ -44,7 +44,8 @@ func TestNotForwardablePolicyEditorPersistenceAndTransport(t *testing.T) {
 		t.Fatal(err)
 	}
 	message := protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []protocol.Binding{{
-		Binding: "b-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "sample"}, Policy: stored.Policy,
+		Binding: "b-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "sample"}, Policy: (stored.Policy).Runtime(policy.DefaultSettings()), Assignment: ((stored.Policy).Runtime(
+			policy.DefaultSettings())).Identity(),
 	}}}
 	wire, err := protocol.Encode(message)
 	if err != nil {

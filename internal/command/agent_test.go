@@ -62,7 +62,7 @@ func TestAgentQueriesUseOnlyTheControlSocket(t *testing.T) {
 		case *agent.Status:
 			*typed = agent.Status{Version: 1, Agent: "host-a", Controller: "ssh://controller", Session: "connected", Containers: 2, Bindings: 1, Tokens: 1, Health: map[string]int{"healthy": 1}}
 		case *agent.Containers:
-			*typed = agent.Containers{Version: 1, Containers: []agent.ContainerStatus{{Name: "web", State: "running", BindingKey: "name:web", Policy: "teal", Conformance: "conforming", Token: "valid"}}}
+			*typed = agent.Containers{Version: 1, Containers: []agent.ContainerStatus{{Name: "web", State: "running", BindingKey: "name:web", Policies: []string{"teal"}, Conformance: "conforming", Token: "valid"}}}
 		case *agent.Events:
 			if request.Limit != 5 {
 				t.Fatalf("limit = %d", request.Limit)
@@ -77,7 +77,7 @@ func TestAgentQueriesUseOnlyTheControlSocket(t *testing.T) {
 	}
 	status, stdout, _ = runForTest(t, deps, "agent", "containers", "--output", "json")
 	var containers agent.Containers
-	if status != exitSuccess || json.Unmarshal([]byte(stdout), &containers) != nil || containers.Containers[0].Policy != "teal" {
+	if status != exitSuccess || json.Unmarshal([]byte(stdout), &containers) != nil || strings.Join(containers.Containers[0].Policies, ",") != "teal" {
 		t.Fatalf("containers json = %d %q", status, stdout)
 	}
 	status, stdout, _ = runForTest(t, deps, "agent", "events", "--limit", "5")

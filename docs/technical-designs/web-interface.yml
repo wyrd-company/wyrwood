@@ -105,24 +105,27 @@ proposed-design:
     Development versions are displayed without a release comparison.
   containers-page: >-
     Lists one agent's containers at a time with name, image, key kind, bound
-    policy, and one state: conforms, non-conforming, degraded, or not bound.
+    policies, and one state: conforms, non-conforming, degraded, or not bound.
     Selecting a container opens a panel. For an unbound container the panel
     offers every candidate key in precedence order with the most stable one
-    preselected and labelled, and a policy choice showing each policy's
-    enforcement. Choosing a recreate policy shows, before binding, that the
-    container is recreated once and its writable layer discarded. For a bound
-    container the panel shows the policy, the key kind and value used, token
-    state, each contract item as present or missing, and actions to change
-    policy, request a recreate, and unbind and revoke the AppRole.
+    preselected and labelled, policy checkboxes, and binding settings for TTL,
+    maximum TTL, access group, and enforcement. Recreate enforcement requires
+    explicit first-bind acknowledgement of writable-layer loss. Preview uses
+    controller composition and shows source names/revisions, combined HCL,
+    identities, forwarding restrictions, contract, and settings. A conflicting
+    selection shows an actionable error. A bound container shows the saved
+    effective assignment, pending transition state, contract report, and
+    actions to edit the selection/settings, request recreate, or unbind.
   policies-page: >-
-    Edits the HCL directly with OpenBao's validation result for the current
-    revision, the token time-to-live, the Transit keys and SSH-engine roles
-    the ssh-agent endpoint offers, and the contract: mount target, environment
-    with the `{mount-target}` token, access group, and enforcement. A key or
-    role the HCL does not permit is flagged as one whose use will be denied.
-    The header shows the revision and how many containers on how many agents
-    the policy is bound to. Saving validates through OpenBao before recording
-    the revision.
+    Edits reusable HCL, Transit keys and SSH-engine roles, forwarding
+    selectors, mount target, and environment requirements. Token lifetime,
+    access group, and enforcement are edited on bindings. The editor is
+    separate from the binding settings and effective preview components.
+    New policies start with visible lookup-self, renew-self, and revoke-self
+    HCL. Missing an explicit renewal grant produces an advisory warning; no
+    implicit default policy is attached to binding tokens. A key or role the
+    HCL does not permit is flagged. The header shows revision and usage counts.
+    Saving validates through OpenBao and preflights every affected binding.
   openbao-ui-links: >-
     An optional public openbao.ui-url adds a plain OpenBao UI anchor beside
     OpenBao keys in the sidebar and beside the policy editor's OpenBao policy

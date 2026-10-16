@@ -40,7 +40,7 @@ description: >-
   `wyrwood agent status`, `wyrwood agent containers`, and `wyrwood agent events`
   query the running daemon through its owner-only control socket and accept no
   path override. `containers` lists each observed container with its name, the
-  binding key it matched, policy name, conformance, token state, and an
+  binding key it matched, selected policy names, conformance, token state, and an
   access-group error when the agent cannot assign the contract group. The
   optional JSON field `access-group-error` explains the group membership
   requirement and agent restart.
@@ -53,7 +53,11 @@ description: >-
 
   `wyrwood version` prints the executable version. Human-readable output is
   the default. `--output json` emits exactly one versioned, closed JSON object
-  whose fields match the human projection. Successful output goes to standard
+  whose fields match the human projection. Daemon control and its projections
+  use version 2. Each container has a `policies` array (empty when unbound)
+  and an assignment identity when bound. There is no version 1 adapter or
+  singular-policy fallback; CLI and daemon must upgrade together.
+  Successful output goes to standard
   output; categorical errors go to standard error and never include raw
   filesystem, engine, SSH, or OpenBao error text.
 

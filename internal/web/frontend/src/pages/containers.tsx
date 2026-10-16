@@ -9,16 +9,15 @@ import {
   Status,
   Table,
   containerURL,
-  policyURL,
 } from "@/components/shared";
-import type { ContainerRow, ContainersData, PolicyChoice } from "@/types";
-function PolicyOptions({ policies }: { policies: PolicyChoice[] | null }) {
-  return policies?.map((policy) => (
-    <option key={policy.Name} value={policy.Name}>
-      {policy.Name} · {policy.Enforcement}
-    </option>
-  ));
-}
+import type {
+  ContainerRow,
+  ContainersData,
+  EffectivePolicy as Effective,
+} from "@/types";
+import { useRef, useState } from "react";
+import { BindingSettings } from "./binding-settings";
+import { EffectivePolicy } from "./effective-policy";
 export function Containers({ data: d }: { data: ContainersData }) {
   return (
     <main className="split">
@@ -51,7 +50,7 @@ export function Containers({ data: d }: { data: ContainersData }) {
             </form>
             <section aria-label={`Containers on ${d.Agent}`}>
               <Table
-                columns={["Container", "Key", "Policy", "State"]}
+                columns={["Container", "Key", "Policies", "State"]}
                 count={d.Rows?.length ?? 0}
                 empty="This agent has not reported any container."
               >
@@ -78,7 +77,9 @@ export function Containers({ data: d }: { data: ContainersData }) {
                       <span className="tag">{row.KeyKind}</span>
                     </td>
                     <td className="mono">
-                      {row.Policy || <span className="hint">none</span>}
+                      {row.Policies?.join(", ") || (
+                        <span className="hint">none</span>
+                      )}
                     </td>
                     <td>
                       <Status kind={row.BadgeClass}>{row.Badge}</Status>
@@ -92,7 +93,13 @@ export function Containers({ data: d }: { data: ContainersData }) {
           <p className="hint">No approved agent has reported yet.</p>
         )}
       </div>
-      {d.Selected && <ContainerDetails data={d} row={d.Selected} />}
+      {d.Selected && (
+        <ContainerDetails
+          key={`${d.Selected.ID}-${d.Selected.Revision}`}
+          data={d}
+          row={d.Selected}
+        />
+      )}
     </main>
   );
 }
@@ -116,10 +123,8 @@ function ContainerDetails({
         <>
           <dl className="facts">
             <div>
-              <dt>Policy</dt>
-              <dd className="mono">
-                <a href={policyURL(r.Policy)}>{r.Policy}</a>
-              </dd>
+              <dt>Policies</dt>
+              <dd className="mono">{r.Policies?.join(", ")}</dd>
             </div>
             <div>
               <dt>Token</dt>
@@ -141,20 +146,15 @@ function ContainerDetails({
               ))}
             </ul>
           </div>
-          <form method="post" action={`${bindingURL}/policy`} className="field">
-            <CSRF token={d.CSRF} />
-            <label htmlFor="change-policy">Change policy</label>
-            <select
-              id="change-policy"
-              name="policy"
-              defaultValue={d.Policies?.find((policy) => policy.Selected)?.Name}
-            >
-              <PolicyOptions policies={d.Policies} />
-            </select>
-            <Button variant="outline" type="submit">
-              Change policy
-            </Button>
-          </form>
+          <p className="hint">
+            {r.Applied
+              ? "AppRole assignment applied"
+              : "Token transition pending; fresh issuance is blocked"}
+          </p>
+          <BindingForm data={d} row={r} />
+          {r.Effective?.sources?.length > 0 && (
+            <EffectivePolicy effective={r.Effective} warnings={r.Warnings} />
+          )}
           <div className="actions">
             <Button asChild variant="outline">
               <a href={`${bindingURL}/recreate`}>Request recreate</a>
@@ -165,60 +165,7 @@ function ContainerDetails({
           </div>
         </>
       ) : d.Policies?.length ? (
-        <form method="post" action="/bindings" className="flex flex-col gap-5">
-          <CSRF token={d.CSRF} />
-          <input type="hidden" name="agent" value={d.Agent} />
-          <input type="hidden" name="container" value={r.ID} />
-          <fieldset>
-            <legend>Bind by key</legend>
-            {r.Candidates?.map((candidate) => (
-              <label className="choice" key={candidate.Encoded}>
-                <input
-                  type="radio"
-                  name="key"
-                  value={candidate.Encoded}
-                  defaultChecked={candidate.First}
-                />
-                <span className="flex min-w-0 flex-col">
-                  <strong>
-                    {candidate.Kind}{" "}
-                    <span className="hint font-normal">{candidate.Note}</span>
-                  </strong>
-                  <span className="mono">{candidate.Value}</span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          <div className="field">
-            <label htmlFor="bind-policy">Policy</label>
-            <select id="bind-policy" name="policy">
-              <PolicyOptions policies={d.Policies} />
-            </select>
-          </div>
-          {!!d.Recreate?.length && (
-            <div className="caution" role="note">
-              <strong>
-                Policies marked recreate ({d.Recreate.join(", ")}) recreate the
-                container once.
-              </strong>{" "}
-              The agent stops it, removes it with its volumes kept, and creates
-              it again with the mount and environment applied. Its writable
-              layer is discarded and attached editors reconnect.
-              <label className="choice mt-2">
-                <input type="checkbox" name="understood" value="yes" />
-                <span>I understand, if I chose a recreate policy</span>
-              </label>
-            </div>
-          )}
-          <p className="hint">
-            Report policies only check the container and show what is missing
-            until its definition mounts the consumer directory and sets the
-            contract environment.
-          </p>
-          <Button type="submit" className="primary">
-            Bind policy
-          </Button>
-        </form>
+        <BindingForm data={d} row={r} />
       ) : (
         <p className="hint">
           Create a policy before binding.{" "}
@@ -226,5 +173,129 @@ function ContainerDetails({
         </p>
       )}
     </aside>
+  );
+}
+
+function BindingForm({
+  data: d,
+  row: r,
+}: {
+  data: ContainersData;
+  row: ContainerRow;
+}) {
+  const [preview, setPreview] = useState<Effective | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [problem, setProblem] = useState("");
+  const [busy, setBusy] = useState(false);
+  const previewRequest = useRef(0);
+  async function showPreview(form: HTMLFormElement) {
+    const request = ++previewRequest.current;
+    setBusy(true);
+    setProblem("");
+    setPreview(null);
+    try {
+      const body = new URLSearchParams();
+      new FormData(form).forEach((value, key) => {
+        if (typeof value === "string") body.append(key, value);
+      });
+      const response = await fetch("/bindings/preview", {
+        method: "POST",
+        body,
+      });
+      const result = await response.json();
+      if (request !== previewRequest.current) return;
+      if (!response.ok) setProblem(result.error || "Preview failed.");
+      else {
+        setPreview(result.effective);
+        setWarnings(result.warnings || []);
+      }
+    } catch {
+      if (request === previewRequest.current)
+        setProblem("Preview could not be loaded.");
+    } finally {
+      if (request === previewRequest.current) setBusy(false);
+    }
+  }
+  return (
+    <form
+      method="post"
+      action={
+        r.Bound
+          ? `/bindings/${encodeURIComponent(r.BindingID)}/policy`
+          : "/bindings"
+      }
+      className="flex flex-col gap-4"
+      onChange={() => {
+        previewRequest.current++;
+        setBusy(false);
+        setPreview(null);
+        setProblem("");
+      }}
+    >
+      <CSRF token={d.CSRF} />
+      <input type="hidden" name="agent" value={d.Agent} />
+      <input type="hidden" name="container" value={r.ID} />
+      <input type="hidden" name="revision" value={r.Revision || 0} />
+      {!r.Bound && (
+        <fieldset>
+          <legend>Bind by key</legend>
+          {r.Candidates?.map((candidate) => (
+            <label className="choice" key={candidate.Encoded}>
+              <input
+                type="radio"
+                name="key"
+                value={candidate.Encoded}
+                defaultChecked={candidate.First}
+              />
+              <span>
+                {candidate.Kind} · {candidate.Note}
+                <br />
+                <span className="mono">{candidate.Value}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      <fieldset>
+        <legend>Policies</legend>
+        {d.Policies?.map((p) => (
+          <label className="choice" key={p.Name}>
+            <input
+              type="checkbox"
+              name="policies"
+              value={p.Name}
+              defaultChecked={r.Policies?.includes(p.Name) || false}
+            />
+            <span>{p.Name}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="hint">
+        Select one or more policies. Conflicting mount or environment
+        requirements are rejected. Token renewal needs an authored renew-self
+        update grant; no default policy is attached.
+      </p>
+      <BindingSettings settings={r.Settings} />
+      <Button
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onClick={(event) => {
+          const form = event.currentTarget.form;
+          if (form) void showPreview(form);
+        }}
+      >
+        {busy ? "Composing…" : "Preview effective policy"}
+      </Button>
+      {problem && (
+        <p className="problem" role="alert">
+          {problem}
+        </p>
+      )}
+      {preview && <EffectivePolicy effective={preview} warnings={warnings} />}
+      <Button type="submit">
+        {r.Bound ? "Save binding" : "Bind policies"}
+      </Button>
+    </form>
   );
 }

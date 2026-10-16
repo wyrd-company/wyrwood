@@ -7,7 +7,7 @@ description: >-
   Agents and the controller exchange newline-delimited JSON messages over the
   `wyrwood` SSH subsystem on an authenticated SSH connection. Message shapes
   are defined by `assets/agent-controller-protocol/message.schema.json`.
-  Every message has integer `version` 1 and a `type`. A line is at most 1 MiB.
+  Every message has integer `version` 2 and a `type`. A line is at most 1 MiB.
   Unknown fields are rejected.
 
   Authentication is SSH public key only. The username is the agent's
@@ -27,18 +27,20 @@ description: >-
   failed item names, `recreating`, `recreated` with the new engine
   identifier, or `recreate-failed` with a categorical reason.
   `credential-request` names a binding whose token must be replaced.
-  `token-accessor` carries a binding and the accessor of the token the agent
+  `token-accessor` carries a binding, assignment identity, and the accessor of the token the agent
   obtained for it. The agent sends it after each login and again on each new
   session and each full reconcile until the controller acknowledges it. The
   controller keeps the latest one per binding and uses it only to revoke that
-  token when the binding is deleted; one reported for a binding the agent
-  held that is already deleted is revoked on arrival.
+  token when the binding changes or is deleted. An old-assignment or deleted
+  binding accessor is revoked on arrival and cannot replace the current one.
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory: binding identifier, the matched key, the
-  complete policy document and revision, the OpenBao address, CA,
+  effective policy (source names, revisions and HCL, combined HCL, SSH identity
+  unions and forwarding restrictions, resolved contract and binding settings),
+  assignment identity, the OpenBao address, CA,
   namespace, and the Transit and SSH-engine mount names the controller
-  manages. `credential` carries a binding identifier, the AppRole mount and
+  manages. `credential` carries a binding identifier, assignment identity, the AppRole mount and
   role identifier, and a response-wrapped secret identifier whose wrapping
   time-to-live is at most 5 minutes. `recreate-request` names a binding for
   an operator-requested recreate. `unbind` names a binding to retire.
@@ -48,15 +50,19 @@ description: >-
   belongs to another agent; a result it could not store is not acknowledged.
   The agent keeps a failed recreate's report until that acknowledgement
   arrives. `accessor-recorded` acknowledges one `token-accessor` by echoing
-  its binding and accessor, once the controller has stored it, revoked it for
+  its binding, assignment identity, and accessor, once the controller has stored it, revoked it for
   a deleted binding, or discarded it because the binding never belonged to
   the agent; a report the controller could not store or revoke is not
   acknowledged.
 
   Neither direction ever carries a token, an unwrapped secret identifier, an
-  environment value, or a secret value. A token accessor cannot
+  observed container environment value, or a secret value. Authored contract
+  environment requirements are part of the effective assignment. A token accessor cannot
   authenticate; it names a token for revocation. The controller replaces an agent's
-  existing session when the same approved key connects again.
+  existing session when the same approved key connects again. Version 1 has
+  no adapter; controller and agents must upgrade together. The agent rejects
+  stale assignment credentials and any token whose attached policies differ
+  from the assignment's exact selected managed policy names.
 validation-criteria: >-
   Round-trip tests validate every message against the schema asset and the
   Go types. Session tests cover that a contract result is acknowledged only

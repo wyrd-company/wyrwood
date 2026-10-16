@@ -9,11 +9,13 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -242,7 +244,12 @@ type containerRow struct {
 	Image      string
 	State      string
 	KeyKind    string
-	Policy     string
+	Policies   []string
+	Revision   int
+	Effective  policy.Effective
+	Warnings   []string
+	Applied    bool
+	Settings   policy.Settings
 	Badge      string
 	BadgeClass string
 	Bound      bool
@@ -268,9 +275,8 @@ type candidate struct {
 }
 
 type policyChoice struct {
-	Name        string
-	Enforcement string
-	Selected    bool
+	Name     string
+	Selected bool
 }
 
 func (server *Server) handleContainers(writer http.ResponseWriter, request *http.Request) {
@@ -292,10 +298,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 	page.Connected = server.controller.Connected(chosen)
 	policies, _ := server.controller.Store().Policies(ctx)
 	for _, stored := range policies {
-		page.Policies = append(page.Policies, policyChoice{Name: stored.Policy.Name, Enforcement: string(stored.Policy.Contract.Enforcement)})
-		if stored.Policy.Contract.Enforcement == policy.EnforcementRecreate {
-			page.Recreate = append(page.Recreate, stored.Policy.Name)
-		}
+		page.Policies = append(page.Policies, policyChoice{Name: stored.Policy.Name})
 	}
 	containers, _, _ := server.controller.Store().Inventory(ctx, chosen)
 	bindings, _ := server.controller.Store().Bindings(ctx, chosen)
@@ -308,7 +311,9 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 			row.KeyKind = string(container.Keys[0].Kind)
 		}
 		if binding, ok := controller.ContainerBinding(container, bindings); ok {
-			row.Bound, row.BindingID, row.Policy = true, binding.ID, binding.Policy
+			row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
+			row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
+			row.Warnings = policy.Warnings(binding.Effective.OpenBao.Policy)
 			row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
 			result := results[binding.ID]
 			row.Badge, row.BadgeClass = stateBadge(result)
@@ -316,9 +321,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 			if when, ok := issued[binding.ID]; ok {
 				row.Token = "Credential issued " + ago(when)
 			}
-			if stored, err := server.controller.Store().Policy(ctx, binding.Policy); err == nil {
-				row.Checks = contractChecks(stored.Policy.Contract, container, result)
-			}
+			row.Checks = contractChecks(binding.Effective.Contract, container, result)
 		} else {
 			for index, key := range container.Keys {
 				note := "most stable"
@@ -345,7 +348,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 	}
 	if page.Selected != nil {
 		for index := range page.Policies {
-			page.Policies[index].Selected = page.Policies[index].Name == page.Selected.Policy
+			page.Policies[index].Selected = slices.Contains(page.Selected.Policies, page.Policies[index].Name)
 		}
 	}
 	server.render(writer, request, "containers", page)
@@ -430,19 +433,20 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	agent := request.PostFormValue("agent")
 	back := "/containers?agent=" + url.QueryEscape(agent) + "&container=" + url.QueryEscape(request.PostFormValue("container"))
 	kind, value, _ := strings.Cut(request.PostFormValue("key"), ":")
-	policyName := request.PostFormValue("policy")
+	bindingRequest, err := bindingFromForm(request)
 	base := server.layout(request, "Containers", "containers")
-	if stored, err := server.controller.Store().Policy(ctx, policyName); err == nil &&
-		stored.Policy.Contract.Enforcement == policy.EnforcementRecreate && request.PostFormValue("understood") != "yes" {
-		base.Problem = "This policy recreates the container once and discards its writable layer. Confirm that before binding."
-		server.renderProblem(writer, request, base, back)
-		return
+	if err == nil && bindingRequest.Settings.Enforcement == policy.EnforcementRecreate && request.PostFormValue("understood") != "yes" {
+		err = &controller.OperationError{Message: "recreate discards the container writable layer; confirm before binding"}
 	}
-	if _, err := server.controller.CreateBinding(ctx, agent, protocol.Key{Kind: protocol.KeyKind(kind), Value: value}, policyName, operatorSubject(request)); err != nil {
+	if err == nil {
+		_, err = server.controller.CreateBinding(ctx, agent, protocol.Key{Kind: protocol.KeyKind(kind), Value: value}, bindingRequest, operatorSubject(request))
+	}
+	if err != nil {
 		base.Problem = problemMessage(err)
 		server.renderProblem(writer, request, base, back)
 		return
 	}
+
 	http.Redirect(writer, request, back+"&notice=bound", http.StatusSeeOther)
 }
 
@@ -457,12 +461,17 @@ func (server *Server) bindingBack(ctx context.Context, id string) (store.Binding
 func (server *Server) handleChangeBinding(writer http.ResponseWriter, request *http.Request) {
 	id := request.PathValue("id")
 	_, back := server.bindingBack(request.Context(), id)
-	if err := server.controller.ChangeBinding(request.Context(), id, request.PostFormValue("policy"), operatorSubject(request)); err != nil {
+	bindingRequest, err := bindingFromForm(request)
+	if err == nil {
+		err = server.controller.ChangeBinding(request.Context(), id, bindingRequest, operatorSubject(request))
+	}
+	if err != nil {
 		base := server.layout(request, "Containers", "containers")
 		base.Problem = problemMessage(err)
 		server.renderProblem(writer, request, base, back)
 		return
 	}
+
 	http.Redirect(writer, request, back+"&notice=changed", http.StatusSeeOther)
 }
 
@@ -501,7 +510,7 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
 	server.render(writer, request, "confirm", confirmPage{
 		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
-		Body:   "This deletes the binding of policy " + binding.Policy + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the container's sockets stop answering. The agent removes the sockets and leaves their directory in place.",
+		Body:   "This deletes the binding of policies " + strings.Join(binding.Policies, ", ") + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the container's sockets stop answering. The agent removes the sockets and leaves their directory in place.",
 		Action: "/bindings/" + url.PathEscape(binding.ID) + "/unbind", Button: "Unbind and revoke AppRole", Danger: true, Back: back,
 	})
 }
@@ -533,13 +542,12 @@ type policiesPage struct {
 }
 
 type policySummary struct {
-	Name        string
-	Revision    int
-	Enforcement string
-	Bindings    int
-	Agents      int
-	SavedAt     time.Time
-	SavedBy     string
+	Name     string
+	Revision int
+	Bindings int
+	Agents   int
+	SavedAt  time.Time
+	SavedBy  string
 }
 
 func (server *Server) handlePolicies(writer http.ResponseWriter, request *http.Request) {
@@ -549,7 +557,7 @@ func (server *Server) handlePolicies(writer http.ResponseWriter, request *http.R
 	bindings, _ := server.controller.Store().Bindings(ctx, "")
 	operators, _ := server.controller.Store().Operators(ctx)
 	for _, stored := range policies {
-		summary := policySummary{Name: stored.Policy.Name, Revision: stored.Policy.Revision, Enforcement: string(stored.Policy.Contract.Enforcement),
+		summary := policySummary{Name: stored.Policy.Name, Revision: stored.Policy.Revision,
 			SavedAt: stored.SavedAt, SavedBy: operatorName(operators, stored.SavedBy)}
 		summary.Bindings, summary.Agents = boundCounts(bindings, stored.Policy.Name)
 		page.Policies = append(page.Policies, summary)
@@ -561,7 +569,7 @@ func boundCounts(bindings []store.Binding, name string) (int, int) {
 	agents := map[string]bool{}
 	count := 0
 	for _, binding := range bindings {
-		if binding.Policy == name {
+		if binding.HasPolicy(name) {
 			count++
 			agents[binding.Agent] = true
 		}
@@ -589,15 +597,12 @@ type policyPage struct {
 	Bindings    int
 	Agents      int
 	HCL         string
-	TokenTTL    string
-	TokenMaxTTL string
 	TransitKeys string
 	CARoles     string
 	MountTarget string
 	Env         string
-	AccessGroup string
-	Enforcement string
 	Unpermitted []string
+	Warnings    []string
 	PolicyPath  string
 
 	NotForwardableTransitKeys string
@@ -608,7 +613,7 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 	ctx := request.Context()
 	name := request.URL.Query().Get("name")
 	page := policyPage{layout: server.layout(request, "Policy editor", "policies")}
-	document := policy.New("", "")
+	document := policy.New("", policy.StarterHCL)
 	if name == "" {
 		page.New = true
 	} else {
@@ -627,14 +632,8 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 
 func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 	mounts := server.controller.Configuration().OpenBao
-	page.Name, page.Revision, page.HCL, page.TokenTTL = document.Name, document.Revision, document.OpenBao.Policy, document.OpenBao.TokenTTL
-	if page.TokenTTL == "" {
-		page.TokenTTL = "1h"
-	}
-	page.TokenMaxTTL = document.OpenBao.TokenMaxTTL
-	if page.TokenMaxTTL == "" {
-		page.TokenMaxTTL = "8h"
-	}
+	page.Name, page.Revision, page.HCL = document.Name, document.Revision, document.OpenBao.Policy
+	page.Warnings = policy.Warnings(document.OpenBao.Policy)
 	page.TransitKeys = strings.Join(document.TransitKeys(), "\n")
 	page.CARoles = strings.Join(document.CARoles(), "\n")
 	if document.SSH != nil && document.SSH.NotForwardable != nil {
@@ -652,10 +651,6 @@ func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 		env = append(env, name+"="+document.Contract.Env[name])
 	}
 	page.Env = strings.Join(env, "\n")
-	if document.Contract.AccessGroup != nil {
-		page.AccessGroup = strconv.FormatUint(uint64(*document.Contract.AccessGroup), 10)
-	}
-	page.Enforcement = string(document.Contract.Enforcement)
 	page.PolicyPath = "sys/policies/acl/" + document.OpenBaoPolicyName()
 	for _, key := range document.TransitKeys() {
 		if !permits(document.OpenBao.Policy, mounts.TransitMount+"/sign/"+key) {
@@ -730,8 +725,8 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	server.fillPolicyPage(&page, document)
 	page.NotForwardableTransitKeys = request.PostFormValue("not-forwardable-transit-keys")
 	page.NotForwardableCARoles = request.PostFormValue("not-forwardable-ca-roles")
-	page.TransitKeys, page.CARoles, page.Env, page.AccessGroup = request.PostFormValue("transit-keys"), request.PostFormValue("ca-roles"),
-		request.PostFormValue("env"), request.PostFormValue("access-group")
+	page.TransitKeys, page.CARoles, page.Env = request.PostFormValue("transit-keys"), request.PostFormValue("ca-roles"),
+		request.PostFormValue("env")
 	if stored, err := server.controller.Store().Policy(request.Context(), document.Name); err == nil {
 		page.Revision = stored.Policy.Revision
 	}
@@ -741,8 +736,7 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 
 func policyFromForm(request *http.Request) (policy.Policy, error) {
 	document := policy.New(strings.TrimSpace(request.PostFormValue("name")), strings.ReplaceAll(request.PostFormValue("hcl"), "\r\n", "\n"))
-	document.OpenBao.TokenTTL = strings.TrimSpace(request.PostFormValue("token-ttl"))
-	document.OpenBao.TokenMaxTTL = strings.TrimSpace(request.PostFormValue("token-max-ttl"))
+
 	transit, roles := lines(request.PostFormValue("transit-keys")), lines(request.PostFormValue("ca-roles"))
 	restrictedKeys := lines(request.PostFormValue("not-forwardable-transit-keys"))
 	restrictedRoles := lines(request.PostFormValue("not-forwardable-ca-roles"))
@@ -761,15 +755,6 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 		}
 		document.Contract.Env[strings.TrimSpace(name)] = strings.TrimSpace(value)
 	}
-	if group := strings.TrimSpace(request.PostFormValue("access-group")); group != "" {
-		parsed, err := strconv.ParseUint(group, 10, 32)
-		if err != nil {
-			return document, fmt.Errorf("the access group must be a number")
-		}
-		value := uint32(parsed)
-		document.Contract.AccessGroup = &value
-	}
-	document.Contract.Enforcement = policy.Enforcement(request.PostFormValue("enforcement"))
 	return document, nil
 }
 
@@ -981,4 +966,46 @@ func (server *Server) handleEndOtherSessions(writer http.ResponseWriter, request
 	current, _ := operatorFrom(request.Context())
 	_, _ = server.controller.Store().DeleteOtherSessions(request.Context(), current.session.Subject, current.session.IDHash)
 	http.Redirect(writer, request, "/security?notice=sessions", http.StatusSeeOther)
+}
+
+// bindingFromForm owns runtime settings independently of policy editing.
+func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
+	if err := request.ParseForm(); err != nil {
+		return controller.BindingRequest{}, fmt.Errorf("the binding form is invalid")
+	}
+	result := controller.BindingRequest{Policies: request.PostForm["policies"], Settings: policy.Settings{TokenTTL: strings.TrimSpace(request.PostFormValue("token-ttl")), TokenMaxTTL: strings.TrimSpace(request.PostFormValue("token-max-ttl")), Enforcement: policy.Enforcement(request.PostFormValue("enforcement"))}}
+	result.Settings = result.Settings.Defaults()
+	if group := strings.TrimSpace(request.PostFormValue("access-group")); group != "" {
+		n, err := strconv.ParseUint(group, 10, 32)
+		if err != nil {
+			return result, &controller.OperationError{Message: "access group must be a numeric GID"}
+		}
+		value := uint32(n)
+		result.Settings.AccessGroup = &value
+	}
+	if revision := request.PostFormValue("revision"); revision != "" {
+		n, err := strconv.Atoi(revision)
+		if err != nil {
+			return result, &controller.OperationError{Message: "binding revision is invalid"}
+		}
+		result.Revision = n
+	}
+	if err := result.Settings.Validate(); err != nil {
+		return result, &controller.OperationError{Message: err.Error()}
+	}
+	return result, nil
+}
+func (server *Server) handlePreviewBinding(writer http.ResponseWriter, request *http.Request) {
+	input, err := bindingFromForm(request)
+	var effective policy.Effective
+	if err == nil {
+		effective, err = server.controller.PreviewBinding(request.Context(), input)
+	}
+	writer.Header().Set("Content-Type", "application/json")
+	if err != nil {
+		writer.WriteHeader(http.StatusUnprocessableEntity)
+		_ = json.NewEncoder(writer).Encode(map[string]any{"error": problemMessage(err)})
+		return
+	}
+	_ = json.NewEncoder(writer).Encode(map[string]any{"effective": effective, "warnings": policy.Warnings(effective.OpenBao.Policy)})
 }

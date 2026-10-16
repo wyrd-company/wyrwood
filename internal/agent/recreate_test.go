@@ -49,9 +49,9 @@ func newRecreateAgentAt(t *testing.T, fake engine.Engine, paths Paths) *Agent {
 }
 
 func recreateBinding() protocol.Binding {
-	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
+	document := policy.New("recreate", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`).Runtime(policy.DefaultSettings())
 	document.Contract.Enforcement = policy.EnforcementRecreate
-	return protocol.Binding{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}
+	return protocol.Binding{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document, Assignment: (document).Identity()}
 }
 
 func runningApp(fake *enginetest.Fake) engine.Container {

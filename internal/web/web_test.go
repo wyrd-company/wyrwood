@@ -324,18 +324,12 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 	if invalid.status != http.StatusUnprocessableEntity || !strings.Contains(invalid.body, "OpenBao rejected the HCL policy") {
 		t.Fatalf("invalid policy = %d %s", invalid.status, invalid.body)
 	}
-	short := post(t, client, harness.site.URL+"/policies", url.Values{"csrf": {token}, "new": {"yes"}, "name": {"teal"},
-		"hcl": {`path "kv/data/teal/*" { capabilities = ["read"] }`}, "token-ttl": {"2h"}, "token-max-ttl": {"1h"},
-		"mount-target": {"/run/wyrwood"}, "enforcement": {"report"}})
-	if short.status != http.StatusUnprocessableEntity || !strings.Contains(short.body, "at least the token time-to-live") {
-		t.Fatalf("maximum below time-to-live = %d %s", short.status, short.body)
-	}
 	saved := post(t, client, harness.site.URL+"/policies", url.Values{"csrf": {token}, "new": {"yes"}, "name": {"teal"},
 		"hcl":       {`path "kv/data/teal/*" { capabilities = ["read"] }`},
 		"token-ttl": {"30m"}, "token-max-ttl": {"4h"}, "mount-target": {"/run/wyrwood"}, "env": {"VAULT_ADDR=unix://{mount-target}/vault.sock"},
 		"transit-keys": {""}, "enforcement": {"recreate"}})
 	if !strings.Contains(saved.body, "Policy saved") || !strings.Contains(saved.body, "Revision 1") ||
-		!regexp.MustCompile(`<input type="text"[^>]*name="token-max-ttl" value="4h"`).MatchString(saved.body) {
+		!strings.Contains(saved.body, "No explicit auth/token/renew-self") {
 		t.Fatalf("save = %s", saved.body)
 	}
 
@@ -347,16 +341,16 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 		t.Fatal(err)
 	}
 	containers := get(t, client, harness.site.URL+"/containers?agent=host-a")
-	if !strings.Contains(containers.body, "Bind by key") || !strings.Contains(containers.body, "shop/web") || !strings.Contains(containers.body, "recreate the container once") {
+	if !strings.Contains(containers.body, "Bind by key") || !strings.Contains(containers.body, "shop/web") || !strings.Contains(containers.body, "Recreate discards the writable layer") {
 		t.Fatalf("containers page = %s", containers.body)
 	}
 	unconfirmed := post(t, client, harness.site.URL+"/bindings", url.Values{"csrf": {token}, "agent": {"host-a"}, "container": {containerID},
-		"key": {"compose:shop/web"}, "policy": {"teal"}})
-	if !strings.Contains(unconfirmed.body, "Confirm that before binding") {
+		"key": {"compose:shop/web"}, "policies": {"teal"}, "enforcement": {"recreate"}})
+	if !strings.Contains(unconfirmed.body, "confirm before binding") {
 		t.Fatalf("recreate bind without confirmation = %s", unconfirmed.body)
 	}
 	bound := post(t, client, harness.site.URL+"/bindings", url.Values{"csrf": {token}, "agent": {"host-a"}, "container": {containerID},
-		"key": {"compose:shop/web"}, "policy": {"teal"}, "understood": {"yes"}})
+		"key": {"compose:shop/web"}, "policies": {"teal"}, "enforcement": {"recreate"}, "understood": {"yes"}})
 	if !strings.Contains(bound.body, "Policy bound") || !strings.Contains(bound.body, "Bound by compose key") {
 		t.Fatalf("bind = %s", bound.body)
 	}

@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"slices"
 	"sync"
 	"time"
 
@@ -32,7 +33,7 @@ type credentials struct {
 	record     func(events.Event)
 	keyOf      func(binding string) string
 	// report sends a binding's token accessor to the controller.
-	report func(binding, accessor string)
+	report func(binding, assignment, accessor string)
 
 	// reportMu orders reports so the last one sent for a binding carries
 	// its current token's accessor.
@@ -49,7 +50,8 @@ type credentials struct {
 }
 
 type heldToken struct {
-	token openbao.Token
+	assignment string
+	token      openbao.Token
 	// period is the time-to-live the token had at login, which each
 	// renewal asks for again. A renewal that returns less was capped by
 	// the token's maximum lifetime.
@@ -60,7 +62,7 @@ type heldToken struct {
 func newCredentials(timeout time.Duration, request func(string), record func(events.Event), keyOf func(string) string) *credentials {
 	return &credentials{
 		timeout: timeout, retryDelay: time.Second, now: time.Now, request: request, record: record, keyOf: keyOf,
-		report: func(string, string) {},
+		report: func(string, string, string) {},
 		held:   map[string]*heldToken{}, generation: map[string]uint64{}, recorded: map[string]string{},
 	}
 }
@@ -110,10 +112,18 @@ func (manager *credentials) begin(binding string) uint64 {
 }
 
 // invalidate makes every delivery already begun for binding stale.
-func (manager *credentials) invalidate(binding string) {
+func (manager *credentials) invalidate(binding string) uint64 {
 	manager.mu.Lock()
-	defer manager.mu.Unlock()
-	manager.advanceLocked(binding)
+	generation := manager.advanceLocked(binding)
+	held := manager.held[binding]
+	delete(manager.held, binding)
+	delete(manager.recorded, binding)
+	manager.mu.Unlock()
+	if held != nil {
+		held.cancel()
+		go manager.revoke(binding, held.token)
+	}
+	return generation
 }
 
 func (manager *credentials) advanceLocked(binding string) uint64 {
@@ -126,7 +136,7 @@ func (manager *credentials) advanceLocked(binding string) uint64 {
 // The previous token is revoked once the new one is held. A token from a
 // stale delivery is revoked instead of held. A failed delivery asks the
 // controller for another credential until a newer delivery begins.
-func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64) {
+func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64, ownPolicies []string) {
 	client := manager.openBaoClient()
 	started := manager.now()
 	if client == nil {
@@ -140,6 +150,10 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 	var token openbao.Token
 	if err == nil {
 		token, err = openbao.AppRoleLogin(operation, client, credential.AppRoleMount, credential.RoleID, secretID)
+	}
+	if err == nil && !samePolicies(token.Policies, ownPolicies) {
+		manager.revoke(credential.Binding, token)
+		err = &openbao.Error{Category: openbao.CategoryDenied}
 	}
 	manager.recordOutcome(events.OperationLogin, credential.Binding, started, err)
 	if err != nil {
@@ -155,7 +169,7 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 		return
 	}
 	previous := manager.held[credential.Binding]
-	manager.held[credential.Binding] = &heldToken{token: token, period: token.TTL, cancel: renewCancel}
+	manager.held[credential.Binding] = &heldToken{assignment: credential.Assignment, token: token, period: token.TTL, cancel: renewCancel}
 	manager.mu.Unlock()
 	if previous != nil {
 		previous.cancel()
@@ -170,13 +184,14 @@ func (manager *credentials) reportAccessor(binding string) {
 	manager.reportMu.Lock()
 	defer manager.reportMu.Unlock()
 	manager.mu.Lock()
-	var accessor string
+	var accessor, assignment string
 	if held, ok := manager.held[binding]; ok {
+		assignment = held.assignment
 		accessor = held.token.Accessor
 	}
 	manager.mu.Unlock()
 	if accessor != "" {
-		manager.report(binding, accessor)
+		manager.report(binding, assignment, accessor)
 	}
 }
 
@@ -187,15 +202,15 @@ func (manager *credentials) reportUnrecorded() {
 	manager.reportMu.Lock()
 	defer manager.reportMu.Unlock()
 	manager.mu.Lock()
-	pending := map[string]string{}
+	pending := map[string]struct{ assignment, accessor string }{}
 	for binding, held := range manager.held {
 		if accessor := held.token.Accessor; accessor != "" && manager.recorded[binding] != accessor {
-			pending[binding] = accessor
+			pending[binding] = struct{ assignment, accessor string }{held.assignment, accessor}
 		}
 	}
 	manager.mu.Unlock()
-	for binding, accessor := range pending {
-		manager.report(binding, accessor)
+	for binding, held := range pending {
+		manager.report(binding, held.assignment, held.accessor)
 	}
 }
 
@@ -389,4 +404,13 @@ func outcomeOf(code events.ErrorCode) events.Outcome {
 	default:
 		return events.OutcomeFailed
 	}
+}
+
+// samePolicies enforces exact issued-token membership, including implicit and identity policies.
+func samePolicies(actual, own []string) bool {
+	actual = append([]string(nil), actual...)
+	own = append([]string(nil), own...)
+	slices.Sort(actual)
+	slices.Sort(own)
+	return len(own) > 0 && slices.Equal(actual, own)
 }

@@ -15,12 +15,9 @@ objective: >-
   enforcement on the binding.
 background:
   current-design: >-
-    SQLite schema version 1 stores one policy name in bindings.policy and a
-    complete JSON document in policies.document. The document includes
-    openbao.token-ttl, openbao.token-max-ttl, contract.access-group, and
-    contract.enforcement. An agent-controller version 1 policy-set embeds a
-    policy document per binding; the agent caches that shape on disk. The
-    local control protocol and CLI JSON projection are also version 1.
+    Reusable policy documents contain HCL, SSH identities, and mount/env
+    requirements. Each container binding owns its selected policies and
+    runtime settings. Agents use resolved assignments and memory-only tokens.
   problems:
     - A binding has only one reusable source of HCL, SSH identities, and contract requirements.
     - Policy settings couple independent containers' token lifetime and socket access.
@@ -60,7 +57,7 @@ proposed-design:
     VAULT_ADDR templates. A policy's revision identifies its complete content.
   binding-model: >-
     A binding contains id, agent, container key, a policies array of unique
-    names, revision, role, settings, creation metadata, and update metadata.
+    names, revision, role, settings, and creation metadata.
     The controller validates every selected name and resolves every reference;
     unknown names, an empty selection, and repeated names are errors.
     Canonical storage and display sort policy names; selection order has no
@@ -71,7 +68,7 @@ proposed-design:
     syntax, validation, renewal schedule, and finite lifetime behavior.
     Access-group is an optional numeric GID with the existing numeric bounds;
     absence retains owner-only directory and socket access. Enforcement is
-    report by default or recreate. Policy changes cannot change these values.
+    report by default or recreate. Source policy edits cannot change these values.
   persistence: >-
     A binding_policies join table uses (binding_id, policy_name) as its primary
     key, references bindings with delete cascade, and references policies
@@ -107,7 +104,9 @@ proposed-design:
     offering and the ACL grant come from different selected policies. Wyrwood
     does not infer an ACL grant from an offered identity. Not-forwardable
     selectors union by source type, then intersect with the effective offered
-    identities; a selector alone never adds an identity. A restriction from any selected policy is effective. Listing and signing consult the current result on every request,
+    identities; a selector alone never adds an identity. A restriction from any
+    selected policy is effective. Listing and signing consult the current
+    result on every request,
     including already open SSH-agent connections.
   contract-composition: >-
     Composition requires equal canonical mount-target
@@ -143,8 +142,10 @@ proposed-design:
     exactly S(b); for policies alpha and beta, it is [wyrwood-alpha,
     wyrwood-beta]. The controller derives this list from resolved records and
     accepts no raw OpenBao policy names from a form, API client, or agent.
-    The role writer validates exact set equality with S(b), not merely the
-    wyrwood- prefix. Extra managed names, missing names, default, root, the
+    The controller checks exact equality between stored membership and
+    resolved source names before deriving the role list. The agent checks
+    actual issued-token policies against S(b). Extra managed names,
+    missing names, default, root, the
     controller policy, and arbitrary names are refused as explicit policies.
     This preserves the rule that the controller refuses any token policy
     outside the binding's own. Per-policy HCL stays at wyrwood-<policy-name>;
@@ -178,7 +179,8 @@ proposed-design:
     installed. This includes settings and source revision edits even when
     selected names stay equal. An HCL edit under an already attached name
     takes effect in OpenBao for existing tokens; changing role membership does not change the
-    policy names on an already issued token. Runtime revocation records the desired transition, updates the AppRole, revokes the previous
+    policy names on an already issued token. Runtime revocation records the
+    desired transition, updates the AppRole, revokes the previous
     reported accessor, then permits fresh credential delivery. The agent stops
     using a superseded token and self-revokes it. Accessors reported for old
     assignments are revoked without replacing the current accessor record.
@@ -188,9 +190,14 @@ proposed-design:
     An offline agent can retain a token whose accessor was never reported;
     immediate revocation cannot be promised for that token. Its existing
     finite maximum lifetime remains the outage bound. The UI distinguishes
-    desired, AppRole-applied, and agent-observed state. SQLite/OpenBao partial
+    desired and applied state alongside the last contract report. SQLite/OpenBao partial
     failures retain enough assignment state to reconcile without widening the
-    allowed policy set or claiming success. Unbind retains role deletion,
+    allowed policy set or claiming success. Failed SQLite publication restores
+    the previous HCL; startup rewrites stored HCL before applying assignments.
+    Failed restoration blocks fresh issuance until stored HCL is restored.
+    OpenBao policy names remain stable, so live tokens observe accepted HCL
+    writes immediately, before the assignment transition completes.
+    Unbind retains role deletion,
     retirement, reported-accessor revocation, and directory retention behavior.
   enforcement-and-access-group: >-
     Binding create and edit own the recreate acknowledgement. Automatic
@@ -261,15 +268,15 @@ proposed-design:
   cli-and-events: >-
     wyrwood agent containers shows all policy names, in sorted order, in a
     Policies column. Its JSON containers entries use policies as an array and
-    include binding revision and source revisions for diagnosis; the containers
+    include the immutable assignment identity for diagnosis; the containers
     projection and local control protocol use version 2. Unbound entries use
     an empty array. The CLI continues to use the owner-only local control socket;
     runtime commands gain no policy editing or direct state-file access.
     Environment values and credentials stay out of CLI output and events.
-    Binding events identify the binding, revision, and policy names; a
-    policy-edit event identifies its one source policy. Event filtering matches
-    any member name rather than joining names into a misleading singular field.
-    Events use the version 2 policy-list shape.
+    Binding transition events emit one record per selected source name using
+    the existing singular policy metadata, so filtering finds each member.
+    A policy-edit event identifies its one source policy. Event records retain
+    their existing closed shape.
   upgrade-and-reset: >-
     The upgrade requires a clean controller state and an OpenBao namespace
     reset. There is no database, policy-document, binding, or cache migration.

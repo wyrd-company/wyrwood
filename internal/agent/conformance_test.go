@@ -38,7 +38,7 @@ func TestConformanceRequiresConsumerSockets(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer instance.shutdown()
-			document := policy.New("teal", "")
+			document := policy.New("teal", policy.StarterHCL+"").Runtime(policy.DefaultSettings())
 			if scenario == "owner-only denied" {
 				document.Contract.Enforcement = policy.EnforcementRecreate
 				instance.config.AllowRecreate = true
@@ -48,7 +48,7 @@ func TestConformanceRequiresConsumerSockets(t *testing.T) {
 				group := uint32(os.Getegid())
 				document.Contract.AccessGroup = &group
 			}
-			bound := protocol.Binding{Binding: "b-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}
+			bound := protocol.Binding{Binding: "b-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document, Assignment: (document).Identity()}
 			app := engine.Container{ID: "container-1", Name: "/app"}
 			if scenario == "owner-only denied" || strings.HasPrefix(scenario, "group ") {
 				app.Config.User = "12345"

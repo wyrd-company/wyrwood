@@ -214,22 +214,13 @@ func (session *agentSession) push(ctx context.Context) error {
 	}
 	matched := MatchBindings(containers, bindings)
 	set := protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{}}
-	policies := map[string]store.StoredPolicy{}
 	var issue []store.Binding
 	session.mu.Lock()
 	session.matched = map[string]bool{}
 	for _, binding := range matched {
-		stored, ok := policies[binding.Policy]
-		if !ok {
-			stored, err = controller.store.Policy(readCtx, binding.Policy)
-			if err != nil {
-				continue
-			}
-			policies[binding.Policy] = stored
-		}
-		set.Bindings = append(set.Bindings, protocol.Binding{Binding: binding.ID, Key: binding.Key, Policy: stored.Policy})
+		set.Bindings = append(set.Bindings, protocol.Binding{Binding: binding.ID, Key: binding.Key, Policy: binding.Effective, Assignment: binding.Assignment()})
 		session.matched[binding.ID] = true
-		if session.credentialed[binding.ID] != binding.Policy {
+		if session.credentialed[binding.ID] != binding.Assignment() {
 			issue = append(issue, binding)
 		}
 	}
@@ -254,6 +245,21 @@ func (session *agentSession) push(ctx context.Context) error {
 // recorded and do not end the session; the agent asks again later.
 func (session *agentSession) issue(ctx context.Context, binding store.Binding) error {
 	controller := session.controller
+	controller.mutationMu.Lock()
+	defer controller.mutationMu.Unlock()
+	if controller.policySyncPending {
+		if err := controller.syncPolicies(ctx); err != nil {
+			return nil
+		}
+	}
+	current, lookup := controller.store.Binding(ctx, binding.ID)
+	if lookup != nil || current.Agent != session.agent || current.Assignment() != binding.Assignment() {
+		return nil
+	}
+	binding = current
+	if err := controller.applyBinding(ctx, binding); err != nil {
+		return nil
+	}
 	started := controller.now()
 	issueCtx, cancel := context.WithTimeout(ctx, operationTimeout)
 	defer cancel()
@@ -266,18 +272,18 @@ func (session *agentSession) issue(ctx context.Context, binding store.Binding) e
 	if err != nil {
 		code = openBaoError(err)
 	}
-	controller.record(events.Event{Operation: events.OperationCredentialIssued, Outcome: outcomeFor(code), ErrorCode: code,
-		Agent: session.agent, Binding: binding.ID, Policy: binding.Policy, Latency: controller.now().Sub(started)})
+	controller.recordBinding(binding, events.Event{Operation: events.OperationCredentialIssued, Outcome: outcomeFor(code), ErrorCode: code,
+		Agent: session.agent, Binding: binding.ID, Latency: controller.now().Sub(started)})
 	if err != nil {
 		return nil
 	}
 	if err := session.conn.Send(protocol.Credential{
-		Binding: binding.ID, AppRoleMount: controller.openbao.Mounts().AppRole, RoleID: roleID, WrappedSecretID: wrapped,
+		Binding: binding.ID, Assignment: binding.Assignment(), AppRoleMount: controller.openbao.Mounts().AppRole, RoleID: roleID, WrappedSecretID: wrapped,
 	}); err != nil {
 		return err
 	}
 	session.mu.Lock()
-	session.credentialed[binding.ID] = binding.Policy
+	session.credentialed[binding.ID] = binding.Assignment()
 	session.mu.Unlock()
 	return nil
 }
@@ -380,8 +386,20 @@ func (session *agentSession) recordAccessor(ctx context.Context, report protocol
 	case err == nil && binding.Agent != session.agent:
 		return session.conn.Send(report.Acknowledge())
 	case err == nil:
-		err = controller.store.SaveTokenAccessor(ctx, report.Binding, report.Accessor, controller.now())
+		if report.Assignment != binding.Assignment() || !binding.Applied {
+			if err := controller.openbao.RevokeAccessor(ctx, report.Accessor); err != nil {
+				return nil
+			}
+			return session.conn.Send(report.Acknowledge())
+		}
+		err = controller.store.SaveAssignmentAccessor(ctx, binding, report.Accessor, controller.now())
 		if err == nil {
+			return session.conn.Send(report.Acknowledge())
+		}
+		if errors.Is(err, store.ErrConflict) {
+			if err := controller.openbao.RevokeAccessor(ctx, report.Accessor); err != nil {
+				return nil
+			}
 			return session.conn.Send(report.Acknowledge())
 		}
 		// The binding may have been retired since it was read.

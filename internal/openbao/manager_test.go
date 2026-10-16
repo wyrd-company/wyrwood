@@ -56,7 +56,9 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	server, manager := testManager(t)
 	server.WriteKV(t, "teams/teal/example", map[string]any{"value": "teal-secret"})
 
-	if err := manager.WritePolicy(ctx, "wyrwood-teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`); err != nil {
+	if err := manager.WritePolicy(ctx, "wyrwood-teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }
+path "auth/token/renew-self" { capabilities = ["update"] }
+path "auth/token/revoke-self" { capabilities = ["update"] }`); err != nil {
 		t.Fatalf("WritePolicy() = %v", err)
 	}
 	if err := manager.WritePolicy(ctx, "wyrwood-broken", `path "kv/*" { capabilities = [`); CategoryOf(err) != CategoryInvalid {
@@ -65,7 +67,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	if err := manager.WritePolicy(ctx, "outside-prefix", `path "kv/*" {}`); CategoryOf(err) != CategoryInvalid {
 		t.Fatalf("WritePolicy(outside prefix) = %v", err)
 	}
-	if err := manager.WriteRole(ctx, "wyrwood-host-b-1", "wyrwood-teal", 20*time.Minute, 3*time.Hour); err != nil {
+	if err := manager.WriteRole(ctx, "wyrwood-host-b-1", []string{"wyrwood-teal"}, 20*time.Minute, 3*time.Hour); err != nil {
 		t.Fatalf("WriteRole() = %v", err)
 	}
 	written, err := server.Root.Logical().Read("auth/approle/role/wyrwood-host-b-1")
@@ -99,7 +101,7 @@ func TestBindingAppRoleLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AppRoleLogin() = %v", err)
 	}
-	if strings.Join(token.Policies, ",") != "default,wyrwood-teal" || token.TTL != 20*time.Minute {
+	if strings.Join(token.Policies, ",") != "wyrwood-teal" || token.TTL != 20*time.Minute {
 		t.Fatalf("token policies = %v ttl = %v", token.Policies, token.TTL)
 	}
 	if _, err := AppRoleLogin(ctx, agentClient, "approle", roleID, secretID); err == nil {
@@ -192,7 +194,7 @@ func TestBindingRolesCarryOnlyManagedPolicies(t *testing.T) {
 	_, manager := testManager(t)
 	for _, policyName := range []string{baotest.ControllerName, "root", "default", "wyrwood-", ""} {
 		var invalid *Error
-		if err := manager.WriteRole(ctx, "wyrwood-host-a-1", policyName, time.Hour, time.Hour); !errors.As(err, &invalid) || invalid.Category != CategoryInvalid {
+		if err := manager.WriteRole(ctx, "wyrwood-host-a-1", []string{policyName}, time.Hour, time.Hour); !errors.As(err, &invalid) || invalid.Category != CategoryInvalid {
 			t.Errorf("WriteRole(policy %q) = %v, want invalid", policyName, err)
 		}
 	}

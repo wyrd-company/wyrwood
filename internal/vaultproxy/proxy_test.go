@@ -115,7 +115,7 @@ path "kv/data/teams/teal/*" { capabilities = ["read"] }
 path "transit/encrypt/teal-aes" { capabilities = ["update"] }
 path "sys/wrapping/wrap" { capabilities = ["update"] }
 `)
-	view := binding.View{ID: "b-1", ContainerKey: "name:web", Policy: policy.New("teal", ""), OpenBao: protocol.OpenBao{Address: bao.Address, Namespace: bao.Namespace},
+	view := binding.View{ID: "b-1", ContainerKey: "name:web", Policy: (policy.New("teal", "")).Runtime(policy.DefaultSettings()), OpenBao: protocol.OpenBao{Address: bao.Address, Namespace: bao.Namespace},
 		Mounts: binding.Mounts{Transit: "transit", SSH: "ssh"}, Token: token, HasToken: true}
 	fixture := serveFixture(t, view)
 	client := containerClient(t, fixture.socket)

@@ -51,7 +51,8 @@ type OpenBao interface {
 	Maintain(ctx context.Context, retry time.Duration)
 	Mounts() openbao.Mounts
 	WritePolicy(ctx context.Context, name, hcl string) error
-	WriteRole(ctx context.Context, role, policyName string, tokenTTL, tokenMaxTTL time.Duration) error
+	DeletePolicy(ctx context.Context, name string) error
+	WriteRole(ctx context.Context, role string, policyNames []string, tokenTTL, tokenMaxTTL time.Duration) error
 	DeleteRole(ctx context.Context, role string) error
 	RevokeAccessor(ctx context.Context, accessor string) error
 	RoleID(ctx context.Context, role string) (string, error)
@@ -67,15 +68,17 @@ type OpenBao interface {
 
 // Controller is one running controller.
 type Controller struct {
-	config  config.Controller
-	store   *store.Store
-	openbao OpenBao
-	events  *events.Store
-	agentOB protocol.OpenBao
-	hub     *hub
-	log     io.Writer
-	now     func() time.Time
-	updates *updates.Checker
+	mutationMu        sync.Mutex
+	policySyncPending bool
+	config            config.Controller
+	store             *store.Store
+	openbao           OpenBao
+	events            *events.Store
+	agentOB           protocol.OpenBao
+	hub               *hub
+	log               io.Writer
+	now               func() time.Time
+	updates           *updates.Checker
 
 	healthMu      sync.Mutex
 	healthChecked time.Time
@@ -185,6 +188,11 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 	}
 	cancel()
 	go controller.openbao.Maintain(ctx, loginRetryInterval)
+	recoveryCtx, recoveryCancel := context.WithTimeout(ctx, operationTimeout)
+	if err := controller.reconcileBindings(recoveryCtx); err != nil {
+		controller.logf("binding recovery pending; affected credentials remain blocked")
+	}
+	recoveryCancel()
 
 	server, err := controller.newSSHServer(signer)
 	if err != nil {

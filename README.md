@@ -121,3 +121,6 @@ event that triggers it. Documentation publishing uses these separate secrets:
 
 - `WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`
 - `WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`
+
+See [Upgrade](docs/upgrade.md) for the required controller-state and OpenBao
+namespace reset when moving to composable policy bindings.

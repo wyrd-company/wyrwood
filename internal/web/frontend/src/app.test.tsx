@@ -4,7 +4,7 @@
 // ---
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import type {
   ContainerRow,
@@ -48,17 +48,16 @@ const policy: PolicyData = {
   Revision: 1,
   Bindings: 1,
   Agents: 1,
+  Warnings: [],
   HCL: 'path "sample/*" { capabilities = ["read"] }',
-  TokenTTL: "30m",
-  TokenMaxTTL: "8h",
+
   TransitKeys: "sample-key",
   CARoles: "sample-role",
   NotForwardableTransitKeys: "sample-restricted-key",
   NotForwardableCARoles: "sample-restricted-role",
   MountTarget: "/run/sample",
   Env: "EXAMPLE=value",
-  AccessGroup: "",
-  Enforcement: "report",
+
   Unpermitted: ["sample-key"],
   PolicyPath: "sys/policies/acl/sample",
 };
@@ -69,7 +68,21 @@ const row: ContainerRow = {
   State: "running",
   KeyKind: "name",
   KeyValue: "sample-container",
-  Policy: "sample",
+  Policies: ["sample"],
+  Revision: 1,
+  Applied: true,
+  Warnings: [],
+  Settings: { "token-ttl": "1h", "token-max-ttl": "8h", enforcement: "report" },
+  Effective: {
+    sources: [],
+    openbao: { policy: "" },
+    contract: { "mount-target": "/run/sample", enforcement: "report" },
+    settings: {
+      "token-ttl": "1h",
+      "token-max-ttl": "8h",
+      enforcement: "report",
+    },
+  },
   Badge: "Report",
   BadgeClass: "neutral",
   Bound: false,
@@ -327,57 +340,53 @@ it("preserves every policy value, edit/new identity, validation feedback and acc
   const user = userEvent.setup();
   draw({
     page: "policy",
-    data: { ...policy, Problem: "Sample validation failure" },
+    data: {
+      ...policy,
+      Problem: "Sample validation failure",
+      Warnings: ["Token lifecycle HCL is missing"],
+    },
   });
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Sample validation failure",
   );
   expect(screen.getByRole("status")).toHaveTextContent(
-    "No access group: the directory is 0700",
+    "Token lifecycle HCL is missing",
   );
   const fields = {
     new: "yes",
     name: policy.Name,
     hcl: policy.HCL,
-    "token-ttl": policy.TokenTTL,
-    "token-max-ttl": policy.TokenMaxTTL,
     "transit-keys": policy.TransitKeys,
     "ca-roles": policy.CARoles,
     "not-forwardable-transit-keys": policy.NotForwardableTransitKeys,
     "not-forwardable-ca-roles": policy.NotForwardableCARoles,
     "mount-target": policy.MountTarget,
     env: policy.Env,
-    "access-group": "",
-    enforcement: "report",
   };
   expectPost("Save and validate", "/policies", fields);
   await user.clear(screen.getByLabelText("OpenBao policy HCL"));
   await user.type(screen.getByLabelText("OpenBao policy HCL"), "sample hcl");
-  await user.click(
-    screen.getByRole("radio", { name: /Recreate at bind time/ }),
-  );
   expectPost("Save and validate", "/policies", {
     hcl: "sample hcl",
-    enforcement: "recreate",
   });
   expect(
     screen.getByText(/sample-key is not allowed by the HCL/),
   ).toBeInTheDocument();
 });
-it.each(["1000", "0"])(
-  "keeps numeric group %s without an empty-group warning",
-  (AccessGroup) => {
-    draw({ page: "policy", data: { ...policy, New: false, AccessGroup } });
+it.each([1000, 0])(
+  "keeps binding access group %s without an owner-only warning",
+  (group) => {
+    const data = containers(true);
+    data.Selected = {
+      ...data.Selected,
+      Settings: { ...data.Selected.Settings, "access-group": group },
+    };
+    draw({ page: "containers", data });
     expect(screen.queryByText(/No access group:/)).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
-    expectPost("Save and validate", "/policies", {
-      name: "sample",
-      "access-group": AccessGroup,
+    expectPost("Save binding", "/bindings/sample-binding/policy", {
+      "access-group": String(group),
+      policies: "sample",
     });
-    expect(new FormData(formFor("Save and validate")).has("new")).toBe(false);
-    expect(
-      screen.getByText(/Revision 1 · bound to 1 container on 1 agent/),
-    ).toBeInTheDocument();
   },
 );
 
@@ -390,7 +399,7 @@ function containers(Bound: boolean) {
     Connected: false,
     Rows: [{ ...row, Bound }],
     Selected: { ...row, Bound },
-    Policies: [{ Name: "sample", Enforcement: "recreate", Selected: true }],
+    Policies: [{ Name: "sample", Selected: true }],
     Recreate: ["sample"],
   };
 }
@@ -406,25 +415,25 @@ it("preserves container filtering, selection, binding keys and explicit recreate
     "href",
     "/containers?agent=sample-host&container=sample-id",
   );
-  expectPost("Bind policy", "/bindings", {
+  expectPost("Bind policies", "/bindings", {
     agent: "sample-host",
     container: "sample-id",
     key: "name:sample-container",
-    policy: "sample",
+    policies: "sample",
   });
-  expect(new FormData(formFor("Bind policy")).has("understood")).toBe(false);
-  expect(screen.getByRole("note")).toHaveTextContent(
-    "writable layer is discarded",
-  );
-  await userEvent.click(screen.getByRole("checkbox"));
-  expectPost("Bind policy", "/bindings", { understood: "yes" });
+  expect(new FormData(formFor("Bind policies")).has("understood")).toBe(false);
+  expect(
+    screen.getByText(/Recreate discards the writable layer/),
+  ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("checkbox", { name: /I understand/ }));
+  expectPost("Bind policies", "/bindings", { understood: "yes" });
 });
 it("keeps bound container diagnostics, change policy, and confirmation links", () => {
   draw({ page: "containers", data: containers(true) });
   expect(screen.getByText("sample check")).toBeInTheDocument();
   expect(screen.getByText("FAIL")).toBeInTheDocument();
-  expectPost("Change policy", "/bindings/sample-binding/policy", {
-    policy: "sample",
+  expectPost("Save binding", "/bindings/sample-binding/policy", {
+    policies: "sample",
   });
   expect(
     screen.getByRole("link", { name: "Request recreate" }),
@@ -440,7 +449,7 @@ it("shows a policy creation link when no policy can be bound", () => {
     "/policies/edit",
   );
   expect(
-    screen.queryByRole("button", { name: "Bind policy" }),
+    screen.queryByRole("button", { name: "Bind policies" }),
   ).not.toBeInTheDocument();
 });
 it.each([false, true])(
@@ -494,7 +503,7 @@ it("keeps policy revision, binding totals, saved operator and editor link", () =
         {
           Name: "sample",
           Revision: 2,
-          Enforcement: "report",
+
           Bindings: 1,
           Agents: 1,
           SavedAt: "0001-01-01T00:00:00Z",
@@ -779,3 +788,69 @@ it.each([
       expect(within(panel).getByText("Update available")).toBeInTheDocument();
   },
 );
+
+it("previews several selected policies with binding settings and renewal warning", async () => {
+  const user = userEvent.setup();
+  const data = containers(false);
+  data.Policies.push({ Name: "second", Selected: false });
+  const effective = {
+    ...row.Effective,
+    sources: [
+      { name: "sample", revision: 1, hcl: "sample HCL" },
+      { name: "second", revision: 2, hcl: "second HCL" },
+    ],
+    openbao: { policy: "combined source HCL" },
+  };
+  const fetcher = vi.fn().mockResolvedValue({
+    ok: true,
+    json: async () => ({
+      effective,
+      warnings: ["No explicit renew-self update grant"],
+    }),
+  });
+  vi.stubGlobal("fetch", fetcher);
+  try {
+    draw({ page: "containers", data });
+    await user.click(screen.getByRole("checkbox", { name: "second" }));
+    await user.click(
+      screen.getByRole("button", { name: "Preview effective policy" }),
+    );
+    expect(await screen.findByText("combined source HCL")).toBeInTheDocument();
+    expect(
+      screen.getByText("No explicit renew-self update grant"),
+    ).toBeInTheDocument();
+    const [url, request] = fetcher.mock.calls[0];
+    expect(url).toBe("/bindings/preview");
+    expect(request.body.getAll("policies")).toEqual(["sample", "second"]);
+    expect(request.body.get("csrf")).toBe("sample-csrf");
+    expect(request.body.get("token-ttl")).toBe("1h");
+    await user.click(screen.getByRole("checkbox", { name: "second" }));
+    expect(screen.queryByText("combined source HCL")).not.toBeInTheDocument();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});
+
+it("shows a composition conflict without losing the selected policies", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({
+        error: "Policies require different mount targets",
+      }),
+    }),
+  );
+  try {
+    draw({ page: "containers", data: containers(false) });
+    await userEvent.click(
+      screen.getByRole("button", { name: "Preview effective policy" }),
+    );
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "different mount targets",
+    );
+    expect(screen.getByRole("checkbox", { name: "sample" })).toBeChecked();
+  } finally {
+    vi.unstubAllGlobals();
+  }
+});

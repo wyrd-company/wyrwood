@@ -30,9 +30,9 @@ func newBoundApp(t *testing.T) (*enginetest.Fake, *Agent) {
 	fake := enginetest.New()
 	runningApp(fake)
 	instance := newRecreateAgent(t, fake)
-	document := policy.New("report", `path "kv/data/app/*" { capabilities = ["read"] }`)
+	document := policy.New("report", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`)
 	instance.applyPolicySet(ctx, protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:1"},
-		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}}})
+		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: (document).Runtime(policy.DefaultSettings()), Assignment: ((document).Runtime(policy.DefaultSettings())).Identity()}}})
 	if err := instance.fullReconcile(ctx); err != nil {
 		t.Fatal(err)
 	}
@@ -171,9 +171,9 @@ func TestManualRecreateKeepsConsumerDirectoryAcrossBindingWithdrawal(t *testing.
 func TestNameBindingPreparesDirectoryBeforeContainerExists(t *testing.T) {
 	fake := enginetest.New()
 	instance := newRecreateAgent(t, fake)
-	document := policy.New("report", `path "kv/data/example/*" { capabilities = ["read"] }`)
+	document := policy.New("report", policy.StarterHCL+`path "kv/data/example/*" { capabilities = ["read"] }`)
 	instance.applyPolicySet(context.Background(), protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:1"},
-		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: document}}})
+		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: (document).Runtime(policy.DefaultSettings()), Assignment: ((document).Runtime(policy.DefaultSettings())).Identity()}}})
 	if _, err := os.Stat(instance.root.DirectoryPath("app")); err != nil {
 		t.Fatalf("directory before container exists: %v", err)
 	}
@@ -182,9 +182,9 @@ func TestNameBindingPreparesDirectoryBeforeContainerExists(t *testing.T) {
 func TestLabelBindingDoesNotCreateDirectoryFromKeyValue(t *testing.T) {
 	fake := enginetest.New()
 	instance := newRecreateAgent(t, fake)
-	document := policy.New("report", `path "kv/data/example/*" { capabilities = ["read"] }`)
+	document := policy.New("report", policy.StarterHCL+`path "kv/data/example/*" { capabilities = ["read"] }`)
 	instance.applyPolicySet(context.Background(), protocol.PolicySet{OpenBao: protocol.OpenBao{Address: "http://127.0.0.1:1"},
-		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyDevcontainer, Value: "workspace"}, Policy: document}}})
+		Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyDevcontainer, Value: "workspace"}, Policy: (document).Runtime(policy.DefaultSettings()), Assignment: ((document).Runtime(policy.DefaultSettings())).Identity()}}})
 	if _, err := os.Stat(instance.root.DirectoryPath("workspace")); !os.IsNotExist(err) {
 		t.Fatalf("label value used as container name: %v", err)
 	}

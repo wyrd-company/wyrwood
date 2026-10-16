@@ -17,7 +17,7 @@ import (
 )
 
 // Version is the only protocol version.
-const Version = 1
+const Version = 2
 
 // SubsystemName is the SSH subsystem agents open.
 const SubsystemName = "wyrwood"
@@ -236,9 +236,10 @@ type OpenBao struct {
 
 // Binding is one binding that matches a container in the latest inventory.
 type Binding struct {
-	Binding string        `json:"binding"`
-	Key     Key           `json:"key"`
-	Policy  policy.Policy `json:"policy"`
+	Binding    string           `json:"binding"`
+	Key        Key              `json:"key"`
+	Policy     policy.Effective `json:"policy"`
+	Assignment string           `json:"assignment"`
 }
 
 // PolicySet carries every binding matching the latest inventory.
@@ -249,6 +250,7 @@ type PolicySet struct {
 
 // Credential carries one binding's AppRole role and wrapped secret identifier.
 type Credential struct {
+	Assignment      string `json:"assignment"`
 	Binding         string `json:"binding"`
 	AppRoleMount    string `json:"approle-mount"`
 	RoleID          string `json:"role-id"`
@@ -277,16 +279,18 @@ type Unbind struct {
 // binding, so the controller can revoke that token when the binding is
 // deleted. It replaces any accessor reported for the binding before.
 type TokenAccessor struct {
-	Binding  string `json:"binding"`
-	Accessor string `json:"accessor"`
+	Assignment string `json:"assignment"`
+	Binding    string `json:"binding"`
+	Accessor   string `json:"accessor"`
 }
 
 // AccessorRecorded acknowledges a token accessor the controller has stored,
 // revoked because its binding was already retired, or discarded because the
 // binding never belonged to the agent. It echoes the report.
 type AccessorRecorded struct {
-	Binding  string `json:"binding"`
-	Accessor string `json:"accessor"`
+	Assignment string `json:"assignment"`
+	Binding    string `json:"binding"`
+	Accessor   string `json:"accessor"`
 }
 
 // Acknowledge returns the acknowledgement of report.
@@ -374,6 +378,9 @@ func (message PolicySet) Validate() error {
 		if err := binding.Key.Validate(); err != nil {
 			return err
 		}
+		if !ValidID(binding.Assignment) {
+			return errors.New("binding assignment is invalid")
+		}
 		if err := binding.Policy.Validate(); err != nil {
 			return err
 		}
@@ -385,6 +392,9 @@ func (message PolicySet) Validate() error {
 func (message Credential) Validate() error {
 	if err := validateID(message.Binding); err != nil {
 		return err
+	}
+	if !ValidID(message.Assignment) {
+		return errors.New("credential assignment is invalid")
 	}
 	if message.AppRoleMount == "" || message.RoleID == "" || message.WrappedSecretID == "" {
 		return errors.New("credential must carry an AppRole mount, role identifier, and wrapped secret identifier")
@@ -402,6 +412,9 @@ func (message Unbind) Validate() error { return validateID(message.Binding) }
 func (message TokenAccessor) Validate() error {
 	if err := validateID(message.Binding); err != nil {
 		return err
+	}
+	if !ValidID(message.Assignment) {
+		return errors.New("accessor assignment is invalid")
 	}
 	if !ValidAccessor(message.Accessor) {
 		return errors.New("token accessor is invalid")

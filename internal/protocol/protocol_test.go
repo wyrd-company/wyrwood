@@ -34,17 +34,17 @@ func sampleMessages() []Message {
 		ContractResult{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonCreateFailed},
 		CredentialRequest{Binding: "b-1"},
 		PolicySet{OpenBao: OpenBao{Address: "https://bao.example:8200", CAPEM: "-----BEGIN CERTIFICATE-----", Namespace: "team", TransitMount: "transit", SSHMount: "ssh"}, Bindings: []Binding{{
-			Binding: "b-1", Key: Key{Kind: KeyName, Value: "web"}, Policy: policy.New("teal", `path "kv/*" {}`),
+			Binding: "b-1", Key: Key{Kind: KeyName, Value: "web"}, Policy: (policy.New("teal", `path "kv/*" {}`)).Runtime(policy.DefaultSettings()), Assignment: ((policy.New("teal", `path "kv/*" {}`)).Runtime(policy.DefaultSettings())).Identity(),
 		}}},
 		PolicySet{OpenBao: OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []Binding{}},
-		Credential{Binding: "b-1", AppRoleMount: "approle", RoleID: "role", WrappedSecretID: "wrapped"},
+		Credential{Binding: "b-1", AppRoleMount: "approle", RoleID: "role", WrappedSecretID: "wrapped", Assignment: "assignment"},
 		RecreateRequest{Binding: "b-1"},
 		Unbind{Binding: "b-1"},
 		ResultRecorded{Binding: "b-1", Outcome: OutcomeConforming},
 		ResultRecorded{Binding: "b-1", Outcome: OutcomeRecreateFailed, Reason: ReasonStartFailed},
-		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF"},
-		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF.ns1"},
-		AccessorRecorded{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF"},
+		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF", Assignment: "assignment"},
+		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF.ns1", Assignment: "assignment"},
+		AccessorRecorded{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF", Assignment: "assignment"},
 	}
 }
 
@@ -87,17 +87,17 @@ func TestEveryMessageRoundTripsAndValidatesAgainstSchema(t *testing.T) {
 
 func TestDecodeRejectsInvalidLines(t *testing.T) {
 	for name, line := range map[string]string{
-		"unknown-field":   `{"version":1,"type":"unbind","binding":"b-1","token":"x"}`,
-		"version":         `{"version":2,"type":"unbind","binding":"b-1"}`,
-		"version-float":   `{"version":1.0,"type":"unbind","binding":"b-1"}`,
+		"unknown-field":   `{"version":2,"type":"unbind","binding":"b-1","token":"x"}`,
+		"version":         `{"version":1,"type":"unbind","binding":"b-1"}`,
+		"version-float":   `{"version":2.0,"type":"unbind","binding":"b-1"}`,
 		"missing-version": `{"type":"unbind","binding":"b-1"}`,
-		"type":            `{"version":1,"type":"exec","binding":"b-1"}`,
-		"missing-field":   `{"version":1,"type":"credential","binding":"b-1","approle-mount":"approle","role-id":"r"}`,
-		"binding":         `{"version":1,"type":"unbind","binding":"B 1"}`,
-		"container-id":    `{"version":1,"type":"inventory","containers":[{"id":"short","name":"x","state":"running","keys":[{"kind":"name","value":"x"}]}]}`,
-		"no-keys":         `{"version":1,"type":"inventory","containers":[{"id":"` + containerID + `","name":"x","state":"running","keys":[]}]}`,
-		"outcome":         `{"version":1,"type":"contract-result","binding":"b-1","outcome":"fine"}`,
-		"not-json":        `{"version":1,`,
+		"type":            `{"version":2,"type":"exec","binding":"b-1"}`,
+		"missing-field":   `{"version":2,"type":"credential","binding":"b-1","approle-mount":"approle","role-id":"r"}`,
+		"binding":         `{"version":2,"type":"unbind","binding":"B 1"}`,
+		"container-id":    `{"version":2,"type":"inventory","containers":[{"id":"short","name":"x","state":"running","keys":[{"kind":"name","value":"x"}]}]}`,
+		"no-keys":         `{"version":2,"type":"inventory","containers":[{"id":"` + containerID + `","name":"x","state":"running","keys":[]}]}`,
+		"outcome":         `{"version":2,"type":"contract-result","binding":"b-1","outcome":"fine"}`,
+		"not-json":        `{"version":2,`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Decode([]byte(line)); !errors.Is(err, ErrInvalid) {
@@ -139,7 +139,7 @@ func TestConnExchangesMessages(t *testing.T) {
 }
 
 func TestCredentialFormattingHidesWrappedSecret(t *testing.T) {
-	credential := Credential{Binding: "b-1", AppRoleMount: "approle", RoleID: "role", WrappedSecretID: "s.wrapped-value"}
+	credential := Credential{Binding: "b-1", AppRoleMount: "approle", RoleID: "role", WrappedSecretID: "s.wrapped-value", Assignment: "assignment"}
 	for _, formatted := range []string{credential.String(), credential.GoString()} {
 		if strings.Contains(formatted, "wrapped-value") {
 			t.Fatalf("formatted credential leaks: %q", formatted)

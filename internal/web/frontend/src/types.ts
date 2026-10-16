@@ -51,7 +51,6 @@ export interface AgentsData extends Layout {
 }
 export interface PolicyChoice {
   Name: string;
-  Enforcement: string;
   Selected: boolean;
 }
 export interface ContainerRow {
@@ -60,7 +59,12 @@ export interface ContainerRow {
   Image: string;
   State: string;
   KeyKind: string;
-  Policy: string;
+  Policies: string[];
+  Revision: number;
+  Effective: EffectivePolicy;
+  Settings: BindingSettings;
+  Warnings: string[] | null;
+  Applied: boolean;
   Badge: string;
   BadgeClass: string;
   Bound: boolean;
@@ -100,7 +104,6 @@ export interface PoliciesData extends Layout {
     | {
         Name: string;
         Revision: number;
-        Enforcement: string;
         Bindings: number;
         Agents: number;
         SavedAt: string;
@@ -109,22 +112,19 @@ export interface PoliciesData extends Layout {
     | null;
 }
 export interface PolicyData extends Layout {
+  Warnings: string[] | null;
   New: boolean;
   Name: string;
   Revision: number;
   Bindings: number;
   Agents: number;
   HCL: string;
-  TokenTTL: string;
-  TokenMaxTTL: string;
   TransitKeys: string;
   CARoles: string;
   NotForwardableTransitKeys: string;
   NotForwardableCARoles: string;
   MountTarget: string;
   Env: string;
-  AccessGroup: string;
-  Enforcement: string;
   Unpermitted: string[] | null;
   PolicyPath: string;
 }
@@ -192,4 +192,27 @@ interface PageModels {
   keys: KeysData;
   events: EventsData;
   security: SecurityData;
+}
+
+export interface BindingSettings {
+  "token-ttl": string;
+  "token-max-ttl": string;
+  "access-group"?: number;
+  enforcement: "report" | "recreate";
+}
+export interface EffectivePolicy {
+  sources: { name: string; revision: number; hcl: string }[];
+  openbao: { policy: string };
+  ssh?: {
+    "transit-keys"?: string[];
+    "ca-roles"?: string[];
+    "not-forwardable"?: { "transit-keys"?: string[]; "ca-roles"?: string[] };
+  };
+  contract: {
+    "mount-target": string;
+    env?: Record<string, string>;
+    "access-group"?: number;
+    enforcement: string;
+  };
+  settings: BindingSettings;
 }
