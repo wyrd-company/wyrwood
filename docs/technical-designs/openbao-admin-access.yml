@@ -1,0 +1,378 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  related-to:
+    - controller
+    - web-interface
+  assumes:
+    - one-controller-per-site
+  mitigates:
+    - controller-token-blast-radius
+objective: >-
+  Let members of wyrwood_admins open the dedicated OpenBao namespace UI and
+  manage ad-hoc secrets using their own OpenBao identity. Keep the controller
+  service credential separate from the credential that configures OIDC.
+background:
+  current-design: >-
+    The controller authenticates operators through OIDC and uses an AppRole
+    to manage wyrwood-* policies, binding AppRoles, Transit keys, and SSH
+    roles. The OpenBao UI has its own authentication and namespace selection.
+    This design supplies the CLI and UI delta; controller and web-interface
+    remain the authority for their existing behavior.
+  problems:
+    - Operators need a way to add secret values directly in OpenBao.
+    - Controller sign-in does not issue an OpenBao token for a person.
+design-challenges:
+  approval-boundary: >-
+    The permission choice requires explicit approval before implementation.
+    Option A grants secret management on named existing KV v2 mounts. Option B
+    grants full administration of the dedicated namespace. The detailed
+    contract below is option A, the recommendation. Option B substitutes the
+    namespace policy described below. The proposed decision record records
+    this recommendation, not approval to implement a grant.
+  bootstrap-authority: >-
+    A credential that can write the admin policy and configure the OIDC role
+    can grant arbitrary namespace authority, regardless of the narrow names
+    in its ACL. It is an administrative credential, separate from runtime
+    controller and human secret-management credentials.
+  identity-authority: >-
+    Membership in wyrwood_admins admits a person to this role. OpenBao identity
+    entity or external-group policies are independent site grants. A dedicated
+    auth mount creates a separate alias boundary; the site administrator keeps
+    these aliases free of supplemental policies when deploying option A.
+proposed-design:
+  high-level-overview: >-
+    An OpenBao site administrator runs a one-shot Wyrwood CLI command with a
+    separately supplied provisioning token. The command enables a dedicated
+    OIDC auth mount, writes one admin policy and one OIDC role, and exits.
+    The running controller receives no provisioning token and no auth-method
+    management permission. The browser opens OpenBao directly from two links.
+    Secret values and human OpenBao tokens stay outside the controller.
+  namespace-and-resource-names: >-
+    Every API call carries X-Vault-Namespace from openbao.namespace. The CLI
+    requires an explicit non-root namespace and verifies that it exists before
+    writes; the supported site namespace is wyrwood. It never creates a
+    namespace. Resource names relative to that namespace are auth mount
+    admin-oidc, role admin, and ACL policy namespace-admin. The policy name is
+    outside wyrwood-* so the controller cannot overwrite it directly. The
+    configured AppRole mount and its controller role and policy retain their
+    names. All paths in this document are namespace-relative API paths, without
+    /v1 or the namespace prefix. The namespace can be nested; its full configured
+    path is used in the header and browser query parameter.
+  command-contract: |-
+    The additive command grammar is:
+
+    ```text
+    wyrwood controller openbao-admin configure --config PATH --token-file PATH \
+    --client-id ID --client-secret-stdin --kv-v2-mount kv \
+    --token-ttl 1h --token-max-ttl 8h
+    wyrwood controller openbao-admin remove --config PATH --token-file PATH
+    ```
+
+    Configure reads connection address, CA, namespace, and UI URL from the
+    controller configuration. Issuer and groups-claim default to the existing
+    controller OIDC issuer and groups-claim; explicit --issuer and --groups-claim
+    overrides support a different provider registration. These are public
+    values. --kv-v2-mount is repeatable and required for option A; each value
+    names a complete existing KV v2 mount, not a secret prefix. It is validated
+    as a canonical mount path without ACL wildcard characters, empty segments,
+    dot segments, or reserved sys, auth, identity, or cubbyhole prefixes. Mount
+    type and version are checked before any write. The command does not enable
+    or tune secret engines. The operator creates a needed KV v2 mount through
+    their existing OpenBao administration process.
+
+    --token-ttl and --token-max-ttl are required explicit positive Go durations,
+    with maximum at least the TTL; the example values are not new defaults.
+    They bound renewable human service tokens and their explicit maximum
+    lifetime. No new network timeout or retry mechanic is introduced.
+
+    The CLI parses public configuration without reading the controller's
+    AppRole secret-id file or its OIDC client-secret file. It uses the existing
+    OpenBao Go API directly. It neither starts bao nor calls the controller API.
+    Local root is not required; the OS identity needs permission to read the
+    public config, CA, and operator-supplied token file and consume stdin.
+    Human and versioned JSON output follow command-line-interface. Success
+    contains resource names and namespace, never credentials or upstream bodies.
+    Usage errors return 2 and operational failures return 1.
+  provisioning-identity-and-policy: |-
+    An existing OpenBao site administrator supplies a service token issued in
+    the target namespace with the following provisioning ACL, independently of
+    the controller AppRole. Token issuance, lifetime, and delivery use the
+    site's administration process. Wyrwood does not mint or save this token.
+    --token-file has no implicit environment, token-helper, or AppRole fallback.
+    The bootstrap API client takes address, namespace, CA, and token only from
+    these explicit inputs; BAO_* and VAULT_* environment values do not override
+    them. A sys/capabilities-self update supports preflight capability checks.
+    The token file is operator-owned input; the CLI creates no credential file.
+
+    ```hcl
+    path "sys/mounts" { capabilities = ["read"] }
+    path "sys/capabilities-self" { capabilities = ["update"] }
+    path "sys/auth/admin-oidc" {
+    capabilities = ["read", "update", "delete", "sudo"]
+    }
+    path "sys/auth/admin-oidc/tune" {
+    capabilities = ["read", "update", "sudo"]
+    }
+    path "auth/admin-oidc/config" {
+    capabilities = ["read", "create", "update"]
+    }
+    path "auth/admin-oidc/role" { capabilities = ["list"] }
+    path "auth/admin-oidc/role/admin" {
+    capabilities = ["read", "create", "update", "delete"]
+    }
+    path "sys/policies/acl/namespace-admin" {
+    capabilities = ["read", "create", "update", "delete"]
+    }
+    ```
+
+    sys/mounts permits reading mount metadata to check the selected KV engines;
+    it does not permit reading secret values. The auth-method enable, tune, and
+    disable endpoints require sudo as well as the operation capability. The
+    delete grant supports teardown. Even this limited writer can replace
+    namespace-admin with arbitrary HCL and configure a role to grant it to an
+    identity it controls: treat it as namespace administration. Revoke the
+    provisioning token through the site's process after use. Namespace-external
+    authority is not needed. A root or parent administrator can issue this
+    token but is not the identity the CLI requires for routine use.
+  configure-lifecycle: >-
+    Preflight checks the namespace, selected KV v2 mounts, all public inputs,
+    provisioning capabilities, and existing named resources before mutation.
+    A successful namespaced sys/mounts read confirms the namespace exists.
+    A new admin-oidc mount uses type oidc and description Wyrwood namespace admin
+    OIDC. Its listing_visibility is unauth so OpenBao's namespace sign-in page
+    offers it; this reveals the mount name and description before sign-in.
+    The generated policy starts with the HCL comment Managed by Wyrwood
+    openbao-admin. An occupied mount without the expected description, a policy
+    without that comment, or an additional role is a conflict, not a resource
+    to adopt. An owned mount with no role is a recoverable partial setup.
+    A dedicated mount contains only role admin. Configure creates the policy,
+    enables or verifies the mount, writes config, and writes the role last.
+    An owned mount can be reconfigured, including client-secret rotation, by
+    rerunning the explicit command. Updating policy or role changes authority
+    and remains an operator action. Writes are not transactional; failures
+    return categorical stage and partial-configuration status. The operator
+    reruns configure or uses remove. The command does not delete pre-existing
+    resources as automatic rollback and does not report a partial run as success.
+  oidc-config-and-role: |-
+    The auth config sets oidc_discovery_url and bound_issuer to the chosen
+    issuer, oidc_client_id to the separate OpenBao client ID, and
+    oidc_client_secret to the stdin value. It sets default_role=admin,
+    namespace_in_state=true, oidc_response_types=["code"], and
+    oidc_response_mode=query. Discovery uses normal certificate validation.
+
+    The role has the following public values, with <groups-claim> replaced by
+    the chosen claim key and <client-id> by the OpenBao client ID:
+
+    ```json
+    {
+    "role_type": "oidc",
+    "user_claim": "sub",
+    "groups_claim": "<groups-claim>",
+    "bound_claims_type": "string",
+    "bound_claims": { "<groups-claim>": ["wyrwood_admins"] },
+    "bound_audiences": ["<client-id>"],
+    "oidc_scopes": ["profile", "email", "groups"],
+    "token_policies": ["namespace-admin"],
+    "token_no_default_policy": true,
+    "token_type": "service",
+    "token_period": 0,
+    "token_num_uses": 0,
+    "verbose_oidc_logging": false
+    }
+    ```
+
+    token_ttl comes from --token-ttl. token_max_ttl and token_explicit_max_ttl
+    both come from --token-max-ttl. allowed_redirect_uris contains exactly the
+    UI callback specified below. OpenBao checks signature, issuer, audience,
+    expiry, state, nonce, and the literal bound group. The groups claim is a
+    list of strings containing wyrwood_admins; missing, malformed, or unrelated
+    groups fail admission. No wildcard group matching, JWT login role, copied
+    provider tokens, claim-templated policy names, or external identity group
+    policy mapping is configured. The issuer must release the group to this
+    client with these scopes. Existing site identity grants require separate
+    review; the role grant is exactly namespace-admin.
+  secret-management-policy-option-a: |-
+    For each selected KV v2 mount M, generate these grants. With --kv-v2-mount
+    kv, the exact secret paths are:
+
+    ```hcl
+    path "kv/config" { capabilities = ["read"] }
+    path "kv/data/*" { capabilities = ["create", "read", "update", "delete"] }
+    path "kv/metadata" { capabilities = ["list"] }
+    path "kv/metadata/*" {
+    capabilities = ["create", "read", "update", "delete", "list"]
+    }
+    path "kv/delete/*" { capabilities = ["update"] }
+    path "kv/undelete/*" { capabilities = ["update"] }
+    path "kv/destroy/*" { capabilities = ["update"] }
+    ```
+
+    These grants include all values on the selected mounts, including values
+    consumed by containers, and permanent version or metadata deletion. They
+    do not limit writes to newly created secrets. There is no mount-root
+    wildcard grant or secret-engine configuration write. The common UI and
+    self-session grants, included once, are:
+
+    ```hcl
+    path "auth/token/lookup-self" { capabilities = ["read"] }
+    path "auth/token/renew-self" { capabilities = ["update"] }
+    path "auth/token/revoke-self" { capabilities = ["update"] }
+    path "sys/capabilities-self" { capabilities = ["update"] }
+    path "sys/internal/ui/resultant-acl" { capabilities = ["read"] }
+    ```
+
+    All other paths are implicitly denied by this policy. In particular it
+    grants no access to sys/policies/acl/* or legacy sys/policy/*, any
+    auth/<configured-approle-mount>/* path, auth/admin-oidc/*, sys/auth/*,
+    sys/mounts/* writes, identity/*, Transit, SSH, or sys/namespaces/*.
+    Thus it cannot read or change the controller's policy or AppRole, binding
+    AppRoles, wyrwood-* policies, or its own admin grant. It cannot create child
+    tokens. The default policy is excluded; its site-customized contents cannot
+    add privileges. Mount discovery uses OpenBao's UI endpoint behavior based
+    on the granted KV paths rather than a direct grant on internal/ui/mounts.
+  namespace-administration-policy-option-b: |-
+    Option B replaces the complete option-A policy with:
+
+    ```hcl
+    path "*" {
+    capabilities = ["create", "read", "update", "patch", "delete", "list", "sudo"]
+    }
+    ```
+
+    This grants all secrets, mount and auth management, identity and token
+    administration, all ACL policy writes, and supported namespace
+    administration within the target namespace and its descendants. It can
+    overwrite the controller's policy and AppRole, every binding AppRole,
+    wyrwood-* policies, namespace-admin itself, and its OIDC role and config.
+    It can mint replacement credentials and disrupt containers. Namespace
+    isolation still excludes parent, sibling, and root namespaces; it is not
+    an OpenBao root token. The bootstrap identity and controller policy are
+    identical for A and B. The CLI does not expose both grants as runtime
+    choices until a permission scope is approved for implementation.
+  client-secret-handling: >-
+    The administrator registers a distinct confidential OIDC client for
+    OpenBao and pipes its secret through stdin. The CLI accepts no literal
+    secret flag, environment value, YAML secret field, or interactive echo.
+    Input is bounded and validated by the existing single-line secret-input
+    rules. The value lives only in process memory for the configuration request
+    and is sent over the configured authenticated TLS connection to OpenBao.
+    Wyrwood never writes it to disk, SQLite, config, an event, output, or logs;
+    it never logs request/response bodies, raw upstream errors, or HTTP traces.
+    OpenBao persists its OIDC client credential in its protected backend storage;
+    that storage is required for OpenBao to exchange future authorization codes.
+    Its audit configuration must keep the client-secret field HMAC protected;
+    the CLI does not weaken audit settings. Public HTTP addresses are rejected
+    for this credential-bearing provisioning flow; local loopback HTTP remains
+    available for isolated tests. Existing controller connection behavior is
+    unchanged. The source secret and token inputs remain owned by the operator.
+  public-ui-url-and-redirects: >-
+    Add optional openbao.ui-url to controller configuration. It is the public,
+    browser-reachable cluster UI base URL, including any reverse-proxy prefix
+    and /ui/<cluster> route; for example https://vault.example/ui/openbao.
+    It is distinct from openbao.address, which can be an internal API address.
+    Parse with net/url, normalize one trailing slash, and require an absolute
+    HTTPS URL without userinfo, query, or fragment; loopback HTTP is available
+    for local tests. Preserve the configured path prefix. Configure requires
+    this value. There is no guessed cluster name or internal-address fallback.
+    The exact provider registration and role allowed_redirect_uris entry is
+    <ui-url>/auth/admin-oidc/oidc/callback. For the example it is
+    https://vault.example/ui/openbao/auth/admin-oidc/oidc/callback.
+    namespace_in_state=true keeps the namespace out of the callback URI; the
+    UI namespace query parameter belongs only on the navigation link. Register
+    this URI exactly at the provider. No localhost bao-login callback, direct
+    API callback, wildcard callback, or controller /auth/callback is included
+    in this separate client registration. The deployed OpenBao UI route is
+    supplied explicitly because its cluster segment is deployment-specific.
+  ui-links: >-
+    The server computes one OpenBaoURL layout field by appending /secrets to
+    openbao.ui-url and setting namespace to the full openbao.namespace through
+    url.Values. For the example namespace wyrwood the result is
+    https://vault.example/ui/openbao/secrets?namespace=wyrwood. Nested namespaces
+    are query-encoded as one value. This opens the secret-engine list in the
+    selected namespace; OpenBao presents its sign-in page when needed. An
+    existing browser OpenBao session retains its own authority; the link does
+    not switch roles or impersonate the Wyrwood operator. Empty ui-url omits
+    both links; setting it requires a non-root namespace. Every authenticated
+    Wyrwood operator can see the links; OpenBao independently checks admission.
+    The sidebar adds one OpenBao UI anchor alongside the existing OpenBao keys
+    destination. The policy editor adds the same anchor beside the OpenBao
+    policy heading, on both new and saved policies, without form submission or
+    editor restructuring. Both use target=_blank and rel=noopener noreferrer.
+    They share a small link component and server URL, contain no token or
+    secret path, and send no Wyrwood cookie to OpenBao. The sidebar account area
+    keeps its own component boundary; editor improvements can retain the anchor.
+  controller-sign-in-and-authority: >-
+    Controller OIDC retains its own client ID, mounted client-secret file,
+    allowed-groups, session TTL, and /auth/callback. The two clients can use the
+    same issuer but have separate audiences and redirect registrations. A
+    Wyrwood operator need not belong to wyrwood_admins; membership in
+    wyrwood_admins does not grant controller admission unless its allowed-groups
+    independently admits that account. Provider SSO can reuse authentication;
+    neither application reuses the other's token or session. Each sign-out
+    revokes only its own application session. Group removal stops subsequent
+    OpenBao logins; issued tokens live until revoked or their explicit maximum
+    lifetime, including renewals. The controller's ability to write arbitrary
+    HCL into wyrwood-* policies remains namespace-administrative in effect.
+    Option A bounds the direct OpenBao role grant, not the existing authority
+    of a person who is also a Wyrwood operator. The controller AppRole policy
+    receives no sys/auth/* or auth/admin-oidc/* grant, and no startup bootstrap.
+  teardown: >-
+    Remove runs with the same separate provisioning identity and verifies
+    ownership before writes. It disables only auth/admin-oidc via
+    DELETE sys/auth/admin-oidc and waits for successful completion before
+    deleting sys/policies/acl/namespace-admin. Disabling the dedicated auth
+    mount removes its role and config, including OpenBao's copy of the client
+    secret, and revokes tokens and leases issued through it. Deleting only the
+    role is insufficient for issued sessions. An absent owned resource is an
+    idempotent success; a conflicting resource is reported and left intact.
+    No namespace, KV secret, secret mount, controller policy, controller
+    AppRole, binding AppRole, or wyrwood-* policy is removed. The administrator
+    removes or rotates the separate provider client, revokes the provisioning
+    token, and removes ui-url from controller configuration to hide the links.
+    Wyrwood does not administer the external identity provider. OpenBao entity
+    aliases left by logins do not grant access after mount removal; any identity
+    cleanup uses the site's process and has no extra CLI permission. Under
+    option B, credentials an administrator minted through other auth methods
+    remain separate grants and require a site audit and revocation. Removing
+    ui-url or signing out of Wyrwood alone never revokes OpenBao access.
+  compatibility: >-
+    This is an additive CLI, optional configuration field, and pair of links.
+    Existing configurations and controller sign-in keep their behavior; absent
+    ui-url leaves the interface as configured. No database migration, credential
+    migration, new dependency, or frontend package is needed. Configuration,
+    command-line-interface, web-interface, and operations documentation describe
+    the additive configuration field, commands, and anchors when the approved
+    grant is implemented.
+  verification: >-
+    Implementation validation uses isolated OpenBao and the existing OIDC test
+    provider. Prove setup with the documented provisioning ACL, denial of setup
+    by the unchanged controller token, and failure outside the target namespace.
+    Exercise allowed, missing, malformed, wrong-case, and unrelated groups,
+    wrong issuer and audience, and mismatched callback. Assert token policies,
+    empty identity policies, no default policy, renewals bounded by the explicit
+    maximum, and no child-token creation for A. For each selected KV v2 mount,
+    create, read, update, list, soft-delete, undelete, and destroy generic test
+    secrets; deny other mounts, mount changes, policy writes (including the
+    controller and wyrwood-* policies), controller and binding AppRoles, auth
+    config, and parent/sibling/root access. For B, explicitly prove its intended
+    controller-policy and AppRole writes in a disposable namespace. Verify
+    refusal of conflicting resources, safe reruns, partial-stage failures,
+    reconfiguration, teardown preserving secrets and workload authentication,
+    and denial of issued OIDC tokens after mount removal. Sentinel credentials
+    in input and hostile upstream error responses must never occur in output,
+    logs, persisted Wyrwood state, or page data. Check URL construction for an
+    internal API address, a different public UI host, path prefix, port, trailing
+    slash, nested namespace, invalid URLs, and absent ui-url. Browser validation
+    follows both links through OpenBao login to the selected namespace while
+    preserving an unsaved policy form and independent controller admission.
+  protocol-references: >-
+    OpenBao's OIDC role and configuration contract is
+    https://openbao.org/docs/api/auth/jwt/ and its redirect guidance is
+    https://openbao.org/docs/auth/jwt/#redirect-uris. Auth enable/disable and
+    visibility are specified at https://openbao.org/docs/api/system/auth/.
+    Auth-mount token revocation is specified at
+    https://openbao.org/docs/commands/auth/disable/. UI mount discovery is specified at
+    https://openbao.org/docs/api/system/internal-ui-mounts/.
+    Deployment-specific cluster routes and the namespace query key are defined
+    in https://github.com/openbao/openbao/blob/v2.7.1/ui/app/router.js and
+    https://github.com/openbao/openbao/blob/v2.7.1/ui/app/controllers/vault/cluster.js.

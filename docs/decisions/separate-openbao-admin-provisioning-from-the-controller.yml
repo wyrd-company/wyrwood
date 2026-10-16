@@ -1,0 +1,55 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - openbao-admin-access
+    - controller
+    - web-interface
+description: >-
+  Human OpenBao access needs an explicit grant inside the dedicated namespace.
+  Ad-hoc secret management and full namespace administration grant different
+  authority. The credential that writes either grant can itself confer
+  namespace administration. The controller service does not need auth-method
+  management to operate policies and bindings.
+considered-options:
+  "1": >-
+    A site administrator supplies a separate provisioning token to the CLI.
+    Members of wyrwood_admins receive secret management on explicitly selected
+    existing KV v2 mounts, including reading existing values and permanent
+    version deletion, plus their own OpenBao session and UI capabilities.
+    They receive no policy, AppRole, auth-method, mount, Transit, or SSH
+    administration from this role. The controller policy is unchanged.
+  "2": >-
+    Use the same separate provisioning identity and grant wyrwood_admins all
+    capabilities, including sudo, on every path inside the namespace and its
+    descendants. This includes the controller's policy and AppRole, binding
+    AppRoles, wyrwood-* policies, and auth and mount administration. Parent,
+    sibling, and root namespaces remain outside the grant. The controller
+    policy is unchanged.
+decision-outcome:
+  chosen-option: 1
+  justification: >-
+    Option 1 is the proposed choice submitted for explicit permission approval;
+    this record and its design commit do not authorize implementation. It
+    provides the authority to add and maintain ad-hoc secrets while keeping
+    direct controller-credential and auth administration with the site
+    administrator. Option 2 is available when full namespace administration is
+    the intended meaning of admin access. The technical design is the single
+    source for the exact paths, command, credential handling, and teardown of
+    either option. Approval of either option also covers the separate
+    provisioning credential, unauthenticated auth-mount listing, independent
+    OIDC client registration, explicit token lifetimes, and credential-flow
+    TLS validation described there.
+expected-outcomes:
+  positive:
+    - Human OpenBao sessions name the authenticated identity.
+    - The controller service holds no provisioning token or auth-management grant.
+    - Wyrwood never persists or logs the OpenBao OIDC client secret.
+    - Existing controller sign-in and existing deployment configuration remain compatible.
+  negative:
+    - Secret management permits reading and destroying values used by workloads on selected mounts.
+    - A provisioning-token holder can grant arbitrary namespace authority through its policy writer.
+    - Group removal does not revoke issued OpenBao tokens before revocation or maximum lifetime.
+    - >-
+      A person admitted to Wyrwood retains its existing effective namespace
+      authority through policy writes.
+    - Option A requires the site administrator to create additional secret mounts.
