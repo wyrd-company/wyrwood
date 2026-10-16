@@ -1,0 +1,15 @@
+# ---
+# relationships:
+#   implements: engine-proxy
+# ---
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = wyrwood-bin
+
+[Action]
+Description = Stop Wyrwood before replacing its Engine security boundary
+When = PreTransaction
+Exec = /bin/sh /etc/wyrwood/engine-upgrade-preinstall.sh
+AbortOnFail

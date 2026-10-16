@@ -227,7 +227,10 @@ proposed-design:
     ALPM PreTransaction hook with AbortOnFail runs the same pre-install stop
     script before an AUR transaction. Before the first upgrade from a package
     without this hook, the operator bootstraps both the hook and its script
-    from a verified release archive. The AUR package retains both files for
+    from a verified release archive into /etc/pacman.d/hooks and /etc/wyrwood.
+    These paths avoid conflicts with incoming package-owned files under /usr.
+    After successful service installation the operator removes the bootstrap
+    override so that ALPM uses the packaged hook. The AUR package retains both files for
     subsequent transactions. A missing bootstrap is an unmet upgrade
     precondition; a package scriptlet alone does not provide this guarantee.
     Native post-install errors require operator correction and a repeated

@@ -228,13 +228,15 @@ release's `checksums.txt`. Extract it. From the extracted directory, install
 the stop script first, then the hook:
 
 ```bash
-sudo install -Dm644 packaging/preinstall.sh /usr/lib/wyrwood/preinstall.sh
-sudo install -Dm644 packaging/wyrwood-engine-upgrade.hook \
-  /usr/share/libalpm/hooks/wyrwood-engine-upgrade.hook
+sudo install -Dm644 packaging/preinstall.sh \
+  /etc/wyrwood/engine-upgrade-preinstall.sh
+sudo install -Dm644 packaging/wyrwood-engine-bootstrap.hook \
+  /etc/pacman.d/hooks/wyrwood-engine-upgrade.hook
 ```
 
 Then upgrade `wyrwood-bin` with your AUR helper. The package retains these
-files for subsequent upgrades. A failed pre-transaction stop aborts the
+files under `/usr` for subsequent upgrades. The bootstrap uses `/etc` to
+avoid conflicts with incoming package-owned files. A failed stop aborts the
 transaction. Correct the error and retry; do not bypass the hook.
 
 Pacman can finish file installation even when post-install service setup
@@ -242,6 +244,14 @@ fails. Check its diagnostics and `sudo wyrwood agent service status`.
 Correct any error and run `sudo wyrwood agent service install` before
 starting the agent. A package transaction exit status alone does not prove
 that service activation completed.
+
+After successful service installation, remove the bootstrap override so that
+ALPM uses the package-owned hook and script:
+
+```bash
+sudo rm /etc/pacman.d/hooks/wyrwood-engine-upgrade.hook \
+  /etc/wyrwood/engine-upgrade-preinstall.sh
+```
 
 ## Engine permission
 

@@ -15,7 +15,10 @@ considered-options:
   "2": >-
     Bootstrap a root-owned ALPM PreTransaction hook with AbortOnFail before
     upgrading an installation that lacks the hook. Run the shared stop
-    script through /bin/sh. Package both files for subsequent upgrades.
+    script through /bin/sh. Use an /etc hook override and stop script so
+    that incoming package-owned files under /usr do not conflict with the
+    bootstrap. Remove the override after successful service installation.
+    Package the permanent hook and script for subsequent upgrades.
 decision-outcome:
   chosen-option: 2
   justification: >-
