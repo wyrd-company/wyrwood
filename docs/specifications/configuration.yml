@@ -39,7 +39,8 @@ description: >-
   defaults to false. An enabled controller checks the public GitHub latest
   release redirect at startup, then waits `update-checks.interval` after each
   attempt, default 24 hours. `update-checks.timeout` bounds each complete HTTP
-  check, default 10 seconds. Both accept positive Go durations. Checks run in
+  check, default 10 seconds. Both intentionally accept any positive duration
+  representable by Go, with no additional interval floor or timeout ceiling. Checks run in
   the background and do not block readiness, agents, or page requests.
 
   Agent timeouts use Go duration syntax between 100 milliseconds and 30 seconds,

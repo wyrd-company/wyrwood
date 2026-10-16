@@ -25,6 +25,7 @@ func TestControllerUpdateCheckDefaultsAndOverrides(t *testing.T) {
 		{"update-checks:\n  enabled: true\n", true, 24 * time.Hour, 10 * time.Second},
 		{"update-checks:\n  enabled: true\n  interval: 37m\n  timeout: 7s\n", true, 37 * time.Minute, 7 * time.Second},
 		{"update-checks:\n  interval: 48h\n  timeout: 2m\n", false, 48 * time.Hour, 2 * time.Minute},
+		{"update-checks:\n  interval: 1ns\n  timeout: 2562047h47m16.854775807s\n", false, time.Nanosecond, time.Duration(1<<63 - 1)},
 	} {
 		document := []byte(minimalController + sample.suffix)
 		parsed, err := ParseController(document)

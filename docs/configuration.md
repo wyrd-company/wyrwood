@@ -190,7 +190,10 @@ update-checks:
 ```
 
 `interval` and `timeout` are configurable positive Go durations, such as `6h`
-and `20s`. The defaults are 24 hours and 10 seconds. An enabled controller checks
+and `20s`. There is no additional interval floor or timeout ceiling beyond a
+positive duration that Go can represent. Choose an interval appropriate for
+external release checks; very short intervals increase requests to GitHub.
+The defaults are 24 hours and 10 seconds. An enabled controller checks
 at startup, then waits the configured interval after each attempt. The timeout
 bounds each complete check. Checks run in the background, without blocking
 startup, agent sessions, or pages. Failed checks wait for the same interval;
@@ -205,7 +208,8 @@ version.
 
 For an offline or air-gapped controller, leave `enabled` false or omit
 `update-checks`. No release request is made. If an enabled check fails, the page
-shows **Update check unavailable** and retains the last successful result with
+shows **Update check unavailable**, writes a fixed failure category to the
+controller journal, and retains the last successful result with
 its age. Observations are held in memory and start empty after a restart.
 
 ## OpenBao namespace

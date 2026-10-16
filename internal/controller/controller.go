@@ -145,7 +145,7 @@ func New(configuration config.Controller, options Options) (*Controller, error) 
 		agentOB: agentOpenBao, log: logWriter, now: func() time.Time { return time.Now().UTC() },
 	}
 	controller.hub = newHub(controller)
-	controller.updates = updates.New(configuration.UpdateChecks, options.ReleaseTransport)
+	controller.updates = updates.New(configuration.UpdateChecks, options.ReleaseTransport, logWriter)
 	return controller, nil
 }
 

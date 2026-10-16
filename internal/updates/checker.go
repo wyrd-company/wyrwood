@@ -9,6 +9,8 @@ package updates
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 	"strings"
 	"sync"
@@ -18,6 +20,12 @@ import (
 )
 
 const latestReleaseURL = "https://github.com/wyrd-company/wyrwood/releases/latest"
+
+var (
+	errReleaseResponse = errors.New("release redirect unavailable")
+	errReleaseLocation = errors.New("unexpected release location")
+	errReleaseVersion  = errors.New("release tag is not SemVer")
+)
 
 // Status is an in-memory observation. Latest and LastSuccess survive a failed
 // check; Checked identifies the most recent completed attempt.
@@ -33,20 +41,24 @@ type Status struct {
 type Checker struct {
 	configuration config.UpdateChecks
 	client        *http.Client
+	log           io.Writer
 	mu            sync.Mutex
 	status        Status
 }
 
 // New creates a checker without making a request. A transport can be supplied
 // for tests; this client never shares OIDC cookies, credentials, or redirects.
-func New(configuration config.UpdateChecks, transport http.RoundTripper) *Checker {
+func New(configuration config.UpdateChecks, transport http.RoundTripper, log io.Writer) *Checker {
+	if log == nil {
+		log = io.Discard
+	}
 	if configuration.Interval <= 0 {
 		configuration.Interval = config.DefaultUpdateInterval
 	}
 	if configuration.Timeout <= 0 {
 		configuration.Timeout = config.DefaultUpdateTimeout
 	}
-	return &Checker{configuration: configuration, status: Status{Enabled: configuration.Enabled}, client: &http.Client{
+	return &Checker{configuration: configuration, log: log, status: Status{Enabled: configuration.Enabled}, client: &http.Client{
 		Transport:     transport,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}
@@ -82,12 +94,17 @@ func (checker *Checker) check(ctx context.Context) {
 	defer cancel()
 	latest, err := checker.latest(ctx)
 	checker.mu.Lock()
-	defer checker.mu.Unlock()
 	checker.status.Checked = time.Now().UTC()
 	checker.status.Unavailable = err != nil
 	if err == nil {
 		checker.status.Latest = latest
 		checker.status.LastSuccess = checker.status.Checked
+	}
+	checker.mu.Unlock()
+	if err != nil && !errors.Is(err, context.Canceled) {
+		// Only fixed categories reach the journal; errors can contain private
+		// proxy addresses or other operator details.
+		_, _ = fmt.Fprintf(checker.log, "wyrwood controller: release check failed (%s)\n", failureCategory(err))
 	}
 }
 
@@ -104,19 +121,34 @@ func (checker *Checker) latest(ctx context.Context) (string, error) {
 	switch response.StatusCode {
 	case http.StatusMovedPermanently, http.StatusFound, http.StatusSeeOther, http.StatusTemporaryRedirect, http.StatusPermanentRedirect:
 	default:
-		return "", errors.New("release redirect unavailable")
+		return "", errReleaseResponse
 	}
 	location, err := response.Location()
 	if err != nil {
-		return "", err
+		return "", errReleaseLocation
 	}
 	const tagPath = "/wyrd-company/wyrwood/releases/tag/"
 	if location.Scheme != "https" || location.Host != "github.com" || location.User != nil || !strings.HasPrefix(location.Path, tagPath) {
-		return "", errors.New("unexpected release location")
+		return "", errReleaseLocation
 	}
 	tag := strings.TrimPrefix(location.Path, tagPath)
 	if !Valid(tag) {
-		return "", errors.New("release tag is not SemVer")
+		return "", errReleaseVersion
 	}
 	return tag, nil
+}
+
+func failureCategory(err error) string {
+	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return "timeout"
+	case errors.Is(err, errReleaseResponse):
+		return "response"
+	case errors.Is(err, errReleaseLocation):
+		return "location"
+	case errors.Is(err, errReleaseVersion):
+		return "version"
+	default:
+		return "network"
+	}
 }
