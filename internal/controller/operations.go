@@ -236,7 +236,11 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 	if eventBinding.ID == "" {
 		eventBinding.Agent = agent
 		eventBinding.Key = key
-		eventBinding.Policies = request.Policies
+	}
+	// Failed input is not an audit fan-out source. One categorical event
+	// identifies the attempted binding even for repeated or oversized input.
+	if err != nil {
+		eventBinding.Policies = nil
 	}
 	code := mutationErrorCode(err)
 	controller.recordBinding(eventBinding, events.Event{Operation: events.OperationBindingCreated, Outcome: outcomeFor(code), ErrorCode: code, Binding: b.ID, Agent: agent, Operator: operator, Latency: controller.now().Sub(started)})
@@ -277,8 +281,10 @@ func (controller *Controller) ChangeBinding(ctx context.Context, id string, requ
 	b, err := controller.changeBinding(ctx, id, request, operator)
 	controller.mutationMu.Unlock()
 	eventBinding := b
-	if eventBinding.ID == "" {
-		eventBinding.Policies = request.Policies
+	// Failed input is not an audit fan-out source. One categorical event
+	// identifies the attempted binding even for repeated or oversized input.
+	if err != nil {
+		eventBinding.Policies = nil
 	}
 	code := mutationErrorCode(err)
 	controller.recordBinding(eventBinding, events.Event{Operation: events.OperationBindingChanged, Outcome: outcomeFor(code), ErrorCode: code, Binding: id, Agent: b.Agent, Operator: operator, Latency: controller.now().Sub(started)})

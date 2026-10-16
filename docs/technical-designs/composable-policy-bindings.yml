@@ -273,8 +273,10 @@ proposed-design:
     an empty array. The CLI continues to use the owner-only local control socket;
     runtime commands gain no policy editing or direct state-file access.
     Environment values and credentials stay out of CLI output and events.
-    Binding transition events emit one record per selected source name using
+    Successful binding transition events emit one record per source name using
     the existing singular policy metadata, so filtering finds each member.
+    Failed binding mutations emit one categorical record without submitted
+    policy names, so rejected input cannot fan out into audit writes.
     A policy-edit event identifies its one source policy. Event records retain
     their existing closed shape.
   upgrade-and-reset: >-

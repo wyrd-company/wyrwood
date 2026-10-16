@@ -18,6 +18,7 @@ import (
 	"io"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -181,7 +182,7 @@ func TestPendingRevocationBlocksIssuanceAndRecoversWithoutAgent(t *testing.T) {
 	}
 	found := false
 	for _, event := range c.Events().Recent(100) {
-		if event.Operation == events.OperationBindingChanged && event.Binding == b.ID && event.Policy == "alpha" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
+		if event.Operation == events.OperationBindingChanged && event.Binding == b.ID && event.Policy == "" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
 			found = true
 		}
 	}
@@ -436,11 +437,46 @@ func TestFailedPolicyAndBindingMutationsRecordCategoricalEvents(t *testing.T) {
 	}
 	found := map[events.Operation]bool{}
 	for _, event := range c.Events().Recent(100) {
-		if event.Policy == "missing" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
+		if ((event.Operation == events.OperationPolicySaved && event.Policy == "missing") || (event.Operation == events.OperationBindingCreated && event.Policy == "")) && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
 			found[event.Operation] = true
 		}
 	}
 	if !found[events.OperationPolicySaved] || !found[events.OperationBindingCreated] {
 		t.Fatal("mutation failure events missing", found)
+	}
+}
+
+func TestRejectedBindingSelectionWritesOneEvent(t *testing.T) {
+	h, b := newSingleBinding(t)
+	ctx := context.Background()
+	c := h.controller
+	names := strings.Fields(strings.Repeat("alpha ", 1024))
+	for _, operation := range []string{"create", "unapproved-agent", "change", "missing-binding"} {
+		t.Run(operation, func(t *testing.T) {
+			before := len(c.Events().Recent(10000))
+			request := BindingRequest{Policies: names, Settings: b.Settings, Revision: b.Revision}
+			var err error
+			switch operation {
+			case "create":
+				_, err = c.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "other"}, request, "operator-1")
+			case "unapproved-agent":
+				_, err = c.CreateBinding(ctx, "unknown-agent", protocol.Key{Kind: protocol.KeyName, Value: "other"}, request, "operator-1")
+			case "change":
+				err = c.ChangeBinding(ctx, b.ID, request, "operator-1")
+			case "missing-binding":
+				err = c.ChangeBinding(ctx, "b-missing", request, "operator-1")
+			}
+			if err == nil {
+				t.Fatal("repeated policy selection accepted")
+			}
+			history := c.Events().Recent(10000)
+			if len(history) != before+1 {
+				t.Fatalf("rejected mutation emitted %d events, want1", len(history)-before)
+			}
+			event := history[len(history)-1]
+			if event.Policy != "" || event.Outcome == events.OutcomeOK || event.ErrorCode == events.ErrorNone {
+				t.Fatal("rejected input copied into audit metadata or outcome lost")
+			}
+		})
 	}
 }
