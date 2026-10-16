@@ -22,6 +22,9 @@ import (
 // UnitName is the agent's system unit.
 const UnitName = "wyrwood-agent.service"
 
+// ProxyUnitName is the separately privileged Engine boundary.
+const ProxyUnitName = "wyrwood-engine-proxy.service"
+
 // PackagedExecutable is where packages install the executable.
 const PackagedExecutable = "/usr/bin/wyrwood"
 
@@ -49,6 +52,66 @@ func Unit(executable string) []byte {
 	return []byte(`[Unit]
 Description=Wyrwood agent
 Documentation=https://github.com/wyrd-company/wyrwood
+After=docker.service network-online.target wyrwood-engine-proxy.service
+Wants=network-online.target wyrwood-engine-proxy.service
+
+[Service]
+Type=simple
+ExecStart=` + executable + ` agent daemon
+User=wyrwood
+Group=wyrwood
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/wyrwood /run/wyrwood
+RuntimeDirectory=wyrwood
+RuntimeDirectoryPreserve=yes
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+
+[Install]
+WantedBy=multi-user.target
+`)
+}
+
+// ProxyUnit runs the authorization boundary under its own UID.
+func ProxyUnit(executable string) []byte {
+	return []byte(`[Unit]
+Description=Wyrwood filtering Engine proxy
+Documentation=https://github.com/wyrd-company/wyrwood
+After=docker.service
+PartOf=wyrwood-agent.service
+
+[Service]
+Type=simple
+ExecStart=` + executable + ` agent engine-proxy
+User=wyrwood-engine
+Group=wyrwood
+SupplementaryGroups=docker
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/run/wyrwood-engine
+RuntimeDirectory=wyrwood-engine
+RuntimeDirectoryMode=0750
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s
+`)
+}
+
+// Tmpfiles retains consumer directories and creates a separate protected proxy root.
+func Tmpfiles() []byte {
+	return []byte("d /run/wyrwood 0755 wyrwood wyrwood -\nd /run/wyrwood-engine 0750 wyrwood-engine wyrwood -\n")
+}
+
+func legacyUnit(executable string) []byte {
+	return []byte(`[Unit]
+Description=Wyrwood agent
+Documentation=https://github.com/wyrd-company/wyrwood
 After=docker.service network-online.target
 Wants=network-online.target
 
@@ -71,11 +134,6 @@ TimeoutStopSec=15s
 [Install]
 WantedBy=multi-user.target
 `)
-}
-
-// Tmpfiles returns the exact tmpfiles.d entry for the runtime directory.
-func Tmpfiles() []byte {
-	return []byte("d /run/wyrwood 0755 wyrwood wyrwood -\n")
 }
 
 // Runner runs one system command without a shell and returns its output.
@@ -124,7 +182,9 @@ func (manager *Manager) Manage(action string) (State, error) {
 	}
 	switch action {
 	case "install":
-		return manager.install()
+		return manager.install(false)
+	case "package-install":
+		return manager.install(true)
 	case "remove":
 		return manager.remove()
 	case "start", "stop":
@@ -154,64 +214,30 @@ func (manager *Manager) installed() bool {
 	return false
 }
 
-func (manager *Manager) install() (State, error) {
-	if err := manager.ensureUser(); err != nil {
-		return "", err
-	}
-	if err := writeAtomic(manager.unitPath(), Unit(manager.Executable), 0o644); err != nil {
-		return "", ErrManager
-	}
-	if err := writeAtomic(manager.path("/etc/tmpfiles.d/wyrwood.conf"), Tmpfiles(), 0o644); err != nil {
-		return "", ErrManager
-	}
-	for _, command := range [][]string{
-		{"systemd-tmpfiles", "--create", "/etc/tmpfiles.d/wyrwood.conf"},
-		{"systemctl", "daemon-reload"},
-		{"systemctl", "enable", UnitName},
-	} {
-		if _, err := manager.Run(command[0], command[1:]...); err != nil {
-			return "", ErrManager
-		}
-	}
-	return manager.status()
-}
-
-// ensureUser creates the service user and its directories when the archive
-// install has none; packages do the same in their post-install script.
-func (manager *Manager) ensureUser() error {
-	if _, err := manager.Run("getent", "passwd", "wyrwood"); err != nil {
-		if _, err := manager.Run("useradd", "--system", "--user-group", "--home-dir", "/var/lib/wyrwood",
-			"--no-create-home", "--shell", "/usr/sbin/nologin", "wyrwood"); err != nil {
-			return ErrManager
-		}
-	}
-	if _, err := manager.Run("getent", "group", "docker"); err == nil {
-		if _, err := manager.Run("usermod", "--append", "--groups", "docker", "wyrwood"); err != nil {
-			return ErrManager
-		}
-	}
-	for _, directory := range []struct {
-		path  string
-		mode  string
-		owner string
-	}{
-		{"/etc/wyrwood", "0755", "root:root"},
-		{"/var/lib/wyrwood", "0700", "wyrwood:wyrwood"},
-	} {
-		if _, err := manager.Run("install", "-d", "-m", directory.mode, "-o", strings.Split(directory.owner, ":")[0],
-			"-g", strings.Split(directory.owner, ":")[1], directory.path); err != nil {
-			return ErrManager
-		}
-	}
-	return nil
-}
-
 func (manager *Manager) remove() (State, error) {
 	if !manager.installed() {
 		return StateNotInstalled, nil
 	}
-	_, _ = manager.Run("systemctl", "disable", "--now", UnitName)
+	if _, err := manager.Run("systemctl", "disable", "--now", UnitName); err != nil {
+		return "", ErrManager
+	}
+	for _, location := range []string{"/etc/systemd/system/", "/usr/lib/systemd/system/"} {
+		if _, err := os.Stat(manager.path(location + ProxyUnitName)); err == nil {
+			if _, err := manager.Run("systemctl", "stop", ProxyUnitName); err != nil {
+				return "", ErrManager
+			}
+			break
+		} else if !os.IsNotExist(err) {
+			return "", ErrManager
+		}
+	}
 	if err := os.Remove(manager.unitPath()); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", ErrManager
+	}
+	if err := os.Remove(manager.path("/etc/systemd/system/" + ProxyUnitName)); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return "", ErrManager
+	}
+	if err := os.Remove(manager.path("/etc/systemd/system/" + UnitName + ".d/10-wyrwood-engine-proxy.conf")); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return "", ErrManager
 	}
 	if err := os.Remove(manager.path("/etc/tmpfiles.d/wyrwood.conf")); err != nil && !errors.Is(err, os.ErrNotExist) {

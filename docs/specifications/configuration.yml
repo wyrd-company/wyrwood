@@ -8,12 +8,14 @@ description: >-
 
   The agent reads `/etc/wyrwood/agent.yml`, defined by
   `assets/configuration/agent.schema.json`. It records the controller URL,
-  the engine socket path, whether recreate enforcement is allowed on this
+  the upstream engine socket path, the filtered engine.proxy-socket path,
+  whether recreate enforcement is allowed on this
   host, the consumer directory root, and timeouts for engine, controller,
   and OpenBao operations. The agent key pair, accepted controller host-key
   fingerprint, cached policy, and events live under `/var/lib/wyrwood` and
   are not part of the configuration document. Defaults: engine socket
-  `/var/run/docker.sock`, recreate not allowed, consumer root
+  `/var/run/docker.sock`, filtered socket `/run/wyrwood-engine/engine.sock`,
+  recreate not allowed, consumer root
   `/run/wyrwood/containers`.
 
   The controller reads `/etc/wyrwood/controller.yml`, defined by

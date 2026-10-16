@@ -1,0 +1,27 @@
+# ---
+# relationships:
+#   implements: linux-service
+# ---
+[Unit]
+Description=Wyrwood filtering Engine proxy
+Documentation=https://github.com/wyrd-company/wyrwood
+After=docker.service
+PartOf=wyrwood-agent.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/wyrwood agent engine-proxy
+User=wyrwood-engine
+Group=wyrwood
+SupplementaryGroups=docker
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+ReadWritePaths=/run/wyrwood-engine
+RuntimeDirectory=wyrwood-engine
+RuntimeDirectoryMode=0750
+Restart=on-failure
+RestartSec=2s
+TimeoutStopSec=15s

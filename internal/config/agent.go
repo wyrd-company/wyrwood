@@ -20,6 +20,7 @@ import (
 // Agent defaults.
 const (
 	DefaultEngineSocket      = "/var/run/docker.sock"
+	DefaultEngineProxySocket = "/run/wyrwood-engine/engine.sock"
 	DefaultConsumerRoot      = "/run/wyrwood/containers"
 	DefaultControllerPort    = "22"
 	defaultEngineTimeout     = 10 * time.Second
@@ -36,6 +37,7 @@ type Agent struct {
 	ControllerURL     string
 	ControllerAddress string
 	EngineSocket      string
+	EngineProxySocket string
 	AllowRecreate     bool
 	ConsumerRoot      string
 	EngineTimeout     time.Duration
@@ -50,6 +52,7 @@ type agentDocument struct {
 	} `yaml:"controller"`
 	Engine *struct {
 		Socket        *string `yaml:"socket"`
+		ProxySocket   *string `yaml:"proxy-socket"`
 		AllowRecreate *bool   `yaml:"allow-recreate"`
 	} `yaml:"engine"`
 	Consumers *struct {
@@ -89,6 +92,7 @@ func ParseAgent(data []byte) (Agent, error) {
 		ControllerURL:     document.Controller.URL,
 		ControllerAddress: address,
 		EngineSocket:      DefaultEngineSocket,
+		EngineProxySocket: DefaultEngineProxySocket,
 		ConsumerRoot:      DefaultConsumerRoot,
 		EngineTimeout:     defaultEngineTimeout,
 		ControllerTimeout: defaultControllerTimeout,
@@ -100,6 +104,14 @@ func ParseAgent(data []byte) (Agent, error) {
 			if result.EngineSocket, err = canonicalPath("engine.socket", *document.Engine.Socket); err != nil {
 				return Agent{}, err
 			}
+		}
+		if document.Engine.ProxySocket != nil {
+			if result.EngineProxySocket, err = canonicalPath("engine.proxy-socket", *document.Engine.ProxySocket); err != nil {
+				return Agent{}, err
+			}
+		}
+		if result.EngineSocket == result.EngineProxySocket {
+			return Agent{}, invalid("engine sockets must differ")
 		}
 		if document.Engine.AllowRecreate != nil {
 			result.AllowRecreate = *document.Engine.AllowRecreate

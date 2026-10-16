@@ -54,7 +54,7 @@ func TestAgentDefaultsAndBounds(t *testing.T) {
 	}
 	want := Agent{
 		ControllerURL: "ssh://controller", ControllerAddress: "controller:22",
-		EngineSocket: "/var/run/docker.sock", ConsumerRoot: "/run/wyrwood/containers",
+		EngineSocket: "/var/run/docker.sock", EngineProxySocket: DefaultEngineProxySocket, ConsumerRoot: "/run/wyrwood/containers",
 		EngineTimeout: 10 * time.Second, ControllerTimeout: 10 * time.Second,
 		OpenBaoTimeout: 10 * time.Second, SignTimeout: 30 * time.Second,
 	}
@@ -196,5 +196,18 @@ func TestWriteAgentControllerURLPreservesOtherFields(t *testing.T) {
 	}
 	if err := WriteAgentControllerURL(path, "http://bad"); err == nil {
 		t.Fatal("WriteAgentControllerURL(invalid) = nil")
+	}
+}
+
+func TestProxySocketConfiguration(t *testing.T) {
+	for _, entry := range []string{"  proxy-socket: relative.sock\n", "  socket: /same.sock\n  proxy-socket: /same.sock\n"} {
+		if _, err := ParseAgent([]byte("controller:\n  url: ssh://controller.example\nengine:\n" + entry)); err == nil {
+			t.Fatal("accepted unsafe socket configuration")
+		}
+	}
+	doc := []byte("controller:\n  url: ssh://controller.example\nengine:\n  socket: /custom/engine.sock\n  proxy-socket: /custom/proxy/engine.sock\n")
+	cfg, err := ParseAgent(doc)
+	if err != nil || cfg.EngineSocket != "/custom/engine.sock" || cfg.EngineProxySocket != "/custom/proxy/engine.sock" {
+		t.Fatal(cfg, err)
 	}
 }

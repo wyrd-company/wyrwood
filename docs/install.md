@@ -102,8 +102,10 @@ docker exec wyrwood-controller wyrwood controller host-key
 
 The agent supports Linux on `amd64` and `arm64`. Install a package from the
 Wyrd repository or the Arch User Repository (AUR). Packages create the
-`wyrwood` system user, add it to the `docker` group, and install the system
-unit. Packages do not start the agent before enrollment.
+`wyrwood` and `wyrwood-engine` system users and install the agent and
+filtering proxy units. Only the proxy has Docker access. Fresh packages
+remain stopped until enrollment. An active agent restarts during upgrades
+so that its old Docker group credentials are dropped.
 
 ### APT
 
@@ -136,13 +138,10 @@ paru -S wyrwood-bin
 
 Each [GitHub release](https://github.com/wyrd-company/wyrwood/releases)
 provides Linux `tar.gz`, DEB, and RPM artifacts for `amd64` and `arm64`, plus
-`checksums.txt`. After extracting the executable, create the service user and
-unit yourself:
+`checksums.txt`. After extracting the executable, install the service pair and accounts:
 
 ```bash
 sudo install -m 0755 wyrwood /usr/local/bin/wyrwood
-sudo useradd --system --no-create-home --shell /usr/sbin/nologin \
-  --groups docker wyrwood
 sudo wyrwood agent service install
 ```
 
@@ -154,8 +153,9 @@ and sockets are `0600`, owned by the agent user; with it, they are `0750` and
 `0660`. Set the policy's numeric access group to a host GID held by the
 container processes.
 
-Packages add the agent user to `docker` only. Add `wyrwood` to each access
-group on the host. For example, for access group 1000:
+Add `wyrwood` to each consumer access group on the host. Use a group
+separate from `docker`; the agent must not have direct Engine access.
+For example, for access group 1000:
 
 ```bash
 getent group 1000
@@ -192,11 +192,48 @@ boot, run `sudo systemctl disable wyrwood-agent`.
 wyrwood version
 ```
 
-After upgrading the agent, restart it so it runs the new executable:
+DEB/RPM upgrades restart an active agent and its proxy automatically. An
+inactive agent stays inactive and boot enablement is preserved. For release
+archive upgrades, replace the executable and run the service installation
+again:
 
 ```bash
-sudo systemctl restart wyrwood-agent
+sudo wyrwood agent service install
 ```
+
+Installation removes stored `wyrwood` membership in `docker`, preserves its
+other consumer groups, and restarts a previously active service with fresh
+credentials. If a contract uses the Docker GID as its access group, choose a
+separate host group and update the contract before upgrading.
+
+Known generated `/etc` unit overrides are replaced. Unsafe local units or
+drop-ins and remaining processes with Docker access block installation.
+Correct the reported configuration as root and rerun service install; do
+not restore agent Docker access. Keys, policy cache, consumer directories,
+and recreate journals are retained.
 
 Consumer sockets are restored from cached policy before the agent contacts
 the controller, so bound containers keep their endpoints across the restart.
+
+## Engine permission
+
+The agent connects to `/run/wyrwood-engine/engine.sock`. Its proxy directory
+is `0750`, owned by `wyrwood-engine:wyrwood`; the socket is `0660`. The agent
+can connect but cannot replace the listener. The upstream Engine socket keeps
+its host permissions. Configuration under `/etc/wyrwood` is controlled by root.
+
+The proxy allows only the Engine reads the agent needs. Setting
+`engine.allow-recreate: true` permits stop, remove, create, and start. This
+opt-in still permits host takeover if the agent is compromised. Container
+inspect also exposes environment values and other host container metadata.
+Keep recreate disabled unless that host authority is acceptable.
+
+After a permission or configuration change, activate both processes together:
+
+```bash
+sudo systemctl restart wyrwood-agent.service
+```
+
+Editing the file alone does not change the active permission. Proxy failures
+leave Engine observation unavailable; existing consumer sockets continue
+with their normal token lifecycle. There is no direct Engine fallback.

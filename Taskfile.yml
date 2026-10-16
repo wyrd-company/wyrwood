@@ -42,6 +42,14 @@ tasks:
         vars:
           TEST_TASK: test:ci
 
+  test:engine-proxy:root:
+    desc: Prove Engine proxy Unix permissions with separate real Linux UIDs
+    cmds:
+      - go test -c -o .tmp/engineproxy.test ./internal/engineproxy
+      - sudo -n .tmp/engineproxy.test -test.v -test.run 'TestRoot|TestRawEngineAccessGuard'
+      - go test -c -o .tmp/linuxservice.test ./internal/linuxservice
+      - sudo -n .tmp/linuxservice.test -test.v -test.run TestRootPackage
+
   test:release-manifest:
     desc: Test the package release manifest generator
     cmds:

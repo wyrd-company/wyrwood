@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/agent"
+	"github.com/wyrd-company/wyrwood/internal/config"
 )
 
 const controlTimeout = 5 * time.Second
@@ -31,6 +32,25 @@ func runAgent(args []string, stdin io.Reader, stdout, stderr io.Writer, deps dep
 	switch args[0] {
 	case "login":
 		return runAgentLogin(args[1:], stdin, stdout, stderr, deps)
+	case "engine-proxy":
+		options, positional, problem := parseOptions(args[1:], optionConfig)
+		if options.help {
+			_, _ = io.WriteString(stdout, "Usage: wyrwood agent engine-proxy [--config path]\n")
+			return exitSuccess
+		}
+		if problem != nil || len(positional) != 0 {
+			return writeFailure(stderr, outputHuman, name, failureUsage)
+		}
+		path := options.config
+		if path == "" {
+			path = config.DefaultAgentPath
+		}
+		ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+		defer stop()
+		if err := deps.runEngineProxy(ctx, path); err != nil {
+			return writeFailure(stderr, outputHuman, name, failureOperational)
+		}
+		return exitSuccess
 	case "daemon":
 		options, positional, problem := parseOptions(args[1:], 0)
 		if options.help {

@@ -22,7 +22,7 @@ func runService(args []string, stdout, stderr io.Writer, deps dependencies) int 
 	}
 	action := args[0]
 	switch action {
-	case "install", "remove", "start", "stop", "status":
+	case "install", "remove", "start", "stop", "status", "package-install":
 	default:
 		return writeFailure(stderr, outputHuman, name, failureUsage)
 	}
@@ -55,6 +55,8 @@ func serviceFailure(err error) failure {
 		return failureRequiresRoot
 	case errors.Is(err, linuxservice.ErrNotInstalled):
 		return failureNotInstalled
+	case errors.Is(err, linuxservice.ErrUnsafeInstallation):
+		return failure{code: "unsafe-service-permissions", message: linuxservice.ErrUnsafeInstallation.Error(), status: exitOperational}
 	default:
 		return failureServiceManager
 	}

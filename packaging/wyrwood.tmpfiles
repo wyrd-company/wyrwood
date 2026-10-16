@@ -3,3 +3,4 @@
 #   implements: linux-service
 # ---
 d /run/wyrwood 0755 wyrwood wyrwood -
+d /run/wyrwood-engine 0750 wyrwood-engine wyrwood -

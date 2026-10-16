@@ -22,6 +22,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -41,6 +42,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/contract"
 	"github.com/wyrd-company/wyrwood/internal/controller/controllertest"
 	"github.com/wyrd-company/wyrwood/internal/engine"
+	"github.com/wyrd-company/wyrwood/internal/engineproxy"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
@@ -116,14 +118,18 @@ func eventually(t *testing.T, what string, timeout time.Duration, condition func
 }
 
 type runningAgent struct {
-	cancel context.CancelFunc
-	done   chan error
+	cancel    context.CancelFunc
+	done      chan error
+	proxyDone chan error
 }
 
 func (running *runningAgent) stop() {
 	if running.cancel != nil {
 		running.cancel()
 		<-running.done
+		if running.proxyDone != nil {
+			<-running.proxyDone
+		}
 		running.cancel = nil
 	}
 }
@@ -137,16 +143,27 @@ func startAgent(t *testing.T, paths agent.Paths, root string) *runningAgent {
 	configuration.ConsumerRoot = root
 	configuration.AllowRecreate = true
 	configuration.ControllerTimeout = 3 * time.Second
+	ctx, cancel := context.WithCancel(context.Background())
+	filtered, err := net.Listen("unix", filepath.Join(paths.State, "engine-proxy.sock"))
+	if err != nil {
+		cancel()
+		t.Fatal(err)
+	}
+	proxyDone := make(chan error, 1)
+	go func() {
+		proxyDone <- engineproxy.New(configuration.EngineSocket, configuration.AllowRecreate, io.Discard).Serve(ctx, filtered)
+	}()
 	instance, err := agent.New(agent.Options{
-		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineSocket), Hostname: "gate-host",
+		Config: configuration, Paths: paths, Engine: engine.NewClient(filepath.Join(paths.State, "engine-proxy.sock")), Hostname: "gate-host",
 		Endpoints: endpoints{vault: vaultproxy.New(10 * time.Second), ssh: sshagent.New(30 * time.Second)},
 		Log:       os.Stderr,
 	})
 	if err != nil {
+		cancel()
+		<-proxyDone
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithCancel(context.Background())
-	running := &runningAgent{cancel: cancel, done: make(chan error, 1)}
+	running := &runningAgent{cancel: cancel, done: make(chan error, 1), proxyDone: proxyDone}
 	go func() { running.done <- instance.Run(ctx) }()
 	t.Cleanup(running.stop)
 	return running

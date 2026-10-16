@@ -37,6 +37,7 @@ archives:
     files:
       - LICENSE
       - README.md
+      - packaging/*
 
 nfpms:
   - id: packages
@@ -64,11 +65,16 @@ nfpms:
         dst: /usr/lib/systemd/system/wyrwood-agent.service
         file_info:
           mode: 0644
+      - src: packaging/wyrwood-engine-proxy.service
+        dst: /usr/lib/systemd/system/wyrwood-engine-proxy.service
+        file_info:
+          mode: 0644
       - src: packaging/wyrwood.tmpfiles
         dst: /usr/lib/tmpfiles.d/wyrwood.conf
         file_info:
           mode: 0644
     scripts:
+      preinstall: packaging/preinstall.sh
       postinstall: packaging/postinstall.sh
       preremove: packaging/preremove.sh
       postremove: packaging/postremove.sh

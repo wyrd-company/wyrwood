@@ -50,8 +50,8 @@ Without one, they are `0700` and `0600`, owned by the agent user. A container
 running as another non-root UID cannot use those owner-only sockets.
 
 The agent user must belong to the host group so it can assign that group to
-the directory and sockets. Packages add `wyrwood` to `docker` only; they do
-not add it to your container's access group. For example, if the contract uses
+the directory and sockets. Add `wyrwood` to the consumer access group;
+`docker` cannot serve as that group. For example, if the contract uses
 GID 1000, find its host group name, add the agent user, and restart the agent
 so it receives the new membership:
 
@@ -63,7 +63,7 @@ sudo systemctl restart wyrwood-agent
 
 Replace `<host-group-name>` with the name returned by `getent`. If the GID has
 no host group, create one with that GID first. Repeat on each bound host.
-For a custom service account, use that account instead of `wyrwood`.
+The packaged service identity is `wyrwood`; the proxy accepts that UID and root.
 
 Membership grants access: members of that host group who can reach the
 consumer directory can use its sockets with the binding's OpenBao and SSH
@@ -113,8 +113,17 @@ controller:
   url: ssh://controller.example.internal:2222
 engine:
   socket: /var/run/docker.sock
+  proxy-socket: /run/wyrwood-engine/engine.sock
   allow-recreate: false
 ```
+
+`engine.socket` is the proxy's upstream; the agent uses `engine.proxy-socket`.
+The proxy reads the root-controlled file itself. Set `allow-recreate: true`
+only when arbitrary create/start authority on this host is acceptable: a
+compromised agent can still take over a recreate-enabled host. Activate any
+change with `sudo systemctl restart wyrwood-agent.service`, which restarts
+the proxy too. Both configuration paths and custom proxy socket directories
+must meet the protected ownership rules described in [Installation](install.md).
 
 The agent key, accepted controller fingerprint, cached policy, events, and
 the journal of each recreate in progress live under `/var/lib/wyrwood`. No

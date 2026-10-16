@@ -17,15 +17,14 @@ import (
 const expectedUnit = `[Unit]
 Description=Wyrwood agent
 Documentation=https://github.com/wyrd-company/wyrwood
-After=docker.service network-online.target
-Wants=network-online.target
+After=docker.service network-online.target wyrwood-engine-proxy.service
+Wants=network-online.target wyrwood-engine-proxy.service
 
 [Service]
 Type=simple
 ExecStart=/usr/bin/wyrwood agent daemon
 User=wyrwood
 Group=wyrwood
-SupplementaryGroups=docker
 UMask=0077
 NoNewPrivileges=yes
 ProtectSystem=strict
@@ -66,13 +65,14 @@ func TestUnitAndPackagedFilesMatchExactly(t *testing.T) {
 	if packaged := repositoryFile(t, "packaging/wyrwood.tmpfiles"); packaged != string(Tmpfiles()) {
 		t.Fatalf("packaged tmpfiles differs:\n%s", packaged)
 	}
-	postinstall := repositoryFile(t, "packaging/postinstall.sh")
-	for _, want := range []string{"useradd --system --user-group --home-dir /var/lib/wyrwood --no-create-home --shell /usr/sbin/nologin wyrwood",
-		"usermod --append --groups docker wyrwood", "install -d -m 0700 -o wyrwood -g wyrwood /var/lib/wyrwood"} {
-		if !strings.Contains(postinstall, want) {
-			t.Errorf("post-install lacks %q", want)
-		}
+	if got := repositoryFile(t, "packaging/wyrwood-engine-proxy.service"); got != string(ProxyUnit(PackagedExecutable)) {
+		t.Fatalf("packaged proxy unit differs:\n%s", got)
 	}
+	postinstall := repositoryFile(t, "packaging/postinstall.sh")
+	if !strings.Contains(postinstall, "/usr/bin/wyrwood agent service package-install") {
+		t.Fatal("package does not use shared upgrade transition")
+	}
+
 }
 
 type recorder struct {
@@ -90,7 +90,7 @@ func (recorder *recorder) run(name string, arguments ...string) (string, error) 
 
 func newManager(t *testing.T, euid int) (*Manager, *recorder) {
 	t.Helper()
-	runner := &recorder{failures: map[string]error{}, outputs: map[string]string{}}
+	runner := &recorder{failures: map[string]error{}, outputs: map[string]string{"systemctl show --property=User,Group,SupplementaryGroups wyrwood-agent.service": "User=wyrwood\nGroup=wyrwood\nSupplementaryGroups=\n"}}
 	return &Manager{Root: t.TempDir(), Executable: "/opt/wyrwood/bin/wyrwood", Run: runner.run, EUID: func() int { return euid }}, runner
 }
 

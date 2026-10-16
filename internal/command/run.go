@@ -27,6 +27,7 @@ Agent:
   agent login <ssh://host:port> [--accept-fingerprint SHA256:...]
                                         Create the agent key and request approval
   agent daemon                          Run the agent
+  agent engine-proxy [--config PATH]     Run the filtering Engine boundary
   agent status                          Inspect agent, controller session, and binding health
   agent containers                      List observed containers and their bindings
   agent events [--limit N]              Inspect bounded operational events (1-1000, default 100)

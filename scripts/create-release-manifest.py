@@ -107,7 +107,22 @@ def create_manifest(artifacts_dir: Path, version: str, commit: str) -> dict[str,
         "publish": {
             "apt": {"suite": "stable", "component": "main"},
             "rpm": {"channel": "stable"},
-            "aur": {"package": "wyrwood-bin"},
+            "aur": {
+                "package": "wyrwood-bin",
+                "installation": {
+                    "files": {
+                        "packaging/wyrwood-agent.service": "/usr/lib/systemd/system/wyrwood-agent.service",
+                        "packaging/wyrwood-engine-proxy.service": "/usr/lib/systemd/system/wyrwood-engine-proxy.service",
+                        "packaging/wyrwood.tmpfiles": "/usr/lib/tmpfiles.d/wyrwood.conf"
+                    },
+                    "hooks": {
+                        "pre-install": "packaging/preinstall.sh",
+                        "post-install": "packaging/postinstall.sh",
+                        "pre-remove": "packaging/preremove.sh",
+                        "post-remove": "packaging/postremove.sh"
+                    }
+                }
+            },
         },
         "artifacts": artifacts,
     }

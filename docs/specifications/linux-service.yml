@@ -5,32 +5,54 @@ relationships:
 format: systemd-system-unit
 description: >-
   On Linux, `wyrwood agent service install|remove|start|stop|status` manages
-  `wyrwood-agent.service` in the system service manager and requires root.
-  Package installation creates the `wyrwood` system user with no login shell,
-  adds it to the `docker` group, creates `/etc/wyrwood`, `/var/lib/wyrwood`
-  with mode 0700, and the tmpfiles entry for `/run/wyrwood` with mode 0755
-  owned by that user, and installs the unit. Start, stop, and status also
-  manage packaged units.
-  Archive installations use install to create the user and unit.
+  wyrwood-agent.service and its filtering dependency
+  wyrwood-engine-proxy.service. Install, remove, start, and stop require root.
+  Installation creates the non-login users wyrwood and wyrwood-engine, with
+  agent state under /var/lib/wyrwood mode 0700. The agent is wyrwood:wyrwood
+  without docker membership. The proxy is wyrwood-engine:wyrwood with
+  SupplementaryGroups=docker. Consumer access groups remain assigned to
+  wyrwood; docker cannot also serve as a consumer access group.
 
-  The unit runs `wyrwood agent daemon` as `User=wyrwood`, `Group=wyrwood`,
-  with `SupplementaryGroups=docker`, `UMask=0077`, `NoNewPrivileges=yes`,
-  `ProtectSystem=strict`, `ReadWritePaths=/var/lib/wyrwood /run/wyrwood`,
-  `RuntimeDirectory=wyrwood`, `RuntimeDirectoryPreserve=yes`, restart on
-  failure after two seconds, and a fifteen-second stop timeout. It is wanted
-  by `multi-user.target` and ordered after `docker.service`. Daemon startup
-  restores consumer directories and sockets from cached policy before it
-  contacts the controller, so bound containers keep their endpoints while the
-  controller is unavailable.
+  The agent's unit wants and is ordered after the proxy. The proxy has
+  PartOf=wyrwood-agent.service, so coordinated stop/restart closes its
+  connections too. Its root-controlled configuration is /etc/wyrwood/agent.yml;
+  it enforces the engine-proxy design. The filtered Unix socket is
+  /run/wyrwood-engine/engine.sock, mode 0660, in a directory owned by
+  wyrwood-engine:wyrwood with mode 0750. Only root and the agent UID are
+  accepted peers. /run/wyrwood remains agent-owned mode 0755, so consumer
+  directories survive agent restarts. The proxy has no access to agent keys
+  or tokens. Its unit uses NoNewPrivileges=yes, ProtectSystem=strict,
+  RestrictAddressFamilies=AF_UNIX, and an empty CapabilityBoundingSet.
+  Both services use UMask=0077, restart on failure after two seconds, and
+  a fifteen-second systemd stop timeout. The proxy adds no request deadline.
 
-  Install and remove replace the unit atomically, reload the manager, and
-  enable or disable the unit. Start enables the unit at boot and starts it
-  immediately. Stop stops the running unit without disabling boot startup.
-  Status reports only `not-installed`,
-  `inactive`, `active`, or `failed`. Every action supports the command-line
-  interface's human and JSON output, and failures are categorical.
+  DEB/RPM pre-install stops an existing agent before replacing files and
+  records whether it was active in a root-owned runtime marker. Post-install
+  uses the root-only package-install maintenance action to create accounts,
+  remove stored docker membership, reconcile known generated /etc unit
+  overrides, and reload the manager. The active agent restarts with the new
+  proxy dependency and fresh groups; inactive agents stay inactive and boot
+  enablement is preserved. Fresh packages remain stopped for enrollment.
+  With no running systemd manager, installation updates persistent files.
+  Stop, membership, reload, or restart errors fail installation. Remaining
+  wyrwood processes with docker credentials and unsafe operator overrides
+  require root correction; there is no fallback to direct Engine access.
+
+  Archive service install performs the same transition, preserves existing
+  boot enablement, and enables a fresh service installation. Start enables
+  the agent at boot and starts both services through the dependency. Stop
+  leaves boot enablement intact. Remove stops the pair, removes generated
+  archive service/runtime configuration, and retains durable identity/state.
+  Agent status uses the vocabulary not-installed, inactive, active, or failed;
+  Engine operations fail categorically while existing consumer sockets
+  continue serving. All commands support human and JSON output and
+  categorical errors. unsafe-service-permissions identifies root actions
+  needed for local unit/drop-in or remaining process correction.
 validation-criteria: >-
-  Tests verify exact unit bytes, hardening directives, argv order without a
-  shell, the tmpfiles entry, package post-install user creation on DEB and
-  RPM, idempotent install and start, enabling packaged and archive units on
-  start, stop preserving enablement, and categorical non-leaking errors.
+  Tests compare packaged and generated unit bytes and exercise fresh install,
+  active/inactive upgrade, stored and live group removal, retained consumer
+  groups and boot enablement, generated /etc unit precedence, operator
+  overrides, every failing transition, and removal. The root Engine proxy
+  gate verifies real Unix socket ownership, separate UIDs, configuration
+  trust, peer credentials, and direct Engine denial. A live systemd upgrade
+  gate retains a bound consumer through an installed-service upgrade.
