@@ -111,8 +111,8 @@ def goreleaser_contract() -> tuple[str, tuple[int, int, int]]:
 def validate_setup_go_steps() -> None:
     setup_steps = action_steps("actions/setup-go@")
 
-    if len(setup_steps) != 2:
-        raise ContractError(f"expected two hosted setup-go steps, found {len(setup_steps)}")
+    if len(setup_steps) != 3:
+        raise ContractError(f"expected three hosted setup-go steps, found {len(setup_steps)}")
 
     expected_use = f"uses: {SETUP_GO_ACTION}"
     for workflow, step in setup_steps:

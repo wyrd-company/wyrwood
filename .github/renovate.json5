@@ -1,0 +1,18 @@
+// ---
+// relationships:
+//   maintains: ci
+// ---
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github/workflows/ci\\.yml$/"],
+      "matchStrings": ["OPENBAO_VERSION: (?<currentValue>[0-9.]+)"],
+      "depNameTemplate": "openbao/openbao",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.*)$"
+    }
+  ]
+}

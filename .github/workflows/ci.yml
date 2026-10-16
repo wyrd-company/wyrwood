@@ -1,0 +1,67 @@
+# ---
+# relationships:
+#   validates: Taskfile
+# ---
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Repository checks
+    runs-on: ubuntu-latest
+    env:
+      OPENBAO_VERSION: 2.7.1
+      WYRWOOD_TEST_IMAGE: alpine:3.22
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Install repository check tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          go install github.com/go-task/task/v3/cmd/task@v3.52.0
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          python3 -m venv "$RUNNER_TEMP/ci-linters"
+          "$RUNNER_TEMP/ci-linters/bin/pip" install -r .github/requirements-ci.txt
+          echo "$RUNNER_TEMP/ci-linters/bin" >> "$GITHUB_PATH"
+
+      - name: Install OpenBao
+        shell: bash
+        run: |
+          set -euo pipefail
+          directory="$RUNNER_TEMP/openbao"
+          mkdir -p "$directory"
+          cd "$directory"
+          archive="openbao_${OPENBAO_VERSION}_linux_amd64.tar.gz"
+          base="https://github.com/openbao/openbao/releases/download/v${OPENBAO_VERSION}"
+          curl --fail --location --output "$archive" "$base/$archive"
+          curl --fail --location --output checksums.txt "$base/checksums.txt"
+          grep "  $archive\$" checksums.txt | sha256sum --check --strict
+          tar -xzf "$archive" bao
+          "$directory/bao" version
+          echo "WYRWOOD_BAO=$directory/bao" >> "$GITHUB_ENV"
+
+      - name: Prepare real-engine tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker info
+          docker pull "$WYRWOOD_TEST_IMAGE"
+
+      - name: Validate repository
+        run: task ci

@@ -25,6 +25,23 @@ tasks:
     cmds:
       - go test ./...
 
+  test:ci:
+    desc: Run uncached tests and reject missing integration prerequisites
+    cmds:
+      - bash scripts/test-ci.sh
+
+  test:ci-runner:
+    desc: Test the CI runner's handling of failures and missing prerequisites
+    cmds:
+      - python3 -m unittest scripts/test-ci_test.py
+
+  ci:
+    desc: Run all checks and require OpenBao and real-engine tests to execute
+    cmds:
+      - task: check
+        vars:
+          TEST_TASK: test:ci
+
   test:release-manifest:
     desc: Test the package release manifest generator
     cmds:
@@ -82,6 +99,7 @@ tasks:
       - scripts:check
       - test
       - test:release-manifest
+      - test:ci-runner
       - vet
 
   release:compatibility:
@@ -134,7 +152,8 @@ tasks:
       - format:check
       - release:check
       - scripts:check
-      - test
+      - task: '{{default "test" .TEST_TASK}}'
       - test:release-manifest
+      - test:ci-runner
       - vet
       - workflows:check
