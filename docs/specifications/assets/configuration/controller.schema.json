@@ -6,6 +6,15 @@
   "additionalProperties": false,
   "required": ["openbao", "oidc"],
   "properties": {
+    "update-checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false },
+        "interval": { "type": "string", "default": "24h" },
+        "timeout": { "type": "string", "default": "10s" }
+      }
+    },
     "http": {
       "type": "object",
       "additionalProperties": false,

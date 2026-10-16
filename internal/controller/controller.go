@@ -16,6 +16,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -28,6 +29,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/openbao"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
+	"github.com/wyrd-company/wyrwood/internal/updates"
 )
 
 const (
@@ -73,6 +75,7 @@ type Controller struct {
 	hub     *hub
 	log     io.Writer
 	now     func() time.Time
+	updates *updates.Checker
 
 	healthMu      sync.Mutex
 	healthChecked time.Time
@@ -82,8 +85,10 @@ type Controller struct {
 
 // Options configure a controller beyond its configuration document.
 type Options struct {
-	OpenBao OpenBao
-	Log     io.Writer
+	// ReleaseTransport substitutes the public release HTTP transport in tests.
+	ReleaseTransport http.RoundTripper
+	OpenBao          OpenBao
+	Log              io.Writer
 }
 
 // New opens the controller's durable state.
@@ -140,6 +145,7 @@ func New(configuration config.Controller, options Options) (*Controller, error) 
 		agentOB: agentOpenBao, log: logWriter, now: func() time.Time { return time.Now().UTC() },
 	}
 	controller.hub = newHub(controller)
+	controller.updates = updates.New(configuration.UpdateChecks, options.ReleaseTransport)
 	return controller, nil
 }
 
@@ -154,6 +160,9 @@ func (controller *Controller) Store() *store.Store { return controller.store }
 // Events exposes the controller event history.
 func (controller *Controller) Events() *events.Store { return controller.events }
 
+// Updates returns the last public release observation without network I/O.
+func (controller *Controller) Updates() updates.Status { return controller.updates.Status() }
+
 // Configuration returns the controller configuration.
 func (controller *Controller) Configuration() config.Controller { return controller.config }
 
@@ -161,6 +170,8 @@ func (controller *Controller) Configuration() config.Controller { return control
 // until ctx ends. The HTTP handler, when non-nil, is served on the
 // configured HTTP address.
 func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Context) error) error {
+	ctx, cancelRun := context.WithCancel(ctx)
+	defer cancelRun()
 	signer, err := LoadOrCreateHostKey(controller.config.StateDirectory)
 	if err != nil {
 		return err
@@ -179,6 +190,9 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 	if err != nil {
 		return err
 	}
+	updatesDone := make(chan struct{})
+	go func() { defer close(updatesDone); controller.updates.Run(ctx) }()
+	defer func() { cancelRun(); <-updatesDone }()
 	errorsChannel := make(chan error, 2)
 	go func() { errorsChannel <- server.ListenAndServe() }()
 	if serveHTTP != nil {

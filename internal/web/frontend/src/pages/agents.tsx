@@ -11,7 +11,7 @@ import {
   Table,
   containerURL,
 } from "@/components/shared";
-import { ago } from "@/lib/time";
+import { ago, stamp } from "@/lib/time";
 import type { AgentsData } from "@/types";
 export function Agents({ data: d }: { data: AgentsData }) {
   return (
@@ -20,8 +20,47 @@ export function Agents({ data: d }: { data: AgentsData }) {
       <Panel aria-labelledby="h-version">
         <h2 id="h-version">Controller version</h2>
         <p>
-          <code>{d.Version}</code>
+          <code>{d.Version}</code>{" "}
+          {d.UpdateAvailable && (
+            <Status kind="degraded">Update available</Status>
+          )}
         </p>
+        {!d.Updates.Enabled ? (
+          <p className="hint">Update checks disabled.</p>
+        ) : (
+          <>
+            {d.Updates.Unavailable ? (
+              <p role="status">
+                Update check unavailable. The controller keeps serving agents.
+              </p>
+            ) : d.Updates.Checked.startsWith("0001-") ? (
+              <p className="hint">Checking for updates…</p>
+            ) : !d.VersionComparable ? (
+              <p className="hint">
+                Version comparison unavailable for this build.
+              </p>
+            ) : !d.UpdateAvailable ? (
+              <p className="hint">Up to date.</p>
+            ) : null}
+            {d.Updates.Latest && (
+              <p className="hint">
+                Latest release:{" "}
+                <a
+                  href={`https://github.com/wyrd-company/wyrwood/releases/tag/${encodeURIComponent(d.Updates.Latest)}`}
+                >
+                  {d.Updates.Latest}
+                </a>
+                {" · Last successful check "}
+                <time
+                  dateTime={d.Updates.LastSuccess}
+                  title={stamp(d.Updates.LastSuccess)}
+                >
+                  {ago(d.Updates.LastSuccess)}
+                </time>
+              </p>
+            )}
+          </>
+        )}
       </Panel>
       <Panel aria-labelledby="h-hk">
         <div className="section-head">
@@ -112,6 +151,12 @@ export function Agents({ data: d }: { data: AgentsData }) {
                 </th>
                 <td>
                   <code>{agent.Version || "unknown"}</code>
+                  {agent.OutOfDate && (
+                    <>
+                      {" "}
+                      <Status kind="degraded">Out of date</Status>
+                    </>
+                  )}
                   {!agent.Version && (
                     <>
                       {" "}

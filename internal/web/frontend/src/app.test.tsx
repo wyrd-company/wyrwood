@@ -6,7 +6,13 @@ import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { App } from "./app";
-import type { ContainerRow, Layout, Page, PolicyData } from "./types";
+import type {
+  ContainerRow,
+  Layout,
+  Page,
+  PolicyData,
+  UpdateStatus,
+} from "./types";
 import { ago, until, stamp } from "./lib/time";
 
 const layout: Layout = {
@@ -19,6 +25,19 @@ const layout: Layout = {
   Controller: "controller.example.com",
   Notice: "",
   Problem: "",
+};
+const updateStatus: UpdateStatus = {
+  Enabled: false,
+  Latest: "",
+  Checked: "0001-01-01T00:00:00Z",
+  LastSuccess: "0001-01-01T00:00:00Z",
+  Unavailable: false,
+};
+const versionInfo = {
+  Version: "3.4.5",
+  Updates: updateStatus,
+  UpdateAvailable: false,
+  VersionComparable: true,
 };
 const policy: PolicyData = {
   ...layout,
@@ -136,7 +155,7 @@ it("keeps sidebar routes, pending count, account identity, and sign out", () => 
     page: "agents",
     data: {
       ...layout,
-      Version: "3.4.5",
+      ...versionInfo,
       HostKey: "sample-fingerprint",
       PendingKeys: null,
       Approved: null,
@@ -168,7 +187,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
     page: "agents",
     data: {
       ...layout,
-      Version: "3.4.5",
+      ...versionInfo,
       HostKey: "controller-fingerprint",
       PendingKeys: [
         {
@@ -181,6 +200,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
         {
           Name: "sample/host",
           Version: "2.9.1",
+          OutOfDate: true,
           Connected: false,
           Containers: 1,
           Bound: 1,
@@ -207,6 +227,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
   );
   expect(screen.getByText(/serving from cache/)).toBeInTheDocument();
   expect(screen.getByText("1 degraded")).toBeInTheDocument();
+  expect(screen.getByText("Out of date")).toBeInTheDocument();
 });
 
 it("shows controller and agent build versions, including legacy agents", () => {
@@ -214,12 +235,13 @@ it("shows controller and agent build versions, including legacy agents", () => {
     page: "agents",
     data: {
       ...layout,
-      Version: "3.4.5",
+      ...versionInfo,
       HostKey: "sample-fingerprint",
       PendingKeys: null,
       Approved: ["2.9.1+sample", ""].map((Version, index) => ({
         Name: `sample-host-${index}`,
         Version,
+        OutOfDate: false,
         Connected: false,
         Containers: 0,
         Bound: 0,
@@ -591,3 +613,109 @@ it("keeps not-forwardable identity selectors editable and clearable", async () =
     "not-forwardable-ca-roles": "",
   });
 });
+
+it.each([
+  ["disabled", updateStatus, false, true, "Update checks disabled."],
+  [
+    "pending",
+    { ...updateStatus, Enabled: true },
+    false,
+    true,
+    "Checking for updates…",
+  ],
+  [
+    "offline",
+    { ...updateStatus, Enabled: true, Unavailable: true },
+    false,
+    true,
+    "Update check unavailable.",
+  ],
+  [
+    "stale",
+    {
+      ...updateStatus,
+      Enabled: true,
+      Latest: "3.5.0",
+      LastSuccess: "2026-01-01T00:00:00Z",
+      Checked: "2026-01-02T00:00:00Z",
+      Unavailable: true,
+    },
+    true,
+    true,
+    "Update check unavailable.",
+  ],
+  [
+    "available",
+    {
+      ...updateStatus,
+      Enabled: true,
+      Latest: "3.5.0",
+      LastSuccess: "2026-01-01T00:00:00Z",
+      Checked: "2026-01-01T00:00:00Z",
+    },
+    true,
+    true,
+    "Update available",
+  ],
+  [
+    "current",
+    {
+      ...updateStatus,
+      Enabled: true,
+      Latest: "3.4.5",
+      LastSuccess: "2026-01-01T00:00:00Z",
+      Checked: "2026-01-01T00:00:00Z",
+    },
+    false,
+    true,
+    "Up to date.",
+  ],
+  [
+    "development",
+    {
+      ...updateStatus,
+      Enabled: true,
+      Latest: "3.4.5",
+      LastSuccess: "2026-01-01T00:00:00Z",
+      Checked: "2026-01-01T00:00:00Z",
+    },
+    false,
+    false,
+    "Version comparison unavailable for this build.",
+  ],
+] as const)(
+  "shows release-check state %s",
+  (_name, Updates, UpdateAvailable, VersionComparable, expected) => {
+    draw({
+      page: "agents",
+      data: {
+        ...layout,
+        ...versionInfo,
+        Updates,
+        UpdateAvailable,
+        VersionComparable,
+        HostKey: "sample-fingerprint",
+        PendingKeys: null,
+        Approved: null,
+      },
+    });
+    const panel = screen.getByRole("region", { name: "Controller version" });
+    expect(panel).toHaveTextContent(expected);
+    if (Updates.Latest)
+      expect(
+        within(panel).getByRole("link", { name: Updates.Latest }),
+      ).toHaveAttribute(
+        "href",
+        `https://github.com/wyrd-company/wyrwood/releases/tag/${Updates.Latest}`,
+      );
+    if (
+      !VersionComparable ||
+      Updates.Unavailable ||
+      !Updates.Enabled ||
+      Updates.Checked.startsWith("0001-")
+    )
+      expect(panel).not.toHaveTextContent("Up to date.");
+    if (UpdateAvailable)
+      expect(within(panel).getByText("Update available")).toBeInTheDocument();
+  },
+);
