@@ -7,7 +7,7 @@ module github.com/wyrd-company/wyrwood
 go 1.26.4
 
 require (
-	github.com/charmbracelet/ssh v0.0.0-20250128164007-98fd5ae11894
+	github.com/charmbracelet/ssh v0.4.3
 	github.com/charmbracelet/wish v1.4.7
 	github.com/coreos/go-oidc/v3 v3.21.0
 	github.com/go-jose/go-jose/v4 v4.1.5
