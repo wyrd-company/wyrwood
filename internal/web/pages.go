@@ -38,6 +38,7 @@ type layout struct {
 	Operator    string
 	Pending     int
 	OpenBaoOK   bool
+	OpenBaoURL  string
 	Controller  string
 	Notice      string
 	Problem     string
@@ -69,7 +70,8 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 	return layout{
 		Title: title, Current: current, CSRF: session.session.CSRF, Operator: name, Pending: pending,
 		OpenBaoOK: server.controller.OpenBaoReachable(request.Context()), Controller: server.controllerHost(),
-		Notice: notices[request.URL.Query().Get("notice")],
+		OpenBaoURL: server.controller.Configuration().OpenBao.UISecretsURL(),
+		Notice:     notices[request.URL.Query().Get("notice")],
 	}
 }
 

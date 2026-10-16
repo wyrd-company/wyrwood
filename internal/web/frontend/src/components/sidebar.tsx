@@ -2,6 +2,8 @@
 // relationships:
 //   implements: web-interface
 // ---
+import { Fragment } from "react";
+import { OpenBaoLink } from "@/components/openbao-link";
 import type { Layout } from "@/types";
 export function Brand() {
   return (
@@ -30,18 +32,20 @@ export function Sidebar({ data }: { data: Layout }) {
           ["events", "Events"],
           ["security", "Security"],
         ].map(([path, label]) => (
-          <a
-            key={path}
-            href={`/${path}`}
-            aria-current={data.Current === path ? "page" : undefined}
-          >
-            {label}
-            {path === "agents" && data.Pending > 0 && (
-              <span className="count" aria-label={`${data.Pending} pending`}>
-                {data.Pending}
-              </span>
-            )}
-          </a>
+          <Fragment key={path}>
+            <a
+              href={`/${path}`}
+              aria-current={data.Current === path ? "page" : undefined}
+            >
+              {label}
+              {path === "agents" && data.Pending > 0 && (
+                <span className="count" aria-label={`${data.Pending} pending`}>
+                  {data.Pending}
+                </span>
+              )}
+            </a>
+            {path === "keys" && <OpenBaoLink href={data.OpenBaoURL} />}
+          </Fragment>
         ))}
       </div>
       <div className="nav-foot">

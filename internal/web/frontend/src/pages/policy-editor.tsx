@@ -11,6 +11,7 @@ import {
   Panel,
   Textarea,
 } from "@/components/shared";
+import { OpenBaoLink } from "@/components/openbao-link";
 import type { PolicyData } from "@/types";
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
   return (
@@ -83,6 +84,9 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
     <Panel aria-labelledby="h-hcl">
       <div className="section-head">
         <h2 id="h-hcl">OpenBao policy</h2>
+        <OpenBaoLink href={d.OpenBaoURL} className="sub">
+          Manage secrets in the OpenBao UI
+        </OpenBaoLink>
         {!d.New && (
           <span className="sub">
             Written to <code>{d.PolicyPath}</code> and parsed by OpenBao on

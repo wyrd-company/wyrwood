@@ -56,7 +56,8 @@
           }
         },
         "transit-mount": { "type": "string", "default": "transit" },
-        "ssh-mount": { "type": "string", "default": "ssh" }
+        "ssh-mount": { "type": "string", "default": "ssh" },
+        "ui-url": { "type": "string", "format": "uri" }
       }
     },
     "oidc": {

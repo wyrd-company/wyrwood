@@ -10,6 +10,7 @@ export interface Layout {
   Operator: string;
   Pending: number;
   OpenBaoOK: boolean;
+  OpenBaoURL: string;
   Controller: string;
   Notice: string;
   Problem: string;
