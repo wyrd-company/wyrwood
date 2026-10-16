@@ -307,7 +307,8 @@ proposed-design:
     aliases left by logins do not grant access after mount removal; any identity
     cleanup uses the site's process and has no extra CLI permission. Other
     independent credentials from other auth methods require the site's own
-    audit and revocation process. Removing ui-url or signing out of Wyrwood alone never revokes OpenBao access.
+    audit and revocation process. Removing ui-url or signing out of Wyrwood
+    alone never revokes OpenBao access.
   compatibility: >-
     This is an additive CLI, optional configuration field, and pair of links.
     Existing configurations and controller sign-in keep their behavior; absent

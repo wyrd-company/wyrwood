@@ -7,8 +7,12 @@ package openbao
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"reflect"
 	"slices"
@@ -259,6 +263,9 @@ func TestAdminOIDCSetupAdmissionAndTeardown(t *testing.T) {
 	if _, err := human.Auth().Token().LookupSelf(); err == nil {
 		t.Fatal("teardown left OIDC token valid")
 	}
+	if inspected, err := server.Root.Auth().Token().Lookup(logged.Auth.ClientToken); err == nil && inspected != nil {
+		t.Fatal("teardown removed permissions but left OIDC token stored")
+	}
 	if err := RemoveAdmin(ctx, client); err != nil {
 		t.Fatal("remove not idempotent")
 	}
@@ -355,5 +362,38 @@ func TestAdminSetupPreflightsAndPreservesUnownedResources(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestAdminRemovePreservesPolicyWhenDisableFails(t *testing.T) {
+	var deletedPolicy bool
+	policy, _ := AdminPolicy([]string{"kv"})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/v1/sys/capabilities-self":
+			_, _ = io.WriteString(w, `{"data":{"capabilities":["root"]}}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/sys/policies/acl/namespace-admin":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"policy": policy}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/sys/auth/admin-oidc":
+			_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]string{"type": "oidc", "description": adminDescription}})
+		case r.Method == http.MethodGet && r.URL.Path == "/v1/auth/admin-oidc/role" && r.URL.Query().Get("list") == "true":
+			_, _ = io.WriteString(w, `{"data":{"keys":["admin"]}}`)
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/sys/auth/admin-oidc":
+			w.WriteHeader(500)
+			_, _ = io.WriteString(w, `{"errors":["sample upstream"]}`)
+		case r.Method == http.MethodDelete && r.URL.Path == "/v1/sys/policies/acl/namespace-admin":
+			deletedPolicy = true
+			w.WriteHeader(204)
+		default:
+			t.Errorf("unexpected remove request %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(500)
+		}
+	}))
+	defer server.Close()
+	client, _ := NewAdminClient(Endpoint{Address: server.URL, Namespace: "sample"}, "sample-token")
+	err := RemoveAdmin(context.Background(), client)
+	var failure *AdminError
+	if !errors.As(err, &failure) || failure.Stage != "disable" || !failure.Partial || deletedPolicy {
+		t.Fatal("failed disable removed policy or lost categorical stage")
 	}
 }
