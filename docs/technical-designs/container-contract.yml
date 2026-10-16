@@ -60,8 +60,11 @@ proposed-design:
     for the binding, with the policy's access group applied. An unavailable
     directory or socket is reported as `consumer-directory`. With no access
     group, the container user must be root or the numeric agent uid; otherwise
-    `socket-access` is reported. A named non-root user cannot be resolved from
-    inspect output and is reported as unreachable for owner-only sockets.
+    `socket-access` is reported. With an access group, a numeric non-root user
+    other than the agent uid must have that numeric primary group or a matching
+    numeric entry in `HostConfig.GroupAdd`. A named non-root user or named group
+    cannot be resolved from inspect output; unverifiable socket access is
+    reported as `socket-access` rather than conforming.
     Validation uses inspect output and agent runtime state; it never executes
     inside the container. The result lists each failed item by name so the
     controller can show what is missing.

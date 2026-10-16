@@ -507,7 +507,7 @@ func (agent *Agent) checkLocked(ctx context.Context, bound protocol.Binding, con
 		if state == nil || state.binding != bound.Binding || len(state.listeners) != 2 || !sameGroup(state.group, bound.Policy.Contract.AccessGroup) {
 			failedSet[protocol.FailedConsumerDirectory] = true
 		}
-		if bound.Policy.Contract.AccessGroup == nil && !contract.OwnerOnlyReachable(container.Config.User) {
+		if !contract.SocketReachable(container, bound.Policy.Contract.AccessGroup) {
 			failedSet[protocol.FailedSocketAccess] = true
 		}
 		for _, item := range contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign) {
