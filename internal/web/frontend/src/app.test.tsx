@@ -33,8 +33,8 @@ const policy: PolicyData = {
   TokenMaxTTL: "8h",
   TransitKeys: "sample-key",
   CARoles: "sample-role",
-  NotForwardableTransitKeys: "sample-key",
-  NotForwardableCARoles: "sample-role",
+  NotForwardableTransitKeys: "sample-restricted-key",
+  NotForwardableCARoles: "sample-restricted-role",
   MountTarget: "/run/sample",
   Env: "EXAMPLE=value",
   AccessGroup: "",
@@ -226,6 +226,8 @@ it("preserves every policy value, edit/new identity, validation feedback and acc
     "token-max-ttl": policy.TokenMaxTTL,
     "transit-keys": policy.TransitKeys,
     "ca-roles": policy.CARoles,
+    "not-forwardable-transit-keys": policy.NotForwardableTransitKeys,
+    "not-forwardable-ca-roles": policy.NotForwardableCARoles,
     "mount-target": policy.MountTarget,
     env: policy.Env,
     "access-group": "",
@@ -533,11 +535,11 @@ it("keeps not-forwardable identity selectors editable and clearable", async () =
   draw({ page: "policy", data: { ...policy, New: false } });
   const keys = screen.getByLabelText("Not-forwardable Transit keys");
   const roles = screen.getByLabelText("Not-forwardable SSH-engine roles");
-  expect(keys).toHaveValue("sample-key");
-  expect(roles).toHaveValue("sample-role");
+  expect(keys).toHaveValue("sample-restricted-key");
+  expect(roles).toHaveValue("sample-restricted-role");
   expectPost("Save and validate", "/policies", {
-    "not-forwardable-transit-keys": "sample-key",
-    "not-forwardable-ca-roles": "sample-role",
+    "not-forwardable-transit-keys": "sample-restricted-key",
+    "not-forwardable-ca-roles": "sample-restricted-role",
   });
   await user.clear(keys);
   await user.type(keys, "sample-other-key");
