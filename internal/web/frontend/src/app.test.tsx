@@ -49,6 +49,10 @@ const policy: PolicyData = {
   Bindings: 1,
   Agents: 1,
   Warnings: [],
+  KVMounts: [],
+  AvailableTransitKeys: ["sample-key"],
+  AvailableCARoles: ["sample-role"],
+  IdentityProblems: [],
   HCL: 'path "sample/*" { capabilities = ["read"] }',
 
   TransitKeys: "sample-key",
@@ -351,6 +355,7 @@ it.each([true, false])(
     });
     expectOpenBaoLink(link);
     expect(link.closest("form")).toBe(formFor("Save and validate"));
+    await user.click(screen.getByRole("button", { name: "Raw HCL" }));
     await user.clear(screen.getByLabelText("OpenBao policy HCL"));
     await user.type(screen.getByLabelText("OpenBao policy HCL"), "unsaved");
     expectPost("Save and validate", "/policies", {
@@ -475,6 +480,7 @@ it("preserves every policy value, edit/new identity, validation feedback and acc
     env: policy.Env,
   };
   expectPost("Save and validate", "/policies", fields);
+  await user.click(screen.getByRole("button", { name: "Raw HCL" }));
   await user.clear(screen.getByLabelText("OpenBao policy HCL"));
   await user.type(screen.getByLabelText("OpenBao policy HCL"), "sample hcl");
   expectPost("Save and validate", "/policies", {
@@ -770,27 +776,21 @@ it("preserves relative time units and zero-time semantics", () => {
 it("keeps not-forwardable identity selectors editable and clearable", async () => {
   const user = userEvent.setup();
   draw({ page: "policy", data: { ...policy, New: false } });
-  const keys = screen.getByLabelText("Not-forwardable Transit keys");
-  const roles = screen.getByLabelText("Not-forwardable SSH-engine roles");
-  expect(keys).toHaveValue("sample-restricted-key");
-  expect(roles).toHaveValue("sample-restricted-role");
-  expectPost("Save and validate", "/policies", {
-    "not-forwardable-transit-keys": "sample-restricted-key",
-    "not-forwardable-ca-roles": "sample-restricted-role",
+  const keys = screen.getByRole("checkbox", {
+    name: "Not forwardable sample-restricted-key",
   });
-  await user.clear(keys);
-  await user.type(keys, "sample-other-key");
-  await user.clear(roles);
-  await user.type(roles, "sample-other-role");
-  expectPost("Save and validate", "/policies", {
-    "not-forwardable-transit-keys": "sample-other-key",
-    "not-forwardable-ca-roles": "sample-other-role",
+  const roles = screen.getByRole("checkbox", {
+    name: "Not forwardable sample-restricted-role",
   });
-  await user.clear(keys);
-  await user.clear(roles);
+  expect(keys).toBeChecked();
+  expect(roles).toBeChecked();
+  await user.click(keys);
+  await user.click(roles);
   expectPost("Save and validate", "/policies", {
     "not-forwardable-transit-keys": "",
     "not-forwardable-ca-roles": "",
+    "transit-keys": policy.TransitKeys,
+    "ca-roles": policy.CARoles,
   });
 });
 

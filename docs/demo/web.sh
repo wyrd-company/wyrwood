@@ -66,6 +66,7 @@ hold 1.5
 browse open "$site/policies/edit"
 hold 1
 browse type "#name" "teal"
+browse find role button click --name "Raw HCL"
 browse fill "#hcl" 'path "kv/data/teams/teal/*" {
   capabilities = ["read"]
 }
@@ -79,9 +80,10 @@ path "ssh/sign/teal-hosts" {
   capabilities = ["update"]
 }'
 hold 1
-browse type "#transit-keys" "teal-github"
-browse type "#ca-roles" "teal-hosts"
-browse click 'input[name=enforcement][value=recreate]'
+browse find role button click --name "Add token self-operation preset"
+browse find role button click --name "Graphical paths"
+browse find role checkbox click --name "teal-github" --exact
+browse find role checkbox click --name "teal-hosts" --exact
 hold 1.5
 browse find role button click --name "Save and validate"
 browse wait --text "Revision 1"
@@ -93,12 +95,14 @@ browse find role link click --name "Containers"
 browse wait --text "teal-api"
 hold 1.5
 browse find text "teal-api" click
-browse wait --text "Bind by key"
+browse wait --text "Binding settings"
+browse find role checkbox click --name "teal" --exact
+browse select "#binding-enforcement" "recreate"
 hold 1
 browse click 'input[name=understood]'
 hold 1.5
 shot web-bind
-browse find role button click --name "Bind policy"
+browse find role button click --name "Bind policies"
 for _ in $(seq 1 60); do
 	if agent-browser get text main | grep -q "Conforms"; then
 		break

@@ -112,6 +112,10 @@ export interface PoliciesData extends Layout {
     | null;
 }
 export interface PolicyData extends Layout {
+  KVMounts: string[] | null;
+  AvailableTransitKeys: string[] | null;
+  AvailableCARoles: string[] | null;
+  IdentityProblems: string[] | null;
   Warnings: string[] | null;
   New: boolean;
   Name: string;

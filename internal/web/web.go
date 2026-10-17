@@ -98,6 +98,7 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("POST /bindings/{id}/unbind", server.handleUnbind)
 	authenticated.HandleFunc("GET /policies", server.handlePolicies)
 	authenticated.HandleFunc("GET /policies/edit", server.handlePolicyEditor)
+	authenticated.HandleFunc("GET /policies/kv", server.handleKVPaths)
 	authenticated.HandleFunc("POST /policies", server.handleSavePolicy)
 	authenticated.HandleFunc("POST /policies/warnings", server.handlePolicyWarnings)
 	authenticated.HandleFunc("GET /keys", server.handleKeys)

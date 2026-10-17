@@ -2,18 +2,13 @@
 // relationships:
 //   implements: web-interface
 // ---
-import {
-  Button,
-  CSRF,
-  Field,
-  Input,
-  Notice,
-  Panel,
-  Textarea,
-} from "@/components/shared";
+import { Button, CSRF, Field, Input, Notice, Panel } from "@/components/shared";
 import { OpenBaoLink } from "@/components/openbao-link";
-import type { PolicyData } from "@/types";
+import { HCLEditor } from "@/components/hcl-editor";
+import { IdentityPicker } from "@/components/identity-picker";
+import { EnvironmentEditor } from "@/components/environment-editor";
 import { useRef, useState } from "react";
+import type { PolicyData } from "@/types";
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
   return (
     <main>
@@ -117,32 +112,15 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
           </span>
         )}
       </div>
-      <div className="field">
-        <label htmlFor="hcl" className="visually-hidden">
-          OpenBao policy HCL
-        </label>
-        <Textarea
-          id="hcl"
-          name="hcl"
-          className="hcl"
-          spellCheck={false}
-          defaultValue={d.HCL}
-          onChange={() => {
-            latestCheck.current++;
-            setWarnings([]);
-          }}
-          onBlur={(event) => void checkHCL(event.currentTarget.value)}
-        />
-      </div>
-      <p className="hint">
-        Paths are checked when you leave the HCL field. Warnings do not block
-        saving.
-      </p>
-      <p className="hint">
-        Binding tokens have no OpenBao default policy. Include lookup-self
-        (read), renew-self (update), and revoke-self (update) in your HCL. TTL,
-        access group, and enforcement are set on each binding.
-      </p>
+      <HCLEditor
+        value={d.HCL}
+        mounts={d.KVMounts || []}
+        onChange={() => {
+          ++latestCheck.current;
+          setWarnings([]);
+        }}
+        onCheck={checkHCL}
+      />
       {warnings.map((warning) => (
         <p className="caution" role="status" key={warning}>
           {warning}
@@ -161,58 +139,30 @@ function SSHIdentities({ data: d }: { data: PolicyData }) {
           the HCL above.
         </span>
       </div>
-      <div className="grid-2">
-        <Field
-          label="Transit keys"
-          id="transit-keys"
-          hint="One key name per line."
-        >
-          <Textarea
-            id="transit-keys"
-            name="transit-keys"
-            rows={4}
-            defaultValue={d.TransitKeys}
-          />
-        </Field>
-        <Field
-          label="SSH-engine roles"
-          id="ca-roles"
-          hint="One role name per line."
-        >
-          <Textarea
-            id="ca-roles"
-            name="ca-roles"
-            rows={4}
-            defaultValue={d.CARoles}
-          />
-        </Field>
-      </div>
-      <div className="grid-2">
-        <Field
-          label="Not-forwardable Transit keys"
-          id="not-forwardable-transit-keys"
-          hint="One offered key name per line. Refuse signing after a verified forwarding bind."
-        >
-          <Textarea
-            id="not-forwardable-transit-keys"
-            name="not-forwardable-transit-keys"
-            rows={2}
-            defaultValue={d.NotForwardableTransitKeys}
-          />
-        </Field>
-        <Field
-          label="Not-forwardable SSH-engine roles"
-          id="not-forwardable-ca-roles"
-          hint="One offered role name per line. Other identities remain forwardable."
-        >
-          <Textarea
-            id="not-forwardable-ca-roles"
-            name="not-forwardable-ca-roles"
-            rows={2}
-            defaultValue={d.NotForwardableCARoles}
-          />
-        </Field>
-      </div>
+      <p className="hint">
+        Select the identities offered by the agent. Not-forwardable identities
+        refuse signing after a verified forwarding bind. Each selected identity
+        must also be permitted by HCL.
+      </p>
+      {d.IdentityProblems?.map((problem) => (
+        <p className="caution" role="alert" key={problem}>
+          {problem}
+        </p>
+      ))}
+      <IdentityPicker
+        title="Transit keys"
+        name="transit-keys"
+        available={d.AvailableTransitKeys || []}
+        selected={d.TransitKeys}
+        restricted={d.NotForwardableTransitKeys}
+      />
+      <IdentityPicker
+        title="SSH-engine roles"
+        name="ca-roles"
+        available={d.AvailableCARoles || []}
+        selected={d.CARoles}
+        restricted={d.NotForwardableCARoles}
+      />
       {d.Unpermitted?.map((name) => (
         <p className="caution" key={name}>
           {name} is not allowed by the HCL; using it will be denied.
@@ -238,18 +188,7 @@ function ContainerContract({ data: d }: { data: PolicyData }) {
           defaultValue={d.MountTarget}
         />
       </Field>
-      <Field
-        label="Environment"
-        id="env"
-        hint={
-          <>
-            One NAME=value per line. <code>{"{mount-target}"}</code> is replaced
-            by the mount target.
-          </>
-        }
-      >
-        <Textarea id="env" name="env" rows={4} defaultValue={d.Env} />
-      </Field>
+      <EnvironmentEditor value={d.Env} />
     </Panel>
   );
 }

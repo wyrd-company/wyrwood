@@ -35,8 +35,8 @@ func TestNotForwardablePolicyEditorPersistenceAndTransport(t *testing.T) {
 	// Selectors do not themselves offer identities or require new OpenBao keys.
 	saved := post(t, client, harness.site.URL+"/policies", values)
 	if !strings.Contains(saved.body, "Policy saved") ||
-		!strings.Contains(saved.body, `rows="2">sample-key</textarea>`) ||
-		!strings.Contains(saved.body, `rows="2">sample-role</textarea>`) {
+		!strings.Contains(saved.body, `name="not-forwardable-transit-keys" value="sample-key"`) ||
+		!strings.Contains(saved.body, `name="not-forwardable-ca-roles" value="sample-role"`) {
 		t.Fatalf("saved editor lost selectors: %s", saved.body)
 	}
 	stored, err := harness.controller.Store().Policy(context.Background(), "sample")

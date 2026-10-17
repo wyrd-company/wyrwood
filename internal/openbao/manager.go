@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -35,6 +36,7 @@ type Mounts struct {
 	AppRole string
 	Transit string
 	SSH     string
+	KV      []string
 }
 
 // Manager is the controller's OpenBao credential and the operations its
@@ -306,6 +308,36 @@ type SSHRole struct {
 	KeyType      string
 	AllowedUsers string
 	TTL          string
+}
+
+// ListKVPaths lists one directory of KV v2 metadata without reading values.
+// Both the mount allowlist and the relative directory are checked before a
+// request is made, so a browser query cannot select another API endpoint.
+func (manager *Manager) ListKVPaths(ctx context.Context, mount, prefix string) ([]string, error) {
+	namespace := strings.Trim(manager.client.Namespace(), "/")
+	if namespace == "" || namespace == "root" || !slices.Contains(manager.mounts.KV, mount) || !validKVDirectory(prefix) {
+		return nil, &Error{Category: CategoryInvalid}
+	}
+	client, err := manager.authorized(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return listNames(ctx, client, mount+"/metadata/"+prefix)
+}
+
+func validKVDirectory(prefix string) bool {
+	if prefix == "" {
+		return true
+	}
+	if !strings.HasSuffix(prefix, "/") || strings.ContainsAny(prefix, "%\\?#\x00\r\n") {
+		return false
+	}
+	for _, segment := range strings.Split(strings.TrimSuffix(prefix, "/"), "/") {
+		if segment == "" || segment == "." || segment == ".." {
+			return false
+		}
+	}
+	return true
 }
 
 // ListTransitKeys lists keys under the managed Transit mount.

@@ -743,3 +743,18 @@ ul.plain li {
 .key-form .field {
   flex: 1 1 180px;
 }
+
+/* Compact choices keep path capabilities and identity selections together. */
+.editor-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 32px;
+  cursor: pointer;
+}
+.editor-choice input {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  accent-color: var(--accent);
+}

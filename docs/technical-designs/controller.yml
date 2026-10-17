@@ -66,6 +66,9 @@ proposed-design:
     `auth/approle/role/wyrwood-*` and their role-id and secret-id endpoints,
     `sys/wrapping/wrap`, update on `auth/token/revoke-accessor`, and the
     Transit and SSH-engine mounts an operator configures for key management.
+    For the policy editor it also has list-only permission on metadata paths
+    under the explicitly configured KV v2 mounts inside its namespace. It does
+    not read secret values or metadata and does not list sys/mounts.
     The controller revokes only accessors its agents report; it never lists
     or looks up accessors. The AppRole mount, Transit mount, and SSH
     mount names are configuration. The controller never requests a root token
