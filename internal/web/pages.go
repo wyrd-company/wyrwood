@@ -633,7 +633,7 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 	mounts := server.controller.Configuration().OpenBao
 	page.Name, page.Revision, page.HCL = document.Name, document.Revision, document.OpenBao.Policy
-	page.Warnings = policy.Warnings(document.OpenBao.Policy)
+	page.Warnings = server.controller.PolicyWarnings(document.OpenBao.Policy)
 	page.TransitKeys = strings.Join(document.TransitKeys(), "\n")
 	page.CARoles = strings.Join(document.CARoles(), "\n")
 	if document.SSH != nil && document.SSH.NotForwardable != nil {

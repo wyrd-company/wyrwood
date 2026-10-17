@@ -99,6 +99,7 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("GET /policies", server.handlePolicies)
 	authenticated.HandleFunc("GET /policies/edit", server.handlePolicyEditor)
 	authenticated.HandleFunc("POST /policies", server.handleSavePolicy)
+	authenticated.HandleFunc("POST /policies/warnings", server.handlePolicyWarnings)
 	authenticated.HandleFunc("GET /keys", server.handleKeys)
 	authenticated.HandleFunc("POST /keys/transit", server.handleCreateTransitKey)
 	authenticated.HandleFunc("POST /keys/transit/rotate", server.handleRotateTransitKey)

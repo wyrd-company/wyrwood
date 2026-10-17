@@ -265,6 +265,21 @@ shows **Update check unavailable**, writes a fixed failure category to the
 controller journal, and retains the last successful result with
 its age. Observations are held in memory and start empty after a restart.
 
+## Policy path warnings
+
+The policy editor checks HCL path stanzas against the configured AppRole,
+Transit, SSH, and secret-engine mounts, plus the exact `auth/token/lookup-self`,
+`auth/token/renew-self`, and `auth/token/revoke-self` paths. A path such as `kv/*`
+or `kv/data/+/entry` stays inside a configured `kv` mount; `kv*`, `+/data/*`,
+`auth/+/role/*`, and `sys/*` can reach outside the configured mounts and produce
+an advisory warning. The check reads path stanzas, including deny stanzas; it
+does not evaluate effective OpenBao capabilities or path priority.
+
+Checks run when the editor opens and when you leave the HCL field. A warning,
+unreadable HCL, or an unavailable warning check never blocks saving. OpenBao
+validates the HCL on save. An outside grant can be intentional; list a secret
+engine in `openbao.secret-mounts` when it is part of the expected scope.
+
 ## OpenBao namespace
 
 The controller runs in a dedicated OpenBao namespace. OpenBao does not limit
