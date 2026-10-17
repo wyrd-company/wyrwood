@@ -39,6 +39,36 @@ as `wyrwood-teal-devcontainer`. Every Transit key and SSH role the policy
 names must exist under the controller's configured mounts and must also be
 permitted by the HCL.
 
+## Policy editor
+
+The graphical editor adds paths and selects their capabilities. **Browse KV
+paths** lists names in the configured KV v2 mounts. Select a secret to add its
+`data/` path, or a directory to add its subtree. **Add LIST path for this
+directory** adds a `metadata/` grant for the workload. Custom paths accept
+wildcards and paths outside the browsed mounts.
+
+**Raw HCL** exposes the full document. Switching views preserves its text.
+HCL with constructs the graphical controls cannot represent, including
+parameter constraints, legacy policy attributes, or inline comments inside a
+path block, opens as raw HCL. It remains editable and is validated by OpenBao
+on save. Graphical edits change only the selected path or capability span;
+other text and comments are retained. Advisory warnings appear beside either
+view and do not block saving.
+
+**Add token self-operation preset** adds explicit lookup-self, renew-self, and
+revoke-self paths in the graphical subset. Binding tokens carry no default
+policy. When editing other HCL constructs, include those grants in the raw
+text. OpenBao decides their effective permissions, including deny rules.
+
+Transit keys and SSH-engine roles have independent **offered** and
+**not-forwardable** selections. Saved names remain visible when an item is
+missing or OpenBao cannot list it. **Add identity name** accepts a name that
+is not in the list, including a forwarding selector for an identity another
+policy offers. An offered identity must exist in OpenBao.
+
+Environment requirements use name/value rows. TTL fields use an amount and a
+unit: minutes or hours on a binding, seconds/minutes/hours for SSH role creation.
+
 ## Access group
 
 The binding's `settings.access-group` is effectively required for non-root
@@ -306,8 +336,8 @@ for example `controller`. The controller writes only `wyrwood-` names, so it
 cannot rewrite its own policy or AppRole. Every binding AppRole carries only
 its selected `wyrwood-` policies and no implicit `default` policy.
 
-The controller's policy, for the default `approle`, `transit`, and `ssh`
-mounts:
+The controller's policy, for a `kv-v2` secret-mount entry at `kv` and the
+default `approle`, `transit`, and `ssh` mounts:
 
 ```hcl
 path "sys/policies/acl/wyrwood-*" {
@@ -321,7 +351,8 @@ path "auth/approle/role/wyrwood-*/secret-id" {
   capabilities = ["create", "update"]
 }
 path "sys/wrapping/wrap" { capabilities = ["update"] }
-path "transit/keys" { capabilities = ["list"] }
+path "kv/metadata" { capabilities = ["list"] }
+path "kv/metadata/*" { capabilities = ["list"] }
 path "transit/keys/*" { capabilities = ["create", "read", "update", "list"] }
 path "ssh/roles" { capabilities = ["list"] }
 path "ssh/roles/*" { capabilities = ["create", "read", "update", "list"] }
@@ -331,3 +362,12 @@ path "auth/token/revoke-accessor" { capabilities = ["update"] }
 
 Change the mount names in the paths when you configure other mounts. The
 controller revokes only the token accessors its agents report.
+
+The editor browses only `kv-v2` entries from `openbao.secret-mounts`. The list
+is empty by default; free-text paths and raw HCL remain available. Browsing
+requires a non-root namespace. Grant only `list` on each configured KV v2
+mount's `metadata` and `metadata/*` paths in that namespace, as shown for `kv`
+above. Entries of type `other` do not get KV LIST grants or appear in the
+picker. The controller does not read KV metadata or data values, write KV
+data, or list `sys/mounts` for the editor. A denied or unavailable list shows
+a warning without blocking manual editing.

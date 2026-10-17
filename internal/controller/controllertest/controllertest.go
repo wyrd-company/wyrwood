@@ -62,7 +62,7 @@ func StartConfigured(t testing.TB, bao *baotest.Server, state, sshAddress string
 	configuration := config.Controller{
 		HTTPListen: FreeAddress(t), SSHListen: sshAddress, StateDirectory: state, SessionTTL: time.Hour,
 		OpenBao: config.ControllerOpenBao{Address: bao.Address, Namespace: bao.Namespace, AppRoleMount: "approle", RoleID: roleID,
-			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
+			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh", SecretMounts: []config.SecretMount{{Path: "kv", Type: config.SecretMountKVV2}, {Path: "other", Type: config.SecretMountOther}}},
 	}
 	if configure != nil {
 		configure(&configuration)

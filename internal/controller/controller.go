@@ -59,6 +59,7 @@ type OpenBao interface {
 	WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration) (string, error)
 	TransitKeyExists(ctx context.Context, name string) (bool, error)
 	SSHRoleExists(ctx context.Context, name string) (bool, error)
+	ListKVPaths(ctx context.Context, mount, prefix string) ([]string, error)
 	ListTransitKeys(ctx context.Context) ([]openbao.TransitKey, error)
 	CreateTransitKey(ctx context.Context, name, keyType string) error
 	RotateTransitKey(ctx context.Context, name string) error
@@ -133,10 +134,17 @@ func New(configuration config.Controller, options Options) (*Controller, error) 
 			return nil, err
 		}
 		secretFile := configuration.OpenBao.SecretIDFile
+		var kvMounts []string
+		for _, mount := range configuration.OpenBao.SecretEngineMounts() {
+			if mount.Type == config.SecretMountKVV2 {
+				kvMounts = append(kvMounts, mount.Path)
+			}
+		}
 		manager = openbao.NewManager(client, openbao.Mounts{
 			AppRole: configuration.OpenBao.AppRoleMount,
 			Transit: configuration.OpenBao.TransitMount,
 			SSH:     configuration.OpenBao.SSHMount,
+			KV:      kvMounts,
 		}, configuration.OpenBao.RoleID, func() (string, error) { return config.ReadSecretFile(secretFile) })
 	}
 	logWriter := options.Log

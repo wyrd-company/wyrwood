@@ -3,6 +3,7 @@
 //   implements: composable-policy-bindings
 // ---
 import { Field, Input } from "@/components/shared";
+import { DurationPicker } from "@/components/duration-picker";
 import type { BindingSettings as Settings } from "@/types";
 
 export function BindingSettings({ settings }: { settings?: Settings }) {
@@ -14,11 +15,11 @@ export function BindingSettings({ settings }: { settings?: Settings }) {
         id="binding-ttl"
         hint="Minutes or hours. Applies only to this binding."
       >
-        <Input
+        <DurationPicker
           id="binding-ttl"
           name="token-ttl"
-          defaultValue={settings?.["token-ttl"] || "1h"}
-          required
+          value={settings?.["token-ttl"] || "1h"}
+          binding
         />
       </Field>
       <Field
@@ -26,11 +27,11 @@ export function BindingSettings({ settings }: { settings?: Settings }) {
         id="binding-max-ttl"
         hint="At least the TTL. After this the agent needs a fresh controller credential."
       >
-        <Input
+        <DurationPicker
           id="binding-max-ttl"
           name="token-max-ttl"
-          defaultValue={settings?.["token-max-ttl"] || "8h"}
-          required
+          value={settings?.["token-max-ttl"] || "8h"}
+          binding
         />
       </Field>
       <Field

@@ -591,19 +591,23 @@ func operatorName(operators map[string]store.Operator, subject string) string {
 
 type policyPage struct {
 	layout
-	New         bool
-	Name        string
-	Revision    int
-	Bindings    int
-	Agents      int
-	HCL         string
-	TransitKeys string
-	CARoles     string
-	MountTarget string
-	Env         string
-	Unpermitted []string
-	Warnings    []string
-	PolicyPath  string
+	New                  bool
+	Name                 string
+	Revision             int
+	Bindings             int
+	Agents               int
+	HCL                  string
+	TransitKeys          string
+	CARoles              string
+	MountTarget          string
+	Env                  string
+	Unpermitted          []string
+	Warnings             []string
+	PolicyPath           string
+	KVMounts             []string
+	AvailableTransitKeys []string
+	AvailableCARoles     []string
+	IdentityProblems     []string
 
 	NotForwardableTransitKeys string
 	NotForwardableCARoles     string
@@ -627,6 +631,7 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 		page.Bindings, page.Agents = boundCounts(bindings, name)
 	}
 	server.fillPolicyPage(&page, document)
+	server.fillPolicyChoices(request.Context(), &page)
 	server.render(writer, request, "policy", page)
 }
 
@@ -731,6 +736,7 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 		page.Revision = stored.Policy.Revision
 	}
 	writer.WriteHeader(http.StatusUnprocessableEntity)
+	server.fillPolicyChoices(request.Context(), &page)
 	server.render(writer, request, "policy", page)
 }
 

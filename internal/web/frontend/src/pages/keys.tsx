@@ -11,6 +11,7 @@ import {
   PolicyLinks,
   Table,
 } from "@/components/shared";
+import { DurationPicker } from "@/components/duration-picker";
 import type { KeysData } from "@/types";
 export function Keys({ data: d }: { data: KeysData }) {
   return (
@@ -130,13 +131,7 @@ export function Keys({ data: d }: { data: KeysData }) {
             />
           </Field>
           <Field label="TTL" id="role-ttl">
-            <Input
-              id="role-ttl"
-              name="ttl"
-              type="text"
-              defaultValue="30m"
-              required
-            />
+            <DurationPicker id="role-ttl" name="ttl" value="30m" />
           </Field>
           <Button type="submit" className="primary">
             Create role
@@ -145,7 +140,7 @@ export function Keys({ data: d }: { data: KeysData }) {
       </section>
       <p className="hint">
         Only mounts named in the controller configuration are listed. Wyrwood
-        never reads secret values; KV paths are named in policy HCL only.
+        never reads secret values; the policy editor lists KV metadata paths.
       </p>
     </main>
   );

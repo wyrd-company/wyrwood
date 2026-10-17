@@ -129,6 +129,22 @@ proposed-design:
     selectors, mount target, and environment requirements. Token lifetime,
     access group, and enforcement are edited on bindings. The editor is
     separate from the binding settings and effective preview components.
+    Simple path/capability HCL has graphical path rows and capability checkboxes.
+    Graphical edits replace only the chosen source span. Unsupported constructs
+    fall back to the complete raw HCL text; switching views alone does not
+    rewrite it. KV v2 browsing lists one metadata directory on demand under
+    kv-v2 entries in the shared openbao.secret-mounts catalog, with no data or metadata reads and no mount
+    discovery. The endpoint requires the existing operator session. It checks
+    the mount allowlist, non-root namespace, and relative directory so a query
+    cannot select another API path. Failed lists keep manual path entry usable.
+    Transit and SSH lists retain saved names and have independent offered and
+    not-forwardable toggles, plus manual name entry for cross-policy selectors.
+    Environment requirements use name/value rows. Binding TTL fields select an
+    integer amount and minutes/hours; SSH role TTL selects seconds/minutes/hours.
+    Existing server-side duration validation remains authoritative. A visible
+    self-operation preset adds the three explicit grants to supported HCL.
+    The Warnings page field is displayed beside both editor views so advisory
+    HCL checks can supply warnings without coupling to the graphical subset.
     New policies start with visible lookup-self, renew-self, and revoke-self
     HCL. Missing an explicit renewal grant produces an advisory warning; no
     implicit default policy is attached to binding tokens. Path stanzas outside

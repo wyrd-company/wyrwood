@@ -97,6 +97,8 @@ up() {
 		path "auth/approle/role/wyrwood-*/role-id" { capabilities = ["read"] }
 		path "auth/approle/role/wyrwood-*/secret-id" { capabilities = ["create", "update"] }
 		path "sys/wrapping/wrap" { capabilities = ["update"] }
+		path "kv/metadata" { capabilities = ["list"] }
+		path "kv/metadata/*" { capabilities = ["list"] }
 		path "transit/keys" { capabilities = ["list"] }
 		path "transit/keys/*" { capabilities = ["create", "read", "update", "list"] }
 		path "ssh/roles" { capabilities = ["list"] }
@@ -135,6 +137,9 @@ up() {
 		openbao:
 		  address: http://127.0.0.1:$bao_port
 		  namespace: $bao_namespace
+		  secret-mounts:
+		    - path: kv
+		      type: kv-v2
 		  approle:
 		    role-id: $role_id
 		    secret-id-file: $root/controller/secret-id

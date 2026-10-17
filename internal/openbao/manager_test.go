@@ -29,7 +29,7 @@ func testManager(t *testing.T) (*baotest.Server, *Manager) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manager := NewManager(client, Mounts{AppRole: "approle", Transit: "transit", SSH: "ssh"}, roleID,
+	manager := NewManager(client, Mounts{AppRole: "approle", Transit: "transit", SSH: "ssh", KV: []string{"kv"}}, roleID,
 		func() (string, error) { return config.ReadSecretFile(secretFile) })
 	if err := manager.Login(context.Background()); err != nil {
 		t.Fatal(err)
