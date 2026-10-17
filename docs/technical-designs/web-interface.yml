@@ -131,7 +131,15 @@ proposed-design:
     separate from the binding settings and effective preview components.
     New policies start with visible lookup-self, renew-self, and revoke-self
     HCL. Missing an explicit renewal grant produces an advisory warning; no
-    implicit default policy is attached to binding tokens. A key or role the
+    implicit default policy is attached to binding tokens. Path stanzas outside
+    configured AppRole, Transit, SSH, and secret-engine mounts produce advisory
+    warnings; the three exact token self-paths are expected. Initial page
+    rendering and the authenticated POST `/policies/warnings` share the
+    controller's computation. The editor checks unsaved HCL on field blur,
+    discards responses for changed HCL, and keeps saving available if the
+    check fails. The check uses the existing HCL parser and requires a literal
+    complete mount root before any glob or `+` segment. It does not evaluate
+    effective ACL capabilities or block saving. A key or role the
     HCL does not permit is flagged. The header shows revision and usage counts.
     Saving validates through OpenBao and preflights every affected binding.
   openbao-ui-links: >-

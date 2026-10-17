@@ -51,6 +51,21 @@ description: >-
   update, and revoke-self update grants. New policies have a visible starter
   snippet; missing explicit renewal permission produces an advisory warning.
 
+  The policy editor also checks path stanzas against configured AppRole,
+  Transit, SSH, and `openbao.secret-mounts` roots. The exact lookup-self,
+  renew-self, and revoke-self token paths are expected. A complete literal
+  mount root must precede any `+` segment or suffix `*`; `kv/*` is contained
+  under `kv`, while `kv*` and `+/data/*` can reach other mounts. The check
+  reads path stanzas without evaluating capabilities, denies, or path
+  priority. Comments are ignored through the existing HCL parser. Unreadable
+  HCL produces an advisory that analysis is unavailable. Neither warnings
+  nor warning-check failures block saving; OpenBao remains the validity
+  authority. The authenticated POST `/policies/warnings` accepts form fields
+  `hcl` and `csrf`, returns a JSON `warnings` array, and has no persistence
+  or OpenBao side effects. Initial page warnings use the same computation.
+  The editor calls this endpoint when the HCL field loses focus and discards
+  responses for HCL that changed while the check was pending.
+
   A policy document contains no secret. The controller stores it in SQLite
   and in OpenBao as the HCL portion only.
 validation-criteria: >-

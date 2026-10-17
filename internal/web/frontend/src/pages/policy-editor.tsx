@@ -13,6 +13,7 @@ import {
 } from "@/components/shared";
 import { OpenBaoLink } from "@/components/openbao-link";
 import type { PolicyData } from "@/types";
+import { useRef, useState } from "react";
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
   return (
     <main>
@@ -80,6 +81,28 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
   );
 }
 function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
+  const [warnings, setWarnings] = useState(d.Warnings ?? []);
+  const latestCheck = useRef(0);
+
+  async function checkHCL(hcl: string) {
+    const check = ++latestCheck.current;
+    try {
+      const response = await fetch("/policies/warnings", {
+        method: "POST",
+        body: new URLSearchParams({ csrf: d.CSRF, hcl }),
+      });
+      if (!response.ok) throw new Error("Warning check unavailable");
+      const result: { warnings: string[] } = await response.json();
+      if (check === latestCheck.current) setWarnings(result.warnings);
+    } catch {
+      if (check === latestCheck.current) {
+        setWarnings([
+          "The HCL warning check is unavailable. Saving is still allowed; OpenBao validates the HCL on save.",
+        ]);
+      }
+    }
+  }
+
   return (
     <Panel aria-labelledby="h-hcl">
       <div className="section-head">
@@ -104,14 +127,23 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
           className="hcl"
           spellCheck={false}
           defaultValue={d.HCL}
+          onChange={() => {
+            latestCheck.current++;
+            setWarnings([]);
+          }}
+          onBlur={(event) => void checkHCL(event.currentTarget.value)}
         />
       </div>
+      <p className="hint">
+        Paths are checked when you leave the HCL field. Warnings do not block
+        saving.
+      </p>
       <p className="hint">
         Binding tokens have no OpenBao default policy. Include lookup-self
         (read), renew-self (update), and revoke-self (update) in your HCL. TTL,
         access group, and enforcement are set on each binding.
       </p>
-      {d.Warnings?.map((warning) => (
+      {warnings.map((warning) => (
         <p className="caution" role="status" key={warning}>
           {warning}
         </p>

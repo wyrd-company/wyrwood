@@ -191,6 +191,11 @@ openbao:
     secret-id-file: /run/secrets/openbao-secret-id
   transit-mount: transit
   ssh-mount: ssh
+  secret-mounts:
+    - path: kv
+      type: kv-v2
+    - path: certificates
+      type: other
 oidc:
   provider-name: Pocket ID
   issuer: https://id.example.internal
@@ -201,6 +206,15 @@ oidc:
   allowed-groups:
     - wyrwood-operators
 ```
+
+`openbao.secret-mounts` is an optional catalog of expected secret engines,
+empty by default. Each entry has a unique `path` inside the namespace, without
+slashes, and a `type` of `kv-v2` or `other`. Paths use letters, digits, dot,
+dash, and underscore; dot-only and double-dot paths are invalid. OpenBao's
+reserved roots `sys`, `auth`, `identity`, `cubbyhole`, and `audit` cannot be
+secret mounts. The catalog
+supports policy warnings and editor path pickers. It creates no mounts and
+changes no OpenBao permissions.
 
 Register the controller with the provider as a confidential client using the
 authorization-code flow with PKCE, with the redirect URL above. The URL is the
@@ -252,6 +266,21 @@ For an offline or air-gapped controller, leave `enabled` false or omit
 shows **Update check unavailable**, writes a fixed failure category to the
 controller journal, and retains the last successful result with
 its age. Observations are held in memory and start empty after a restart.
+
+## Policy path warnings
+
+The policy editor checks HCL path stanzas against the configured AppRole,
+Transit, SSH, and secret-engine mounts, plus the exact `auth/token/lookup-self`,
+`auth/token/renew-self`, and `auth/token/revoke-self` paths. A path such as `kv/*`
+or `kv/data/+/entry` stays inside a configured `kv` mount; `kv*`, `+/data/*`,
+`auth/+/role/*`, and `sys/*` can reach outside the configured mounts and produce
+an advisory warning. The check reads path stanzas, including deny stanzas; it
+does not evaluate effective OpenBao capabilities or path priority.
+
+Checks run when the editor opens and when you leave the HCL field. A warning,
+unreadable HCL, or an unavailable warning check never blocks saving. OpenBao
+validates the HCL on save. An outside grant can be intentional; list a secret
+engine in `openbao.secret-mounts` when it is part of the expected scope.
 
 ## OpenBao namespace
 

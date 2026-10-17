@@ -60,6 +60,7 @@ type ControllerOpenBao struct {
 	SecretIDFile string
 	TransitMount string
 	SSHMount     string
+	SecretMounts []SecretMount
 	// UIURL is the public OpenBao cluster UI base, without a trailing slash.
 	// Empty hides the OpenBao UI links.
 	UIURL string
@@ -119,9 +120,10 @@ type controllerDocument struct {
 			RoleID       string  `yaml:"role-id"`
 			SecretIDFile string  `yaml:"secret-id-file"`
 		} `yaml:"approle"`
-		TransitMount *string `yaml:"transit-mount"`
-		SSHMount     *string `yaml:"ssh-mount"`
-		UIURL        *string `yaml:"ui-url"`
+		TransitMount *string       `yaml:"transit-mount"`
+		SSHMount     *string       `yaml:"ssh-mount"`
+		SecretMounts []SecretMount `yaml:"secret-mounts"`
+		UIURL        *string       `yaml:"ui-url"`
 	} `yaml:"openbao"`
 	OIDC *struct {
 		ProviderName     *string  `yaml:"provider-name"`
@@ -252,6 +254,10 @@ func parseControllerOpenBao(document controllerDocument) (ControllerOpenBao, err
 	if source.SSHMount != nil {
 		result.SSHMount = *source.SSHMount
 	}
+	if err := validateSecretMounts(source.SecretMounts); err != nil {
+		return ControllerOpenBao{}, err
+	}
+	result.SecretMounts = append([]SecretMount(nil), source.SecretMounts...)
 	for field, mount := range map[string]string{
 		"openbao.approle.mount": result.AppRoleMount,
 		"openbao.transit-mount": result.TransitMount,
