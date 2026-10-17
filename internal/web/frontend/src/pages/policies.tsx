@@ -18,7 +18,7 @@ export function Policies({ data: d }: { data: PoliciesData }) {
         </Button>
       </div>
       <Table
-        columns={["Policy", "Revision", "Enforcement", "Bound", "Saved"]}
+        columns={["Policy", "Revision", "Bound", "Saved"]}
         count={d.Policies?.length ?? 0}
         empty="No policies yet."
       >
@@ -28,9 +28,6 @@ export function Policies({ data: d }: { data: PoliciesData }) {
               <a href={policyURL(policy.Name)}>{policy.Name}</a>
             </th>
             <td>{policy.Revision}</td>
-            <td>
-              <span className="tag">{policy.Enforcement}</span>
-            </td>
             <td>
               {policy.Bindings} container{policy.Bindings !== 1 && "s"} on{" "}
               {policy.Agents} agent{policy.Agents !== 1 && "s"}

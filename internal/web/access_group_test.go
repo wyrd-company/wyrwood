@@ -16,18 +16,15 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
-func TestPolicyEditorWarnsWithoutAccessGroup(t *testing.T) {
+func TestBindingSettingsWarnWithoutAccessGroup(t *testing.T) {
 	for _, group := range []string{"", "1000", "0"} {
-		output := renderModel(t, "policy", policyPage{AccessGroup: group})
-		warns := strings.Contains(output, "No access group:")
-		if warns != (group == "") {
-			t.Fatalf("group %q warning = %t", group, warns)
+		request, err := bindingFromForm(&http.Request{PostForm: url.Values{"policies": {"sample"}, "access-group": {group}}})
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	// Empty remains a supported configuration: the warning is advisory.
-	document, err := policyFromForm(&http.Request{PostForm: url.Values{"name": {"sample"}, "mount-target": {"/run/wyrwood"}, "enforcement": {"report"}}})
-	if err != nil || document.Contract.AccessGroup != nil {
-		t.Fatalf("empty group = %#v, %v", document.Contract, err)
+		if (request.Settings.AccessGroup == nil) != (group == "") {
+			t.Fatalf("group %q = %#v", group, request.Settings)
+		}
 	}
 }
 

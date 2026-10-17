@@ -35,9 +35,13 @@ the agent reports in.
 Open **Policies** and create one. A policy has three parts:
 
 1. The OpenBao policy, in HCL. For example, read access to one KV path and
-   signing with one Transit key:
+   signing with one Transit key. Keep the starter self-operation grants so
+   tokens can renew:
 
    ```hcl
+   path "auth/token/lookup-self" { capabilities = ["read"] }
+   path "auth/token/renew-self" { capabilities = ["update"] }
+   path "auth/token/revoke-self" { capabilities = ["update"] }
    path "kv/data/teams/teal/*" {
      capabilities = ["read"]
    }
@@ -54,10 +58,12 @@ Open **Policies** and create one. A policy has three parts:
    OpenBao CA.
 
 3. The contract. The default mounts the consumer directory at `/run/wyrwood`
-   and sets `SSH_AUTH_SOCK` and `VAULT_ADDR` to the sockets inside it. Set
-   the access group to the numeric group your container's processes use.
-   Leave enforcement at `report` unless you want the agent to recreate the
-   container with the mount applied when you bind it.
+   and sets `SSH_AUTH_SOCK` and `VAULT_ADDR` to the sockets inside it.
+
+When binding, set the access group to the numeric group your container's
+processes use. Leave binding enforcement at `report` unless you want one
+recreate with the mount applied on first bind. Preview the effective policy
+before saving. TTL, access group, and enforcement are binding settings.
 
 An access group is effectively required for non-root containers running as
 another UID than the agent. Without it, the agent owns the directory (`0700`)
@@ -82,16 +88,17 @@ binding's OpenBao and SSH permissions. See [Access group](configuration.md#acces
 
 ## Bind a container
 
-Open **Containers**, select the container, and choose the policy. The
+Open **Containers**, select the container, then select one or more policies
+and binding settings. The
 controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.
 
-![Binding a container to a recreate policy](assets/web-bind.png)
+![Binding policies to a container](assets/web-bind.png)
 
 A container created without the mount is reported as non-conforming. Either
 add the mount and environment to the container's definition and recreate it
-yourself, or set the policy's enforcement to `recreate` and bind again. A
+yourself, or set the binding's enforcement to `recreate` and bind again. A
 recreate stops, removes, and creates the container once. Anything outside a
 mount or volume is discarded, and an attached editor session reconnects.
 

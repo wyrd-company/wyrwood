@@ -234,7 +234,7 @@ func writeContainers(output io.Writer, containers agent.Containers) {
 		for _, item := range container.FailedItems {
 			failed = append(failed, string(item))
 		}
-		rows = append(rows, []string{container.Name, container.State, dash(container.BindingKey), dash(container.Policy), container.Conformance, container.Token, dash(strings.Join(failed, ", ")), dash(container.AccessGroupError)})
+		rows = append(rows, []string{container.Name, container.State, dash(container.BindingKey), dash(strings.Join(container.Policies, ", ")), container.Conformance, container.Token, dash(strings.Join(failed, ", ")), dash(container.AccessGroupError)})
 	}
 	writeTable(output, rows)
 }

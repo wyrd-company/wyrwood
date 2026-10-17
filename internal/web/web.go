@@ -90,6 +90,7 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("POST /agents/decide", server.handleDecideAgent)
 	authenticated.HandleFunc("GET /containers", server.handleContainers)
 	authenticated.HandleFunc("POST /bindings", server.handleCreateBinding)
+	authenticated.HandleFunc("POST /bindings/preview", server.handlePreviewBinding)
 	authenticated.HandleFunc("POST /bindings/{id}/policy", server.handleChangeBinding)
 	authenticated.HandleFunc("GET /bindings/{id}/recreate", server.handleConfirmRecreate)
 	authenticated.HandleFunc("POST /bindings/{id}/recreate", server.handleRecreate)
@@ -112,7 +113,7 @@ func (server *Server) Handler() http.Handler {
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		header := writer.Header()
-		header.Set("Content-Security-Policy", "default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self' *; frame-ancestors 'none'; base-uri 'none'")
+		header.Set("Content-Security-Policy", "default-src 'none'; connect-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; form-action 'self' *; frame-ancestors 'none'; base-uri 'none'")
 		header.Set("X-Content-Type-Options", "nosniff")
 		header.Set("Referrer-Policy", "same-origin")
 		header.Set("X-Frame-Options", "DENY")

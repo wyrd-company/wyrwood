@@ -1,0 +1,327 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  related-to:
+    - controller
+    - agent
+    - container-contract
+    - ssh-agent-endpoint
+    - vault-socket-proxy
+    - web-interface
+  mitigates:
+    - controller-token-blast-radius
+objective: >-
+  Bind one container key to several reusable policies, show the effective
+  HCL and settings, and keep token lifetime, socket access group, and
+  enforcement on the binding.
+background:
+  current-design: >-
+    Reusable policy documents contain HCL, SSH identities, and mount/env
+    requirements. Each container binding owns its selected policies and
+    runtime settings. Agents use resolved assignments and memory-only tokens.
+  problems:
+    - A binding has only one reusable source of HCL, SSH identities, and contract requirements.
+    - Policy settings couple independent containers' token lifetime and socket access.
+    - A multi-policy binding needs explicit composition and credential transition rules.
+design-challenges:
+  approval-boundary: >-
+    Composition rejects conflicting contracts and retains every not-
+    forwardable restriction. Runtime assignment changes revoke reported old
+    tokens before fresh issuance. Binding tokens contain only their selected
+    managed policies; their authors supply token lifecycle ACLs. These rules
+    define the implementation contract.
+  external-state: >-
+    SQLite and OpenBao do not share a transaction. Binding updates must
+    distinguish desired configuration from an applied AppRole and an agent's
+    last observed assignment. An update must never be reported as fully
+    applied while an old token still serves the previous policy set.
+proposed-design:
+  high-level-overview: >-
+    A binding selects a nonempty set of named policies and owns its runtime
+    settings. A pure composition function resolves the selected policy
+    revisions into an effective policy with source provenance. The controller
+    uses that result for validation, preview, agent assignment, and binding
+    AppRole configuration. OpenBao evaluates the selected named ACL policies
+    together. One binding still owns one AppRole, one in-memory agent token,
+    and one consumer directory per matched container. Container-key matching
+    retains devcontainer, Compose, then name precedence; policies combine
+    inside the governing binding, not across competing container keys.
+  policy-model: >-
+    A policy contains name, revision, openbao.policy, ssh.transit-keys,
+    ssh.ca-roles, ssh.not-forwardable selectors, and a contract containing
+    mount-target and env. Token lifetime and binding runtime settings are
+    absent from the target policy schema. HCL remains operator-authored;
+    identity selectors do not synthesize ACL grants. The reusable contract
+    retains the default /run/wyrwood mount target and the SSH_AUTH_SOCK and
+    VAULT_ADDR templates. A policy's revision identifies its complete content.
+  binding-model: >-
+    A binding contains id, agent, container key, a policies array of unique
+    names, revision, role, settings, and creation metadata.
+    The controller validates every selected name and resolves every reference;
+    unknown names, an empty selection, and repeated names are errors.
+    Canonical storage and display sort policy names; selection order has no
+    precedence in composition. The settings object contains
+    token-ttl, token-max-ttl, access-group, and enforcement. Both lifetime
+    fields move together: token-ttl defaults to 1h, token-max-ttl to 8h, and
+    maximum lifetime must be at least TTL. These retain the existing duration
+    syntax, validation, renewal schedule, and finite lifetime behavior.
+    Access-group is an optional numeric GID with the existing numeric bounds;
+    absence retains owner-only directory and socket access. Enforcement is
+    report by default or recreate. Source policy edits cannot change these values.
+  persistence: >-
+    A binding_policies join table uses (binding_id, policy_name) as its primary
+    key, references bindings with delete cascade, and references policies
+    without delete cascade. It supports reverse lookup for policy edits and
+    usage counts. A referenced policy cannot be deleted without an explicit
+    binding update or unbind. Binding settings, revision, and desired/applied
+    assignment state are durable binding data. Membership and settings update
+    in one SQLite transaction; reads resolve a consistent source snapshot.
+    AppRole names retain the existing agent-and-binding identity. No token,
+    SecretID, wrapping token, or container environment observation is stored.
+  hcl-composition: >-
+    The effective HCL is the union of the selected named source documents,
+    sorted by policy name and annotated with source name and revision. The
+    read-only combined HCL view is a source bundle; the original per-policy
+    documents remain available. It is not a replacement ACL written under a
+    synthetic effective name. Duplicate path blocks retain their provenance.
+    OpenBao supplies authorization semantics: capabilities for the same path
+    pattern combine, deny takes precedence, and different matching patterns
+    follow OpenBao's specificity rules. Parameter constraints, templates, and
+    other HCL constructs remain intact and are evaluated by OpenBao. A bundle
+    is not a claim that every grant wins or that concatenation is a standalone
+    canonical ACL. The preview explains deny and path priority rules without
+    claiming to calculate permissions for every possible request. OpenBao
+    remains the HCL parser and authorization authority; Wyrwood adds no HCL
+    merge parser.
+  ssh-composition: >-
+    Transit key names form a sorted set union under the configured Transit
+    mount. SSH CA role names form a separate sorted set union under the SSH
+    mount. A repeated key or role produces one offered identity, not duplicate
+    signing credentials. Equal names across these two sources remain distinct.
+    Existence validation applies to each referenced key and role. The HCL
+    union determines whether reading or signing is permitted, even when the
+    offering and the ACL grant come from different selected policies. Wyrwood
+    does not infer an ACL grant from an offered identity. Not-forwardable
+    selectors union by source type, then intersect with the effective offered
+    identities; a selector alone never adds an identity. A restriction from any
+    selected policy is effective. Listing and signing consult the current
+    result on every request,
+    including already open SSH-agent connections.
+  contract-composition: >-
+    Composition requires equal canonical mount-target
+    values in all selected policies. Environment entries union by variable
+    name. Distinct names combine; equal values for a shared name deduplicate;
+    different values conflict. Values are compared after expanding
+    {mount-target} against the agreed target so a template and its identical
+    literal do not conflict. The effective result shows expanded values and
+    retains source templates for provenance. For example, contracts targeting
+    /run/wyrwood and /opt/credentials conflict, as do MODE=alpha and MODE=beta.
+    A missing environment entry imposes no requirement. Defaults are
+    materialized at policy creation, not reinserted during composition, so an
+    intentionally empty env map stays empty. Conflict diagnostics identify
+    field, source policies, and revisions. Neither selection order nor a
+    hidden default chooses a winner. The effective contract combines mount
+    and env with binding-owned access-group and enforcement before normal
+    conformance checks. Host GID assignability and socket-access checks remain.
+  composition-validation: >-
+    Compose the complete candidate before any binding write, AppRole change,
+    or credential issue. Apply the existing effective identity, environment,
+    and encoded protocol size limits to the combined result; never truncate
+    lists or omit a selected policy. The 1 MiB line bound also applies to a
+    complete policy-set, including all matched assignments. On policy edit,
+    substitute the candidate revision in every referencing binding and
+    preflight all compositions before publishing its HCL. A structural
+    conflict rejects the edit and lists affected bindings; it does not silently
+    withdraw them. HCL authorization denials remain OpenBao decisions, not
+    contract conflicts. A request that exceeds existing transport bounds
+    returns a size diagnostic rather than saving an undeliverable assignment.
+  approle-policy-mapping: >-
+    For binding b, let S(b) be exactly the sorted names wyrwood-<policy-name>
+    derived from its stored selected policies. Its AppRole token_policies is
+    exactly S(b); for policies alpha and beta, it is [wyrwood-alpha,
+    wyrwood-beta]. The controller derives this list from resolved records and
+    accepts no raw OpenBao policy names from a form, API client, or agent.
+    The controller checks exact equality between stored membership and
+    resolved source names before deriving the role list. The agent checks
+    actual issued-token policies against S(b). Extra managed names,
+    missing names, default, root, the
+    controller policy, and arbitrary names are refused as explicit policies.
+    This preserves the rule that the controller refuses any token policy
+    outside the binding's own. Per-policy HCL stays at wyrwood-<policy-name>;
+    the role name stays binding-specific. Role token_ttl and token_max_ttl
+    come only from binding settings. One-use SecretIDs, response wrapping,
+    service tokens, and existing wrapping TTLs retain their contracts. The
+    controller's OpenBao credential needs no additional path permission and
+    remains confined to its dedicated namespace.
+  implicit-default-policy: >-
+    OpenBao adds default to issued tokens unless token_no_default_policy is
+    true. The current role writer does not set that flag. Exact explicit
+    token_policies therefore does not prove exact issued token policies.
+    The role writer sets the flag and the agent checks the actual
+    login token policy set against S(b), and refuses unexpected policies,
+    including identity-derived additions. It relies on selected authored HCL
+    for auth/token/lookup-self read and auth/token/renew-self and
+    auth/token/revoke-self update when these operations are used. The preview
+    calls out these lifecycle requirements; it does not silently append
+    privileges. The vault proxy's existing token-endpoint restrictions remain
+    in force. The policy editor starts new policies with these three self-operation
+    grants. Saving a policy or binding without an explicit renewal grant
+    produces a clear advisory warning. A warning preserves deliberate
+    non-renewing use and does not replace OpenBao authorization.
+  assignment-and-credentials: >-
+    Effective assignments identify binding revision plus the sorted source
+    policy name/revision pairs. Credential messages and accessor reports carry
+    that assignment identity. Controller delivery tracking and agent cache
+    validation use it instead of one policy name. Every assignment identity
+    change invalidates earlier credential deliveries and requires a fresh
+    login; a delayed login for an earlier assignment is revoked rather than
+    installed. This includes settings and source revision edits even when
+    selected names stay equal. An HCL edit under an already attached name
+    takes effect in OpenBao for existing tokens; changing role membership does not change the
+    policy names on an already issued token. Runtime revocation records the
+    desired transition, updates the AppRole, revokes the previous
+    reported accessor, then permits fresh credential delivery. The agent stops
+    using a superseded token and self-revokes it. Accessors reported for old
+    assignments are revoked without replacing the current accessor record.
+    Revocation failure leaves a visible pending transition and blocks fresh
+    issuance for it. Startup and existing agent-report reconciliation resume
+    durable pending work; no new timer, retry schedule, or timeout is added.
+    An offline agent can retain a token whose accessor was never reported;
+    immediate revocation cannot be promised for that token. Its existing
+    finite maximum lifetime remains the outage bound. The UI distinguishes
+    desired and applied state alongside the last contract report. SQLite/OpenBao partial
+    failures retain enough assignment state to reconcile without widening the
+    allowed policy set or claiming success. Failed SQLite publication restores
+    the previous HCL; startup rewrites stored HCL before applying assignments.
+    Failed restoration blocks fresh issuance until stored HCL is restored.
+    OpenBao policy names remain stable, so live tokens observe accepted HCL
+    writes immediately, before the assignment transition completes.
+    Unbind retains role deletion,
+    retirement, reported-accessor revocation, and directory retention behavior.
+  enforcement-and-access-group: >-
+    Binding create and edit own the recreate acknowledgement. Automatic
+    recreate remains limited to first application of a binding for a
+    container key, requires binding enforcement recreate, and requires the
+    root-controlled host permission. A later policy or binding edit reports
+    drift; it does not implicitly recreate an existing container. Explicit
+    recreate retains its confirmation and writable-layer warning. Restored
+    cached assignments retain known-binding identities to prevent an
+    unintended first-bind recreate. Group changes reapply the
+    existing directory and socket modes through the retained consumer
+    directory; an unassignable group is reported through existing diagnostics.
+  controller-and-http-api: >-
+    Controller CreateBinding and ChangeBinding accept a typed request with
+    policies and settings. ChangeBinding replaces the complete membership and
+    settings atomically and takes the expected binding revision. Stale edits
+    return a conflict rather than overwrite a concurrent change. A typed
+    EffectivePolicy result includes sources, source HCL bundle, OpenBao policy
+    names, effective SSH selectors, effective contract, binding settings, and
+    field provenance. Composition diagnostics are typed values shared by
+    mutation and preview. The existing native form transport remains: POST
+    /bindings accepts repeated policies fields and binding settings, and POST
+    /bindings/{id}/policy accepts that same complete edit payload plus revision.
+    The route remains stable although it updates the complete binding.
+    Existing unbind and recreate routes remain. An authenticated, CSRF-checked
+    POST /bindings/preview composes an unsaved selection without storing data,
+    writing OpenBao, or issuing credentials, and returns the typed result or
+    field diagnostics. The container page data embeds the same result for a
+    stored binding. Unknown names and malformed fields are validation errors;
+    structural composition or revision conflicts return conflict diagnostics.
+  web-and-policy-editor: >-
+    Container selection exposes a multi-select policy control and a separate
+    binding-settings section for both TTL values, access group, and enforcement.
+    The read-only effective panel shows source revisions, combined HCL, offered
+    identities, forwarding restrictions, expanded contract, and runtime
+    settings with provenance and apply state. Preview never modifies a policy.
+    The policy editor owns reusable HCL, SSH choices, and contract inputs in
+    independent components with typed data and diagnostics; it contains no
+    binding settings. Usage counts include every selecting binding. A policy
+    edit shows affected-binding conflicts before submission. HCL diagnostics
+    and optional warnings use a separate typed collection with source policy
+    and field identity so mount warnings and richer HCL editing can extend it.
+    String matching is not an authorization check. Shared editor components
+    do not depend on account-menu, version-reporting, or OIDC-admission state.
+  agent-protocol-and-cache: >-
+    The agent-controller version 2 assignment carries binding id, key,
+    binding revision, source name/revision pairs, and the composed runtime
+    policy with binding settings. Credential, token-accessor, and
+    acknowledgement messages bind to the same assignment identity. Cache
+    version 2 stores that assignment and known binding ids without
+    credentials. Unsupported peers and caches are rejected. Unsupported cache
+    versions
+    cannot authorize sockets or automatic recreate. This is a protocol
+    version, not an executable-version pin.
+  package-boundaries: >-
+    internal/policy owns reusable source documents and deterministic composition
+    types and rules without store or HTTP dependencies. A separate effective
+    type has source references and settings rather than a fabricated source
+    policy name or a single revision. internal/controller owns reference
+    resolution, consistent snapshots, mutation coordination, and AppRole
+    transitions. Durable transition data records source revisions, the exact
+    desired policy set and settings, and applied/revocation progress so a
+    restart does not reconstruct an earlier transition from mutable sources.
+    internal/protocol owns the assignment wire shape. internal/binding.View
+    exposes the effective runtime type to both endpoints. The React components
+    consume typed page and preview projections rather than composing policies
+    themselves. No new package dependency or subprocess integration is needed.
+  cli-and-events: >-
+    wyrwood agent containers shows all policy names, in sorted order, in a
+    Policies column. Its JSON containers entries use policies as an array and
+    include the immutable assignment identity for diagnosis; the containers
+    projection and local control protocol use version 2. Unbound entries use
+    an empty array. The CLI continues to use the owner-only local control socket;
+    runtime commands gain no policy editing or direct state-file access.
+    Environment values and credentials stay out of CLI output and events.
+    Successful binding transition events emit one record per source name using
+    the existing singular policy metadata, so filtering finds each member.
+    Failed binding mutations emit one categorical record without submitted
+    policy names, so rejected input cannot fan out into audit writes.
+    A policy-edit event identifies its one source policy. Event records retain
+    their existing closed shape.
+  runtime-revocation: >-
+    Assignment changes, including subsequent policy-set edits, revoke reported
+    old-assignment accessors before fresh issuance. Revocation failure leaves
+    the transition pending. An offline agent loses access through
+    a revoked token until it reconnects and receives fresh credentials. A token
+    whose accessor was never reported cannot be revoked immediately; its
+    existing finite maximum lifetime remains the bound. The controller uses
+    its existing revoke-accessor permission, without lookup/list permission
+    or a new timeout mechanic.
+  default-policy-choice: >-
+    Binding AppRoles set token_no_default_policy=true. Their exact
+    token_policies list is the selected wyrwood-<policy-name> set; there is
+    no lifecycle baseline and no implicit default exception. Each policy
+    author includes auth/token/lookup-self read and auth/token/renew-self
+    and auth/token/revoke-self update in authored HCL. New policies start
+    with a visible starter snippet. The policy editor, binding preview, and
+    saved effective view warn when the selected HCL has no explicit renewal
+    grant. Warnings preserve deliberately short-lived tokens and are
+    advisory; comments or text matches cannot authorize an operation.
+    OpenBao evaluates actual capabilities. Missing renewal permission can
+    lead to token expiry when a fresh credential is unavailable. Controller
+    bootstrap authentication retains its own documented contract.
+  verification: >-
+    Composition tests cover disjoint and overlapping HCL sources, identical
+    path capability unions, deny and wildcard precedence against real OpenBao,
+    identity deduplication, separate key/role namespaces, and forwarding
+    selectors on existing connections. Contract cases cover differing targets,
+    conflicting env, equivalent expanded templates, empty env, and provenance.
+    Store-to-protocol-to-cache-to-control tests prove the full policy list and
+    binding settings survive restart and appear in the effective web view.
+    Role tests inspect exact token_policies and actual login policies, including
+    extra wyrwood-* names, default, root, and controller-policy rejection.
+    Credential tests cover policy removal, TTL change without a name change,
+    stale login completion, delayed accessors, offline agents, and OpenBao/SQLite
+    partial failure recovery. Version tests reject unsupported databases and
+    caches
+    without mutating them. Recreate tests prove ordinary assignment edits do
+    not trigger first-bind recreation. Browser workflows cover multi-selection,
+    preview, conflicts, saved settings, effective HCL, renewal warnings, and
+    recreate acknowledgement.
+    Repository gates are task check, task test, and task ci with WYRWOOD_BAO
+    set; hosted CI is required at the implementation PR handoff.
+  authoritative-references: >-
+    OpenBao ACL combination and path priority:
+    https://openbao.org/docs/concepts/policies/ . AppRole token_policies,
+    token_no_default_policy, and lifetime parameters:
+    https://openbao.org/api-docs/auth/approle/ . These define engine semantics;
+    Wyrwood composition does not replace them.

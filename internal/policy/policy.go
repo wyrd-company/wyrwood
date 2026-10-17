@@ -55,20 +55,22 @@ const (
 
 // Policy is one named Wyrwood policy document.
 type Policy struct {
-	Name     string   `json:"name"`
-	Revision int      `json:"revision,omitempty"`
-	OpenBao  OpenBao  `json:"openbao"`
-	SSH      *SSH     `json:"ssh,omitempty"`
-	Contract Contract `json:"contract"`
+	Name     string       `json:"name"`
+	Revision int          `json:"revision,omitempty"`
+	OpenBao  OpenBao      `json:"openbao"`
+	SSH      *SSH         `json:"ssh,omitempty"`
+	Contract Requirements `json:"contract"`
 }
 
-// OpenBao carries the HCL policy and the AppRole token time-to-live.
+// OpenBao carries the operator-authored HCL document.
 type OpenBao struct {
-	Policy   string `json:"policy"`
-	TokenTTL string `json:"token-ttl,omitempty"`
-	// TokenMaxTTL is the longest a token lives through renewal before the
-	// agent must log in again with a fresh credential from the controller.
-	TokenMaxTTL string `json:"token-max-ttl,omitempty"`
+	Policy string `json:"policy"`
+}
+
+// Requirements are reusable container mount and environment requirements.
+type Requirements struct {
+	MountTarget string            `json:"mount-target"`
+	Env         map[string]string `json:"env,omitempty"`
 }
 
 // SSH names the Transit keys and SSH-engine roles the ssh-agent endpoint offers.
@@ -106,7 +108,8 @@ func DefaultContract() Contract {
 
 // New returns a policy with the given name, HCL, and the default contract.
 func New(name, hcl string) Policy {
-	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl, TokenTTL: defaultTokenTTL, TokenMaxTTL: defaultTokenMaxTTL}, Contract: DefaultContract()}
+	contract := DefaultContract()
+	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl}, Contract: Requirements{MountTarget: contract.MountTarget, Env: contract.Env}}
 }
 
 // Decode strictly parses one JSON policy document and validates it.
@@ -141,19 +144,6 @@ func (policy Policy) Validate() error {
 	if len(policy.OpenBao.Policy) > maximumHCLBytes {
 		return errors.New("OpenBao policy exceeds 65536 bytes")
 	}
-	if policy.OpenBao.TokenTTL != "" {
-		if _, err := parseTTL("token time-to-live", policy.OpenBao.TokenTTL); err != nil {
-			return err
-		}
-	}
-	if policy.OpenBao.TokenMaxTTL != "" {
-		if _, err := parseTTL("token maximum lifetime", policy.OpenBao.TokenMaxTTL); err != nil {
-			return err
-		}
-	}
-	if policy.TokenMaxTTL() < policy.TokenTTL() {
-		return errors.New("token maximum lifetime must be at least the token time-to-live")
-	}
 	if policy.SSH != nil {
 		if err := validateIdentities("transit key", policy.SSH.TransitKeys); err != nil {
 			return err
@@ -170,7 +160,7 @@ func (policy Policy) Validate() error {
 			}
 		}
 	}
-	return policy.Contract.Validate()
+	return (Contract{MountTarget: policy.Contract.MountTarget, Env: policy.Contract.Env, Enforcement: EnforcementReport}).Validate()
 }
 
 // Validate checks the contract fields.
@@ -225,17 +215,6 @@ type EnvEntry struct {
 // OpenBaoPolicyName is the name the controller writes the HCL under.
 func (policy Policy) OpenBaoPolicyName() string { return openBaoPolicyPrefix + policy.Name }
 
-// TokenTTL returns the AppRole token time-to-live, defaulting to one hour.
-func (policy Policy) TokenTTL() time.Duration {
-	return durationOr(policy.OpenBao.TokenTTL, defaultTokenTTL)
-}
-
-// TokenMaxTTL returns the AppRole token maximum lifetime, defaulting to
-// eight hours.
-func (policy Policy) TokenMaxTTL() time.Duration {
-	return durationOr(policy.OpenBao.TokenMaxTTL, defaultTokenMaxTTL)
-}
-
 func durationOr(value, fallback string) time.Duration {
 	if value == "" {
 		value = fallback
@@ -281,10 +260,6 @@ func (policy Policy) Clone() Policy {
 		for name, value := range policy.Contract.Env {
 			clone.Contract.Env[name] = value
 		}
-	}
-	if policy.Contract.AccessGroup != nil {
-		group := *policy.Contract.AccessGroup
-		clone.Contract.AccessGroup = &group
 	}
 	return clone
 }

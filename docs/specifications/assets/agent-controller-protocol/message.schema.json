@@ -3,58 +3,159 @@
   "$id": "https://wyrd.foo/wyrwood/schemas/agent-controller-message.json",
   "title": "Wyrwood agent-controller message",
   "type": "object",
-  "required": ["version", "type"],
+  "required": [
+    "version",
+    "type"
+  ],
   "properties": {
-    "version": { "const": 1 },
+    "version": {
+      "const": 2
+    },
     "type": {
       "type": "string",
-      "enum": ["hello", "inventory", "contract-result", "credential-request", "policy-set", "credential", "recreate-request", "unbind", "result-recorded", "token-accessor", "accessor-recorded"]
+      "enum": [
+        "hello",
+        "inventory",
+        "contract-result",
+        "credential-request",
+        "policy-set",
+        "credential",
+        "recreate-request",
+        "unbind",
+        "result-recorded",
+        "token-accessor",
+        "accessor-recorded"
+      ]
     }
   },
   "oneOf": [
-    { "$ref": "#/$defs/hello" },
-    { "$ref": "#/$defs/inventory" },
-    { "$ref": "#/$defs/contract-result" },
-    { "$ref": "#/$defs/credential-request" },
-    { "$ref": "#/$defs/policy-set" },
-    { "$ref": "#/$defs/credential" },
-    { "$ref": "#/$defs/recreate-request" },
-    { "$ref": "#/$defs/unbind" },
-    { "$ref": "#/$defs/result-recorded" },
-    { "$ref": "#/$defs/token-accessor" },
-    { "$ref": "#/$defs/accessor-recorded" }
+    {
+      "$ref": "#/$defs/hello"
+    },
+    {
+      "$ref": "#/$defs/inventory"
+    },
+    {
+      "$ref": "#/$defs/contract-result"
+    },
+    {
+      "$ref": "#/$defs/credential-request"
+    },
+    {
+      "$ref": "#/$defs/policy-set"
+    },
+    {
+      "$ref": "#/$defs/credential"
+    },
+    {
+      "$ref": "#/$defs/recreate-request"
+    },
+    {
+      "$ref": "#/$defs/unbind"
+    },
+    {
+      "$ref": "#/$defs/result-recorded"
+    },
+    {
+      "$ref": "#/$defs/token-accessor"
+    },
+    {
+      "$ref": "#/$defs/accessor-recorded"
+    }
   ],
   "$defs": {
-    "id": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9-]{1,64}$"
+    },
     "key": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "value"],
+      "required": [
+        "kind",
+        "value"
+      ],
       "properties": {
-        "kind": { "type": "string", "enum": ["devcontainer", "compose", "name"] },
-        "value": { "type": "string", "maxLength": 512 }
+        "kind": {
+          "type": "string",
+          "enum": [
+            "devcontainer",
+            "compose",
+            "name"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "maxLength": 512
+        }
       }
     },
     "container": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "name", "state", "keys"],
+      "required": [
+        "id",
+        "name",
+        "state",
+        "keys"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "name": { "type": "string", "maxLength": 256 },
-        "state": { "type": "string", "enum": ["created", "running", "paused", "restarting", "exited", "dead"] },
-        "image": { "type": "string", "maxLength": 512 },
-        "keys": { "type": "array", "items": { "$ref": "#/$defs/key" }, "minItems": 1, "maxItems": 3 },
+        "id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "created",
+            "running",
+            "paused",
+            "restarting",
+            "exited",
+            "dead"
+          ]
+        },
+        "image": {
+          "type": "string",
+          "maxLength": 512
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/key"
+          },
+          "minItems": 1,
+          "maxItems": 3
+        },
         "mounts": {
           "type": "array",
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["source", "target"],
-            "properties": { "source": { "type": "string" }, "target": { "type": "string" } }
+            "required": [
+              "source",
+              "target"
+            ],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "target": {
+                "type": "string"
+              }
+            }
           }
         },
-        "env-names": { "type": "array", "items": { "type": "string" } }
+        "env-names": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       }
     },
     "hello": {
@@ -62,63 +163,160 @@
       "additionalProperties": false,
       "required": ["version", "type", "allow-recreate"],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "hello" },
-        "agent-version": { "type": "string" },
-        "allow-recreate": { "type": "boolean" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "hello"
+        },
+        "agent-version": {
+          "type": "string"
+        },
+        "allow-recreate": {
+          "type": "boolean"
+        }
       }
     },
     "inventory": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "containers"],
+      "required": [
+        "version",
+        "type",
+        "containers"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "inventory" },
-        "containers": { "type": "array", "items": { "$ref": "#/$defs/container" }, "maxItems": 1024 }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "inventory"
+        },
+        "containers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/container"
+          },
+          "maxItems": 1024
+        }
       }
     },
     "contract-result": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding", "outcome"],
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "outcome"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "contract-result" },
-        "binding": { "$ref": "#/$defs/id" },
-        "outcome": { "type": "string", "enum": ["conforming", "non-conforming", "recreating", "recreated", "recreate-failed"] },
-        "failed-items": { "type": "array", "items": { "type": "string", "enum": ["mount", "env", "access-group", "consumer-directory", "socket-access", "recreate-not-allowed"] } },
-        "container-id": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-        "reason": { "type": "string", "enum": ["engine-error", "create-failed", "start-failed"] }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "contract-result"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "conforming",
+            "non-conforming",
+            "recreating",
+            "recreated",
+            "recreate-failed"
+          ]
+        },
+        "failed-items": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "mount",
+              "env",
+              "access-group",
+              "consumer-directory",
+              "socket-access",
+              "recreate-not-allowed"
+            ]
+          }
+        },
+        "container-id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "engine-error",
+            "create-failed",
+            "start-failed"
+          ]
+        }
       }
     },
     "credential-request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding"],
+      "required": [
+        "version",
+        "type",
+        "binding"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "credential-request" },
-        "binding": { "$ref": "#/$defs/id" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "credential-request"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "policy-set": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "openbao", "bindings"],
+      "required": [
+        "version",
+        "type",
+        "openbao",
+        "bindings"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "policy-set" },
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "policy-set"
+        },
         "openbao": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["address"],
+          "required": [
+            "address"
+          ],
           "properties": {
-            "address": { "type": "string", "format": "uri" },
-            "ca-pem": { "type": "string" },
-            "namespace": { "type": "string" },
-            "transit-mount": { "type": "string" },
-            "ssh-mount": { "type": "string" }
+            "address": {
+              "type": "string",
+              "format": "uri"
+            },
+            "ca-pem": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "transit-mount": {
+              "type": "string"
+            },
+            "ssh-mount": {
+              "type": "string"
+            }
           }
         },
         "bindings": {
@@ -126,11 +324,25 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["binding", "key", "policy"],
+            "required": [
+              "binding",
+              "key",
+              "policy",
+              "assignment"
+            ],
             "properties": {
-              "binding": { "$ref": "#/$defs/id" },
-              "key": { "$ref": "#/$defs/key" },
-              "policy": { "$ref": "https://wyrd.foo/wyrwood/schemas/policy.json" }
+              "binding": {
+                "$ref": "#/$defs/id"
+              },
+              "key": {
+                "$ref": "#/$defs/key"
+              },
+              "policy": {
+                "$ref": "#/$defs/effective"
+              },
+              "assignment": {
+                "$ref": "#/$defs/id"
+              }
             }
           }
         }
@@ -139,68 +351,282 @@
     "credential": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding", "approle-mount", "role-id", "wrapped-secret-id"],
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "approle-mount",
+        "role-id",
+        "wrapped-secret-id",
+        "assignment"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "credential" },
-        "binding": { "$ref": "#/$defs/id" },
-        "approle-mount": { "type": "string" },
-        "role-id": { "type": "string" },
-        "wrapped-secret-id": { "type": "string" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "credential"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "approle-mount": {
+          "type": "string"
+        },
+        "role-id": {
+          "type": "string"
+        },
+        "wrapped-secret-id": {
+          "type": "string"
+        },
+        "assignment": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "recreate-request": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding"],
+      "required": [
+        "version",
+        "type",
+        "binding"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "recreate-request" },
-        "binding": { "$ref": "#/$defs/id" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "recreate-request"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "unbind": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding"],
+      "required": [
+        "version",
+        "type",
+        "binding"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "unbind" },
-        "binding": { "$ref": "#/$defs/id" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "unbind"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "result-recorded": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding", "outcome"],
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "outcome"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "result-recorded" },
-        "binding": { "$ref": "#/$defs/id" },
-        "outcome": { "$ref": "#/$defs/contract-result/properties/outcome" },
-        "reason": { "$ref": "#/$defs/contract-result/properties/reason" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "result-recorded"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "outcome": {
+          "$ref": "#/$defs/contract-result/properties/outcome"
+        },
+        "reason": {
+          "$ref": "#/$defs/contract-result/properties/reason"
+        }
       }
     },
     "token-accessor": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding", "accessor"],
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "accessor",
+        "assignment"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "token-accessor" },
-        "binding": { "$ref": "#/$defs/id" },
-        "accessor": { "type": "string", "pattern": "^[A-Za-z0-9.]{1,128}$" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "token-accessor"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "accessor": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9.]{1,128}$"
+        },
+        "assignment": {
+          "$ref": "#/$defs/id"
+        }
       }
     },
     "accessor-recorded": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "binding", "accessor"],
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "accessor",
+        "assignment"
+      ],
       "properties": {
-        "version": { "const": 1 },
-        "type": { "const": "accessor-recorded" },
-        "binding": { "$ref": "#/$defs/id" },
-        "accessor": { "$ref": "#/$defs/token-accessor/properties/accessor" }
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "accessor-recorded"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "accessor": {
+          "$ref": "#/$defs/token-accessor/properties/accessor"
+        },
+        "assignment": {
+          "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "effective": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sources",
+        "openbao",
+        "contract",
+        "settings"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "revision",
+              "hcl"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+                "maxLength": 64
+              },
+              "revision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "hcl": {
+                "type": "string",
+                "maxLength": 65536
+              }
+            }
+          }
+        },
+        "openbao": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "policy"
+          ],
+          "properties": {
+            "policy": {
+              "type": "string"
+            }
+          }
+        },
+        "ssh": {
+          "$ref": "https://wyrd.foo/wyrwood/schemas/policy.json#/properties/ssh"
+        },
+        "contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mount-target",
+            "enforcement"
+          ],
+          "properties": {
+            "mount-target": {
+              "type": "string",
+              "pattern": "^/"
+            },
+            "env": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[A-Z_][A-Z0-9_]*$"
+              },
+              "additionalProperties": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "maxProperties": 64
+            },
+            "access-group": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967294
+            },
+            "enforcement": {
+              "enum": [
+                "report",
+                "recreate"
+              ]
+            }
+          }
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "token-ttl",
+            "token-max-ttl",
+            "enforcement"
+          ],
+          "properties": {
+            "token-ttl": {
+              "type": "string",
+              "pattern": "^[0-9]+(m|h)$"
+            },
+            "token-max-ttl": {
+              "type": "string",
+              "pattern": "^[0-9]+(m|h)$"
+            },
+            "access-group": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 4294967294
+            },
+            "enforcement": {
+              "enum": [
+                "report",
+                "recreate"
+              ]
+            }
+          }
+        }
       }
     }
   }

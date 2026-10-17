@@ -68,7 +68,7 @@ func Decode(line []byte) (Message, error) {
 		return nil, fmt.Errorf("%w: %v", ErrInvalid, err)
 	}
 	var version int
-	if raw, ok := fields["version"]; !ok || json.Unmarshal(raw, &version) != nil || version != Version || string(raw) != "1" {
+	if raw, ok := fields["version"]; !ok || json.Unmarshal(raw, &version) != nil || version != Version || string(raw) != "2" {
 		return nil, fmt.Errorf("%w: unsupported version", ErrInvalid)
 	}
 	var messageType Type
@@ -129,12 +129,12 @@ var requiredFields = map[Type][]string{
 	TypeContractResult:    {"binding", "outcome"},
 	TypeCredentialRequest: {"binding"},
 	TypePolicySet:         {"openbao", "bindings"},
-	TypeCredential:        {"binding", "approle-mount", "role-id", "wrapped-secret-id"},
+	TypeCredential:        {"binding", "assignment", "approle-mount", "role-id", "wrapped-secret-id"},
 	TypeRecreateRequest:   {"binding"},
 	TypeUnbind:            {"binding"},
 	TypeResultRecorded:    {"binding", "outcome"},
-	TypeTokenAccessor:     {"binding", "accessor"},
-	TypeAccessorRecorded:  {"binding", "accessor"},
+	TypeTokenAccessor:     {"binding", "assignment", "accessor"},
+	TypeAccessorRecorded:  {"binding", "assignment", "accessor"},
 }
 
 func requireFields(messageType Type, fields map[string]json.RawMessage) error {

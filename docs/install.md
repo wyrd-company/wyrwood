@@ -159,7 +159,7 @@ sudo wyrwood agent service install
 An access group is effectively required for non-root containers running as a
 UID other than the agent user. Without it, the consumer directory is `0700`
 and sockets are `0600`, owned by the agent user; with it, they are `0750` and
-`0660`. Set the policy's numeric access group to a host GID held by the
+`0660`. Set the binding's numeric access group to a host GID held by the
 container processes.
 
 Add `wyrwood` to each consumer access group on the host. Use a group

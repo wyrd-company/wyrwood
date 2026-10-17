@@ -16,7 +16,7 @@ considered-options:
     operations.
   "2": >-
     The contract lives in the policy. The agent reports non-conformance by
-    default. A policy may opt into recreate enforcement: when such a policy is
+    default. A binding may opt into recreate enforcement: when such a binding is
     first bound to a container, the agent stops, removes, and creates the
     container again from its inspected definition with the contract applied.
     Later drift is reported, not recreated. Engine write operations are used

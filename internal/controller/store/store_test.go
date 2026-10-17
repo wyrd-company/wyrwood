@@ -90,7 +90,7 @@ func TestPoliciesBindingsInventoryAndResults(t *testing.T) {
 		t.Fatalf("Policy() = %#v, %v", stored, err)
 	}
 	binding := Binding{ID: "b-1", Agent: "host-a", Key: protocol.Key{Kind: protocol.KeyName, Value: "web"},
-		Policy: "teal", Role: "wyrwood-host-a-b-1", CreatedAt: now, CreatedBy: "operator-1"}
+		Policies: []string{"teal"}, Role: "wyrwood-host-a-b-1", CreatedAt: now, CreatedBy: "operator-1"}
 	if err := store.CreateBinding(ctx, binding); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestPoliciesBindingsInventoryAndResults(t *testing.T) {
 	unknownPolicy := binding
 	unknownPolicy.ID = "b-3"
 	unknownPolicy.Key.Value = "other"
-	unknownPolicy.Policy = "missing"
+	unknownPolicy.Policies = []string{"missing"}
 	if err := store.CreateBinding(ctx, unknownPolicy); !errors.Is(err, ErrConflict) {
 		t.Fatalf("binding to unknown policy = %v", err)
 	}

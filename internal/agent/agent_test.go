@@ -58,7 +58,7 @@ func serveProbe(listener net.Listener, lookup binding.Lookup) {
 		if !ok {
 			_, _ = fmt.Fprintln(connection, "unbound")
 		} else {
-			_, _ = fmt.Fprintf(connection, "%s %t %s\n", view.Policy.Name, view.HasToken, view.Token.Value())
+			_, _ = fmt.Fprintf(connection, "%s %t %s\n", strings.Join(view.Policy.Names(), ","), view.HasToken, view.Token.Value())
 		}
 		_ = connection.Close()
 	}
@@ -212,11 +212,16 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		t.Fatalf("inventory environment = %#v", containers[0].EnvNames)
 	}
 
-	document := policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
+	document := policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	if _, err := controller.SavePolicy(ctx, policy.New("zinc", policy.StarterHCL), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	group := uint32(os.Getgid())
+	settings := policy.Settings{TokenTTL: "20m", TokenMaxTTL: "2h", AccessGroup: &group, Enforcement: policy.EnforcementReport}
+	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"zinc", "teal"}, Settings: settings}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +229,7 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	var token string
 	eventually(t, "a bound socket with a token", func() bool {
 		fields := strings.Fields(probe(t, socket))
-		if len(fields) == 3 && fields[0] == "teal" && fields[1] == "true" {
+		if len(fields) == 3 && fields[0] == "teal,zinc" && fields[1] == "true" {
 			token = fields[2]
 			return true
 		}
@@ -251,16 +256,41 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	if err := Query(ctx, paths, ControlRequest{Operation: "containers"}, &listing); err != nil {
 		t.Fatal(err)
 	}
-	if len(listing.Containers) != 1 || listing.Containers[0].Policy != "teal" || listing.Containers[0].Token != "valid" ||
+	if len(listing.Containers) != 1 || strings.Join(listing.Containers[0].Policies, ",") != "teal,zinc" || listing.Containers[0].Token != "valid" ||
 		listing.Containers[0].BindingKey != "name:web" || listing.Containers[0].Conformance != "non-conforming" {
 		t.Fatalf("containers = %#v", listing)
 	}
 
+	// Prove source membership and binding settings through store, protocol, and cache.
+	data, err := os.ReadFile(paths.PolicyCache())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cached policyCache
+	if err := json.Unmarshal(data, &cached); err != nil {
+		t.Fatal(err)
+	}
+	if cached.Version != 2 || len(cached.Set.Bindings) != 1 {
+		t.Fatal("effective assignment cache absent")
+	}
+	effective := cached.Set.Bindings[0].Policy
+	if strings.Join(effective.Names(), ",") != "teal,zinc" || effective.Sources[0].Revision != 1 || effective.Sources[1].Revision != 1 || effective.Settings.TokenTTL != "20m" || effective.Settings.TokenMaxTTL != "2h" || effective.Settings.AccessGroup == nil || *effective.Settings.AccessGroup != group || effective.Contract.Enforcement != policy.EnforcementReport || cached.Set.Bindings[0].Assignment != bound.Assignment() {
+		t.Fatalf("cached effective assignment lost: %#v", effective)
+	}
 	// The agent keeps serving from cache across a restart without the controller.
 	controller.Stop()
 	running.stop()
 	restarted := startAgent(t, paths, fake, false)
-	eventually(t, "restored socket", func() bool { return strings.HasPrefix(probe(t, socket), "teal ") })
+	eventually(t, "restored assignment and settings", func() bool {
+		restarted.agent.mu.Lock()
+		defer restarted.agent.mu.Unlock()
+		if len(restarted.agent.set.Bindings) != 1 {
+			return false
+		}
+		restored := restarted.agent.set.Bindings[0]
+		return restored.Assignment == bound.Assignment() && restored.Policy.Settings.TokenTTL == "20m" && strings.Join(restored.Policy.Names(), ",") == "teal,zinc"
+	})
+	eventually(t, "restored socket", func() bool { return strings.HasPrefix(probe(t, socket), "teal,zinc ") })
 	if fields := strings.Fields(probe(t, socket)); fields[1] != "false" {
 		t.Fatalf("restarted agent claims a token: %v", fields)
 	}
@@ -296,7 +326,7 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	eventually(t, "replacement sockets with a fresh token", func() bool {
 		for _, name := range []string{consumer.VaultSocket, consumer.SSHAgentSocket} {
 			fields := strings.Fields(probe(t, filepath.Join(filepath.Dir(socket), name)))
-			if len(fields) != 3 || fields[0] != "teal" || fields[1] != "true" || fields[2] == token {
+			if len(fields) != 3 || fields[0] != "teal,zinc" || fields[1] != "true" || fields[2] == token {
 				return false
 			}
 		}
@@ -348,12 +378,12 @@ func TestRecreateOnNewBindingAndUnbind(t *testing.T) {
 		containers, _, _ := controller.Store().Inventory(ctx, "host-a")
 		return len(containers) == 1
 	})
-	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
-	document.Contract.Enforcement = policy.EnforcementRecreate
+	document := policy.New("recreate", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`)
+
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyDevcontainer, Value: "/src/app"}, "recreate", "operator-1")
+	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyDevcontainer, Value: "/src/app"}, policy.Selection{Policies: []string{"recreate"}, Settings: policy.Settings{Enforcement: policy.EnforcementRecreate}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -392,13 +422,13 @@ func TestInterruptionReportReachesTheController(t *testing.T) {
 	if err := controller.DecideAgent(ctx, first.AgentFingerprint, true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
-	document.Contract.Enforcement = policy.EnforcementRecreate
+	document := policy.New("recreate", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`)
+
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	key := protocol.Key{Kind: protocol.KeyName, Value: "app"}
-	bound, err := controller.CreateBinding(ctx, "host-a", key, "recreate", "operator-1")
+	bound, err := controller.CreateBinding(ctx, "host-a", key, policy.Selection{Policies: []string{"recreate"}, Settings: policy.Settings{Enforcement: policy.EnforcementRecreate}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -428,13 +458,13 @@ func TestInterruptionReportSurvivesAControllerStorageFailure(t *testing.T) {
 	if err := controller.DecideAgent(ctx, first.AgentFingerprint, true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
-	document.Contract.Enforcement = policy.EnforcementRecreate
+	document := policy.New("recreate", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`)
+
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	key := protocol.Key{Kind: protocol.KeyName, Value: "app"}
-	bound, err := controller.CreateBinding(ctx, "host-a", key, "recreate", "operator-1")
+	bound, err := controller.CreateBinding(ctx, "host-a", key, policy.Selection{Policies: []string{"recreate"}, Settings: policy.Settings{Enforcement: policy.EnforcementRecreate}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -498,7 +528,7 @@ func TestUnbindingRevokesTheTokenOfADisconnectedAgent(t *testing.T) {
 	if err := first.DecideAgent(ctx, login.AgentFingerprint, true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.SavePolicy(ctx, policy.New("app", `path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := first.SavePolicy(ctx, policy.New("app", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	fake := enginetest.New()
@@ -506,7 +536,7 @@ func TestUnbindingRevokesTheTokenOfADisconnectedAgent(t *testing.T) {
 	app.State.Status = "running"
 	fake.Add(app)
 	running := startAgent(t, paths, fake, false)
-	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, "app", "operator-1")
+	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, policy.Selection{Policies: []string{"app"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -556,7 +586,7 @@ func TestAccessorReportSurvivesAControllerStorageFailure(t *testing.T) {
 	if err := first.DecideAgent(ctx, login.AgentFingerprint, true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := first.SavePolicy(ctx, policy.New("app", `path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := first.SavePolicy(ctx, policy.New("app", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	// The controller's storage refuses every token accessor write.
@@ -578,7 +608,7 @@ func TestAccessorReportSurvivesAControllerStorageFailure(t *testing.T) {
 	app.State.Status = "running"
 	fake.Add(app)
 	running := startAgent(t, paths, fake, false)
-	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, "app", "operator-1")
+	bound, err := first.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, policy.Selection{Policies: []string{"app"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -635,8 +665,8 @@ func TestRecreateNotAllowedIsReported(t *testing.T) {
 	app.State.Status = "running"
 	fake.Add(app)
 	startAgent(t, paths, fake, false)
-	document := policy.New("recreate", `path "kv/data/app/*" { capabilities = ["read"] }`)
-	document.Contract.Enforcement = policy.EnforcementRecreate
+	document := policy.New("recreate", policy.StarterHCL+`path "kv/data/app/*" { capabilities = ["read"] }`)
+
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
@@ -644,7 +674,7 @@ func TestRecreateNotAllowedIsReported(t *testing.T) {
 		containers, _, _ := controller.Store().Inventory(ctx, "host-a")
 		return len(containers) == 1
 	})
-	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, "recreate", "operator-1")
+	bound, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "app"}, policy.Selection{Policies: []string{"recreate"}, Settings: policy.Settings{Enforcement: policy.EnforcementRecreate}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}

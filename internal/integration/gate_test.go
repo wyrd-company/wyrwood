@@ -290,7 +290,7 @@ func TestLinuxIntegrationGate(t *testing.T) {
 
 	document := policy.New("teal", gateHCL)
 	document.SSH = &policy.SSH{TransitKeys: []string{"teal-signing"}, CARoles: []string{"teal-hosts"}}
-	document.Contract.Enforcement = policy.EnforcementRecreate
+
 	if _, err := controller.SavePolicy(ctx, document, "gate-operator"); err != nil {
 		t.Fatal(err)
 	}
@@ -304,7 +304,7 @@ func TestLinuxIntegrationGate(t *testing.T) {
 	if key.Kind != protocol.KeyDevcontainer {
 		t.Fatalf("most stable key = %#v", key)
 	}
-	bound, err := controller.CreateBinding(ctx, "gate-host", key, "teal", "gate-operator")
+	bound, err := controller.CreateBinding(ctx, "gate-host", key, policy.Selection{Policies: []string{"teal"}}, "gate-operator")
 	if err != nil {
 		t.Fatal(err)
 	}

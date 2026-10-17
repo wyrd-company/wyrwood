@@ -12,6 +12,7 @@ package store
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -66,13 +67,21 @@ var migrations = []string{
 		agent TEXT NOT NULL,
 		key_kind TEXT NOT NULL,
 		key_value TEXT NOT NULL,
-		policy TEXT NOT NULL REFERENCES policies(name),
+		settings TEXT NOT NULL,
+        revision INTEGER NOT NULL,
+        effective TEXT NOT NULL,
+        applied INTEGER NOT NULL DEFAULT 0,
 		role TEXT NOT NULL,
 		created_at INTEGER NOT NULL,
 		created_by TEXT NOT NULL DEFAULT '',
 		UNIQUE (agent, key_kind, key_value)
 	);
-	CREATE TABLE inventories (
+	CREATE TABLE binding_policies (
+        binding_id TEXT NOT NULL REFERENCES bindings(id) ON DELETE CASCADE,
+        policy_name TEXT NOT NULL REFERENCES policies(name),
+        PRIMARY KEY(binding_id, policy_name)
+    );
+    CREATE TABLE inventories (
 		agent TEXT PRIMARY KEY,
 		containers TEXT NOT NULL,
 		reported_at INTEGER NOT NULL
@@ -116,13 +125,17 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, fmt.Errorf("create state directory: %w", err)
 	}
-	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)")
+	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=synchronous(NORMAL)")
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 	db.SetMaxOpenConns(1)
 	store := &Store{db: db}
 	if err := store.migrate(); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
+	if _, err := db.Exec(`PRAGMA journal_mode=WAL`); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -141,27 +154,27 @@ func (store *Store) migrate() error {
 	if err := store.db.QueryRow(`PRAGMA user_version`).Scan(&version); err != nil {
 		return fmt.Errorf("read schema version: %w", err)
 	}
-	if version > len(migrations) {
+	if version == 1 {
+		return errors.New("controller state version 1 is unsupported")
+	}
+	if version > 2 {
 		return errors.New("database schema is newer than this controller")
 	}
-	for index := version; index < len(migrations); index++ {
-		transaction, err := store.db.Begin()
-		if err != nil {
-			return err
-		}
-		if _, err := transaction.Exec(migrations[index]); err != nil {
-			_ = transaction.Rollback()
-			return fmt.Errorf("apply migration %d: %w", index+1, err)
-		}
-		if _, err := transaction.Exec(fmt.Sprintf(`PRAGMA user_version = %d`, index+1)); err != nil {
-			_ = transaction.Rollback()
-			return err
-		}
-		if err := transaction.Commit(); err != nil {
-			return err
-		}
+	if version == 2 {
+		return nil
 	}
-	return nil
+	tx, err := store.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err = tx.Exec(migrations[0]); err != nil {
+		return fmt.Errorf("create schema: %w", err)
+	}
+	if _, err = tx.Exec("PRAGMA user_version = 2"); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func unix(value time.Time) int64 { return value.UTC().UnixNano() }
@@ -315,6 +328,11 @@ func boolInt(value bool) int {
 // SavePolicy records a policy, incrementing its revision, and returns the
 // stored document.
 func (store *Store) SavePolicy(ctx context.Context, document policy.Policy, operator string, now time.Time) (policy.Policy, error) {
+	return store.SavePolicyBindings(ctx, document, nil, operator, now)
+}
+
+// SavePolicyBindings records a source revision and all derived assignments atomically.
+func (store *Store) SavePolicyBindings(ctx context.Context, document policy.Policy, bindings []Binding, operator string, now time.Time) (policy.Policy, error) {
 	transaction, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return policy.Policy{}, err
@@ -335,6 +353,19 @@ func (store *Store) SavePolicy(ctx context.Context, document policy.Policy, oper
 		ON CONFLICT(name) DO UPDATE SET revision = excluded.revision, document = excluded.document, saved_at = excluded.saved_at, saved_by = excluded.saved_by`,
 		saved.Name, saved.Revision, string(encoded), unix(now), operator); err != nil {
 		return policy.Policy{}, err
+	}
+	for _, b := range bindings {
+		settings, effective, err := bindingData(b)
+		if err != nil {
+			return policy.Policy{}, err
+		}
+		r, err := transaction.ExecContext(ctx, `UPDATE bindings SET settings=?,revision=?,effective=?,applied=0 WHERE id=? AND revision=?`, settings, b.Revision, effective, b.ID, b.Revision-1)
+		if err != nil {
+			return policy.Policy{}, err
+		}
+		if n, _ := r.RowsAffected(); n != 1 {
+			return policy.Policy{}, ErrConflict
+		}
 	}
 	return saved, transaction.Commit()
 }
@@ -388,58 +419,140 @@ func scanPolicy(row interface{ Scan(...any) error }) (StoredPolicy, error) {
 	return stored, nil
 }
 
-// Binding pairs a policy with a container key on one agent.
+// Binding resolves several policies and runtime settings for one container key.
 type Binding struct {
 	ID        string
 	Agent     string
 	Key       protocol.Key
-	Policy    string
+	Policies  []string
+	Settings  policy.Settings
+	Revision  int
+	Effective policy.Effective
+	Applied   bool
 	Role      string
 	CreatedAt time.Time
 	CreatedBy string
 }
 
-const bindingColumns = `id, agent, key_kind, key_value, policy, role, created_at, created_by`
+// Assignment identifies the complete immutable runtime assignment.
+func (b Binding) Assignment() string {
+	data, _ := json.Marshal(struct {
+		Revision  int
+		Effective policy.Effective
+	}{b.Revision, b.Effective})
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
+}
+func (b Binding) HasPolicy(name string) bool {
+	for _, n := range b.Policies {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+const bindingColumns = `id, agent, key_kind, key_value,
+ (SELECT json_group_array(policy_name) FROM (SELECT policy_name FROM binding_policies WHERE binding_id=bindings.id ORDER BY policy_name)),
+ role, created_at, created_by, settings, revision, effective, applied`
 
 func scanBinding(row interface{ Scan(...any) error }) (Binding, error) {
-	var binding Binding
-	var createdAt int64
-	if err := row.Scan(&binding.ID, &binding.Agent, &binding.Key.Kind, &binding.Key.Value, &binding.Policy,
-		&binding.Role, &createdAt, &binding.CreatedBy); err != nil {
+	var b Binding
+	var created int64
+	var names, settings, effective string
+	if err := row.Scan(&b.ID, &b.Agent, &b.Key.Kind, &b.Key.Value, &names, &b.Role, &created, &b.CreatedBy, &settings, &b.Revision, &effective, &b.Applied); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Binding{}, ErrNotFound
 		}
 		return Binding{}, err
 	}
-	binding.CreatedAt = time.Unix(0, createdAt).UTC()
-	return binding, nil
+	if err := json.Unmarshal([]byte(names), &b.Policies); err != nil {
+		return Binding{}, err
+	}
+	if err := json.Unmarshal([]byte(settings), &b.Settings); err != nil {
+		return Binding{}, err
+	}
+	if err := json.Unmarshal([]byte(effective), &b.Effective); err != nil {
+		return Binding{}, err
+	}
+	b.CreatedAt = time.Unix(0, created).UTC()
+	return b, nil
 }
 
-// CreateBinding records a binding. It fails with ErrConflict when the key is
-// already bound on the agent.
-func (store *Store) CreateBinding(ctx context.Context, binding Binding) error {
-	_, err := store.db.ExecContext(ctx, `INSERT INTO bindings (`+bindingColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		binding.ID, binding.Agent, binding.Key.Kind, binding.Key.Value, binding.Policy, binding.Role,
-		unix(binding.CreatedAt), binding.CreatedBy)
+func bindingData(b Binding) (string, string, error) {
+	settings, err := json.Marshal(b.Settings.Defaults())
+	if err != nil {
+		return "", "", err
+	}
+	effective, err := json.Marshal(b.Effective)
+	return string(settings), string(effective), err
+}
+func writeMembership(ctx context.Context, tx *sql.Tx, b Binding) error {
+	if _, err := tx.ExecContext(ctx, `DELETE FROM binding_policies WHERE binding_id=?`, b.ID); err != nil {
+		return err
+	}
+	if len(b.Policies) == 0 {
+		return errors.New("select at least one policy")
+	}
+	for _, name := range b.Policies {
+		if _, err := tx.ExecContext(ctx, `INSERT INTO binding_policies(binding_id,policy_name) VALUES (?,?)`, b.ID, name); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (store *Store) CreateBinding(ctx context.Context, b Binding) error {
+	settings, effective, err := bindingData(b)
+	if err != nil {
+		return err
+	}
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if b.Revision == 0 {
+		b.Revision = 1
+	}
+	_, err = tx.ExecContext(ctx, `INSERT INTO bindings(id,agent,key_kind,key_value,role,created_at,created_by,settings,revision,effective,applied) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, b.ID, b.Agent, b.Key.Kind, b.Key.Value, b.Role, unix(b.CreatedAt), b.CreatedBy, settings, b.Revision, effective, b.Applied)
+	if err == nil {
+		err = writeMembership(ctx, tx, b)
+	}
 	if isConstraint(err) {
 		return ErrConflict
 	}
-	return err
-}
-
-// ChangeBindingPolicy changes a binding's policy.
-func (store *Store) ChangeBindingPolicy(ctx context.Context, id, policyName string) error {
-	result, err := store.db.ExecContext(ctx, `UPDATE bindings SET policy = ? WHERE id = ?`, policyName, id)
 	if err != nil {
-		if isConstraint(err) {
-			return ErrNotFound
-		}
 		return err
 	}
-	if changed, _ := result.RowsAffected(); changed == 0 {
-		return ErrNotFound
+	return tx.Commit()
+}
+
+// ChangeBinding persists the next assignment before its external role is applied.
+func (store *Store) ChangeBinding(ctx context.Context, b Binding) error {
+	settings, effective, err := bindingData(b)
+	if err != nil {
+		return err
 	}
-	return nil
+	tx, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	r, err := tx.ExecContext(ctx, `UPDATE bindings SET settings=?,revision=?,effective=?,applied=0 WHERE id=? AND revision=?`, settings, b.Revision, effective, b.ID, b.Revision-1)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n != 1 {
+		return ErrConflict
+	}
+	if err = writeMembership(ctx, tx, b); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+func (store *Store) MarkBindingApplied(ctx context.Context, id string) error {
+	_, err := store.db.ExecContext(ctx, `UPDATE bindings SET applied=1 WHERE id=?`, id)
+	return err
 }
 
 // RetireBinding removes a binding and records that it belonged to its
@@ -641,4 +754,19 @@ func isConstraint(err error) bool {
 		return withCode.Code()&0xff == 19
 	}
 	return false
+}
+
+// SaveAssignmentAccessor compares the assignment revision in the same SQL write
+// so an old report cannot replace the current token during a concurrent edit.
+func (store *Store) SaveAssignmentAccessor(ctx context.Context, b Binding, accessor string, now time.Time) error {
+	r, err := store.db.ExecContext(ctx, `INSERT INTO binding_tokens(binding,accessor,updated_at)
+ SELECT id,?,? FROM bindings WHERE id=? AND revision=? AND applied=1
+ ON CONFLICT(binding) DO UPDATE SET accessor=excluded.accessor,updated_at=excluded.updated_at`, accessor, unix(now), b.ID, b.Revision)
+	if err != nil {
+		return err
+	}
+	if n, _ := r.RowsAffected(); n != 1 {
+		return ErrConflict
+	}
+	return nil
 }

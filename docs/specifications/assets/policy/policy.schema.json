@@ -4,32 +4,74 @@
   "title": "Wyrwood policy",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "openbao", "contract"],
+  "required": [
+    "name",
+    "openbao",
+    "contract"
+  ],
   "properties": {
-    "name": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$", "maxLength": 64 },
-    "revision": { "type": "integer", "minimum": 1 },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "maxLength": 64
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
     "openbao": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["policy"],
+      "required": [
+        "policy"
+      ],
       "properties": {
-        "policy": { "type": "string", "maxLength": 65536 },
-        "token-ttl": { "type": "string", "pattern": "^[0-9]+(m|h)$", "default": "1h" },
-        "token-max-ttl": { "type": "string", "pattern": "^[0-9]+(m|h)$", "default": "8h" }
+        "policy": {
+          "type": "string",
+          "maxLength": 65536
+        }
       }
     },
     "ssh": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "transit-keys": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
-        "ca-roles": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
+        "transit-keys": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/name"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        },
+        "ca-roles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/name"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        },
         "not-forwardable": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "transit-keys": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 },
-            "ca-roles": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true, "maxItems": 64 }
+            "transit-keys": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/name"
+              },
+              "uniqueItems": true,
+              "maxItems": 64
+            },
+            "ca-roles": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/name"
+              },
+              "uniqueItems": true,
+              "maxItems": 64
+            }
           }
         }
       }
@@ -37,21 +79,33 @@
     "contract": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["mount-target", "enforcement"],
+      "required": [
+        "mount-target"
+      ],
       "properties": {
-        "mount-target": { "type": "string", "pattern": "^/" },
+        "mount-target": {
+          "type": "string",
+          "pattern": "^/"
+        },
         "env": {
           "type": "object",
-          "propertyNames": { "pattern": "^[A-Z_][A-Z0-9_]*$" },
-          "additionalProperties": { "type": "string", "maxLength": 4096 },
+          "propertyNames": {
+            "pattern": "^[A-Z_][A-Z0-9_]*$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 4096
+          },
           "maxProperties": 64
-        },
-        "access-group": { "type": "integer", "minimum": 0, "maximum": 4294967294 },
-        "enforcement": { "type": "string", "enum": ["report", "recreate"] }
+        }
       }
     }
   },
   "$defs": {
-    "name": { "type": "string", "pattern": "^[A-Za-z0-9_.-]+$", "maxLength": 128 }
+    "name": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_.-]+$",
+      "maxLength": 128
+    }
   }
 }

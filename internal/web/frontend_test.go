@@ -101,7 +101,7 @@ func TestFrontendSecurityHeaders(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	securityHeaders(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) { writer.WriteHeader(http.StatusNoContent) })).ServeHTTP(recorder, httptest.NewRequest("GET", "/sign-in", nil))
 	csp := recorder.Header().Get("Content-Security-Policy")
-	if !strings.Contains(csp, "script-src 'self';") || !strings.Contains(csp, "default-src 'none';") {
+	if !strings.Contains(csp, "script-src 'self';") || !strings.Contains(csp, "default-src 'none';") || !strings.Contains(csp, "connect-src 'self';") {
 		t.Fatalf("bundled scripts must be same-origin with no inline script allowance: %s", csp)
 	}
 	for name, value := range map[string]string{"Cache-Control": "no-store", "X-Frame-Options": "DENY", "X-Content-Type-Options": "nosniff", "Referrer-Policy": "same-origin"} {

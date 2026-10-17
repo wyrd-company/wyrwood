@@ -91,7 +91,7 @@ path "ssh/sign/teal-hosts" { capabilities = ["update"] }
 	document.SSH = &policy.SSH{TransitKeys: []string{"teal-ed", "teal-rsa"}, CARoles: []string{"teal-hosts"}}
 	fixture := &fixture{socket: filepath.Join(t.TempDir(), "ssh-agent.sock")}
 	fixture.view = binding.View{
-		ID: "b-1", ContainerKey: "name:web", Policy: document, OpenBao: protocol.OpenBao{Address: bao.Address, Namespace: bao.Namespace},
+		ID: "b-1", ContainerKey: "name:web", Policy: (document).Runtime(policy.DefaultSettings()), OpenBao: protocol.OpenBao{Address: bao.Address, Namespace: bao.Namespace},
 		Mounts: binding.Mounts{Transit: "transit", SSH: "ssh"}, Client: client,
 		Token: openbao.NewToken(secret.Auth.ClientToken, time.Hour), HasToken: true,
 	}

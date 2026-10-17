@@ -9,7 +9,7 @@ relationships:
     - engine-proxy
 objective: >-
   Define what a container must look like to receive its sockets, validate a
-  bound container against that definition, and when the policy opts in, apply
+  bound container against that definition, and when the binding opts in, apply
   it once by recreating the container at the moment of binding.
 background:
   current-design: >-
@@ -35,12 +35,14 @@ design-challenges:
     never in response to later drift.
 proposed-design:
   high-level-overview: >-
-    A contract is part of a Wyrwood policy. It names the mount target for the
+    An effective contract combines reusable policy requirements. It names the mount target for the
     consumer directory, the environment names and values the container's
     tools need to find the sockets, the numeric access group the container's
-    processes use, and the enforcement mode. The agent checks a bound
+    processes use, and the enforcement mode. Access group and enforcement come
+    from binding settings; mount and environment requirements are composed
+    as defined by composable-policy-bindings. The agent checks a bound
     container against the contract on every reconcile and reports the result.
-    With recreate enforcement, the first binding of that policy to a container
+    With recreate enforcement, the first application of that binding to a container
     triggers one recreate with the contract merged into the container's
     definition.
   contract-fields: >-
@@ -58,7 +60,7 @@ proposed-design:
     target, when every contract environment name is present with the contract
     value, and when the access group is one the agent user can assign.
     The agent must also hold the consumer directory and both socket listeners
-    for the binding, with the policy's access group applied. An unavailable
+    for the binding, with the binding's access group applied. An unavailable
     directory or socket is reported as `consumer-directory`. With no access
     group, the container user must be root or the numeric agent uid; otherwise
     `socket-access` is reported. With an access group, a numeric non-root user
@@ -70,7 +72,7 @@ proposed-design:
     inside the container. The result lists each failed item by name so the
     controller can show what is missing.
   recreate: >-
-    Recreate requires enforcement `recreate` on the policy and recreate
+    Recreate requires enforcement `recreate` on the binding and recreate
     allowed in the host's root-controlled configuration. The separate Engine
     proxy enforces that host permission on stop, remove, create, and start;
     otherwise the binding is
@@ -100,7 +102,7 @@ proposed-design:
     and controller storage failures. Each reconcile sends an unacknowledged
     report again.
   bind-time-only: >-
-    Recreate is triggered only by a binding message whose policy has recreate
+    Recreate is triggered only by a binding message whose settings have recreate
     enforcement and whose binding is new for that container key on this agent.
     A later reconcile that finds drift reports it. An operator can request a
     recreate explicitly from the controller, which arrives as a distinct

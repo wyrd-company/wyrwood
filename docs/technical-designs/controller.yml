@@ -59,7 +59,8 @@ proposed-design:
     namespace reach nothing outside it. The controller's own policy and
     AppRole are named outside the `wyrwood-` prefix so that the controller
     cannot rewrite them. Every binding AppRole carries exactly the binding's
-    own `wyrwood-` policy; the controller refuses any other token policy.
+    selected `wyrwood-` policies without implicit default; the controller
+    refuses any other token policy.
     On startup the controller logs in with its AppRole and renews its token.
     Its policy allows create, read, update, and delete on `sys/policies/acl/wyrwood-*`,
     `auth/approle/role/wyrwood-*` and their role-id and secret-id endpoints,
@@ -71,8 +72,11 @@ proposed-design:
     and never reads a secret value on a container's behalf.
   policy-management: >-
     A Wyrwood policy is a named document containing an OpenBao policy in HCL,
-    a token time-to-live, the Transit keys and SSH-engine roles the ssh-agent
-    endpoint offers, and a container contract. Saving a policy writes the HCL
+    the Transit keys and SSH-engine roles the ssh-agent
+    endpoint offers, and reusable container requirements. Each binding selects
+    several policies and owns token lifetime, access group, and enforcement.
+    Composition, assignment identity, and revoke-before-issue follow
+    composable-policy-bindings. Saving a policy writes the HCL
     to OpenBao under `wyrwood-<policy>`, validates it through OpenBao's own
     parser, and records the policy revision. The web interface edits the HCL
     directly; it does not invent a simpler policy language. The interface also
@@ -98,9 +102,9 @@ proposed-design:
     whenever a policy or binding that affects that agent changes. Each agent
     has at most one active session; a new connection replaces the old one.
   bindings-and-approles: >-
-    A binding pairs a policy with a container key on one agent. Creating a
-    binding creates the AppRole `wyrwood-<agent>-<binding>` with the policy's
-    HCL attached, the policy's token time-to-live and maximum lifetime, and
+    A binding pairs several policies with a container key on one agent. Creating
+    a binding creates the AppRole `wyrwood-<agent>-<binding>` with the selected
+    managed policy names, no implicit default, binding token lifetime settings, and
     secret-id usage limited to one. After each login the agent reports the
     new token's accessor until the controller acknowledges it, and the
     controller keeps the latest one per binding; tokens replaced by rotation

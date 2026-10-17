@@ -195,8 +195,8 @@ func (agent *Agent) loadCache() {
 		return
 	}
 	var cache policyCache
-	if json.Unmarshal(data, &cache) != nil || cache.Version != 1 || cache.Set.Validate() != nil {
-		agent.logf("policy cache ignored")
+	if json.Unmarshal(data, &cache) != nil || cache.Version != 2 || cache.Set.Validate() != nil {
+		agent.logf("policy cache ignored: invalid or incompatible version; reconnect to the v2 controller")
 		return
 	}
 	agent.mu.Lock()
@@ -215,7 +215,7 @@ func (agent *Agent) saveCacheLocked() {
 		known = append(known, id)
 	}
 	sort.Strings(known)
-	data, err := json.Marshal(policyCache{Version: 1, Set: agent.set, Bindings: known})
+	data, err := json.Marshal(policyCache{Version: 2, Set: agent.set, Bindings: known})
 	if err != nil {
 		return
 	}
@@ -561,7 +561,7 @@ func (agent *Agent) reportLocked(result protocol.ContractResult) {
 	}
 	if result.Outcome == protocol.OutcomeConforming || result.Outcome == protocol.OutcomeNonConforming {
 		bound, _ := agent.bindingLocked(result.Binding)
-		agent.record(events.Event{Operation: events.OperationContractChecked, Outcome: outcomeOf(code), ErrorCode: code,
+		agent.recordBinding(bound, events.Event{Operation: events.OperationContractChecked, Outcome: outcomeOf(code), ErrorCode: code,
 			Binding: result.Binding, ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)})
 	}
 	if agent.session != nil {
@@ -600,14 +600,15 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 	for _, bound := range set.Bindings {
 		current[bound.Binding] = true
 		old, ok := previous[bound.Binding]
-		if ok && old.Policy.Name != bound.Policy.Name {
+		if !ok || old.Assignment != bound.Assignment {
 			// The controller issues a credential for the new policy; a
 			// delivery for the old policy must not install its token.
-			agent.creds.invalidate(bound.Binding)
+			generation := agent.creds.invalidate(bound.Binding)
+			go agent.creds.retry(ctx, bound.Binding, generation)
 		}
-		if !ok || old.Policy.Revision != bound.Policy.Revision || old.Policy.Name != bound.Policy.Name {
-			agent.record(events.Event{Operation: events.OperationBindingReceived, Outcome: events.OutcomeOK, Binding: bound.Binding,
-				ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value), Policy: bound.Policy.Name})
+		if !ok || old.Assignment != bound.Assignment {
+			agent.recordBinding(bound, events.Event{Operation: events.OperationBindingReceived, Outcome: events.OutcomeOK, Binding: bound.Binding,
+				ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)})
 		}
 		if !agent.known[bound.Binding] {
 			agent.known[bound.Binding] = true
@@ -655,8 +656,8 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 
 func (agent *Agent) retire(bound protocol.Binding) {
 	agent.creds.retire(bound.Binding)
-	agent.record(events.Event{Operation: events.OperationBindingRetired, Outcome: events.OutcomeOK, Binding: bound.Binding,
-		ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value), Policy: bound.Policy.Name})
+	agent.recordBinding(bound, events.Event{Operation: events.OperationBindingRetired, Outcome: events.OutcomeOK, Binding: bound.Binding,
+		ContainerKey: events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)})
 }
 
 // unbind retires a binding immediately on the controller's request.
@@ -704,12 +705,12 @@ func (agent *Agent) requestRecreate(ctx context.Context, id string) {
 
 // reportAccessor tells the controller which token a binding holds, so the
 // controller can revoke it when the binding is deleted.
-func (agent *Agent) reportAccessor(id, accessor string) {
+func (agent *Agent) reportAccessor(id, assignment, accessor string) {
 	agent.mu.Lock()
 	session := agent.session
 	agent.mu.Unlock()
 	if session != nil {
-		session.send(protocol.TokenAccessor{Binding: id, Accessor: accessor})
+		session.send(protocol.TokenAccessor{Binding: id, Assignment: assignment, Accessor: accessor})
 	}
 }
 
@@ -826,5 +827,12 @@ func (agent *Agent) sendInventory() {
 	}
 	if session != nil {
 		session.send(agent.inventory())
+	}
+}
+
+func (agent *Agent) recordBinding(bound protocol.Binding, event events.Event) {
+	for _, name := range bound.Policy.Names() {
+		event.Policy = name
+		agent.record(event)
 	}
 }

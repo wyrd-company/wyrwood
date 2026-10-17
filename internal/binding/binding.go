@@ -26,7 +26,7 @@ import (
 type View struct {
 	ID           string
 	ContainerKey string
-	Policy       policy.Policy
+	Policy       policy.Effective
 	OpenBao      protocol.OpenBao
 	Mounts       Mounts
 	Client       *api.Client

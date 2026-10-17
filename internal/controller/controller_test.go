@@ -234,12 +234,12 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 		t.Fatalf("initial policy set = %#v", set)
 	}
 
-	document := policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
+	document := policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
 	document.SSH = &policy.SSH{TransitKeys: []string{"missing-key"}}
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err == nil || !strings.Contains(err.Error(), "missing-key") {
 		t.Fatalf("SavePolicy(missing key) = %v", err)
 	}
-	broken := policy.New("broken", `path "kv/*" { capabilities = [`)
+	broken := policy.New("broken", policy.StarterHCL+`path "kv/*" { capabilities = [`)
 	if _, err := controller.SavePolicy(ctx, broken, "operator-1"); err == nil {
 		t.Fatal("SavePolicy(invalid HCL) = nil")
 	}
@@ -248,12 +248,12 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	if err != nil || saved.Revision != 1 {
 		t.Fatalf("SavePolicy() = %#v, %v", saved, err)
 	}
-	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatalf("CreateBinding() = %v", err)
 	}
 	set, ok := connection.receive(t).(protocol.PolicySet)
-	if !ok || len(set.Bindings) != 1 || set.Bindings[0].Binding != binding.ID || set.Bindings[0].Policy.Revision != 1 {
+	if !ok || len(set.Bindings) != 1 || set.Bindings[0].Binding != binding.ID || set.Bindings[0].Policy.Sources[0].Revision != 1 {
 		t.Fatalf("policy set after binding = %#v", set)
 	}
 	credential, ok := connection.receive(t).(protocol.Credential)
@@ -270,7 +270,7 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 		t.Fatalf("UnwrapSecretID() = %v", err)
 	}
 	token, err := openbao.AppRoleLogin(ctx, client, "approle", credential.RoleID, secretID)
-	if err != nil || strings.Join(token.Policies, ",") != "default,wyrwood-teal" {
+	if err != nil || strings.Join(token.Policies, ",") != "wyrwood-teal" {
 		t.Fatalf("binding token = %v, %v", token.Policies, err)
 	}
 
@@ -328,8 +328,8 @@ func TestEnrollmentBindingAndCredentialIssuance(t *testing.T) {
 	// The agent reports its token's accessor; one for a binding it does not
 	// hold is ignored.
 	for _, report := range []protocol.TokenAccessor{
-		{Binding: "missing", Accessor: "unreportedaccessor"},
-		{Binding: binding.ID, Accessor: token.Accessor},
+		{Binding: "missing", Accessor: "unreportedaccessor", Assignment: "assignment"},
+		{Binding: binding.ID, Accessor: token.Accessor, Assignment: binding.Assignment()},
 	} {
 		if err := replacement.conn.Send(report); err != nil {
 			t.Fatal(err)
@@ -394,10 +394,10 @@ func TestUnbindingAnUnreportedTokenOfADisconnectedAgentSaysItStaysValid(t *testi
 	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -445,10 +445,10 @@ func TestUnbindingReportsATokenOpenBaoDidNotRevoke(t *testing.T) {
 	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -493,14 +493,14 @@ func TestAnAgentCannotReportAnotherAgentsTokenAccessor(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	theirs, err := controller.CreateBinding(ctx, "host-b", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	theirs, err := controller.CreateBinding(ctx, "host-b", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ours, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	ours, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,8 +511,8 @@ func TestAnAgentCannotReportAnotherAgentsTokenAccessor(t *testing.T) {
 	defer connection.client.Close()
 	for _, message := range []protocol.Message{
 		protocol.Hello{AgentVersion: "test"},
-		protocol.TokenAccessor{Binding: theirs.ID, Accessor: "foreignaccessor"},
-		protocol.TokenAccessor{Binding: ours.ID, Accessor: "ownaccessor"},
+		protocol.TokenAccessor{Binding: theirs.ID, Accessor: "foreignaccessor", Assignment: theirs.Assignment()},
+		protocol.TokenAccessor{Binding: ours.ID, Accessor: "ownaccessor", Assignment: ours.Assignment()},
 	} {
 		if err := connection.conn.Send(message); err != nil {
 			t.Fatal(err)
@@ -576,9 +576,9 @@ func appRoleLogin(t *testing.T, bao *baotest.Server, role string) (openbao.Token
 }
 
 // reportAccessor sends a token-accessor report and waits for its acknowledgement.
-func reportAccessor(t *testing.T, connection *agentConnection, binding string, token openbao.Token) {
+func reportAccessor(t *testing.T, connection *agentConnection, binding store.Binding, token openbao.Token) {
 	t.Helper()
-	report := protocol.TokenAccessor{Binding: binding, Accessor: token.Accessor}
+	report := protocol.TokenAccessor{Binding: binding.ID, Accessor: token.Accessor, Assignment: binding.Assignment()}
 	if err := connection.conn.Send(report); err != nil {
 		t.Fatal(err)
 	}
@@ -606,10 +606,10 @@ func TestUnbindingRevokesATokenRotatedDuringTheDeletion(t *testing.T) {
 	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -625,7 +625,7 @@ func TestUnbindingRevokesATokenRotatedDuringTheDeletion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reportAccessor(t, connection, binding.ID, first)
+	reportAccessor(t, connection, binding, first)
 	// The agent rotates while the deletion is under way: a new token is
 	// issued and reported before the AppRole is deleted.
 	var rotated openbao.Token
@@ -634,7 +634,7 @@ func TestUnbindingRevokesATokenRotatedDuringTheDeletion(t *testing.T) {
 			t.Errorf("login before the AppRole is deleted: %v", err)
 			return
 		}
-		reportAccessor(t, connection, binding.ID, rotated)
+		reportAccessor(t, connection, binding, rotated)
 	}
 	// By the time the token is revoked, no new login is possible.
 	var lateLogin error
@@ -659,10 +659,10 @@ func TestAccessorReportedAfterUnbindingIsRevoked(t *testing.T) {
 	if err := controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("teal", `path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
+	if _, err := controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`), "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, "teal", "operator-1")
+	binding, err := controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, policy.Selection{Policies: []string{"teal"}}, "operator-1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -684,7 +684,7 @@ func TestAccessorReportedAfterUnbindingIsRevoked(t *testing.T) {
 	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
 		t.Fatal(err)
 	}
-	reportAccessor(t, connection, binding.ID, late)
+	reportAccessor(t, connection, binding, late)
 	if tokenValid(t, harness.bao, late) {
 		t.Fatal("a token reported for a retired binding is still valid")
 	}
@@ -708,7 +708,7 @@ func TestAccessorReportedAfterUnbindingIsRevoked(t *testing.T) {
 	if err := intruder.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
 		t.Fatal(err)
 	}
-	reportAccessor(t, intruder, binding.ID, foreign)
+	reportAccessor(t, intruder, binding, foreign)
 	if !tokenValid(t, harness.bao, foreign) {
 		t.Fatal("another agent's report for a retired binding revoked a token")
 	}

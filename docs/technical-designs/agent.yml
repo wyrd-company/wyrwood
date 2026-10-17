@@ -88,11 +88,14 @@ proposed-design:
     connect and after every reconcile, and receives policy and credential
     messages. Reconnection uses bounded exponential backoff. A received policy
     set is written to `/var/lib/wyrwood/policy-cache.json` with owner-only
-    mode so a restart without the controller can still enforce contracts and
+    mode. Only the version 2 effective-assignment cache is accepted; there is
+    no v1 adapter. A restart without the controller can enforce contracts and
     publish sockets for containers whose tokens are still valid.
   credential-lifecycle: >-
     For each bound container the controller supplies an AppRole role
-    identifier and a response-wrapped secret identifier. The agent unwraps,
+    identifier, assignment identity, and a response-wrapped secret identifier.
+    A token is accepted only with exactly the assignment's selected managed
+    policy names, without default or any other policy. The agent unwraps,
     logs in, holds the token in memory, and reports the token's accessor to
     the controller after each login, again on each new session and each full
     reconcile until the controller acknowledges it. It renews at half the
@@ -105,7 +108,7 @@ proposed-design:
     through the control socket.
   consumer-directories: >-
     A consumer directory is `/run/wyrwood/containers/<container-name>/`, owned
-    by the agent user, with mode 0750 and the contract's access group, or
+    by the agent user, with mode 0750 and the binding's access group, or
     0700 without one. The sockets inside have mode 0660 or 0600 to match.
     The directory is created when a bound container is first observed, or
     when a name binding identifies its mount source before observation. Empty

@@ -185,7 +185,13 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 		case protocol.PolicySet:
 			agent.applyPolicySet(ctx, typed)
 		case protocol.Credential:
-			go agent.creds.deliver(ctx, typed, agent.creds.begin(typed.Binding))
+			agent.mu.Lock()
+			bound, ok := agent.bindingLocked(typed.Binding)
+			if ok && bound.Assignment == typed.Assignment {
+				generation := agent.creds.begin(typed.Binding)
+				go agent.creds.deliver(ctx, typed, generation, bound.Policy.OpenBaoPolicies())
+			}
+			agent.mu.Unlock()
 		case protocol.RecreateRequest:
 			agent.requestRecreate(ctx, typed.Binding)
 		case protocol.Unbind:
