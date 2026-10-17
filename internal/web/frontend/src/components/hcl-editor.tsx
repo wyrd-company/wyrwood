@@ -170,7 +170,8 @@ export function HCLEditor({
             <legend>Add a path</legend>
             <p className="hint">
               Paths are relative to the namespace. Wildcards and paths outside
-              the browsed mounts can be entered here.
+              the browsed mounts can be entered here. OpenBao ACL templates (
+              <code>{"{{...}}"}</code>) are evaluated for each token.
             </p>
             <label htmlFor="new-path" className="visually-hidden">
               New path

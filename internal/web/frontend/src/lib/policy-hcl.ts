@@ -46,8 +46,9 @@ export function graphicalRules(source: string): PathRule[] | null {
     if (!match) return null;
     try {
       const path: string = JSON.parse(match[1]);
-      // HCL templates and JSON strings have different semantics.
-      if (hasPathTemplate(path)) return null;
+      // HCL templates differ from JSON; single-line inputs also strip decoded
+      // CR/LF. Keep both cases in the complete raw editor.
+      if (hasPathTemplate(path) || /[\r\n]/.test(path)) return null;
       const caps: string[] = JSON.parse(match[2].replace(/,\s*\]/, "]"));
       if (
         caps.some(
@@ -121,6 +122,7 @@ export function isLiteralACLPath(path: string) {
   return (
     !path.includes("*") &&
     !path.split("/").includes("+") &&
+    !path.includes("{{") &&
     !hasPathTemplate(path)
   );
 }

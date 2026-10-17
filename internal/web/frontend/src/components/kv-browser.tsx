@@ -154,8 +154,8 @@ export function KVBrowser({
           (name) => !isLiteralACLPath(`${mount}/${prefix}${name}`),
         )) && (
         <p className="caution">
-          Names with ACL wildcards or template syntax cannot be added as literal
-          paths. Use raw HCL to choose their grant.
+          Names with ACL wildcards, ACL templating, or HCL template syntax
+          cannot be added as literal paths. Use raw HCL to choose their grant.
         </p>
       )}
       <Button

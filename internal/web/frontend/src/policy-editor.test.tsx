@@ -54,6 +54,8 @@ it("round-trips graphical HCL exactly and edits only the selected source span", 
   expect(hcl()).toContain("// Keep this too");
 });
 it.each([
+  'path "kv/data/line\\nbreak" { capabilities = ["read"] }',
+  'path "kv/data/line\\rbreak" { capabilities = ["read"] }',
   'path "kv/data/example" { capabilities = ["read"] min_wrapping_ttl = "1m" }',
   'path "kv/data/example" { capabilities = ["read"] allowed_parameters = { "value" = [] } }',
   'path "kv/data/example" { policy = "read" }',
@@ -333,4 +335,60 @@ it("keeps nonempty invalid environment entries for validation while omitting emp
   expect(env()).toBe("=sample");
   await user.clear(screen.getByLabelText("Variable 1 value"));
   expect(env()).toBe("");
+});
+
+it("does not generate grants for literal KV names containing OpenBao ACL templates", async () => {
+  const user = userEvent.setup();
+  const names = ["{{identity.entity.id}}", "unclosed{{", "nested{{template}}"];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => ({
+        Paths: new URL(url, "http://example.test").searchParams.get("prefix")
+          ? ["nested"]
+          : ["closing}}", ...names, ...names.map((name) => name + "/")],
+      }),
+    })),
+  );
+  editor(basic, ["kv"]);
+  for (const name of names) {
+    expect(
+      await screen.findByRole("button", { name: `Add ${name}` }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: `Add ${name}/` })).toBeDisabled();
+  }
+  expect(screen.getByText(/ACL templating/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Add closing}}" })).toBeEnabled();
+  for (const name of names) {
+    await user.click(
+      await screen.findByRole("button", { name: `Open ${name}/` }),
+    );
+    expect(
+      await screen.findByRole("button", { name: "Add nested" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Add LIST path for this directory" }),
+    ).toBeDisabled();
+    expect(hcl()).toBe(basic);
+    await user.click(screen.getByRole("button", { name: "Up one level" }));
+  }
+});
+it("preserves deliberately authored OpenBao ACL templates in both policy views", async () => {
+  const user = userEvent.setup();
+  editor("");
+  fireEvent.change(screen.getByLabelText("New path"), {
+    target: { value: "kv/data/{{identity.entity.id}}" },
+  });
+  await user.click(screen.getByRole("button", { name: "Add path" }));
+  const source =
+    'path "kv/data/{{identity.entity.id}}" { capabilities = ["read"] }\n';
+  expect(hcl()).toBe(source);
+  expect(screen.getByLabelText("Path 1")).toHaveValue(
+    "kv/data/{{identity.entity.id}}",
+  );
+  await user.click(screen.getByRole("button", { name: "Raw HCL" }));
+  expect(screen.getByLabelText("OpenBao policy HCL")).toHaveValue(source);
+  await user.click(screen.getByRole("button", { name: "Graphical paths" }));
+  expect(hcl()).toBe(source);
 });
