@@ -57,6 +57,24 @@
         },
         "transit-mount": { "type": "string", "default": "transit" },
         "ssh-mount": { "type": "string", "default": "ssh" },
+        "secret-mounts": {
+          "type": "array",
+          "default": [],
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "type"],
+            "properties": {
+              "path": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_.-]+$",
+                "not": { "anyOf": [{ "const": "." }, { "pattern": "\\.\\." }] }
+              },
+              "type": { "enum": ["kv-v2", "other"] }
+            }
+          }
+        },
         "ui-url": { "type": "string", "format": "uri" }
       }
     },

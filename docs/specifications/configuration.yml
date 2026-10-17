@@ -23,7 +23,13 @@ description: >-
   address, the SSH listen address, the state directory, the OpenBao address,
   CA file, namespace, AppRole mount, role identifier, and the file that holds
   the secret identifier, and the Transit and SSH-engine mount names the
-  controller manages. Optional `openbao.ui-url` names the public cluster UI
+  controller manages. Optional `openbao.secret-mounts` is an empty-by-default
+  catalog of objects with a unique plain mount `path` (no slashes) and a
+  `type` of `kv-v2` or `other`. Paths use letters, digits, dot, dash, and
+  underscore, with neither a single dot nor double dots. The catalog supports
+  advisory policy checks and editor path pickers without provisioning engines
+  or changing permissions. The Go parser enforces uniqueness by path even
+  when entries have different types. Optional `openbao.ui-url` names the public cluster UI
   base, independent of the API address, including its `/ui/<cluster>` route
   and any proxy prefix. It is HTTPS (loopback HTTP supports local tests),
   without userinfo, query, fragment, percent escapes, or empty/dot path
