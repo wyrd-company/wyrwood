@@ -26,6 +26,7 @@ export function EnvironmentEditor({ value }: { value: string }) {
     setRows(next);
     setSource(
       next
+        .filter((row) => row.name !== "" || row.value !== "")
         .map((row) => (row.valid ? `${row.name}=${row.value}` : row.name))
         .join("\n"),
     );

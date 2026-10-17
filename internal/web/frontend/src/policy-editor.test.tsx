@@ -2,7 +2,13 @@
 // relationships:
 //   verifies: web-interface
 // ---
-import { render, screen, within, waitFor } from "@testing-library/react";
+import {
+  render,
+  screen,
+  within,
+  waitFor,
+  fireEvent,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { HCLEditor } from "./components/hcl-editor";
@@ -193,6 +199,11 @@ it("retains missing and selector-only identities and edits offered and forwardin
     "future-selector",
   );
   await user.click(screen.getByRole("button", { name: "Add identity name" }));
+  expect(
+    screen.getByText(
+      "Not selected. Choose offered or not-forwardable to save this name.",
+    ),
+  ).toBeInTheDocument();
   await user.click(
     screen.getByRole("checkbox", { name: "Not forwardable future-selector" }),
   );
@@ -221,6 +232,7 @@ it("keeps environment equals signs and mount placeholders and supports adding an
     new FormData(screen.getByTestId("form") as HTMLFormElement).get("env");
   expect(env()).toBe("EXAMPLE=abc=def\nSOCKET={mount-target}/example.sock");
   await user.click(screen.getByRole("button", { name: "Add variable" }));
+  expect(env()).toBe("EXAMPLE=abc=def\nSOCKET={mount-target}/example.sock");
   await user.type(screen.getByLabelText("Variable 3 name"), "SAMPLE");
   await user.type(screen.getByLabelText("Variable 3 value"), "value");
   await user.click(screen.getByRole("button", { name: "Remove variable 1" }));
@@ -247,4 +259,78 @@ it("submits duration picker amounts and units with binding minutes/hours and rol
   await user.type(screen.getByLabelText("Duration"), "4");
   await user.selectOptions(screen.getByLabelText("token-ttl unit"), "h");
   expect(duration()).toBe("4h");
+});
+
+it("does not turn literal KV names into wildcard grants, including inside a browsed folder", async () => {
+  const user = userEvent.setup();
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => ({
+        Paths: url.includes("prefix=%2B%2F")
+          ? ["nested"]
+          : ["+/", "sample*", "mid*dle", "${sample}", "%{sample}", "safe"],
+      }),
+    })),
+  );
+  editor("", ["kv"]);
+  for (const name of ["+/", "sample*", "mid*dle", "${sample}", "%{sample}"]) {
+    expect(
+      await screen.findByRole("button", { name: `Add ${name}` }),
+    ).toBeDisabled();
+  }
+  expect(
+    screen.getByText(/cannot be added as literal paths/),
+  ).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Add safe" }));
+  expect(hcl()).toBe('path "kv/data/safe" { capabilities = ["read"] }\n');
+  await user.click(screen.getByRole("button", { name: "Open +/" }));
+  expect(
+    await screen.findByRole("button", { name: "Add nested" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Add LIST path for this directory" }),
+  ).toBeDisabled();
+  expect(hcl()).toBe('path "kv/data/safe" { capabilities = ["read"] }\n');
+});
+it.each(["${sample}", "%{sample}"])(
+  "keeps template syntax %s out of graphical path edits without switching views",
+  async (template) => {
+    const user = userEvent.setup();
+    editor(basic);
+    const path = screen.getByLabelText("Path 1");
+    await user.click(path);
+    fireEvent.change(path, { target: { value: `kv/data/${template}` } });
+    expect(path).toHaveFocus();
+    expect(path).toHaveValue("kv/data/example/*");
+    expect(screen.getByText(/graphical path is unchanged/)).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("OpenBao policy HCL"),
+    ).not.toBeInTheDocument();
+    expect(hcl()).toBe(basic);
+    fireEvent.change(screen.getByLabelText("New path"), {
+      target: { value: `kv/data/${template}` },
+    });
+    expect(screen.getByRole("button", { name: "Add path" })).toBeDisabled();
+    expect(hcl()).toBe(basic);
+    await user.click(screen.getByRole("button", { name: "Raw HCL" }));
+    expect(screen.getByLabelText("OpenBao policy HCL")).toHaveValue(basic);
+  },
+);
+it("keeps nonempty invalid environment entries for validation while omitting empty rows", async () => {
+  const user = userEvent.setup();
+  render(
+    <form data-testid="form">
+      <EnvironmentEditor value="" />
+    </form>,
+  );
+  const env = () =>
+    new FormData(screen.getByTestId("form") as HTMLFormElement).get("env");
+  await user.click(screen.getByRole("button", { name: "Add variable" }));
+  expect(env()).toBe("");
+  await user.type(screen.getByLabelText("Variable 1 value"), "sample");
+  expect(env()).toBe("=sample");
+  await user.clear(screen.getByLabelText("Variable 1 value"));
+  expect(env()).toBe("");
 });

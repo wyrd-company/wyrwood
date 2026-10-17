@@ -4,6 +4,7 @@
 // ---
 import { useEffect, useState } from "react";
 import { Button } from "@/components/shared";
+import { isLiteralACLPath } from "@/lib/policy-hcl";
 
 export function KVBrowser({
   mounts,
@@ -137,6 +138,7 @@ export function KVBrowser({
                     ["read"],
                   )
                 }
+                disabled={!isLiteralACLPath(`${mount}/${prefix}${name}`)}
                 aria-label={`Add ${name}`}
               >
                 {name.endsWith("/") ? "Add subtree" : "Add read path"}
@@ -147,9 +149,19 @@ export function KVBrowser({
       ) : (
         <p className="hint">No paths in this directory.</p>
       )}
+      {(!isLiteralACLPath(`${mount}/${prefix}`) ||
+        current?.paths.some(
+          (name) => !isLiteralACLPath(`${mount}/${prefix}${name}`),
+        )) && (
+        <p className="caution">
+          Names with ACL wildcards or template syntax cannot be added as literal
+          paths. Use raw HCL to choose their grant.
+        </p>
+      )}
       <Button
         type="button"
         variant="outline"
+        disabled={!isLiteralACLPath(`${mount}/${prefix}`)}
         onClick={() => add(`${mount}/metadata/${prefix}*`, ["list"])}
       >
         Add LIST path for this directory

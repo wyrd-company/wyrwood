@@ -45,7 +45,9 @@ The graphical editor adds paths and selects their capabilities. **Browse KV
 paths** lists names in the configured KV v2 mounts. Select a secret to add its
 `data/` path, or a directory to add its subtree. **Add LIST path for this
 directory** adds a `metadata/` grant for the workload. Custom paths accept
-wildcards and paths outside the browsed mounts.
+wildcards and paths outside the browsed mounts. KV names with ACL wildcard
+meaning cannot generate automatic grants; enter their intended scope manually
+in raw HCL. Graphical path fields direct template syntax to the raw editor.
 
 **Raw HCL** exposes the full document. Switching views preserves its text.
 HCL with constructs the graphical controls cannot represent, including

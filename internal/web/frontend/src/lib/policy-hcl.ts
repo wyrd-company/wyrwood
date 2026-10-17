@@ -47,7 +47,7 @@ export function graphicalRules(source: string): PathRule[] | null {
     try {
       const path: string = JSON.parse(match[1]);
       // HCL templates and JSON strings have different semantics.
-      if (path.includes("${") || path.includes("%{")) return null;
+      if (hasPathTemplate(path)) return null;
       const caps: string[] = JSON.parse(match[2].replace(/,\s*\]/, "]"));
       if (
         caps.some(
@@ -109,4 +109,18 @@ export function addSelfOperations(source: string) {
     }
   }
   return source;
+}
+
+export function hasPathTemplate(path: string) {
+  return path.includes("${") || path.includes("%{");
+}
+
+// KV names are literals; ACL wildcards have no escaping syntax. Do not turn
+// a name selected from metadata into a broader policy grant by accident.
+export function isLiteralACLPath(path: string) {
+  return (
+    !path.includes("*") &&
+    !path.split("/").includes("+") &&
+    !hasPathTemplate(path)
+  );
 }

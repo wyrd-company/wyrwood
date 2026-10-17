@@ -86,6 +86,14 @@ export function IdentityPicker({
             />
             Not forwardable
           </label>
+          {manual.includes(identity) &&
+            !offered.includes(identity) &&
+            !blocked.includes(identity) && (
+              <p className="hint">
+                Not selected. Choose offered or not-forwardable to save this
+                name.
+              </p>
+            )}
         </div>
       ))}
       <div className="flex flex-col gap-2">

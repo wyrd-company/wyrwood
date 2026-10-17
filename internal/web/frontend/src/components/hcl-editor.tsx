@@ -10,6 +10,7 @@ import {
   appendRule,
   capabilities,
   graphicalRules,
+  hasPathTemplate,
   replaceSpan,
 } from "@/lib/policy-hcl";
 
@@ -23,6 +24,7 @@ export function HCLEditor({
   const [source, setSource] = useState(value);
   const [raw, setRaw] = useState(false);
   const [newPath, setNewPath] = useState("");
+  const [pathProblem, setPathProblem] = useState("");
   const rules = graphicalRules(source);
   const showRaw = raw || !rules;
   const add = (path: string, caps: string[]) =>
@@ -73,6 +75,7 @@ export function HCLEditor({
       >
         Add token self-operation preset
       </Button>
+      {pathProblem && <p className="caution">{pathProblem}</p>}
       {showRaw ? (
         <div className="field">
           <label htmlFor="hcl">OpenBao policy HCL</label>
@@ -100,7 +103,14 @@ export function HCLEditor({
                   id={`path-${index}`}
                   className="mono"
                   value={rule.path}
-                  onChange={(event) =>
+                  onChange={(event) => {
+                    if (hasPathTemplate(event.target.value)) {
+                      setPathProblem(
+                        "Use Raw HCL for path template syntax. The graphical path is unchanged.",
+                      );
+                      return;
+                    }
+                    setPathProblem("");
                     setSource(
                       replaceSpan(
                         source,
@@ -108,8 +118,8 @@ export function HCLEditor({
                         rule.pathEnd,
                         JSON.stringify(event.target.value),
                       ),
-                    )
-                  }
+                    );
+                  }}
                 />
                 <div className="flex flex-wrap gap-x-4 gap-y-2">
                   {capabilities.map((cap) => (
@@ -172,10 +182,13 @@ export function HCLEditor({
               onChange={(event) => setNewPath(event.target.value)}
               placeholder="kv/data/example/*"
             />
+            {hasPathTemplate(newPath) && (
+              <p className="caution">Use Raw HCL for path template syntax.</p>
+            )}
             <Button
               type="button"
               variant="outline"
-              disabled={!newPath.trim()}
+              disabled={!newPath.trim() || hasPathTemplate(newPath)}
               onClick={() => {
                 add(newPath.trim(), ["read"]);
                 setNewPath("");
