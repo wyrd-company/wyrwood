@@ -5,7 +5,10 @@
 
 package config
 
-import "strings"
+import (
+	"slices"
+	"strings"
+)
 
 // SecretMount describes an expected secret engine inside the OpenBao namespace.
 // It does not provision an engine or grant access to it.
@@ -30,6 +33,10 @@ func validateSecretMounts(mounts []SecretMount) error {
 	for _, mount := range mounts {
 		if !validMount(mount.Path) || mount.Path == "." || strings.Contains(mount.Path, "/") {
 			return invalid("openbao.secret-mounts paths must be plain mount names without slashes")
+		}
+		// OpenBao cannot mount secret engines at these reserved system roots.
+		if slices.Contains([]string{"sys", "auth", "identity", "cubbyhole", "audit"}, mount.Path) {
+			return invalid("openbao.secret-mounts paths must not use OpenBao reserved names")
 		}
 		if seen[mount.Path] {
 			return invalid("openbao.secret-mounts paths must be unique")

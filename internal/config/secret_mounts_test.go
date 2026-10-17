@@ -27,6 +27,7 @@ func TestControllerSecretMounts(t *testing.T) {
 	}{
 		{"empty", "[]", nil},
 		{"configured", "[{path: sample-data, type: kv-v2}, {path: sample-certs, type: other}]", []SecretMount{{Path: "sample-data", Type: SecretMountKVV2}, {Path: "sample-certs", Type: SecretMountOther}}},
+		{"reserved-prefix", "[{path: sys-data, type: kv-v2}, {path: auth-data, type: other}]", []SecretMount{{Path: "sys-data", Type: SecretMountKVV2}, {Path: "auth-data", Type: SecretMountOther}}},
 	} {
 		t.Run(sample.name, func(t *testing.T) {
 			document := withSecretMounts(sample.entries)
@@ -78,6 +79,11 @@ func TestControllerRejectsInvalidSecretMounts(t *testing.T) {
 		"unknown-field":            "[{path: sample, type: kv-v2, unexpected: true}]",
 		"duplicate":                "[{path: sample, type: kv-v2}, {path: sample, type: kv-v2}]",
 		"duplicate-different-type": "[{path: sample, type: kv-v2}, {path: sample, type: other}]",
+		"reserved-sys":             "[{path: sys, type: kv-v2}]",
+		"reserved-auth":            "[{path: auth, type: other}]",
+		"reserved-identity":        "[{path: identity, type: kv-v2}]",
+		"reserved-cubbyhole":       "[{path: cubbyhole, type: other}]",
+		"reserved-audit":           "[{path: audit, type: kv-v2}]",
 	} {
 		t.Run(name, func(t *testing.T) {
 			document := withSecretMounts(entries)

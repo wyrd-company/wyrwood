@@ -26,7 +26,9 @@ description: >-
   controller manages. Optional `openbao.secret-mounts` is an empty-by-default
   catalog of objects with a unique plain mount `path` (no slashes) and a
   `type` of `kv-v2` or `other`. Paths use letters, digits, dot, dash, and
-  underscore, with neither a single dot nor double dots. The catalog supports
+  underscore, with neither a single dot nor double dots. OpenBao reserves
+  `sys`, `auth`, `identity`, `cubbyhole`, and `audit`; these cannot be secret
+  mount paths. The catalog supports
   advisory policy checks and editor path pickers without provisioning engines
   or changing permissions. The Go parser enforces uniqueness by path even
   when entries have different types. Optional `openbao.ui-url` names the public cluster UI

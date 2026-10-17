@@ -210,7 +210,9 @@ oidc:
 `openbao.secret-mounts` is an optional catalog of expected secret engines,
 empty by default. Each entry has a unique `path` inside the namespace, without
 slashes, and a `type` of `kv-v2` or `other`. Paths use letters, digits, dot,
-dash, and underscore; dot-only and double-dot paths are invalid. The catalog
+dash, and underscore; dot-only and double-dot paths are invalid. OpenBao's
+reserved roots `sys`, `auth`, `identity`, `cubbyhole`, and `audit` cannot be
+secret mounts. The catalog
 supports policy warnings and editor path pickers. It creates no mounts and
 changes no OpenBao permissions.
 
