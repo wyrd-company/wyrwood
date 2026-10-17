@@ -55,8 +55,8 @@ export function KVBrowser({
   if (!mounts.length)
     return (
       <p className="hint">
-        Configure kv-v2 entries in openbao.secret-mounts to browse KV paths. You can add paths
-        below.
+        Configure kv-v2 entries in openbao.secret-mounts to browse KV paths. You
+        can add paths below.
       </p>
     );
   const current =

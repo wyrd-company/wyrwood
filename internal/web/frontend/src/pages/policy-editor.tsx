@@ -98,7 +98,6 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
     }
   }
 
-
   return (
     <Panel aria-labelledby="h-hcl">
       <div className="section-head">
@@ -113,7 +112,15 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
           </span>
         )}
       </div>
-      <HCLEditor value={d.HCL} mounts={d.KVMounts || []} />
+      <HCLEditor
+        value={d.HCL}
+        mounts={d.KVMounts || []}
+        onChange={() => {
+          ++latestCheck.current;
+          setWarnings([]);
+        }}
+        onCheck={checkHCL}
+      />
       {warnings.map((warning) => (
         <p className="caution" role="status" key={warning}>
           {warning}

@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/web/oidctest"
 )
 
@@ -119,5 +120,28 @@ func TestPolicyEditorRetainsArbitraryHCLAfterSaveAndValidationFailure(t *testing
 	defer response.Body.Close()
 	if response.StatusCode != 422 {
 		t.Errorf("denied LIST status = %d", response.StatusCode)
+	}
+}
+
+func TestPolicyEditorWithoutSecretMounts(t *testing.T) {
+	harness := startConfiguredHarness(t, time.Hour, func(configuration *config.Controller) {
+		configuration.OpenBao.SecretMounts = nil
+	})
+	client := browser(t)
+	harness.signIn(t, client, operator, oidctest.TamperNone)
+	page := get(t, client, harness.site.URL+"/policies/edit")
+	if len(harness.controller.Controller.OpenBao().Mounts().KV) != 0 {
+		t.Fatal("unconfigured KV mounts available")
+	}
+	if !strings.Contains(page.body, "Configure kv-v2 entries in openbao.secret-mounts") || !strings.Contains(page.body, "New path") {
+		t.Fatal("free-text paths unavailable without a configured catalog")
+	}
+	response, err := client.Get(harness.site.URL + "/policies/kv?mount=kv")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusUnprocessableEntity {
+		t.Errorf("unconfigured mount status = %d", response.StatusCode)
 	}
 }

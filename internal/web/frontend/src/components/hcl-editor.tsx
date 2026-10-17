@@ -17,9 +17,13 @@ import {
 export function HCLEditor({
   value,
   mounts,
+  onChange,
+  onCheck,
 }: {
   value: string;
   mounts: string[];
+  onChange?: (hcl: string) => void;
+  onCheck?: (hcl: string) => void;
 }) {
   const [source, setSource] = useState(value);
   const [raw, setRaw] = useState(false);
@@ -27,8 +31,13 @@ export function HCLEditor({
   const [pathProblem, setPathProblem] = useState("");
   const rules = graphicalRules(source);
   const showRaw = raw || !rules;
+  const changeSource = (next: string, check = false) => {
+    setSource(next);
+    onChange?.(next);
+    if (check) onCheck?.(next);
+  };
   const add = (path: string, caps: string[]) =>
-    setSource((source) => appendRule(source, path, caps));
+    changeSource(appendRule(source, path, caps), true);
   return (
     <div className="flex flex-col gap-4">
       <input type="hidden" name="hcl" value={source} />
@@ -71,7 +80,7 @@ export function HCLEditor({
         type="button"
         variant="outline"
         disabled={!rules}
-        onClick={() => setSource(addSelfOperations(source))}
+        onClick={() => changeSource(addSelfOperations(source), true)}
       >
         Add token self-operation preset
       </Button>
@@ -84,7 +93,8 @@ export function HCLEditor({
             className="hcl"
             spellCheck={false}
             value={source}
-            onChange={(event) => setSource(event.target.value)}
+            onChange={(event) => changeSource(event.target.value)}
+            onBlur={() => onCheck?.(source)}
           />
         </div>
       ) : (
@@ -103,6 +113,7 @@ export function HCLEditor({
                   id={`path-${index}`}
                   className="mono"
                   value={rule.path}
+                  onBlur={() => onCheck?.(source)}
                   onChange={(event) => {
                     if (hasPathTemplate(event.target.value)) {
                       setPathProblem(
@@ -111,7 +122,7 @@ export function HCLEditor({
                       return;
                     }
                     setPathProblem("");
-                    setSource(
+                    changeSource(
                       replaceSpan(
                         source,
                         rule.pathStart,
@@ -133,13 +144,14 @@ export function HCLEditor({
                             : rule.capabilities.filter(
                                 (value) => value !== cap,
                               );
-                          setSource(
+                          changeSource(
                             replaceSpan(
                               source,
                               rule.capsStart,
                               rule.capsEnd,
                               JSON.stringify(selected),
                             ),
+                            true,
                           );
                         }}
                       />
@@ -152,7 +164,10 @@ export function HCLEditor({
                   variant="outline"
                   aria-label={`Remove path ${index + 1}`}
                   onClick={() =>
-                    setSource(replaceSpan(source, rule.start, rule.end, ""))
+                    changeSource(
+                      replaceSpan(source, rule.start, rule.end, ""),
+                      true,
+                    )
                   }
                 >
                   Remove path

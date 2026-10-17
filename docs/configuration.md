@@ -355,6 +355,7 @@ path "auth/approle/role/wyrwood-*/secret-id" {
 path "sys/wrapping/wrap" { capabilities = ["update"] }
 path "kv/metadata" { capabilities = ["list"] }
 path "kv/metadata/*" { capabilities = ["list"] }
+path "transit/keys" { capabilities = ["list"] }
 path "transit/keys/*" { capabilities = ["create", "read", "update", "list"] }
 path "ssh/roles" { capabilities = ["list"] }
 path "ssh/roles/*" { capabilities = ["create", "read", "update", "list"] }
