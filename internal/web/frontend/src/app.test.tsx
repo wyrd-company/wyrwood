@@ -164,7 +164,8 @@ describe("sign-in", () => {
   );
 });
 
-it("keeps sidebar routes, pending count, account identity, and sign out", () => {
+it("keeps sidebar routes, pending count, account identity, and sign out", async () => {
+  const user = userEvent.setup();
   draw({
     page: "agents",
     data: {
@@ -182,7 +183,6 @@ it("keeps sidebar routes, pending count, account identity, and sign out", () => 
     ["Policies", "/policies"],
     ["OpenBao keys", "/keys"],
     ["Events", "/events"],
-    ["Security", "/security"],
   ])
     expect(
       within(nav).getByRole("link", { name: new RegExp(name) }),
@@ -193,7 +193,117 @@ it("keeps sidebar routes, pending count, account identity, and sign out", () => 
   );
   expect(screen.getByLabelText("2 pending")).toBeInTheDocument();
   expect(screen.getByText(layout.Operator)).toBeInTheDocument();
-  expectPost("Sign out", "/sign-out");
+  expect(
+    screen.getByRole("region", { name: "Controller version" }),
+  ).toHaveTextContent(versionInfo.Version);
+  const account = within(nav).getByRole("button", { name: /Account/ });
+  expect(account).toHaveAttribute("aria-haspopup", "menu");
+  expect(account).toHaveAttribute("aria-expanded", "false");
+  expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  await user.click(account);
+  expect(account).toHaveAttribute("aria-expanded", "true");
+  const menu = screen.getByRole("menu", { name: /Account/ });
+  expect(
+    within(menu).getByRole("menuitem", { name: "Security" }),
+  ).toHaveAttribute("href", "/security");
+  const form = (
+    within(menu).getByRole("menuitem", {
+      name: "Sign out",
+    }) as HTMLButtonElement
+  ).form!;
+  expect(form).toHaveAttribute("method", "post");
+  expect(form).toHaveAttribute("action", "/sign-out");
+  expect(new FormData(form).get("csrf")).toBe(layout.CSRF);
+});
+
+it.each(["{Enter}", " ", "{ArrowDown}"])(
+  "opens the account menu with %s and restores focus on Escape",
+  async (key) => {
+    const user = userEvent.setup();
+    draw({
+      page: "agents",
+      data: {
+        ...layout,
+        ...versionInfo,
+        HostKey: "",
+        PendingKeys: null,
+        Approved: null,
+      },
+    });
+    const account = screen.getByRole("button", { name: /Account/ });
+    account.focus();
+    await user.keyboard(key);
+    const security = screen.getByRole("menuitem", { name: "Security" });
+    expect(security).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toHaveFocus();
+    await user.keyboard("{ArrowUp}");
+    expect(security).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(account).toHaveFocus();
+    expect(account).toHaveAttribute("aria-expanded", "false");
+  },
+);
+
+it.each(["pointer", "Enter", "Space"])(
+  "submits sign out with the anti-forgery token using %s",
+  async (activation) => {
+    const user = userEvent.setup();
+    draw({
+      page: "agents",
+      data: {
+        ...layout,
+        ...versionInfo,
+        HostKey: "",
+        PendingKeys: null,
+        Approved: null,
+      },
+    });
+    const account = screen.getByRole("button", { name: /Account/ });
+    account.focus();
+    await user.keyboard("{Enter}");
+    const signOut = screen.getByRole("menuitem", { name: "Sign out" });
+    let submitted = false;
+    (signOut as HTMLButtonElement).form!.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const form = event.target as HTMLFormElement;
+      expect(form).toHaveAttribute("method", "post");
+      expect(form).toHaveAttribute("action", "/sign-out");
+      expect(new FormData(form).get("csrf")).toBe(layout.CSRF);
+      submitted = true;
+    });
+    if (activation === "pointer") await user.click(signOut);
+    else {
+      await user.keyboard("{ArrowDown}");
+      await user.keyboard(activation === "Enter" ? "{Enter}" : " ");
+    }
+    expect(submitted).toBe(true);
+    // Real browsers need the button connected for its native submit action.
+    expect(signOut).toBeInTheDocument();
+  },
+);
+
+it("marks Security as the current menu item", async () => {
+  const user = userEvent.setup();
+  draw({
+    page: "agents",
+    data: {
+      ...layout,
+      Current: "security",
+      ...versionInfo,
+      HostKey: "",
+      PendingKeys: null,
+      Approved: null,
+    },
+  });
+  const account = screen.getByRole("button", { name: /Account/ });
+  account.focus();
+  await user.keyboard("{Enter}");
+  expect(screen.getByRole("menuitem", { name: "Security" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 });
 
 const openBaoURL =
@@ -203,7 +313,8 @@ function expectOpenBaoLink(link: HTMLElement) {
   expect(link).toHaveAttribute("target", "_blank");
   expect(link).toHaveAttribute("rel", "noopener noreferrer");
 }
-it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
+it("offers the OpenBao UI beside OpenBao keys only when configured", async () => {
+  const user = userEvent.setup();
   const agents = {
     ...layout,
     ...versionInfo,
@@ -223,7 +334,8 @@ it("offers the OpenBao UI beside OpenBao keys only when configured", () => {
   });
   expectOpenBaoLink(link);
   expect(link.previousElementSibling).toHaveAttribute("href", "/keys");
-  expect(within(nav).getByRole("link", { name: /Security/ })).toHaveAttribute(
+  await user.click(within(nav).getByRole("button", { name: /Account/ }));
+  expect(screen.getByRole("menuitem", { name: "Security" })).toHaveAttribute(
     "href",
     "/security",
   );

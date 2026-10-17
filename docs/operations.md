@@ -32,6 +32,12 @@ behind a reverse proxy that terminates TLS.
 
 ![OpenBao keys page with Transit keys and SSH-engine roles](assets/web-keys.png)
 
+Open **Account** at the bottom of the sidebar to select **Security** or
+**Sign out**. The account button shows the signed-in operator. Use the arrow
+keys to move between menu items and Escape to close the menu.
+
+![Account menu with Security and Sign out](assets/web-account-menu.png)
+
 Operators sign in through the site's OpenID Connect provider. The controller
 admits an account only when its groups claim names a group listed under
 `oidc.allowed-groups`, and checks membership at every sign-in. Remove someone

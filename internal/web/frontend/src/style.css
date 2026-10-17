@@ -106,6 +106,7 @@ p {
   min-height: 100vh;
   display: flex;
   flex-wrap: wrap;
+  container-type: inline-size;
 }
 .nav {
   flex: 1 1 232px;
@@ -116,6 +117,16 @@ p {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+/* The sidebar and page fit beside each other at 232px + 560px. */
+@container (min-width: 792px) {
+  .nav {
+    position: sticky;
+    top: 0;
+    height: 100dvh;
+    align-self: flex-start;
+    overflow-y: auto;
+  }
 }
 .brand {
   display: flex;
@@ -212,13 +223,52 @@ p {
   font-size: 22px;
   font-weight: 600;
 }
-.topbar .who {
+.account-trigger {
+  width: 100%;
+  height: auto;
+  min-height: 52px;
+  justify-content: space-between;
+  padding: 8px 12px;
+  text-align: left;
+  white-space: normal;
+  border-color: transparent;
+  background: transparent;
+  color: var(--nav-ink);
+}
+.account-trigger:hover,
+.account-trigger[data-state="open"] {
+  background: var(--nav-active);
+  color: #ffffff;
+}
+.account-trigger:focus-visible {
+  outline: 2px solid var(--nav-ink);
+  outline-offset: 2px;
+}
+.account-identity {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: var(--muted);
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+.account-label {
+  font-weight: 600;
+}
+.account-operator {
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+[data-slot="dropdown-menu-item"] {
+  justify-content: flex-start;
+  padding: 8px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+  text-decoration: none;
+}
+[data-slot="dropdown-menu-item"]:focus {
+  background: var(--good-bg);
+  color: var(--accent-ink);
 }
 main {
   padding: 28px 40px 56px;

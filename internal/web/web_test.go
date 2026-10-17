@@ -183,6 +183,15 @@ func TestSignInAdmitsAllowedGroupsAndNamesTheOperator(t *testing.T) {
 		t.Fatal("no operator-signed-in event naming the operator")
 	}
 
+	for _, token := range []string{"", "wrong"} {
+		forged := post(t, client, harness.site.URL+"/sign-out", url.Values{"csrf": {token}})
+		if forged.status != http.StatusForbidden {
+			t.Fatalf("sign-out with invalid anti-forgery token = %d", forged.status)
+		}
+	}
+	if after := get(t, client, harness.site.URL+"/agents"); !strings.HasSuffix(after.url, "/agents") {
+		t.Fatalf("forged sign-out ended the session: %s", after.url)
+	}
 	signOut := post(t, client, harness.site.URL+"/sign-out", url.Values{"csrf": {csrf(t, security.body)}})
 	if !strings.HasSuffix(signOut.url, "/sign-in") {
 		t.Fatalf("sign-out = %s", signOut.url)

@@ -5,6 +5,7 @@
 import { Fragment } from "react";
 import { OpenBaoLink } from "@/components/openbao-link";
 import type { Layout } from "@/types";
+import { Account } from "./account";
 export function Brand() {
   return (
     <a className="brand" href="/agents">
@@ -30,7 +31,6 @@ export function Sidebar({ data }: { data: Layout }) {
           ["policies", "Policies"],
           ["keys", "OpenBao keys"],
           ["events", "Events"],
-          ["security", "Security"],
         ].map(([path, label]) => (
           <Fragment key={path}>
             <a
@@ -62,6 +62,7 @@ export function Sidebar({ data }: { data: Layout }) {
         )}
         <span className="mono">{data.Controller}</span>
       </div>
+      <Account data={data} />
     </nav>
   );
 }
