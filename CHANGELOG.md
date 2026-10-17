@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.3.0
+
+### Features
+
+- Add graphical policy paths with KV metadata browsing, identity toggles, environment controls, and duration pickers while preserving raw HCL.
+- Add a separate CLI provisioning flow for OIDC secret admins on selected OpenBao KV v2 mounts, with namespace UI links in the sidebar and policy editor.
+- Warn in the policy editor when HCL reaches outside configured mounts, with a shared catalog of expected secret engines.
+- Add per-identity not-forwardable SSH policy selectors and refuse signing after a verified forwarding session bind.
+- Add a separate Engine proxy to enforce the host recreate permission.
+- Allow container bindings to select multiple policies and preview effective HCL, SSH identities, and contract requirements. Token TTL, access group, and enforcement belong to each binding. Binding tokens omit the implicit default policy; authors supply self-operation grants.
+- Show controller and agent build versions, flag older agents, and add opt-in release checks with configurable interval and timeout. Agents that omit their version remain supported.
+
+### Fixes
+
+- Run repository checks and OpenBao-backed tests on pull requests and pushes to main.
+- Report socket-access failure when a container user cannot be verified as a member of the policy access group.
+- Migrate the controller web interface to React with shadcn/ui and Tailwind v4, embedded in the executable and container image.
+- Turn the sidebar account element into an accessible menu with Security and sign out.
+- Treat an overlapping token self-revocation as successful when OpenBao confirms the token cannot authenticate.
+
 ## 0.2.3
 
 ### Fixes
