@@ -627,6 +627,19 @@ ul.plain li {
   align-items: center;
   gap: 8px;
 }
+.container-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.container-filter-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
 .filters a {
   min-height: 44px;
   display: inline-flex;

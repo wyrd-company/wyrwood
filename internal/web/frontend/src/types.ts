@@ -54,6 +54,9 @@ export interface PolicyChoice {
   Selected: boolean;
 }
 export interface ContainerRow {
+  Agent: string;
+  Connected: boolean;
+  LastReport: string;
   Setup?: {
     Source: string;
     Target: string;
@@ -91,7 +94,10 @@ export interface ContainerRow {
 export interface ContainersData extends Layout {
   Agents: { Name: string; Containers: number; Selected: boolean }[] | null;
   Agent: string;
-  Connected: boolean;
+  FilterAgent: string;
+  Query: string;
+  Sort: string;
+  Order: string;
   Rows: ContainerRow[] | null;
   Selected: ContainerRow | null;
   Policies: PolicyChoice[] | null;

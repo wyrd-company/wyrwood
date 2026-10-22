@@ -223,13 +223,16 @@ func (server *Server) renderProblem(writer http.ResponseWriter, request *http.Re
 
 type containersPage struct {
 	layout
-	Agents    []agentChoice
-	Agent     string
-	Connected bool
-	Rows      []containerRow
-	Selected  *containerRow
-	Policies  []policyChoice
-	Recreate  []string
+	Agents      []agentChoice
+	Agent       string
+	FilterAgent string
+	Query       string
+	Sort        string
+	Order       string
+	Rows        []containerRow
+	Selected    *containerRow
+	Policies    []policyChoice
+	Recreate    []string
 }
 
 type agentChoice struct {
@@ -239,6 +242,9 @@ type agentChoice struct {
 }
 
 type containerRow struct {
+	Agent      string
+	Connected  bool
+	LastReport time.Time
 	Setup      *containerSetup
 	ID         string
 	Name       string
@@ -284,69 +290,115 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 	ctx := request.Context()
 	page := containersPage{layout: server.layout(request, "Containers", "containers")}
 	agents, _ := server.controller.Store().Agents(ctx)
-	chosen := request.URL.Query().Get("agent")
+	query := request.URL.Query()
+	page.FilterAgent = query.Get("filter-agent")
+	// Keep agent-only links from the Agents page focused on that host.
+	if !query.Has("filter-agent") && query.Get("container") == "" {
+		page.FilterAgent = query.Get("agent")
+	}
+	page.Query = query.Get("q")
+	page.Sort = query.Get("sort")
+	if !slices.Contains([]string{"name", "agent", "image", "state"}, page.Sort) {
+		page.Sort = "name"
+	}
+	page.Order = query.Get("order")
+	if page.Order != "desc" {
+		page.Order = "asc"
+	}
+	policies, _ := server.controller.Store().Policies(ctx)
+	for _, stored := range policies {
+		page.Policies = append(page.Policies, policyChoice{Name: stored.Policy.Name})
+	}
+	results, _ := server.controller.Store().ContractResults(ctx)
+	issued := lastCredential(server.controller.Events().Recent(10_000))
+	selectedID, selectedAgent := query.Get("container"), query.Get("agent")
 	for _, agent := range agents {
 		if agent.State != store.AgentApproved {
 			continue
 		}
 		containers, _, _ := server.controller.Store().Inventory(ctx, agent.Name)
-		if chosen == "" {
-			chosen = agent.Name
-		}
-		page.Agents = append(page.Agents, agentChoice{Name: agent.Name, Containers: len(containers), Selected: agent.Name == chosen})
-	}
-	page.Agent = chosen
-	page.Connected = server.controller.Connected(chosen)
-	policies, _ := server.controller.Store().Policies(ctx)
-	for _, stored := range policies {
-		page.Policies = append(page.Policies, policyChoice{Name: stored.Policy.Name})
-	}
-	containers, _, _ := server.controller.Store().Inventory(ctx, chosen)
-	bindings, _ := server.controller.Store().Bindings(ctx, chosen)
-	results, _ := server.controller.Store().ContractResults(ctx)
-	issued := lastCredential(server.controller.Events().Recent(10_000))
-	selectedID := request.URL.Query().Get("container")
-	for _, container := range containers {
-		row := containerRow{ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
-		if len(container.Keys) > 0 {
-			row.KeyKind = string(container.Keys[0].Kind)
-		}
-		if binding, ok := controller.ContainerBinding(container, bindings); ok {
-			row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
-			row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
-			row.Warnings = policy.Warnings(binding.Effective.OpenBao.Policy)
-			row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
-			result := results[binding.ID]
-			row.Badge, row.BadgeClass = stateBadge(result)
-			row.Token = "No credential issued yet"
-			if when, ok := issued[binding.ID]; ok {
-				row.Token = "Credential issued " + ago(when)
+		page.Agents = append(page.Agents, agentChoice{Name: agent.Name, Containers: len(containers), Selected: agent.Name == page.FilterAgent})
+		bindings, _ := server.controller.Store().Bindings(ctx, agent.Name)
+		connected := server.controller.Connected(agent.Name)
+		for _, container := range containers {
+			row := containerRow{Agent: agent.Name, Connected: connected, LastReport: agent.LastReport, ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
+			if len(container.Keys) > 0 {
+				row.KeyKind = string(container.Keys[0].Kind)
 			}
-			row.Checks = contractChecks(binding.Effective.Contract, container, result)
-			row.Setup = bindingSetup(container, binding.Effective.Contract)
-		} else {
-			for index, key := range container.Keys {
-				note := "most stable"
-				if index > 0 {
-					note = "less stable"
+			if binding, ok := controller.ContainerBinding(container, bindings); ok {
+				row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
+				row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
+				row.Warnings = policy.Warnings(binding.Effective.OpenBao.Policy)
+				row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
+				result := results[binding.ID]
+				row.Badge, row.BadgeClass = stateBadge(result)
+				row.Token = "No credential issued yet"
+				if when, ok := issued[binding.ID]; ok {
+					row.Token = "Credential issued " + ago(when)
 				}
-				if key.Kind == protocol.KeyName {
-					note = "breaks on rename"
-					if len(container.Keys) == 1 {
-						note = "only key offered"
+				row.Checks = contractChecks(binding.Effective.Contract, container, result)
+				row.Setup = bindingSetup(container, binding.Effective.Contract)
+			} else {
+				for index, key := range container.Keys {
+					note := "most stable"
+					if index > 0 {
+						note = "less stable"
 					}
+					if key.Kind == protocol.KeyName {
+						note = "breaks on rename"
+						if len(container.Keys) == 1 {
+							note = "only key offered"
+						}
+					}
+					row.Candidates = append(row.Candidates, candidate{Kind: string(key.Kind), Value: key.Value, Note: note,
+						Encoded: string(key.Kind) + ":" + key.Value, First: index == 0})
 				}
-				row.Candidates = append(row.Candidates, candidate{Kind: string(key.Kind), Value: key.Value, Note: note,
-					Encoded: string(key.Kind) + ":" + key.Value, First: index == 0})
+			}
+			if row.Agent == selectedAgent && row.ID == selectedID {
+				selected := row
+				page.Selected = &selected
+			}
+			if page.FilterAgent != "" && row.Agent != page.FilterAgent {
+				continue
+			}
+			searchable := strings.Join([]string{row.Agent, row.ID, row.Name, row.Image, row.State, row.Badge, row.KeyKind, row.KeyValue, strings.Join(row.Policies, " ")}, " ")
+			if !strings.Contains(strings.ToLower(searchable), strings.ToLower(strings.TrimSpace(page.Query))) {
+				continue
+			}
+			page.Rows = append(page.Rows, row)
+		}
+	}
+	sort.Slice(page.Rows, func(left, right int) bool {
+		a, b := page.Rows[left], page.Rows[right]
+		value := func(row containerRow) string {
+			switch page.Sort {
+			case "agent":
+				return row.Agent
+			case "image":
+				return row.Image
+			case "state":
+				return row.Badge
+			default:
+				return row.Name
 			}
 		}
-		page.Rows = append(page.Rows, row)
-	}
-	sort.Slice(page.Rows, func(left, right int) bool { return page.Rows[left].Name < page.Rows[right].Name })
-	for index := range page.Rows {
-		if page.Rows[index].ID == selectedID || (selectedID == "" && index == 0) {
-			page.Selected = &page.Rows[index]
+		comparison := strings.Compare(strings.ToLower(value(a)), strings.ToLower(value(b)))
+		if comparison == 0 {
+			comparison = strings.Compare(a.Agent, b.Agent)
 		}
+		if comparison == 0 {
+			comparison = strings.Compare(a.ID, b.ID)
+		}
+		if page.Order == "desc" {
+			return comparison > 0
+		}
+		return comparison < 0
+	})
+	if selectedID == "" && len(page.Rows) > 0 {
+		page.Selected = &page.Rows[0]
+	}
+	if page.Selected != nil {
+		page.Agent = page.Selected.Agent
 	}
 	if page.Selected != nil {
 		for index := range page.Policies {

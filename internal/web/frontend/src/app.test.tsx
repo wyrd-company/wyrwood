@@ -66,6 +66,9 @@ const policy: PolicyData = {
   PolicyPath: "sys/policies/acl/sample",
 };
 const row: ContainerRow = {
+  Agent: "sample-host",
+  Connected: false,
+  LastReport: "2026-01-01T00:00:00Z",
   ID: "sample-id",
   Name: "sample-container",
   Image: "alpine:latest",
@@ -513,7 +516,10 @@ function containers(Bound: boolean) {
     Current: "containers",
     Agents: [{ Name: "sample-host", Containers: 1, Selected: true }],
     Agent: "sample-host",
-    Connected: false,
+    FilterAgent: "",
+    Query: "",
+    Sort: "name",
+    Order: "asc",
     Rows: [{ ...row, Bound }],
     Selected: { ...row, Bound },
     Policies: [{ Name: "sample", Selected: true }],
@@ -522,15 +528,17 @@ function containers(Bound: boolean) {
 }
 it("preserves container filtering, selection, binding keys and explicit recreate consent", async () => {
   draw({ page: "containers", data: containers(false) });
-  const filter = screen.getByRole("button", { name: "Show" }).closest("form")!;
+  const filter = screen
+    .getByRole("button", { name: "Apply filters" })
+    .closest("form")!;
   expect(filter).toHaveAttribute("method", "get");
   expect(filter).toHaveAttribute("action", "/containers");
-  expect(new FormData(filter).get("agent")).toBe("sample-host");
+  expect(new FormData(filter).get("filter-agent")).toBe("");
   expect(
     screen.getByRole("link", { name: /sample-container/ }),
   ).toHaveAttribute(
     "href",
-    "/containers?agent=sample-host&container=sample-id",
+    "/containers?agent=sample-host&container=sample-id&filter-agent=&q=&sort=name&order=asc",
   );
   expectPost("Bind policies", "/bindings", {
     agent: "sample-host",
@@ -965,3 +973,92 @@ it("shows a composition conflict without losing the selected policies", async ()
     vi.unstubAllGlobals();
   }
 });
+
+it("keeps duplicate container IDs distinct across agents and submits the selected owner", () => {
+  const data = containers(false);
+  const other = { ...row, Agent: "other/host", Connected: true };
+  data.Rows = [{ ...row }, other];
+  data.Selected = other;
+  data.Agent = "sample-host";
+  data.Query = "sample";
+  data.Sort = "agent";
+  data.Order = "desc";
+  draw({ page: "containers", data });
+  const links = screen.getAllByRole("link", { name: /sample-container/ });
+  expect(links).toHaveLength(2);
+  expect(links[0]).not.toHaveAttribute("aria-current");
+  expect(links[1]).toHaveAttribute("aria-current", "true");
+  const target = new URL(links[1].getAttribute("href")!, "https://example.com");
+  expect(Object.fromEntries(target.searchParams)).toEqual({
+    agent: "other/host",
+    container: "sample-id",
+    "filter-agent": "",
+    q: "sample",
+    sort: "agent",
+    order: "desc",
+  });
+  expect(screen.getByText("Connected", { exact: true })).toBeVisible();
+  expect(screen.getByText("Disconnected · last report shown")).toBeVisible();
+  expectPost("Bind policies", "/bindings", {
+    agent: "other/host",
+    container: "sample-id",
+  });
+});
+
+it("resets binding edits when selecting the same container ID on another agent", async () => {
+  const user = userEvent.setup();
+  const data = containers(false);
+  const view = draw({ page: "containers", data });
+  await user.click(screen.getByRole("checkbox", { name: "sample" }));
+  expect(screen.getByRole("checkbox", { name: "sample" })).not.toBeChecked();
+  const other = { ...data.Selected, Agent: "other-host" };
+  view.rerender(
+    <App page={{ page: "containers", data: { ...data, Selected: other } }} />,
+  );
+  expect(screen.getByRole("checkbox", { name: "sample" })).toBeChecked();
+  expectPost("Bind policies", "/bindings", { agent: "other-host" });
+});
+
+it("renders rows and filter controls without a selected detail", async () => {
+  const user = userEvent.setup();
+  draw({ page: "containers", data: { ...containers(false), Selected: null } });
+  expect(screen.getByRole("link", { name: /sample-container/ })).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: "Bind policies" }),
+  ).not.toBeInTheDocument();
+  await user.selectOptions(screen.getByLabelText("Agent"), "sample-host");
+  await user.type(screen.getByLabelText("Filter containers"), "alpine");
+  await user.selectOptions(screen.getByLabelText("Sort by"), "image");
+  await user.selectOptions(screen.getByLabelText("Order"), "desc");
+  expect(Object.fromEntries(new FormData(formFor("Apply filters")))).toEqual({
+    "filter-agent": "sample-host",
+    q: "alpine",
+    sort: "image",
+    order: "desc",
+  });
+  expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
+    "href",
+    "/containers",
+  );
+});
+
+it.each([
+  ["", "", "No containers have been reported."],
+  ["sample-host", "", "No containers match these filters."],
+  ["", "absent", "No containers match these filters."],
+])(
+  "explains an empty inventory or filter result (%s, %s)",
+  (FilterAgent, Query, message) => {
+    draw({
+      page: "containers",
+      data: {
+        ...containers(false),
+        FilterAgent,
+        Query,
+        Rows: [],
+        Selected: null,
+      },
+    });
+    expect(screen.getByText(message)).toBeVisible();
+  },
+);
