@@ -197,15 +197,37 @@ boot, run `sudo systemctl disable wyrwood-agent`.
 
 ## Upgrade order
 
-Upgrade the controller before upgrading agents. Agents report the configured
-host consumer directory in the `consumer-directory` inventory field. A
-controller that does not recognize this field rejects the inventory and
-closes the agent session.
+Use a stopped rollout. Finish active recreations before stopping agents. Resolve
+an interrupted recreation with the [recovery procedure](configuration.md#contract-enforcement)
+before continuing. Secret and signing socket access is unavailable while an
+agent is stopped.
 
-The controller accepts agent inventories without this optional field, so
-agents can keep their existing version while the controller is upgraded.
-Stored inventories and bindings need no migration. Setup examples remain
-unavailable until the agent reports both the consumer directory and image.
+1. Stop every agent:
+
+   ```bash
+   sudo wyrwood agent service stop
+   ```
+
+2. Upgrade the controller.
+3. Upgrade every agent package or executable while its service is stopped.
+   Package upgrades leave inactive agents stopped.
+4. Start the upgraded agents:
+
+   ```bash
+   sudo wyrwood agent service start
+   ```
+
+Do not reconnect agents until both peers are upgraded. Agents report the host
+consumer directory as `consumer-directory`; the controller sends the resolved
+`agent-token-renewal` setting. Older peers reject these unknown fields and
+close the session. Neither an agent-first nor a controller-first rolling
+upgrade keeps mixed versions connected.
+
+Keep agent keys, policy caches, bindings and consumer directories. Stored
+inventories and policies need no data migration. Updated agents accept cached
+assignments without the renewal field and infer their existing choice. Setup
+examples remain unavailable until the agent reports both the consumer
+directory and image.
 
 ## Verify
 

@@ -70,8 +70,8 @@ networks, or unrelated mounts. They do not change an existing container.
 
 If the report lacks the consumer directory or image, setup examples are
 unavailable. An agent that omits the directory must be updated. Follow the
-[controller-first upgrade order](install.md#upgrade-order) before updating
-agents. If clipboard access is unavailable, select and copy the displayed
+[stopped controller-first rollout](install.md#upgrade-order) before updating
+peers. If clipboard access is unavailable, select and copy the displayed
 text.
 
 ## Operational events

@@ -167,8 +167,9 @@ proposed-design:
     settings infer the existing renewal capability with OpenBao path priority
     and deny semantics. Disabled renewal uses an empty exact rule to override
     broader grants without defeating another selected policy's update grant.
-    Updated agents accept field-free assignments and infer the existing choice;
-    agents are upgraded before the controller sends resolved choices. Exact
+    Updated agents accept field-free assignments and infer the existing choice.
+    Rollout stops all agents, upgrades the controller, then upgrades all agents
+    before restarting them; mixed peers do not reconnect. Exact
     lifecycle stanzas in authored HCL
     are replaced by the managed grants; all workload ACL rules remain under
     OpenBao authorization. The preview shows compiled HCL and the resolved

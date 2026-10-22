@@ -7,8 +7,9 @@ description: >-
   Effective assignment openbao.agent-token-renewal is the resolved boolean
   controlling actual agent renewal. Any enabled selected policy enables it.
   Updated agents infer the existing HCL capability when this field is absent.
-  Agents are upgraded before controllers publish the resolved field; older
-  agents reject unknown effective-assignment fields.
+  Stop all agents, upgrade the controller, then upgrade all agents before
+  restarting them. Older agents reject unknown effective-assignment fields;
+  mixed versions do not reconnect during the stopped rollout.
 
   Agents and the controller exchange newline-delimited JSON messages over the
   `wyrwood` SSH subsystem on an authenticated SSH connection. Message shapes
@@ -32,9 +33,9 @@ description: >-
   `consumer-directory` is the host source path computed by the agent from its
   configured consumers root and container name, including for containers that
   do not yet mount that path. A missing field means the directory is unknown.
-  Upgrade the controller before agents that report this field: controllers
-  reject unknown fields and close the session. The field is not negotiated;
-  stored inventories without it remain valid.
+  Controllers reject an unknown directory field and close the session.
+  The field is not negotiated. The stopped controller-first rollout prevents
+  mixed peers reconnecting; stored inventories without the field remain valid.
   `contract-result`
   reports one container's conformance as `conforming`, `non-conforming` with
   failed item names, `recreating`, `recreated` with the new engine

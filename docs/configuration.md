@@ -130,11 +130,11 @@ stops until a new credential arrives. Container renew-self cannot extend this
 lifetime. The maximum lifetime bounds a renewing token during a controller
 outage; the initial TTL bounds a non-renewing token.
 
-Upgrade agents before the controller for this setting. Updated agents accept
+Follow the [stopped controller-first rollout](install.md#upgrade-order).
+Agents remain stopped until both peers are upgraded. Updated agents accept
 assignments without the field and infer their existing renewal choice. The
-controller sends the resolved choice in new effective assignments. Older agents
-cannot apply this choice and reject its unknown field; upgrade them before
-publishing settings-derived assignments. No policy data conversion is required.
+controller sends the resolved choice in effective assignments; older agents
+reject this unknown field. No policy data conversion is required.
 
 ## Bindings
 
