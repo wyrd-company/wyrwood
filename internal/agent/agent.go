@@ -809,6 +809,7 @@ func (agent *Agent) inventory() protocol.Inventory {
 	sort.Strings(ids)
 	for _, id := range ids {
 		if report, ok := Report(agent.containers[id]); ok && len(inventory.Containers) < 1024 {
+			report.ConsumerDirectory = agent.root.DirectoryPath(agent.containers[id].ShortName())
 			inventory.Containers = append(inventory.Containers, report)
 		}
 	}

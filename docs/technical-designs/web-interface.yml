@@ -124,6 +124,12 @@ proposed-design:
     selection shows an actionable error. A bound container shows the saved
     effective assignment, pending transition state, contract report, and
     actions to edit the selection/settings, request recreate, or unbind.
+    The bound panel shows the agent-reported consumer directory and effective
+    mount target with copyable Docker Compose and docker run examples. Examples
+    use the observed container name and image and expand effective contract
+    environment values. Compose escapes interpolation and disables automatic
+    host-path creation; the agent owns the directory. Missing directory or image
+    observations leave examples unavailable rather than guessing a source.
   policies-page: >-
     Edits reusable HCL, Transit keys and SSH-engine roles, forwarding
     selectors, mount target, and environment requirements. Token lifetime,

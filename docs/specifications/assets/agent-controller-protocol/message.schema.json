@@ -150,6 +150,9 @@
             }
           }
         },
+        "consumer-directory": {
+          "type": "string"
+        },
         "env-names": {
           "type": "array",
           "items": {

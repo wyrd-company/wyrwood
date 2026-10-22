@@ -239,6 +239,7 @@ type agentChoice struct {
 }
 
 type containerRow struct {
+	Setup      *containerSetup
 	ID         string
 	Name       string
 	Image      string
@@ -322,6 +323,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 				row.Token = "Credential issued " + ago(when)
 			}
 			row.Checks = contractChecks(binding.Effective.Contract, container, result)
+			row.Setup = bindingSetup(container, binding.Effective.Contract)
 		} else {
 			for index, key := range container.Keys {
 				note := "most stable"

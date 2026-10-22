@@ -18,6 +18,7 @@ import type {
 import { useRef, useState } from "react";
 import { BindingSettings } from "./binding-settings";
 import { EffectivePolicy } from "./effective-policy";
+import { ContainerSetup } from "./container-setup";
 export function Containers({ data: d }: { data: ContainersData }) {
   return (
     <main className="split">
@@ -151,6 +152,7 @@ function ContainerDetails({
               ? "AppRole assignment applied"
               : "Token transition pending; fresh issuance is blocked"}
           </p>
+          <ContainerSetup setup={r.Setup} />
           <BindingForm data={d} row={r} />
           {r.Effective?.sources?.length > 0 && (
             <EffectivePolicy effective={r.Effective} warnings={r.Warnings} />

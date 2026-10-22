@@ -344,7 +344,7 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 
 	containerID := strings.Repeat("d", 64)
 	if err := harness.controller.Store().SaveInventory(ctx, "host-a", fingerprint, []protocol.Container{{
-		ID: containerID, Name: "web", State: protocol.StateRunning, Image: "example/web:1",
+		ID: containerID, Name: "web", State: protocol.StateRunning, Image: "alpine:latest", ConsumerDirectory: "/srv/sample/consumers/web",
 		Keys: []protocol.Key{{Kind: protocol.KeyCompose, Value: "shop/web"}, {Kind: protocol.KeyName, Value: "web"}},
 	}}, time.Now()); err != nil {
 		t.Fatal(err)
@@ -362,6 +362,9 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 		"key": {"compose:shop/web"}, "policies": {"teal"}, "enforcement": {"recreate"}, "understood": {"yes"}})
 	if !strings.Contains(bound.body, "Policy bound") || !strings.Contains(bound.body, "Bound by compose key") {
 		t.Fatalf("bind = %s", bound.body)
+	}
+	if !strings.Contains(bound.body, "/srv/sample/consumers/web") || !strings.Contains(bound.body, "unix:///run/wyrwood/vault.sock") || !strings.Contains(bound.body, "Copy Docker Compose") {
+		t.Fatalf("bound setup = %s", bound.body)
 	}
 	bindings, _ := harness.controller.Store().Bindings(ctx, "host-a")
 	if len(bindings) != 1 {
