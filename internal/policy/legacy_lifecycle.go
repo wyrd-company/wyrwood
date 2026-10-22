@@ -33,11 +33,17 @@ func legacyRenewal(source string) bool {
 	grant, deny := false, false
 	for _, rule := range parsed.Paths {
 		pattern := strings.TrimPrefix(rule.Name, "/")
-		expr := regexp.QuoteMeta(strings.TrimSuffix(pattern, "*"))
-		expr = strings.ReplaceAll(expr, `\+`, `[^/]+`)
-		if strings.HasSuffix(pattern, "*") {
-			expr += ".*"
+		segments := strings.Split(pattern, "/")
+		for i, segment := range segments {
+			if segment == "+" {
+				segments[i] = `[^/]+`
+			} else if i == len(segments)-1 && strings.HasSuffix(segment, "*") {
+				segments[i] = regexp.QuoteMeta(strings.TrimSuffix(segment, "*")) + ".*"
+			} else {
+				segments[i] = regexp.QuoteMeta(segment)
+			}
 		}
+		expr := strings.Join(segments, "/")
 		if matched, _ := regexp.MatchString("^"+expr+"$", "auth/token/renew-self"); !matched {
 			continue
 		}
@@ -56,13 +62,24 @@ func legacyRenewal(source string) bool {
 }
 
 func pathPriority(a, b string) int {
-	first := func(s string) int {
-		if i := strings.IndexAny(s, "+*"); i >= 0 {
-			return i
+	wildcards := func(s string) (int, int, int) {
+		first, count, glob, offset := len(s), 0, 0, 0
+		for _, segment := range strings.Split(s, "/") {
+			if segment == "+" {
+				first = min(first, offset)
+				count++
+			}
+			offset += len(segment) + 1
 		}
-		return len(s)
+		if strings.HasSuffix(s, "*") {
+			first = min(first, len(s)-1)
+			glob = 1
+		}
+		return first, count, glob
 	}
-	for _, result := range []int{cmp.Compare(first(a), first(b)), cmp.Compare(strings.Count(b, "*"), strings.Count(a, "*")), cmp.Compare(strings.Count(b, "+"), strings.Count(a, "+")), cmp.Compare(len(a), len(b)), strings.Compare(a, b)} {
+	firstA, countA, globA := wildcards(a)
+	firstB, countB, globB := wildcards(b)
+	for _, result := range []int{cmp.Compare(firstA, firstB), cmp.Compare(globB, globA), cmp.Compare(countB, countA), cmp.Compare(len(a), len(b)), strings.Compare(a, b)} {
 		if result != 0 {
 			return result
 		}

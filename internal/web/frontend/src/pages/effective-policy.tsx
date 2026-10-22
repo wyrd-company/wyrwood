@@ -17,7 +17,8 @@ export function EffectivePolicy({
       <h3>Effective policy</h3>
       <p className="hint">
         OpenBao combines these named policies. Deny and path priority rules
-        still apply. This view retains the source HCL.
+        still apply. Combined HCL shows the compiled policy with managed
+        lifecycle grants. Each policy document retains its authored source HCL.
       </p>
       <ul>
         {effective.sources.map((source) => (
