@@ -208,6 +208,9 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		return len(containers) == 1
 	})
 	containers, _, _ := controller.Store().Inventory(ctx, "host-a")
+	if containers[0].ConsumerDirectory != filepath.Join(paths.Runtime, "containers", "web") {
+		t.Fatalf("consumer directory = %q", containers[0].ConsumerDirectory)
+	}
 	if len(containers[0].EnvNames) != 1 || containers[0].EnvNames[0] != "SECRET_VALUE" {
 		t.Fatalf("inventory environment = %#v", containers[0].EnvNames)
 	}

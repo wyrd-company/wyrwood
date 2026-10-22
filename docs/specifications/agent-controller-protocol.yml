@@ -22,7 +22,11 @@ description: >-
   list; each entry has the engine identifier, name, state, image reference,
   candidate keys in precedence order as `{kind, value}` with kinds
   `devcontainer`, `compose`, and `name`, and the contract check inputs:
-  mounts as `{source, target}` and environment names present. `contract-result`
+  mounts as `{source, target}` and environment names present. The optional
+  `consumer-directory` is the host source path computed by the agent from its
+  configured consumers root and container name, including for containers that
+  do not yet mount that path. A missing field means the directory is unknown.
+  `contract-result`
   reports one container's conformance as `conforming`, `non-conforming` with
   failed item names, `recreating`, `recreated` with the new engine
   identifier, or `recreate-failed` with a categorical reason.

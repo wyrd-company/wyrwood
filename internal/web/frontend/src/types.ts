@@ -54,6 +54,12 @@ export interface PolicyChoice {
   Selected: boolean;
 }
 export interface ContainerRow {
+  Setup?: {
+    Source: string;
+    Target: string;
+    Compose: string;
+    DockerRun: string;
+  } | null;
   ID: string;
   Name: string;
   Image: string;

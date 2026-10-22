@@ -123,13 +123,14 @@ type Mount struct {
 
 // Container is one inventory entry.
 type Container struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	State    State    `json:"state"`
-	Image    string   `json:"image,omitempty"`
-	Keys     []Key    `json:"keys"`
-	Mounts   []Mount  `json:"mounts,omitempty"`
-	EnvNames []string `json:"env-names,omitempty"`
+	ID                string   `json:"id"`
+	Name              string   `json:"name"`
+	State             State    `json:"state"`
+	Image             string   `json:"image,omitempty"`
+	ConsumerDirectory string   `json:"consumer-directory,omitempty"`
+	Keys              []Key    `json:"keys"`
+	Mounts            []Mount  `json:"mounts,omitempty"`
+	EnvNames          []string `json:"env-names,omitempty"`
 }
 
 // Validate checks one inventory entry.
