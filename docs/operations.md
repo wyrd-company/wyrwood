@@ -63,8 +63,10 @@ networks, or unrelated mounts. They do not change an existing container.
 ![Container setup examples in the binding panel](assets/web-container-setup.png)
 
 If the report lacks the consumer directory or image, setup examples are
-unavailable. An agent that omits the directory must be updated. If clipboard
-access is unavailable, select and copy the displayed text.
+unavailable. An agent that omits the directory must be updated. Follow the
+[controller-first upgrade order](install.md#upgrade-order) before updating
+agents. If clipboard access is unavailable, select and copy the displayed
+text.
 
 ## Operational events
 

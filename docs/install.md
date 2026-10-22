@@ -195,6 +195,18 @@ package and release archive installations. `sudo wyrwood agent service stop`
 stops the agent without disabling startup at boot. To disable startup at
 boot, run `sudo systemctl disable wyrwood-agent`.
 
+## Upgrade order
+
+Upgrade the controller before upgrading agents. Agents report the configured
+host consumer directory in the `consumer-directory` inventory field. A
+controller that does not recognize this field rejects the inventory and
+closes the agent session.
+
+The controller accepts agent inventories without this optional field, so
+agents can keep their existing version while the controller is upgraded.
+Stored inventories and bindings need no migration. Setup examples remain
+unavailable until the agent reports both the consumer directory and image.
+
 ## Verify
 
 ```bash

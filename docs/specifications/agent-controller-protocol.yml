@@ -26,6 +26,9 @@ description: >-
   `consumer-directory` is the host source path computed by the agent from its
   configured consumers root and container name, including for containers that
   do not yet mount that path. A missing field means the directory is unknown.
+  Upgrade the controller before agents that report this field: controllers
+  reject unknown fields and close the session. The field is not negotiated;
+  stored inventories without it remain valid.
   `contract-result`
   reports one container's conformance as `conforming`, `non-conforming` with
   failed item names, `recreating`, `recreated` with the new engine
