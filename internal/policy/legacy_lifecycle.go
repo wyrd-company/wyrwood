@@ -7,10 +7,11 @@ package policy
 
 import (
 	"cmp"
-	"github.com/hashicorp/hcl"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/hashicorp/hcl"
 )
 
 // legacyRenewal infers only the capability for the fixed renewal path. It does

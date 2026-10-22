@@ -7,6 +7,7 @@ package policy
 
 import (
 	"bytes"
+	"fmt"
 	"strings"
 
 	"github.com/hashicorp/hcl"
@@ -19,7 +20,33 @@ func (e Effective) AgentRenewal() bool {
 	if e.OpenBao.AgentTokenRenewal != nil {
 		return *e.OpenBao.AgentTokenRenewal
 	}
+	// Field-free assignments retain source provenance. Infer each policy's
+	// choice before applying the same grant union used by current composition.
+	if len(e.Sources) > 0 {
+		for _, source := range e.Sources {
+			if legacyRenewal(source.HCL) {
+				return true
+			}
+		}
+		return false
+	}
 	return legacyRenewal(e.OpenBao.Policy)
+}
+
+// PreviewHCL shows managed lifecycle grants for field-free stored assignments
+// without changing the durable assignment or its identity.
+func (e Effective) PreviewHCL() string {
+	if e.OpenBao.AgentTokenRenewal != nil {
+		return e.OpenBao.Policy
+	}
+	if len(e.Sources) == 0 {
+		return WorkloadHCL(e.OpenBao.Policy) + "\n" + LifecycleHCL(e.AgentRenewal())
+	}
+	var result strings.Builder
+	for _, source := range e.Sources {
+		fmt.Fprintf(&result, "# Policy %s (revision %d)\n%s\n%s\n", source.Name, source.Revision, WorkloadHCL(source.HCL), LifecycleHCL(legacyRenewal(source.HCL)))
+	}
+	return result.String()
 }
 
 // AgentRenewal preserves the renewal choice of documents without the setting.

@@ -7,13 +7,14 @@ package controller
 
 import (
 	"context"
+	"slices"
+	"strings"
+	"testing"
+
 	"github.com/openbao/openbao/api/v2"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 	gossh "golang.org/x/crypto/ssh"
-	"slices"
-	"strings"
-	"testing"
 )
 
 func TestLifecycleSettingPublishesAndReplacesBindingAssignment(t *testing.T) {

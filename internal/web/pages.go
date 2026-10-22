@@ -331,6 +331,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 				// Resolve field-free stored assignments for display without rewriting
 				// their durable identity or the assignment delivered to the agent.
 				renewal := row.Effective.AgentRenewal()
+				row.Effective.OpenBao.Policy = row.Effective.PreviewHCL()
 				row.Effective.OpenBao.AgentTokenRenewal = &renewal
 				row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
 				result := results[binding.ID]

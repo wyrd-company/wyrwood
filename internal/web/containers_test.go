@@ -109,7 +109,7 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 				continue
 			}
 			found = true
-			if row.Effective.OpenBao.AgentTokenRenewal == nil || !*row.Effective.OpenBao.AgentTokenRenewal {
+			if row.Effective.OpenBao.AgentTokenRenewal == nil || !*row.Effective.OpenBao.AgentTokenRenewal || !strings.Contains(row.Effective.OpenBao.Policy, policy.LifecycleHCL(true)) {
 				t.Fatal("legacy renewal displayed as disabled")
 			}
 		}

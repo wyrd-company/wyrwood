@@ -7,9 +7,10 @@ package policy
 
 import (
 	"encoding/json"
+	"testing"
+
 	"github.com/openbao/openbao/api/v2"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
-	"testing"
 )
 
 func TestLegacyRenewalMatchesOpenBao(t *testing.T) {
