@@ -13,7 +13,7 @@ RUN corepack enable && pnpm install --frozen-lockfile
 COPY internal/web/frontend ./
 RUN pnpm run build
 
-FROM --platform=$BUILDPLATFORM golang:1.26.4 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.3 AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
