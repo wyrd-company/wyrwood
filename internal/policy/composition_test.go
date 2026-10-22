@@ -78,6 +78,10 @@ func TestRenewalDefaultsAndComposition(t *testing.T) {
 	if !newPolicy.AgentRenewal() {
 		t.Fatal("new policies must enable renewal")
 	}
+	runtime := newPolicy.Runtime(DefaultSettings())
+	if runtime.OpenBao.AgentTokenRenewal == nil || !runtime.AgentRenewal() {
+		t.Fatal("runtime lost the explicit renewal choice")
+	}
 	old := newPolicy.Clone()
 	old.OpenBao.AgentTokenRenewal = nil
 	if old.AgentRenewal() {

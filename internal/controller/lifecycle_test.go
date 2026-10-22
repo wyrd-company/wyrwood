@@ -26,7 +26,8 @@ func TestLifecycleSettingPublishesAndReplacesBindingAssignment(t *testing.T) {
 		t.Fatal(err)
 	}
 	disabled := false
-	p := policy.New("sample", `path "auth/*" {capabilities=["update"]}`)
+	p := policy.New("sample", `path "auth/*" {capabilities=["update"]}
+path "auth/token/renew-self" {capabilities=["update"]}`)
 	p.OpenBao.AgentTokenRenewal = &disabled
 	saved, err := c.SavePolicy(ctx, p, "operator-1")
 	if err != nil {

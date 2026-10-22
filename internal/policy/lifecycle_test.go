@@ -34,6 +34,9 @@ path "auth/token/renew-self*" { capabilities = ["read"] }`,
 			if err := hcl.Decode(&parsed, compiled); err != nil {
 				t.Fatal(err)
 			}
+			if len(parsed.Paths) != 5 {
+				t.Fatalf("managed lifecycle stanzas were not replaced: %#v", parsed.Paths)
+			}
 			found := map[string]string{}
 			for _, path := range parsed.Paths {
 				found[path.Name] = strings.Join(path.Capabilities, ",")
