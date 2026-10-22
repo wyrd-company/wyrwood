@@ -16,6 +16,5 @@ func (controller *Controller) PolicyWarnings(document string) []string {
 	for _, mount := range configuration.SecretEngineMounts() {
 		mounts = append(mounts, mount.Path)
 	}
-	warnings := policy.Warnings(document)
-	return append(warnings, policy.MountWarnings(document, mounts)...)
+	return policy.MountWarnings(document, mounts)
 }

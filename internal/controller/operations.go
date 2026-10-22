@@ -198,7 +198,7 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 	if err := controller.preflight(ctx, affected); err != nil {
 		return policy.Policy{}, agents, err
 	}
-	if err := controller.openbao.WritePolicy(ctx, document.OpenBaoPolicyName(), document.OpenBao.Policy); err != nil {
+	if err := controller.openbao.WritePolicy(ctx, document.OpenBaoPolicyName(), document.PublishedHCL()); err != nil {
 		if openbao.CategoryOf(err) == openbao.CategoryInvalid {
 			return fail("OpenBao rejected the HCL policy")
 		}
@@ -491,7 +491,7 @@ func (controller *Controller) syncPolicies(ctx context.Context) error {
 		return err
 	}
 	for _, stored := range documents {
-		if err := controller.openbao.WritePolicy(ctx, stored.Policy.OpenBaoPolicyName(), stored.Policy.OpenBao.Policy); err != nil {
+		if err := controller.openbao.WritePolicy(ctx, stored.Policy.OpenBaoPolicyName(), stored.Policy.PublishedHCL()); err != nil {
 			return err
 		}
 	}
@@ -517,7 +517,7 @@ func (controller *Controller) restorePolicy(ctx context.Context, name string, pr
 	defer cancel()
 	var err error
 	if existed {
-		err = controller.openbao.WritePolicy(rollbackCtx, previous.Policy.OpenBaoPolicyName(), previous.Policy.OpenBao.Policy)
+		err = controller.openbao.WritePolicy(rollbackCtx, previous.Policy.OpenBaoPolicyName(), previous.Policy.PublishedHCL())
 	} else {
 		err = controller.openbao.DeletePolicy(rollbackCtx, "wyrwood-"+name)
 	}

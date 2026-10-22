@@ -242,7 +242,7 @@ func TestPolicyPublicationRollsBackWhenDatabaseCommitFails(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if actual != document.OpenBao.Policy {
+	if actual != document.PublishedHCL() {
 		t.Fatal("uncommitted HCL remained active")
 	}
 	stored, _ := c.store.Policy(ctx, "alpha")
@@ -257,7 +257,7 @@ func TestPolicyPublicationRollsBackWhenDatabaseCommitFails(t *testing.T) {
 		t.Fatal(err)
 	}
 	actual, err = h.bao.Root.Sys().GetPolicy("wyrwood-alpha")
-	if err != nil || actual != document.OpenBao.Policy {
+	if err != nil || actual != document.PublishedHCL() {
 		t.Fatal("restart did not restore stored HCL")
 	}
 }
@@ -313,12 +313,12 @@ func TestUncertainRemotePolicyWriteRestoresStoredHCL(t *testing.T) {
 	}
 	candidate := original.Clone()
 	candidate.OpenBao.Policy += `path "kv/data/example" { capabilities = ["read"] }`
-	c.openbao = &lostPolicyResponse{OpenBao: c.openbao, failHCL: candidate.OpenBao.Policy}
+	c.openbao = &lostPolicyResponse{OpenBao: c.openbao, failHCL: candidate.PublishedHCL()}
 	if _, err := c.SavePolicy(ctx, candidate, "operator-1"); err == nil {
 		t.Fatal("uncertain publication reported success")
 	}
 	actual, err := h.bao.Root.Sys().GetPolicy("wyrwood-alpha")
-	if err != nil || actual != original.OpenBao.Policy {
+	if err != nil || actual != original.PublishedHCL() {
 		t.Fatal("remote write survived an uncertain response")
 	}
 }

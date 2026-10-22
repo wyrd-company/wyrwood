@@ -34,7 +34,7 @@ A **binding** attaches a policy to a container by the most stable identity the
 engine offers: devcontainer labels first, then compose labels, then the
 container name. The controller creates one OpenBao AppRole per binding and
 hands the agent a role and a wrapped secret. The agent logs in, keeps the
-token in memory, and renews it.
+token in memory, and renews it when a selected policy enables agent token renewal.
 
 Inside the container, the mounted directory holds two sockets:
 

@@ -351,8 +351,8 @@ function BindingForm({
       </fieldset>
       <p className="hint">
         Select one or more policies. Conflicting mount or environment
-        requirements are rejected. Token renewal needs an authored renew-self
-        update grant; no default policy is attached.
+        requirements are rejected. Agent token renewal is enabled when any
+        selected policy enables it. Binding tokens have no default policy.
       </p>
       <BindingSettings settings={r.Settings} />
       <Button

@@ -189,7 +189,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 			bound, ok := agent.bindingLocked(typed.Binding)
 			if ok && bound.Assignment == typed.Assignment {
 				generation := agent.creds.begin(typed.Binding)
-				go agent.creds.deliver(ctx, typed, generation, bound.Policy.OpenBaoPolicies())
+				go agent.creds.deliver(ctx, typed, generation, bound.Policy.OpenBaoPolicies(), bound.Policy.AgentRenewal())
 			}
 			agent.mu.Unlock()
 		case protocol.RecreateRequest:

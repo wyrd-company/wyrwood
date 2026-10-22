@@ -15,7 +15,7 @@ import { HCLEditor } from "./components/hcl-editor";
 import { DurationPicker } from "./components/duration-picker";
 import { IdentityPicker } from "./components/identity-picker";
 import { EnvironmentEditor } from "./components/environment-editor";
-import { graphicalRules, addSelfOperations } from "./lib/policy-hcl";
+import { graphicalRules } from "./lib/policy-hcl";
 
 const basic =
   '# Keep this comment\npath "kv/data/example/*" { capabilities = ["read"] }\n// Keep this too\n';
@@ -73,9 +73,6 @@ it.each([
   expect(
     screen.getByRole("button", { name: "Graphical paths" }),
   ).toBeDisabled();
-  expect(
-    screen.getByRole("button", { name: "Add token self-operation preset" }),
-  ).toBeDisabled();
   expect(hcl()).toBe(value);
 });
 it("preserves arbitrary raw edits and returns to graphics only after all constructs are representable", async () => {
@@ -94,28 +91,35 @@ it("preserves arbitrary raw edits and returns to graphics only after all constru
   await user.click(screen.getByRole("button", { name: "Graphical paths" }));
   expect(hcl()).toBe("");
 });
-it("adds and removes a custom path and adds the idempotent self-operation preset", async () => {
+it("adds workload paths and keeps lifecycle paths out of graphical editing", async () => {
   const user = userEvent.setup();
-  editor("");
-  await user.type(screen.getByLabelText("New path"), "other/data/+/example*");
+  const lifecycle =
+    'path "auth/token/lookup-self" { capabilities = ["read"] }\npath "auth/token/renew-self" { capabilities = ["update"] }\npath "auth/token/revoke-self" { capabilities = ["update"] }\n';
+  editor(lifecycle);
+  expect(
+    screen.queryByRole("button", { name: "Add token self-operation preset" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Path 1")).not.toBeInTheDocument();
+  for (const path of [
+    "auth/token/lookup-self",
+    "auth/token/renew-self",
+    "/auth/token/revoke-self",
+  ]) {
+    fireEvent.change(screen.getByLabelText("New path"), {
+      target: { value: path },
+    });
+    expect(screen.getByRole("button", { name: "Add path" })).toBeDisabled();
+  }
+  fireEvent.change(screen.getByLabelText("New path"), {
+    target: { value: "other/data/+/example*" },
+  });
   await user.click(screen.getByRole("button", { name: "Add path" }));
   expect(hcl()).toContain('path "other/data/+/example*"');
-  await user.click(
-    screen.getByRole("button", { name: "Add token self-operation preset" }),
-  );
-  const preset = hcl();
-  expect(
-    graphicalRules(preset)?.map((rule) => [rule.path, rule.capabilities]),
-  ).toEqual([
-    ["other/data/+/example*", ["read"]],
-    ["auth/token/lookup-self", ["read"]],
-    ["auth/token/renew-self", ["update"]],
-    ["auth/token/revoke-self", ["update"]],
-  ]);
-  expect(addSelfOperations(preset)).toBe(preset);
+  const path = screen.getByLabelText("Path 1");
+  fireEvent.change(path, { target: { value: "auth/token/renew-self" } });
+  expect(path).toHaveValue("other/data/+/example*");
   await user.click(screen.getByRole("button", { name: "Remove path 1" }));
-  expect(hcl()).not.toContain("other/data");
-  expect(hcl()).toContain("auth/token/renew-self");
+  expect(hcl()).toBe(lifecycle + "\n");
 });
 it("browses configured KV mounts, nested folders, subtrees, and metadata LIST paths", async () => {
   const user = userEvent.setup();

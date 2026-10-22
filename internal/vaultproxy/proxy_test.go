@@ -281,3 +281,102 @@ func TestMountCategories(t *testing.T) {
 		}
 	}
 }
+
+func TestLifecycleMetadataUsesRealTokenWithoutExposingIt(t *testing.T) {
+	const realToken = `example-"binding\credential`
+	var paths []string
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.Method+" "+r.URL.Path)
+		if r.Header.Get("X-Vault-Token") != realToken || r.Header.Get("X-Vault-Namespace") != "sample" {
+			t.Error("lookup did not use binding credential and namespace")
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("X-Unsafe", realToken)
+		_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]any{
+			"id": realToken, "accessor": "example-accessor", "policies": []string{"wyrwood-sample"}, "ttl": 123, "renewable": true,
+			"meta": map[string]string{"example": "retained", "echo": realToken},
+		}})
+	}))
+	defer upstream.Close()
+	view := binding.View{ID: "b-1", HasToken: true, Token: openbao.NewToken(realToken, time.Hour), OpenBao: protocol.OpenBao{Address: upstream.URL, Namespace: "sample"}}
+	fixture := serveFixture(t, view)
+	client := containerClient(t, fixture.socket)
+	lookup, err := client.Auth().Token().LookupSelf()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if lookup.Data["accessor"] != "example-accessor" || lookup.Data["ttl"].(json.Number).String() != "123" {
+		t.Fatalf("metadata = %#v", lookup.Data)
+	}
+	if _, found := lookup.Data["id"]; found {
+		t.Fatal("credential id exposed")
+	}
+	meta, ok := lookup.Data["meta"].(map[string]any)
+	if !ok || meta["example"] != "retained" || meta["echo"] != Placeholder("b-1") {
+		t.Fatalf("safe metadata lost or leaked: %#v", meta)
+	}
+	encoded, _ := json.Marshal(lookup)
+	if bytes.Contains(encoded, []byte(realToken)) {
+		t.Fatal("real credential exposed")
+	}
+	renewed, err := client.Auth().Token().RenewSelf(0)
+	if err != nil || renewed.Auth.ClientToken != Placeholder("b-1") || renewed.Auth.LeaseDuration != 123 {
+		t.Fatalf("local renewal = %#v, %v", renewed, err)
+	}
+	if _, err := client.Logical().Write("auth/token/revoke-self", nil); err == nil {
+		t.Fatal("container revoke was admitted")
+	}
+	if len(paths) != 2 {
+		t.Fatalf("upstream requests = %v", paths)
+	}
+	for _, path := range paths {
+		if path != "GET /v1/auth/token/lookup-self" {
+			t.Fatalf("unexpected real lifecycle operation: %s", path)
+		}
+	}
+}
+
+func TestNonRenewingTokenLifecycleAgainstOpenBao(t *testing.T) {
+	bao := baotest.Start(t)
+	if err := bao.Root.Sys().PutPolicy("wyrwood-sample", policy.LifecycleHCL(false)); err != nil {
+		t.Fatal(err)
+	}
+	secret, err := bao.Root.Auth().Token().Create(&api.TokenCreateRequest{Policies: []string{"wyrwood-sample"}, NoDefaultPolicy: true, TTL: "2m"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := openbao.NewToken(secret.Auth.ClientToken, 2*time.Minute, secret.Auth.Policies...)
+	real, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Namespace: bao.Namespace, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	real.SetToken(token.Value())
+	metadata, err := real.Auth().Token().LookupSelf()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := real.Auth().Token().RenewSelf(0); err == nil {
+		t.Fatal("disabled renewal grant allowed actual renewal")
+	}
+	fixture := serveFixture(t, binding.View{ID: "b-1", HasToken: true, Token: token, OpenBao: protocol.OpenBao{Address: bao.Address, Namespace: bao.Namespace}})
+	container := containerClient(t, fixture.socket)
+	lookup, err := container.Auth().Token().LookupSelf()
+	if err != nil || lookup.Data["accessor"] != metadata.Data["accessor"] {
+		t.Fatalf("safe lookup = %#v, %v", lookup, err)
+	}
+	if _, ok := lookup.Data["id"]; ok {
+		t.Fatal("lookup exposed token id")
+	}
+	if _, err := container.Auth().Token().RenewSelf(0); err != nil {
+		t.Fatalf("local renewal with agent renewal disabled = %v", err)
+	}
+	if err := container.Auth().Token().RevokeSelf(""); err == nil {
+		t.Fatal("container retired the token")
+	}
+	if err := real.Auth().Token().RevokeSelf(""); err != nil {
+		t.Fatalf("agent retirement = %v", err)
+	}
+	if _, err := real.Auth().Token().LookupSelf(); err == nil {
+		t.Fatal("retired token remained usable")
+	}
+}

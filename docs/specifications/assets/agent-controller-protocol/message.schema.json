@@ -164,7 +164,11 @@
     "hello": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["version", "type", "allow-recreate"],
+      "required": [
+        "version",
+        "type",
+        "allow-recreate"
+      ],
       "properties": {
         "version": {
           "const": 2
@@ -558,6 +562,9 @@
           "properties": {
             "policy": {
               "type": "string"
+            },
+            "agent-token-renewal": {
+              "type": "boolean"
             }
           }
         },

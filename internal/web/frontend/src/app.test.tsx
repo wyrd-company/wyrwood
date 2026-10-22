@@ -41,6 +41,7 @@ const versionInfo = {
   VersionComparable: true,
 };
 const policy: PolicyData = {
+  AgentTokenRenewal: true,
   ...layout,
   Current: "policies",
   New: true,
@@ -908,7 +909,7 @@ it.each([
   },
 );
 
-it("previews several selected policies with binding settings and renewal warning", async () => {
+it("previews several selected policies with binding settings and lifecycle grants", async () => {
   const user = userEvent.setup();
   const data = containers(false);
   data.Policies.push({ Name: "second", Selected: false });
@@ -924,7 +925,7 @@ it("previews several selected policies with binding settings and renewal warning
     ok: true,
     json: async () => ({
       effective,
-      warnings: ["No explicit renew-self update grant"],
+      warnings: [],
     }),
   });
   vi.stubGlobal("fetch", fetcher);
@@ -935,9 +936,7 @@ it("previews several selected policies with binding settings and renewal warning
       screen.getByRole("button", { name: "Preview effective policy" }),
     );
     expect(await screen.findByText("combined source HCL")).toBeInTheDocument();
-    expect(
-      screen.getByText("No explicit renew-self update grant"),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Agent token renewal:/)).toBeInTheDocument();
     const [url, request] = fetcher.mock.calls[0];
     expect(url).toBe("/bindings/preview");
     expect(request.body.getAll("policies")).toEqual(["sample", "second"]);

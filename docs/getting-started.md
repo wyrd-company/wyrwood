@@ -35,13 +35,10 @@ the agent reports in.
 Open **Policies** and create one. A policy has three parts:
 
 1. The OpenBao policy, in HCL. For example, read access to one KV path and
-   signing with one Transit key. Keep the starter self-operation grants so
-   tokens can renew:
+   signing with one Transit key. Use **Agent token renewal** to control
+   automatic renewal. Wyrwood supplies the lifecycle grants:
 
    ```hcl
-   path "auth/token/lookup-self" { capabilities = ["read"] }
-   path "auth/token/renew-self" { capabilities = ["update"] }
-   path "auth/token/revoke-self" { capabilities = ["update"] }
    path "kv/data/teams/teal/*" {
      capabilities = ["read"]
    }

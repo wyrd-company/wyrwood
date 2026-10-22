@@ -38,6 +38,12 @@ export function EffectivePolicy({
           <code>{effective.openbao.policy}</code>
         </pre>
       </details>
+      <p>
+        Agent token renewal:{" "}
+        {effective.openbao["agent-token-renewal"] ? "enabled" : "disabled"}.
+        Lookup uses read; agent retirement uses update. Container renewal stays
+        local and container revocation is blocked.
+      </p>
       <dl className="facts">
         <div>
           <dt>Transit keys</dt>

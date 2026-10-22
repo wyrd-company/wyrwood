@@ -11,7 +11,7 @@ description: >-
   is defined by `assets/policy/policy.schema.json`.
 
   `name` is a lower-kebab-case slug unique in the controller and is the suffix
-  of the OpenBao policy name `wyrwood-<name>`. `openbao.policy` is the complete
+  of the OpenBao policy name `wyrwood-<name>`. `openbao.policy` is the authored workload
   HCL policy document; the controller validates it through OpenBao before
   saving. `ssh.transit-keys`
   lists Transit key names under the controller's Transit mount that the
@@ -47,9 +47,24 @@ description: >-
   settings, and binding revision identify a durable assignment.
 
   Binding tokens contain exactly the selected `wyrwood-<name>` policies,
-  without implicit `default`. Authors supply lookup-self read, renew-self
-  update, and revoke-self update grants. New policies have a visible starter
-  snippet; missing explicit renewal permission produces an advisory warning.
+  without implicit `default`. Each named policy compiles fixed lookup-self
+  read and revoke-self update grants. `openbao.agent-token-renewal` controls
+  actual agent renewal and adds renew-self update when enabled. New policies
+  enable renewal; omitted settings infer the existing HCL renewal capability,
+  including wildcard and deny/path priority. Disabled renewal uses an empty
+  exact rule to override broader grants without denying another selected
+  policy's update grant. Any selected
+  policy enabling renewal enables it for the binding. Exact lifecycle path
+  stanzas in authored HCL are replaced by these managed grants; the graphical
+  editor exposes the renewal setting and fixed grants separately. The effective
+  preview shows compiled lifecycle grants and the resolved setting.
+
+  Container lookup forwards the real binding token and returns safe metadata
+  without its value. Container renewal remains local and container revocation
+  is blocked. When agent renewal is disabled, the agent retains the token until
+  expiry, then requests replacement through existing retry backoff. Access
+  stops at expiry if the controller is unavailable. Replacement stops earlier
+  retries; retirement cancels expiry and retry work.
 
   The policy editor also checks path stanzas against configured AppRole,
   Transit, SSH, and `openbao.secret-mounts` roots. The exact lookup-self,
@@ -67,7 +82,7 @@ description: >-
   responses for HCL that changed while the check was pending.
 
   A policy document contains no secret. The controller stores it in SQLite
-  and in OpenBao as the HCL portion only.
+  and in OpenBao as compiled HCL with the managed lifecycle grants.
 validation-criteria: >-
   A policy conforms when it validates against the JSON Schema asset, when
   OpenBao accepts the HCL, and when every Transit key and SSH role it names

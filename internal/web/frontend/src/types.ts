@@ -124,6 +124,7 @@ export interface PoliciesData extends Layout {
     | null;
 }
 export interface PolicyData extends Layout {
+  AgentTokenRenewal: boolean;
   KVMounts: string[] | null;
   AvailableTransitKeys: string[] | null;
   AvailableCARoles: string[] | null;
@@ -218,7 +219,7 @@ export interface BindingSettings {
 }
 export interface EffectivePolicy {
   sources: { name: string; revision: number; hcl: string }[];
-  openbao: { policy: string };
+  openbao: { policy: string; "agent-token-renewal"?: boolean };
   ssh?: {
     "transit-keys"?: string[];
     "ca-roles"?: string[];

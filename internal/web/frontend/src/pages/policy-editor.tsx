@@ -78,6 +78,7 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
 function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
   const [warnings, setWarnings] = useState(d.Warnings ?? []);
   const latestCheck = useRef(0);
+  const [renewal, setRenewal] = useState(d.AgentTokenRenewal);
 
   async function checkHCL(hcl: string) {
     const check = ++latestCheck.current;
@@ -112,6 +113,39 @@ function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
           </span>
         )}
       </div>
+      <fieldset className="flex flex-col gap-3" aria-label="Token lifecycle">
+        <legend>Token lifecycle</legend>
+        <input
+          type="hidden"
+          name="agent-token-renewal"
+          value={String(renewal)}
+        />
+        <label className="editor-choice">
+          <input
+            type="checkbox"
+            checked={renewal}
+            onChange={(event) => setRenewal(event.target.checked)}
+          />
+          Agent token renewal
+        </label>
+        <p className="hint">
+          The agent renews the real OpenBao token when any selected policy
+          enables renewal. When disabled in all selected policies, the token
+          expires at its TTL; the agent then requests a replacement credential.
+          Without the controller, access stops at expiry.
+        </p>
+        <p className="hint">
+          Container lookup returns real token metadata without its value.
+          Container renewal stays local. The agent revokes the real token on
+          retirement; container revoke requests are blocked.
+        </p>
+        <pre
+          className="overflow-auto whitespace-pre-wrap"
+          aria-label="Lifecycle grants"
+        >
+          <code>{`path "auth/token/lookup-self" { capabilities = ["read"] }\n${renewal ? 'path "auth/token/renew-self" { capabilities = ["update"] }\n' : ""}path "auth/token/revoke-self" { capabilities = ["update"] }\n`}</code>
+        </pre>
+      </fieldset>
       <HCLEditor
         value={d.HCL}
         mounts={d.KVMounts || []}

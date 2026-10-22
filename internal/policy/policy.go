@@ -64,7 +64,8 @@ type Policy struct {
 
 // OpenBao carries the operator-authored HCL document.
 type OpenBao struct {
-	Policy string `json:"policy"`
+	Policy            string `json:"policy"`
+	AgentTokenRenewal *bool  `json:"agent-token-renewal,omitempty"`
 }
 
 // Requirements are reusable container mount and environment requirements.
@@ -109,7 +110,8 @@ func DefaultContract() Contract {
 // New returns a policy with the given name, HCL, and the default contract.
 func New(name, hcl string) Policy {
 	contract := DefaultContract()
-	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl}, Contract: Requirements{MountTarget: contract.MountTarget, Env: contract.Env}}
+	renew := true
+	return Policy{Name: name, OpenBao: OpenBao{Policy: hcl, AgentTokenRenewal: &renew}, Contract: Requirements{MountTarget: contract.MountTarget, Env: contract.Env}}
 }
 
 // Decode strictly parses one JSON policy document and validates it.
@@ -245,6 +247,10 @@ func (policy Policy) CARoles() []string {
 // Clone returns a deep copy.
 func (policy Policy) Clone() Policy {
 	clone := policy
+	if policy.OpenBao.AgentTokenRenewal != nil {
+		value := *policy.OpenBao.AgentTokenRenewal
+		clone.OpenBao.AgentTokenRenewal = &value
+	}
 	if policy.SSH != nil {
 		ssh := SSH{TransitKeys: policy.TransitKeys(), CARoles: policy.CARoles()}
 		if selected := policy.SSH.NotForwardable; selected != nil {

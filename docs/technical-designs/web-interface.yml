@@ -156,14 +156,18 @@ proposed-design:
     not-forwardable toggles, plus manual name entry for cross-policy selectors.
     Environment requirements use name/value rows. Binding TTL fields select an
     integer amount and minutes/hours; SSH role TTL selects seconds/minutes/hours.
-    Existing server-side duration validation remains authoritative. A visible
-    self-operation preset adds the three explicit grants to supported HCL.
+    Existing server-side duration validation remains authoritative. The
+    Agent token renewal checkbox controls actual renewal and previews its
+    fixed update grant. Lookup/read and agent retirement/update are fixed.
+    Lifecycle paths are excluded from ordinary graphical editing; exact raw
+    lifecycle stanzas are replaced by managed grants at publication.
     Advisory server-side HCL warnings appear beside both editor views. Raw and
     graphical changes check the current source without blocking save; responses
     for an older source are discarded. Failed checks leave save available.
-    New policies start with visible lookup-self, renew-self, and revoke-self
-    HCL. Missing an explicit renewal grant produces an advisory warning; no
-    implicit default policy is attached to binding tokens. Path stanzas outside
+    Binding previews show compiled lifecycle grants and the resolved renewal
+    choice. With renewal disabled the agent waits for expiry and requests a
+    replacement credential; without the controller access stops at expiry.
+    No implicit default policy is attached to binding tokens. Path stanzas outside
     configured AppRole, Transit, SSH, and secret-engine mounts produce advisory
     warnings; the three exact token self-paths are expected. Initial page
     rendering and the authenticated POST `/policies/warnings` share the

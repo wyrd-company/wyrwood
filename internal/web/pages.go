@@ -328,7 +328,6 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 			if binding, ok := controller.ContainerBinding(container, bindings); ok {
 				row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
 				row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
-				row.Warnings = policy.Warnings(binding.Effective.OpenBao.Policy)
 				row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
 				result := results[binding.ID]
 				row.Badge, row.BadgeClass = stateBadge(result)
@@ -648,6 +647,7 @@ func operatorName(operators map[string]store.Operator, subject string) string {
 
 type policyPage struct {
 	layout
+	AgentTokenRenewal    bool
 	New                  bool
 	Name                 string
 	Revision             int
@@ -695,6 +695,7 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 func (server *Server) fillPolicyPage(page *policyPage, document policy.Policy) {
 	mounts := server.controller.Configuration().OpenBao
 	page.Name, page.Revision, page.HCL = document.Name, document.Revision, document.OpenBao.Policy
+	page.AgentTokenRenewal = document.AgentRenewal()
 	page.Warnings = server.controller.PolicyWarnings(document.OpenBao.Policy)
 	page.TransitKeys = strings.Join(document.TransitKeys(), "\n")
 	page.CARoles = strings.Join(document.CARoles(), "\n")
@@ -800,6 +801,13 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 func policyFromForm(request *http.Request) (policy.Policy, error) {
 	document := policy.New(strings.TrimSpace(request.PostFormValue("name")), strings.ReplaceAll(request.PostFormValue("hcl"), "\r\n", "\n"))
 
+	if value := request.PostFormValue("agent-token-renewal"); value != "" {
+		if value != "true" && value != "false" {
+			return document, fmt.Errorf("agent token renewal must be true or false")
+		}
+		renew := value == "true"
+		document.OpenBao.AgentTokenRenewal = &renew
+	}
 	transit, roles := lines(request.PostFormValue("transit-keys")), lines(request.PostFormValue("ca-roles"))
 	restrictedKeys := lines(request.PostFormValue("not-forwardable-transit-keys"))
 	restrictedRoles := lines(request.PostFormValue("not-forwardable-ca-roles"))
@@ -1070,5 +1078,5 @@ func (server *Server) handlePreviewBinding(writer http.ResponseWriter, request *
 		_ = json.NewEncoder(writer).Encode(map[string]any{"error": problemMessage(err)})
 		return
 	}
-	_ = json.NewEncoder(writer).Encode(map[string]any{"effective": effective, "warnings": policy.Warnings(effective.OpenBao.Policy)})
+	_ = json.NewEncoder(writer).Encode(map[string]any{"effective": effective, "warnings": []string{}})
 }

@@ -17,11 +17,9 @@ while the current tokens remain valid.
 ```yaml
 name: teal-devcontainer
 openbao:
+  agent-token-renewal: true
   policy: |
     path "kv/data/teams/teal/*" { capabilities = ["read"] }
-    path "auth/token/lookup-self" { capabilities = ["read"] }
-    path "auth/token/renew-self" { capabilities = ["update"] }
-    path "auth/token/revoke-self" { capabilities = ["update"] }
 ssh:
   transit-keys:
     - teal-github
@@ -57,10 +55,25 @@ on save. Graphical edits change only the selected path or capability span;
 other text and comments are retained. Advisory warnings appear beside either
 view and do not block saving.
 
-**Add token self-operation preset** adds explicit lookup-self, renew-self, and
-revoke-self paths in the graphical subset. Binding tokens carry no default
-policy. When editing other HCL constructs, include those grants in the raw
-text. OpenBao decides their effective permissions, including deny rules.
+**Agent token renewal** controls actual renewal of the binding token by the
+agent. The controller adds fixed lifecycle grants when publishing each named
+policy: lookup-self uses `read`, retirement uses revoke-self `update`, and
+renew-self uses `update` when enabled. The graphical editor keeps these paths
+out of ordinary path editing. Exact lifecycle stanzas in raw HCL are replaced
+by the managed grants; workload paths and their constraints remain authored.
+The lifecycle preview shows the resulting grants. New policies enable renewal.
+For stored documents without `openbao.agent-token-renewal`, Wyrwood infers the
+choice from the existing renewal capability, including literal, wildcard,
+legacy policy attributes, and deny/path priority. An explicit setting overrides
+those authored lifecycle stanzas. Disabled renewal uses an empty exact rule so
+that a broader workload path cannot grant it; an enabled selected policy can
+still contribute `update` on the same exact path.
+
+Container lookup forwards the real binding token to OpenBao and returns safe
+metadata, including its accessor, policies, and remaining TTL. The response
+omits the token value. Container renew-self is answered locally using lookup
+metadata and a placeholder credential; it never renews the real token. Container
+revoke requests are blocked. The agent owns actual renewal and revocation.
 
 Transit keys and SSH-engine roles have independent **offered** and
 **not-forwardable** selections. Saved names remain visible when an item is
@@ -103,12 +116,25 @@ permissions. Choose a group whose members you trust with those permissions.
 
 ## Token lifetime
 
-`token-ttl` is how long a token lives between renewals; `token-max-ttl`, at
-least as long, is how long it lives at most. The agent renews a token until it
-nears its maximum lifetime, then logs in again with a fresh credential from
-the controller. The maximum is therefore a trade-off: it bounds how long a
-token the controller cannot revoke stays usable, and it is also how long a
-controller outage can last before workloads lose secret access.
+`token-ttl` is the initial token lifetime; `token-max-ttl`, at least as long,
+is its maximum lifetime. When any selected policy enables **Agent token
+renewal**, the agent renews at half the remaining TTL and requests fresh
+credentials when renewal fails or the maximum lifetime caps a renewal.
+
+When all selected policies disable renewal, the agent makes no renewal
+requests. It keeps the token until expiry, stops serving it, and requests a
+replacement credential from the controller using the existing retry backoff.
+A successful replacement stops those retries. Retirement cancels the pending
+expiry and retries. If the controller is unavailable at expiry, secret access
+stops until a new credential arrives. Container renew-self cannot extend this
+lifetime. The maximum lifetime bounds a renewing token during a controller
+outage; the initial TTL bounds a non-renewing token.
+
+Upgrade agents before the controller for this setting. Updated agents accept
+assignments without the field and infer their existing renewal choice. The
+controller sends the resolved choice in new effective assignments. Older agents
+cannot apply this choice and reject its unknown field; upgrade them before
+publishing settings-derived assignments. No policy data conversion is required.
 
 ## Bindings
 
@@ -144,13 +170,11 @@ are rejected. A conflicting source edit is rejected before saving.
 
 The controller creates one AppRole per binding carrying exactly the selected
 `wyrwood-<policy-name>` policies. It disables the implicit `default` policy;
-there is no managed lifecycle policy. Each author must include the three
-self-operation paths shown above. The policy editor starts with those lines.
-The editor, preview, and saved effective view warn when there is no explicit
-`renew-self` update grant. This is advisory so deliberately non-renewing tokens
-remain supported; OpenBao decides actual capabilities, including wildcards and
-deny rules. A token without renewal permission can expire during a controller
-outage.
+each named policy contains the fixed and settings-derived lifecycle grants.
+Renewal is enabled for a composed binding when any selected policy enables it.
+The effective preview includes the compiled lifecycle grants and the resolved
+agent-renewal setting. OpenBao still evaluates workload ACL rules, including
+wildcards and deny precedence.
 
 Changing the selected policies, a source revision, or binding settings creates
 a new assignment. The controller updates the AppRole and revokes the reported

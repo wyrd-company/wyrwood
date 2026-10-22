@@ -80,7 +80,7 @@ path "ssh/sign/teal-hosts" {
   capabilities = ["update"]
 }'
 hold 1
-browse find role button click --name "Add token self-operation preset"
+browse find role checkbox check --name "Agent token renewal"
 browse find role button click --name "Graphical paths"
 browse find role checkbox click --name "teal-github" --exact
 browse find role checkbox click --name "teal-hosts" --exact

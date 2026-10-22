@@ -16,11 +16,9 @@ import (
 	"time"
 )
 
-// StarterHCL makes token lifecycle requirements visible to each policy author.
-const StarterHCL = `path "auth/token/lookup-self" { capabilities = ["read"] }
-path "auth/token/renew-self" { capabilities = ["update"] }
-path "auth/token/revoke-self" { capabilities = ["update"] }
-`
+// StarterHCL is the empty workload source for a new policy. Lifecycle grants
+// are rendered from the policy setting when published.
+const StarterHCL = ""
 
 // Settings belongs to a container binding, never to a reusable policy.
 type Settings struct {
@@ -156,7 +154,8 @@ func (e Effective) Validate() error {
 // Validation remains explicit at the composition/transport boundary.
 func (p Policy) Runtime(settings Settings) Effective {
 	settings = settings.Defaults()
-	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy}}, OpenBao: p.OpenBao, SSH: p.Clone().SSH,
+	renew := p.AgentRenewal()
+	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy}}, OpenBao: OpenBao{Policy: p.PublishedHCL(), AgentTokenRenewal: &renew}, SSH: p.Clone().SSH,
 		Contract: Contract{MountTarget: p.Contract.MountTarget, Env: p.Clone().Contract.Env, AccessGroup: settings.AccessGroup, Enforcement: settings.Enforcement}, Settings: settings}
 }
 
@@ -175,6 +174,7 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 	envSource := map[string]string{}
 	seen := map[string]bool{}
 	var hcl strings.Builder
+	renew := false
 	for _, p := range policies {
 		if err := p.Validate(); err != nil {
 			return Effective{}, err
@@ -195,7 +195,8 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 			envSource[name] = p.Name
 		}
 		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy})
-		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, p.OpenBao.Policy)
+		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, p.PublishedHCL())
+		renew = renew || p.AgentRenewal()
 		for _, k := range p.TransitKeys() {
 			keys[k] = true
 		}
@@ -212,6 +213,7 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 		}
 	}
 	result.OpenBao.Policy = hcl.String()
+	result.OpenBao.AgentTokenRenewal = &renew
 	result.SSH.TransitKeys = namesOf(keys)
 	result.SSH.CARoles = namesOf(roles)
 	for k := range restrictedKeys {
