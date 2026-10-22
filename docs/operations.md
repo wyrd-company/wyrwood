@@ -26,7 +26,7 @@ fingerprint failures by exit status without parsing error text.
 ## Web interface
 
 The controller's web interface shows agents with pending approvals,
-containers per agent with binding and conformance state, policies, OpenBao
+all reported containers with binding and conformance state, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
 behind a reverse proxy that terminates TLS.
 
@@ -47,6 +47,12 @@ it from **Security**. While the provider is unreachable the interface cannot
 be used, but agents keep serving containers.
 
 ## Container setup
+
+**Containers** shows all approved agents’ last reported containers. Filter by
+agent or text, sort by container, agent, image or binding state, and choose
+ascending or descending order. Disconnected rows retain the last report and
+show its age. Selecting a container keeps the current filters and order.
+Filtering out the selected container closes its detail panel.
 
 In **Containers**, select a bound container and open **Container setup**. Copy
 the host source, container target, Docker Compose fragment, or `docker run`

@@ -112,8 +112,17 @@ proposed-design:
     A failed check retains the last successful release and its observation age.
     Development versions are displayed without a release comparison.
   containers-page: >-
-    Lists one agent's containers at a time with name, image, key kind, bound
-    policies, and one state: conforms, non-conforming, degraded, or not bound.
+    Lists all approved agents' reported containers by default with name, image,
+    agent, connection state, last report time, key kind, bound policies, and
+    one binding state: conforms, non-conforming, degraded, or not bound.
+    Disconnected agents retain their last reported containers and are labelled
+    disconnected. A GET form filters by agent and case-insensitive text across
+    agent, container ID, name, image, runtime state, binding state, key and
+    policies. Operators can sort by container name, agent, image or binding
+    state in either direction and clear filters. Container identity includes
+    both agent and container ID. Selection links retain filters and sorting;
+    the selected detail and binding forms always use the container's agent.
+    A filter that excludes the selected container closes its detail panel.
     Selecting a container opens a panel. For an unbound container the panel
     offers every candidate key in precedence order with the most stable one
     preselected and labelled, policy checkboxes, and binding settings for TTL,

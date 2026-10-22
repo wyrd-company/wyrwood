@@ -8,13 +8,15 @@ import {
   Notice,
   Status,
   Table,
-  containerURL,
+  Input,
+  Field,
 } from "@/components/shared";
 import type {
   ContainerRow,
   ContainersData,
   EffectivePolicy as Effective,
 } from "@/types";
+import { ago } from "@/lib/time";
 import { useRef, useState } from "react";
 import { BindingSettings } from "./binding-settings";
 import { EffectivePolicy } from "./effective-policy";
@@ -26,54 +28,125 @@ export function Containers({ data: d }: { data: ContainersData }) {
         <Notice text={d.Notice} />
         {d.Agents?.length ? (
           <>
-            <form method="get" action="/containers" className="filters">
-              <label htmlFor="agent">Agent</label>
-              <select
-                id="agent"
-                name="agent"
-                className="w-auto"
-                defaultValue={d.Agents.find((agent) => agent.Selected)?.Name}
-              >
+            <form
+              method="get"
+              action="/containers"
+              className="filters container-filters"
+            >
+              {d.Selected && (
                 <>
+                  <input type="hidden" name="agent" value={d.Selected.Agent} />
+                  <input type="hidden" name="container" value={d.Selected.ID} />
+                </>
+              )}
+              <Field label="Agent" id="filter-agent">
+                <select
+                  id="filter-agent"
+                  name="filter-agent"
+                  className="w-auto"
+                  defaultValue={d.FilterAgent}
+                >
+                  <option value="">All agents</option>
                   {d.Agents.map((agent) => (
                     <option key={agent.Name} value={agent.Name}>
                       {agent.Name} · {agent.Containers} containers
                     </option>
                   ))}
-                </>
-              </select>
-              <Button variant="outline" type="submit" className="small">
-                Show
-              </Button>
-              {!d.Connected && (
-                <span className="hint">Disconnected · last report shown</span>
-              )}
+                </select>
+              </Field>
+              <Field label="Filter containers" id="container-search">
+                <Input
+                  id="container-search"
+                  name="q"
+                  type="search"
+                  defaultValue={d.Query}
+                  placeholder="Name, image, policy, state…"
+                />
+              </Field>
+              <Field label="Sort by" id="container-sort">
+                <select
+                  id="container-sort"
+                  name="sort"
+                  className="w-auto"
+                  defaultValue={d.Sort}
+                >
+                  <option value="name">Container</option>
+                  <option value="agent">Agent</option>
+                  <option value="image">Image</option>
+                  <option value="state">State</option>
+                </select>
+              </Field>
+              <Field label="Order" id="container-order">
+                <select
+                  id="container-order"
+                  name="order"
+                  className="w-auto"
+                  defaultValue={d.Order}
+                >
+                  <option value="asc">Ascending</option>
+                  <option value="desc">Descending</option>
+                </select>
+              </Field>
+              <div className="container-filter-actions">
+                <Button variant="outline" type="submit" className="small">
+                  Apply filters
+                </Button>
+                <a href="/containers">Clear filters</a>
+              </div>
             </form>
-            <section aria-label={`Containers on ${d.Agent}`}>
+            <section aria-label="Reported containers">
               <Table
-                columns={["Container", "Key", "Policies", "State"]}
+                columns={["Container", "Agent", "Key", "Policies", "State"]}
                 count={d.Rows?.length ?? 0}
-                empty="This agent has not reported any container."
+                empty={
+                  d.FilterAgent || d.Query
+                    ? "No containers match these filters."
+                    : "No containers have been reported."
+                }
               >
                 {d.Rows?.map((row) => (
                   <tr
-                    key={row.ID}
+                    key={JSON.stringify([row.Agent, row.ID])}
                     className={
-                      row.ID === d.Selected?.ID ? "selected" : undefined
+                      row.Agent === d.Selected?.Agent &&
+                      row.ID === d.Selected?.ID
+                        ? "selected"
+                        : undefined
                     }
                   >
                     <th scope="row">
                       <a
                         className="row-link"
-                        href={containerURL(d.Agent, row.ID)}
+                        href={`/containers?${new URLSearchParams({
+                          agent: row.Agent,
+                          container: row.ID,
+                          "filter-agent": d.FilterAgent,
+                          q: d.Query,
+                          sort: d.Sort,
+                          order: d.Order,
+                        })}`}
                         aria-current={
-                          row.ID === d.Selected?.ID ? "true" : undefined
+                          row.Agent === d.Selected?.Agent &&
+                          row.ID === d.Selected?.ID
+                            ? "true"
+                            : undefined
                         }
                       >
                         <span>{row.Name}</span>
                         <span className="mono">{row.Image}</span>
                       </a>
                     </th>
+                    <td>
+                      <span>{row.Agent}</span>
+                      <div className="hint">
+                        {row.Connected
+                          ? "Connected"
+                          : "Disconnected · last report shown"}
+                      </div>
+                      <div className="hint">
+                        Last report {ago(row.LastReport)}
+                      </div>
+                    </td>
                     <td>
                       <span className="tag">{row.KeyKind}</span>
                     </td>
@@ -96,7 +169,11 @@ export function Containers({ data: d }: { data: ContainersData }) {
       </div>
       {d.Selected && (
         <ContainerDetails
-          key={`${d.Selected.ID}-${d.Selected.Revision}`}
+          key={JSON.stringify([
+            d.Selected.Agent,
+            d.Selected.ID,
+            d.Selected.Revision,
+          ])}
           data={d}
           row={d.Selected}
         />
@@ -117,7 +194,7 @@ function ContainerDetails({
       <div>
         <h2 id="h-sel">{r.Name}</h2>
         <span className="hint">
-          on {d.Agent} · <span className="mono">{r.Image}</span> · {r.State}
+          on {r.Agent} · <span className="mono">{r.Image}</span> · {r.State}
         </span>
       </div>
       {r.Bound ? (
@@ -235,7 +312,7 @@ function BindingForm({
       }}
     >
       <CSRF token={d.CSRF} />
-      <input type="hidden" name="agent" value={d.Agent} />
+      <input type="hidden" name="agent" value={r.Agent} />
       <input type="hidden" name="container" value={r.ID} />
       <input type="hidden" name="revision" value={r.Revision || 0} />
       {!r.Bound && (
