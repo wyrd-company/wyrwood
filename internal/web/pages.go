@@ -328,6 +328,10 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 			if binding, ok := controller.ContainerBinding(container, bindings); ok {
 				row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
 				row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
+				// Resolve field-free stored assignments for display without rewriting
+				// their durable identity or the assignment delivered to the agent.
+				renewal := row.Effective.AgentRenewal()
+				row.Effective.OpenBao.AgentTokenRenewal = &renewal
 				row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
 				result := results[binding.ID]
 				row.Badge, row.BadgeClass = stateBadge(result)

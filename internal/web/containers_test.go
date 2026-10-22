@@ -58,7 +58,7 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 	if _, err := h.controller.Store().SavePolicy(ctx, document, "operator", now); err != nil {
 		t.Fatal(err)
 	}
-	binding := store.Binding{ID: "binding-b", Agent: "host-b", Key: protocol.Key{Kind: protocol.KeyName, Value: "sample"}, Policies: []string{"sample-policy"}, Revision: 1, Applied: true, Effective: policy.Effective{Contract: policy.Contract{MountTarget: "/opt/sample"}}, CreatedAt: now}
+	binding := store.Binding{ID: "binding-b", Agent: "host-b", Key: protocol.Key{Kind: protocol.KeyName, Value: "sample"}, Policies: []string{"sample-policy"}, Revision: 1, Applied: true, Effective: policy.Effective{OpenBao: policy.OpenBao{Policy: `path "auth/token/renew-self" {capabilities=["update"]}`}, Contract: policy.Contract{MountTarget: "/opt/sample"}}, CreatedAt: now}
 	if err := h.controller.Store().CreateBinding(ctx, binding); err != nil {
 		t.Fatal(err)
 	}
@@ -102,6 +102,25 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 		}
 		return result
 	}
+	t.Run("field-free assignment shows inferred renewal without changing stored identity", func(t *testing.T) {
+		found := false
+		for _, row := range load("").Rows {
+			if row.BindingID != binding.ID {
+				continue
+			}
+			found = true
+			if row.Effective.OpenBao.AgentTokenRenewal == nil || !*row.Effective.OpenBao.AgentTokenRenewal {
+				t.Fatal("legacy renewal displayed as disabled")
+			}
+		}
+		if !found {
+			t.Fatal("legacy bound container absent")
+		}
+		stored, err := h.controller.Store().Binding(ctx, binding.ID)
+		if err != nil || stored.Effective.OpenBao.AgentTokenRenewal != nil || stored.Assignment() != binding.Assignment() {
+			t.Fatal("display changed durable assignment")
+		}
+	})
 	t.Run("default includes every approved last report without selection", func(t *testing.T) {
 		page := load("")
 		if got, want := identities(page), []string{"host-a/shared-id", "host-b/shared-id", "host-a/other-id"}; !reflect.DeepEqual(got, want) {
