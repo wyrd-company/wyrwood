@@ -338,7 +338,7 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 		"token-ttl": {"30m"}, "token-max-ttl": {"4h"}, "mount-target": {"/run/wyrwood"}, "env": {"VAULT_ADDR=unix://{mount-target}/vault.sock"},
 		"transit-keys": {""}, "enforcement": {"recreate"}})
 	if !strings.Contains(saved.body, "Policy saved") || !strings.Contains(saved.body, "Revision 1") ||
-		!strings.Contains(saved.body, "No explicit auth/token/renew-self") {
+		!strings.Contains(saved.body, "Agent token renewal") {
 		t.Fatalf("save = %s", saved.body)
 	}
 

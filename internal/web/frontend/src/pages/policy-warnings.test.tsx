@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event";
 // ---
 // relationships:
 //   verifies: web-interface
@@ -8,6 +9,7 @@ import type { PolicyData } from "@/types";
 import { PolicyEditor } from "./policy-editor";
 
 const data: PolicyData = {
+  AgentTokenRenewal: true,
   Title: "Policy editor",
   Current: "policies",
   CSRF: "sample-csrf",
@@ -140,7 +142,7 @@ it("discards a failed check for HCL that changed while it was pending", async ()
   ).not.toBeInTheDocument();
 });
 
-it.each(["path", "capability", "preset", "remove", "add"])(
+it.each(["path", "capability", "remove", "add"])(
   "checks the current source after a graphical %s edit",
   async (action) => {
     const fetch = vi
@@ -157,10 +159,6 @@ it.each(["path", "capability", "preset", "remove", "add"])(
       fireEvent.blur(path);
     } else if (action === "capability") {
       fireEvent.click(screen.getByRole("checkbox", { name: "update" }));
-    } else if (action === "preset") {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Add token self-operation preset" }),
-      );
     } else if (action === "remove") {
       fireEvent.click(screen.getByRole("button", { name: "Remove path 1" }));
     } else {
@@ -221,4 +219,22 @@ it("discards a raw check after a graphical edit while the check is pending", asy
   });
   await act(async () => finish(response(["Stale raw warning"])));
   expect(screen.queryByText("Stale raw warning")).not.toBeInTheDocument();
+});
+
+it("submits the renewal setting and previews fixed lifecycle capabilities", async () => {
+  const user = userEvent.setup();
+  render(<PolicyEditor data={data} />);
+  const checkbox = screen.getByRole("checkbox", {
+    name: "Agent token renewal",
+  });
+  const grants = screen.getByLabelText("Lifecycle grants");
+  const form = checkbox.closest("form")!;
+  expect(checkbox).toBeChecked();
+  expect(new FormData(form).get("agent-token-renewal")).toBe("true");
+  expect(grants).toHaveTextContent("auth/token/renew-self");
+  await user.click(checkbox);
+  expect(new FormData(form).get("agent-token-renewal")).toBe("false");
+  expect(grants).not.toHaveTextContent("auth/token/renew-self");
+  expect(grants).toHaveTextContent("auth/token/lookup-self");
+  expect(grants).toHaveTextContent("auth/token/revoke-self");
 });

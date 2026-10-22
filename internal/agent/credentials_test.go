@@ -36,6 +36,7 @@ type fakeOpenBao struct {
 	mu         sync.Mutex
 	failUnwrap map[string]bool
 	failRenew  bool
+	renewals   int
 	ttl        map[string]int
 	gates      map[string]chan struct{}
 	logins     map[string]int
@@ -90,6 +91,7 @@ func (fake *fakeOpenBao) serve(w http.ResponseWriter, r *http.Request) {
 		}})
 	case strings.HasSuffix(r.URL.Path, "/renew-self"):
 		fake.mu.Lock()
+		fake.renewals++
 		fail := fake.failRenew
 		fake.mu.Unlock()
 		if fail {
@@ -167,10 +169,10 @@ func TestFailedDeliveryRequestsAnotherCredential(t *testing.T) {
 	manager = newTestCredentials(t, fake, func(binding string) {
 		// The controller answers the request with a fresh credential.
 		if requests.Add(1) == 1 {
-			go manager.deliver(ctx, credential(binding, "role-2"), manager.begin(binding), []string{"wyrwood-example"})
+			go manager.deliver(ctx, credential(binding, "role-2"), manager.begin(binding), []string{"wyrwood-example"}, true)
 		}
 	})
-	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"})
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	eventually(t, "a token after the failed delivery", func() bool { return heldValue(manager, "bnd-1") == "token-role-2" })
 	time.Sleep(100 * time.Millisecond)
 	if got := requests.Load(); got != 1 {
@@ -186,7 +188,7 @@ func TestRetryContinuesUntilTheBindingRetires(t *testing.T) {
 	var requests atomic.Int32
 	// The controller never issues: each request goes unanswered.
 	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
-	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"})
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	eventually(t, "repeated credential requests", func() bool { return requests.Load() >= 2 })
 	manager.retire("bnd-1")
 	settled := requests.Load()
@@ -205,7 +207,7 @@ func TestExpiredTokenKeepsRequestingCredentials(t *testing.T) {
 	var requests atomic.Int32
 	// The controller never issues: each request goes unanswered.
 	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
-	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"})
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	if got := heldValue(manager, "bnd-1"); got != "token-role-1" {
 		t.Fatalf("held token = %q, want token-role-1", got)
 	}
@@ -225,11 +227,11 @@ func TestStaleLoginCompletionIsRevoked(t *testing.T) {
 	stale := make(chan struct{})
 	first := manager.begin("bnd-1")
 	go func() {
-		manager.deliver(ctx, credential("bnd-1", "role-a"), first, []string{"wyrwood-example"})
+		manager.deliver(ctx, credential("bnd-1", "role-a"), first, []string{"wyrwood-example"}, true)
 		close(stale)
 	}()
 	eventually(t, "the first login to start", func() bool { return fake.loginCount("role-a") == 1 })
-	manager.deliver(ctx, credential("bnd-1", "role-b"), manager.begin("bnd-1"), []string{"wyrwood-example"})
+	manager.deliver(ctx, credential("bnd-1", "role-b"), manager.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	if got := heldValue(manager, "bnd-1"); got != "token-role-b" {
 		t.Fatalf("held token = %q, want token-role-b", got)
 	}
@@ -252,7 +254,7 @@ func TestRetiredBindingDiscardsInFlightLogin(t *testing.T) {
 	done := make(chan struct{})
 	generation := manager.begin("bnd-1")
 	go func() {
-		manager.deliver(ctx, credential("bnd-1", "role-a"), generation, []string{"wyrwood-example"})
+		manager.deliver(ctx, credential("bnd-1", "role-a"), generation, []string{"wyrwood-example"}, true)
 		close(done)
 	}()
 	eventually(t, "the login to start", func() bool { return fake.loginCount("role-a") == 1 })
@@ -294,7 +296,7 @@ func TestPolicyChangeInvalidatesInFlightDelivery(t *testing.T) {
 	done := make(chan struct{})
 	generation := instance.creds.begin("bnd-1")
 	go func() {
-		instance.creds.deliver(ctx, credential("bnd-1", "role-a"), generation, []string{"wyrwood-example"})
+		instance.creds.deliver(ctx, credential("bnd-1", "role-a"), generation, []string{"wyrwood-example"}, true)
 		close(done)
 	}()
 	eventually(t, "the login to start", func() bool { return fake.loginCount("role-a") == 1 })
@@ -326,7 +328,7 @@ func TestBindingAbsentFromANewPolicySetRevokesItsToken(t *testing.T) {
 		Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"},
 		Policy: (policy.New("alpha", "")).Runtime(policy.DefaultSettings()), Assignment: ((policy.New("alpha", "")).Runtime(policy.DefaultSettings())).Identity(),
 	}}})
-	instance.creds.deliver(ctx, credential("bnd-1", "role-a"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"})
+	instance.creds.deliver(ctx, credential("bnd-1", "role-a"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	if got := heldValue(instance.creds, "bnd-1"); got != "token-role-a" {
 		t.Fatalf("held token = %q", got)
 	}
@@ -388,7 +390,7 @@ func TestCappedRenewalRequestsAReplacementBeforeExpiry(t *testing.T) {
 	t.Cleanup(manager.stopAll)
 	// Renewals at 1s and 2s return the full 2s; the one at 3s is capped
 	// to the 1s left before the 4s maximum.
-	manager.deliver(ctx, shortLivedCredential(t, server, "bnd-1", 2*time.Second, 4*time.Second), manager.begin("bnd-1"), []string{"default"})
+	manager.deliver(ctx, shortLivedCredential(t, server, "bnd-1", 2*time.Second, 4*time.Second), manager.begin("bnd-1"), []string{"default"}, true)
 	if _, ok := manager.current("bnd-1"); !ok {
 		t.Fatal("no token after login")
 	}
@@ -422,11 +424,11 @@ func TestEachInstalledTokenReportsItsAccessor(t *testing.T) {
 	stale := make(chan struct{})
 	first := manager.begin("bnd-1")
 	go func() {
-		manager.deliver(ctx, credential("bnd-1", "role-a"), first, []string{"wyrwood-example"})
+		manager.deliver(ctx, credential("bnd-1", "role-a"), first, []string{"wyrwood-example"}, true)
 		close(stale)
 	}()
 	eventually(t, "the first login to start", func() bool { return fake.loginCount("role-a") == 1 })
-	manager.deliver(ctx, credential("bnd-1", "role-b"), manager.begin("bnd-1"), []string{"wyrwood-example"})
+	manager.deliver(ctx, credential("bnd-1", "role-b"), manager.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	close(release)
 	<-stale
 	// The stale token is revoked by the agent and never reported.
@@ -451,7 +453,7 @@ func TestDeliveryRejectsEveryPolicyOutsideExactBindingSelection(t *testing.T) {
 			fake := newFakeOpenBao(t)
 			fake.policies = attached
 			manager := newTestCredentials(t, fake, func(string) {})
-			manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-alpha", "wyrwood-beta"})
+			manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-alpha", "wyrwood-beta"}, true)
 			if name == "exact-reordered" {
 				if heldValue(manager, "bnd-1") == "" {
 					t.Fatal("exact binding policies rejected")
@@ -482,7 +484,7 @@ func TestAssignmentChangeRetriesWhenControllerDoesNotDeliver(t *testing.T) {
 		return protocol.PolicySet{OpenBao: protocol.OpenBao{Address: fake.server.URL}, Bindings: []protocol.Binding{{Binding: "bnd-1", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}, Policy: effective, Assignment: effective.Identity()}}}
 	}
 	instance.applyPolicySet(ctx, assignment("1h"))
-	instance.creds.deliver(ctx, credential("bnd-1", "role-a"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"})
+	instance.creds.deliver(ctx, credential("bnd-1", "role-a"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	if heldValue(instance.creds, "bnd-1") == "" {
 		t.Fatal("initial token missing")
 	}
@@ -492,8 +494,100 @@ func TestAssignmentChangeRetriesWhenControllerDoesNotDeliver(t *testing.T) {
 		t.Fatal("superseded token remains held")
 	}
 	eventually(t, "repeated requests after missing assignment credential", func() bool { return requests.Load() >= before+2 })
-	instance.creds.deliver(ctx, credential("bnd-1", "role-b"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"})
+	instance.creds.deliver(ctx, credential("bnd-1", "role-b"), instance.creds.begin("bnd-1"), []string{"wyrwood-example"}, true)
 	if heldValue(instance.creds, "bnd-1") != "token-role-b" {
 		t.Fatal("recovered assignment token missing")
+	}
+}
+
+func TestDisabledRenewalExpiresAndReplacesWithoutRenewing(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	fake.ttl["role-1"] = 1
+	fake.failRenew = true
+	var requests atomic.Int32
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
+	initial, _ := manager.current("bnd-1")
+	if heldValue(manager, "bnd-1") != "token-role-1" {
+		t.Fatal("initial token unavailable")
+	}
+	eventually(t, "credential replacement retries after expiry", func() bool { return requests.Load() >= 3 })
+	if initial.Valid(time.Now()) {
+		t.Fatal("replacement requested before token expiry")
+	}
+	manager.mu.Lock()
+	expiredRemoved := manager.held["bnd-1"] == nil
+	manager.mu.Unlock()
+	if !expiredRemoved {
+		t.Fatal("expired credential remained held")
+	}
+	if heldValue(manager, "bnd-1") != "" {
+		t.Fatal("expired token remained usable")
+	}
+	manager.deliver(ctx, credential("bnd-1", "role-2"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
+	if heldValue(manager, "bnd-1") != "token-role-2" {
+		t.Fatal("replacement token unavailable")
+	}
+	settled := requests.Load()
+	time.Sleep(100 * time.Millisecond)
+	if requests.Load() != settled {
+		t.Fatal("credential retries continued after replacement")
+	}
+	fake.mu.Lock()
+	renewals := fake.renewals
+	fake.mu.Unlock()
+	if renewals != 0 {
+		t.Fatalf("disabled agent attempted %d renewals", renewals)
+	}
+	manager.retire("bnd-1")
+	if !fake.wasRevoked("token-role-2") {
+		t.Fatal("retirement did not revoke replacement")
+	}
+}
+
+func TestDisabledRenewalRetirementCancelsExpiryReplacement(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	fake := newFakeOpenBao(t)
+	fake.ttl["role-1"] = 1
+	var requests atomic.Int32
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
+	manager.retire("bnd-1")
+	time.Sleep(1100 * time.Millisecond)
+	if requests.Load() != 0 {
+		t.Fatal("retired binding requested a replacement")
+	}
+}
+
+func TestDisabledExpiryCannotDropReplacement(t *testing.T) {
+	fake := newFakeOpenBao(t)
+	fake.ttl["role-1"] = 1
+	var requests atomic.Int32
+	manager := newTestCredentials(t, fake, func(string) { requests.Add(1) })
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	manager.deliver(ctx, credential("bnd-1", "role-1"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
+	manager.mu.Lock()
+	old := manager.held["bnd-1"]
+	manager.mu.Unlock()
+	manager.deliver(ctx, credential("bnd-1", "role-2"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
+	// Model the old expiry callback arriving after a replacement owns the binding.
+	// The old credential is already cancelled; a fresh context isolates ownership.
+	done := make(chan struct{})
+	t.Cleanup(func() { cancel(); <-done })
+	go func() { defer close(done); manager.awaitExpiry(ctx, "bnd-1", old) }()
+	eventually(t, "the old expiry callback", func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return requests.Load() > 0
+		}
+	})
+	if heldValue(manager, "bnd-1") != "token-role-2" || requests.Load() != 0 {
+		t.Fatal("stale expiry changed the replacement")
 	}
 }

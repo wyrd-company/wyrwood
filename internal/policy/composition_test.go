@@ -73,15 +73,66 @@ func TestCompositionRejectsConflictsAndEmptySelections(t *testing.T) {
 	}
 }
 
-func TestRenewalWarningParsesAuthoredHCL(t *testing.T) {
-	for name, document := range map[string]string{"empty": "", "comment": "# " + strings.ReplaceAll(StarterHCL, "\n", "\n# "), "read-only": `path "auth/token/renew-self" { capabilities=["read"] }`, "deny": StarterHCL + `path "auth/token/renew-self" { capabilities=["deny"] }`} {
-		t.Run(name, func(t *testing.T) {
-			if len(Warnings(document)) == 0 {
-				t.Fatal("missing renewal warning")
-			}
-		})
+func TestRenewalDefaultsAndComposition(t *testing.T) {
+	newPolicy := New("alpha", "")
+	if !newPolicy.AgentRenewal() {
+		t.Fatal("new policies must enable renewal")
 	}
-	if warnings := Warnings(StarterHCL); len(warnings) != 0 {
-		t.Fatalf("starter cannot be recognized: %v", warnings)
+	runtime := newPolicy.Runtime(DefaultSettings())
+	if runtime.OpenBao.AgentTokenRenewal == nil || !runtime.AgentRenewal() {
+		t.Fatal("runtime lost the explicit renewal choice")
+	}
+	old := newPolicy.Clone()
+	old.OpenBao.AgentTokenRenewal = nil
+	if old.AgentRenewal() {
+		t.Fatal("missing legacy permission enabled renewal")
+	}
+	old.OpenBao.Policy = `path "auth/token/renew-self" { capabilities=["update"] }`
+	if !old.AgentRenewal() {
+		t.Fatal("legacy renewal permission lost")
+	}
+	disabled := false
+	old.OpenBao.AgentTokenRenewal = &disabled
+	if old.AgentRenewal() {
+		t.Fatal("explicit disable did not override authored lifecycle rule")
+	}
+	clone := old.Clone()
+	*clone.OpenBao.AgentTokenRenewal = true
+	if old.AgentRenewal() {
+		t.Fatal("clone changed original renewal choice")
+	}
+	off, err := Compose([]Policy{old}, DefaultSettings())
+	if err != nil || off.AgentRenewal() {
+		t.Fatalf("disabled composition = %#v, %v", off, err)
+	}
+	old.Name = "beta"
+	mixed, err := Compose([]Policy{old, newPolicy}, DefaultSettings())
+	if err != nil || !mixed.AgentRenewal() {
+		t.Fatalf("mixed composition = %#v, %v", mixed, err)
+	}
+	if !strings.Contains(mixed.OpenBao.Policy, LifecycleHCL(true)) || !strings.Contains(off.OpenBao.Policy, LifecycleHCL(false)) {
+		t.Fatal("effective preview lost lifecycle grants")
+	}
+}
+
+func TestFieldFreeAssignmentUsesSourceRenewalUnionAndCompiledPreview(t *testing.T) {
+	a := New("alpha", `path "auth/token/renew-self" {capabilities=["deny"]}`)
+	b := New("beta", `path "auth/token/renew-self" {capabilities=["update"]}`)
+	a.OpenBao.AgentTokenRenewal = nil
+	b.OpenBao.AgentTokenRenewal = nil
+	legacy := a.Runtime(DefaultSettings())
+	legacy.Sources = append(legacy.Sources, Source{Name: b.Name, HCL: b.OpenBao.Policy})
+	legacy.OpenBao = OpenBao{Policy: a.OpenBao.Policy + "\n" + b.OpenBao.Policy}
+	if !legacy.AgentRenewal() {
+		t.Fatal("field-free assignment lost an enabled policy's renewal choice")
+	}
+	current, err := Compose([]Policy{a, b}, DefaultSettings())
+	if err != nil || legacy.AgentRenewal() != current.AgentRenewal() || !strings.Contains(legacy.PreviewHCL(), LifecycleHCL(true)) {
+		t.Fatalf("legacy view disagrees with compiled composition: %v", err)
+	}
+	identity := legacy.Identity()
+	_ = legacy.PreviewHCL()
+	if legacy.Identity() != identity || legacy.OpenBao.AgentTokenRenewal != nil {
+		t.Fatal("preview changed durable identity")
 	}
 }

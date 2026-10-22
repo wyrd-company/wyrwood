@@ -89,27 +89,12 @@ export function appendRule(source: string, path: string, caps = ["read"]) {
     `path ${JSON.stringify(path)} { capabilities = ${JSON.stringify(caps)} }\n`
   );
 }
-export const selfOperations = [
-  ["auth/token/lookup-self", "read"],
-  ["auth/token/renew-self", "update"],
-  ["auth/token/revoke-self", "update"],
-] as const;
-export function addSelfOperations(source: string) {
-  const rules = graphicalRules(source);
-  if (!rules) return source;
-  for (const [path, cap] of selfOperations) {
-    if (
-      !rules.some(
-        (rule) =>
-          rule.path === path &&
-          rule.capabilities.includes(cap) &&
-          !rule.capabilities.includes("deny"),
-      )
-    ) {
-      source = appendRule(source, path, [cap]);
-    }
-  }
-  return source;
+export function isLifecyclePath(path: string) {
+  return [
+    "auth/token/lookup-self",
+    "auth/token/renew-self",
+    "auth/token/revoke-self",
+  ].includes(path.replace(/^\//, ""));
 }
 
 export function hasPathTemplate(path: string) {

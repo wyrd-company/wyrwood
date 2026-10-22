@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/config"
+	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/web/oidctest"
 )
 
@@ -143,5 +144,49 @@ func TestPolicyEditorWithoutSecretMounts(t *testing.T) {
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusUnprocessableEntity {
 		t.Errorf("unconfigured mount status = %d", response.StatusCode)
+	}
+}
+
+func TestPolicyLifecycleSettingSurvivesFormAndPreview(t *testing.T) {
+	h := startHarness(t, time.Hour)
+	client := browser(t)
+	h.signIn(t, client, operator, oidctest.TamperNone)
+	page := get(t, client, h.site.URL+"/policies/edit")
+	if !strings.Contains(page.body, `name="agent-token-renewal" value="true"`) {
+		t.Fatal("new policy renewal default missing")
+	}
+	values := url.Values{"csrf": {csrf(t, page.body)}, "new": {"yes"}, "name": {"sample"}, "hcl": {`path "auth/token/renew-self" {capabilities=["update"]}`}, "mount-target": {"/run/wyrwood"}, "agent-token-renewal": {"false"}}
+	saved := post(t, client, h.site.URL+"/policies", values)
+	if saved.status != 200 || !strings.Contains(saved.body, `name="agent-token-renewal" value="false"`) {
+		t.Fatalf("disabled setting did not survive save: %d", saved.status)
+	}
+	stored, err := h.controller.Store().Policy(context.Background(), "sample")
+	if err != nil || stored.Policy.OpenBao.AgentTokenRenewal == nil || stored.Policy.AgentRenewal() {
+		t.Fatal("form did not persist explicit disable")
+	}
+	request, err := http.NewRequest(http.MethodPost, h.site.URL+"/bindings/preview", strings.NewReader(url.Values{"csrf": {csrf(t, saved.body)}, "policies": {"sample"}, "token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}}.Encode()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	request.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	response, err := client.Do(request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var preview struct {
+		Effective policy.Effective
+		Warnings  []string
+	}
+	if err := json.NewDecoder(response.Body).Decode(&preview); err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != 200 || preview.Effective.AgentRenewal() || !strings.Contains(preview.Effective.OpenBao.Policy, policy.LifecycleHCL(false)) || len(preview.Warnings) != 0 {
+		t.Fatalf("lifecycle preview = %#v", preview)
+	}
+	values.Set("agent-token-renewal", "invalid")
+	invalid := post(t, client, h.site.URL+"/policies", values)
+	if invalid.status != 422 || !strings.Contains(invalid.body, "agent token renewal must be true or false") {
+		t.Fatal("invalid renewal choice accepted")
 	}
 }

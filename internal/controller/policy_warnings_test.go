@@ -35,7 +35,7 @@ func TestPolicyWarningsUseConfiguredMounts(t *testing.T) {
 			}
 		})
 	}
-	if warnings := c.PolicyWarnings(`path "sys/*" { capabilities = ["read"] }`); len(warnings) != 2 || warnings[0] != policy.RenewalWarning {
+	if warnings := c.PolicyWarnings(`path "sys/*" { capabilities = ["read"] }`); len(warnings) != 1 || !strings.Contains(warnings[0], "outside the configured mounts") {
 		t.Fatalf("combined advisories = %v", warnings)
 	}
 }

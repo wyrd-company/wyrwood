@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Button, Input, Textarea } from "@/components/shared";
 import { KVBrowser } from "@/components/kv-browser";
 import {
-  addSelfOperations,
+  isLifecyclePath,
   appendRule,
   capabilities,
   graphicalRules,
@@ -29,7 +29,8 @@ export function HCLEditor({
   const [raw, setRaw] = useState(false);
   const [newPath, setNewPath] = useState("");
   const [pathProblem, setPathProblem] = useState("");
-  const rules = graphicalRules(source);
+  const parsed = graphicalRules(source);
+  const rules = parsed?.filter((rule) => !isLifecyclePath(rule.path)) ?? null;
   const showRaw = raw || !rules;
   const changeSource = (next: string, check = false) => {
     setSource(next);
@@ -71,19 +72,11 @@ export function HCLEditor({
         </p>
       )}
       <p className="hint">
-        Binding tokens have no OpenBao default policy. Include
-        auth/token/lookup-self (read), auth/token/renew-self (update), and
-        auth/token/revoke-self (update). TTL, access group, and enforcement are
-        set on each binding.
+        Wyrwood manages token lookup (read) and retirement (update). Agent token
+        renewal is a policy setting. Exact lifecycle paths in raw HCL are
+        replaced by these managed grants when published. TTL, access group, and
+        enforcement are set on each binding.
       </p>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={!rules}
-        onClick={() => changeSource(addSelfOperations(source), true)}
-      >
-        Add token self-operation preset
-      </Button>
       {pathProblem && <p className="caution">{pathProblem}</p>}
       {showRaw ? (
         <div className="field">
@@ -115,6 +108,12 @@ export function HCLEditor({
                   value={rule.path}
                   onBlur={() => onCheck?.(source)}
                   onChange={(event) => {
+                    if (isLifecyclePath(event.target.value)) {
+                      setPathProblem(
+                        "Token lifecycle paths are managed by the policy settings.",
+                      );
+                      return;
+                    }
                     if (hasPathTemplate(event.target.value)) {
                       setPathProblem(
                         "Use Raw HCL for path template syntax. The graphical path is unchanged.",
@@ -176,7 +175,7 @@ export function HCLEditor({
             ))}
             {!rules.length && (
               <p className="hint">
-                No paths. Add a path or the token self-operation preset.
+                No workload paths. Add a path for container access.
               </p>
             )}
           </div>
@@ -198,13 +197,22 @@ export function HCLEditor({
               onChange={(event) => setNewPath(event.target.value)}
               placeholder="kv/data/example/*"
             />
+            {isLifecyclePath(newPath.trim()) && (
+              <p className="caution">
+                Token lifecycle paths are managed by the policy settings.
+              </p>
+            )}
             {hasPathTemplate(newPath) && (
               <p className="caution">Use Raw HCL for path template syntax.</p>
             )}
             <Button
               type="button"
               variant="outline"
-              disabled={!newPath.trim() || hasPathTemplate(newPath)}
+              disabled={
+                !newPath.trim() ||
+                hasPathTemplate(newPath) ||
+                isLifecyclePath(newPath.trim())
+              }
               onClick={() => {
                 add(newPath.trim(), ["read"]);
                 setNewPath("");

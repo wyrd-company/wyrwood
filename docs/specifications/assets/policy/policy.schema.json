@@ -29,6 +29,10 @@
         "policy": {
           "type": "string",
           "maxLength": 65536
+        },
+        "agent-token-renewal": {
+          "type": "boolean",
+          "description": "Enable actual agent renewal of the binding token. Any selected policy enabling renewal enables it for the binding."
         }
       }
     },

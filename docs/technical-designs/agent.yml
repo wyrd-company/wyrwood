@@ -33,7 +33,7 @@ design-challenges:
     treat events as hints to reconcile rather than as the source of truth.
   credential-lifetime: >-
     Each bound container has an AppRole token that expires. The agent must
-    log in, renew within the token's grace, re-login when renewal fails, and
+    log in, apply the assignment's renewal setting, request replacement credentials, and
     revoke the token when the container goes, without ever writing the token
     to disk.
   controller-absence: >-
@@ -98,11 +98,18 @@ proposed-design:
     policy names, without default or any other policy. The agent unwraps,
     logs in, holds the token in memory, and reports the token's accessor to
     the controller after each login, again on each new session and each full
-    reconcile until the controller acknowledges it. It renews at half the
+    reconcile until the controller acknowledges it. When the resolved agent-token-renewal
+    setting is true, it renews at half the
     remaining time-to-live, asking for the login time-to-live each time, and
     requests a fresh wrapped secret identifier from the controller when
     renewal fails, when the token's maximum lifetime caps a renewal, or when
-    the policy push says the binding changed. When a bound container is
+    the policy push says the binding changed. With renewal disabled it keeps the
+    token until its existing expiry, makes no renewal attempts, removes the
+    expired credential, and requests replacement through the existing retry
+    backoff until delivery or retirement. Without a controller, access stops
+    at expiry. Replacement stops the earlier retries; retirement cancels the
+    expiry wait and retries. Container renew-self does not extend the token.
+    When a bound container is
     destroyed or unbound, the agent revokes the token and removes the consumer
     sockets. Tokens are never logged, never written, and never exposed
     through the control socket.

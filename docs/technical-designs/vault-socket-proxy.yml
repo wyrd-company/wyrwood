@@ -43,8 +43,10 @@ proposed-design:
     `POST auth/<any>/login` and `POST auth/token/create*` return a synthetic
     success whose client token is an opaque placeholder bound to the
     container, with the binding's policy names, so a client that logs in
-    proceeds normally. `GET auth/token/lookup-self` is forwarded, since it
-    reveals only the token's accessor, policies, and time-to-live.
+    proceeds normally. `GET auth/token/lookup-self` uses the real binding
+    token and returns safe real token metadata without the token id
+    or token value. Accessor, policies, remaining TTL, and standard lease
+    metadata come from OpenBao.
     `POST auth/token/renew-self` returns the forwarded lookup as if renewed,
     because the agent owns renewal. `POST auth/token/revoke-self` and every
     `auth/token/revoke*`, `auth/token/renew` with an explicit token, and

@@ -79,8 +79,10 @@ proposed-design:
     endpoint offers, and reusable container requirements. Each binding selects
     several policies and owns token lifetime, access group, and enforcement.
     Composition, assignment identity, and revoke-before-issue follow
-    composable-policy-bindings. Saving a policy writes the HCL
-    to OpenBao under `wyrwood-<policy>`, validates it through OpenBao's own
+    composable-policy-bindings. Saving a policy compiles fixed token lifecycle
+    grants and its agent-renewal
+    choice into the workload HCL, then writes that HCL to OpenBao under
+    `wyrwood-<policy>`, validates it through OpenBao's own
     parser, and records the policy revision. The web interface edits the HCL
     directly; it does not invent a simpler policy language. The interface also
     lists and creates Transit keys and SSH-engine roles under the configured

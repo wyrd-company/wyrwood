@@ -128,6 +128,9 @@ func (proxy *Proxy) serve(writer http.ResponseWriter, request *http.Request, loo
 	request.Body = http.MaxBytesReader(writer, request.Body, proxy.MaximumRequestBytes)
 	placeholder := Placeholder(view.ID)
 	switch {
+	case path == "auth/token/lookup-self" && (request.Method == http.MethodGet || request.Method == http.MethodHead):
+		proxy.lookupSelf(writer, request, view, placeholder, current)
+		return
 	case (request.Method == http.MethodPost || request.Method == http.MethodPut) && (loginPath.MatchString(path) || tokenCreatePath.MatchString(path)):
 		_, _ = io.Copy(io.Discard, request.Body)
 		writeJSON(writer, http.StatusOK, syntheticAuth(view, placeholder))
@@ -233,6 +236,41 @@ func requestID() string {
 	_, _ = rand.Read(data[:])
 	encoded := hex.EncodeToString(data[:])
 	return encoded[0:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:]
+}
+
+// lookupSelf forwards safe real token metadata. OpenBao's id is the credential;
+// omit it and scrub the credential from all other metadata before serialization.
+func (proxy *Proxy) lookupSelf(writer http.ResponseWriter, request *http.Request, view binding.View, placeholder string, current exchange) {
+	lookup := request.Clone(request.Context())
+	lookup.Method = http.MethodGet
+	response, err := proxy.roundTrip(lookup, view)
+	if err != nil {
+		writeErrors(writer, http.StatusBadGateway, "OpenBao unavailable")
+		current.finish(timeoutOutcome(err))
+		return
+	}
+	defer response.Body.Close()
+	var result struct {
+		Data map[string]any `json:"data"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(response.Body, maximumScrubbedResponseBytes))
+	decoder.UseNumber()
+	if response.StatusCode != http.StatusOK {
+		writeErrors(writer, response.StatusCode, http.StatusText(response.StatusCode))
+		current.finish(statusOutcome(response.StatusCode))
+		return
+	}
+	if decoder.Decode(&result) != nil || result.Data == nil {
+		writeErrors(writer, http.StatusForbidden, "permission denied")
+		current.finish(events.OutcomeDenied, events.ErrorOpenBaoDenied)
+		return
+	}
+	delete(result.Data, "id")
+	data, _ := json.Marshal(result.Data)
+	encodedToken, _ := json.Marshal(view.Token.Value())
+	data = bytes.ReplaceAll(data, encodedToken[1:len(encodedToken)-1], []byte(placeholder))
+	writeJSON(writer, http.StatusOK, map[string]any{"request_id": requestID(), "data": json.RawMessage(data)})
+	current.finish(events.OutcomeOK, events.ErrorNone)
 }
 
 // renewSelf answers a renewal with the forwarded lookup, because the agent

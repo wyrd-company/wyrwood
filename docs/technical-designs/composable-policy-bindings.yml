@@ -158,15 +158,22 @@ proposed-design:
     token_policies therefore does not prove exact issued token policies.
     The role writer sets the flag and the agent checks the actual
     login token policy set against S(b), and refuses unexpected policies,
-    including identity-derived additions. It relies on selected authored HCL
-    for auth/token/lookup-self read and auth/token/renew-self and
-    auth/token/revoke-self update when these operations are used. The preview
-    calls out these lifecycle requirements; it does not silently append
-    privileges. The vault proxy's existing token-endpoint restrictions remain
-    in force. The policy editor starts new policies with these three self-operation
-    grants. Saving a policy or binding without an explicit renewal grant
-    produces a clear advisory warning. A warning preserves deliberate
-    non-renewing use and does not replace OpenBao authorization.
+    including identity-derived additions. Each named policy compiles fixed
+    auth/token/lookup-self read and auth/token/revoke-self update grants.
+    The policy-level openbao.agent-token-renewal setting contributes the fixed
+    auth/token/renew-self update grant when enabled. The agent receives the
+    union of renewal choices: any selected policy enabling renewal enables
+    actual renewal for the binding. New policies enable renewal. Omitted
+    settings infer the existing renewal capability with OpenBao path priority
+    and deny semantics. Disabled renewal uses an empty exact rule to override
+    broader grants without defeating another selected policy's update grant.
+    Updated agents accept field-free assignments and infer the existing choice;
+    agents are upgraded before the controller sends resolved choices. Exact
+    lifecycle stanzas in authored HCL
+    are replaced by the managed grants; all workload ACL rules remain under
+    OpenBao authorization. The preview shows compiled HCL and the resolved
+    renewal setting. Container lookup returns safe real token metadata,
+    container renewal stays local, and container revoke remains blocked.
   assignment-and-credentials: >-
     Effective assignments identify binding revision plus the sorted source
     policy name/revision pairs. Credential messages and accessor reports carry
@@ -289,16 +296,14 @@ proposed-design:
   default-policy-choice: >-
     Binding AppRoles set token_no_default_policy=true. Their exact
     token_policies list is the selected wyrwood-<policy-name> set; there is
-    no lifecycle baseline and no implicit default exception. Each policy
-    author includes auth/token/lookup-self read and auth/token/renew-self
-    and auth/token/revoke-self update in authored HCL. New policies start
-    with a visible starter snippet. The policy editor, binding preview, and
-    saved effective view warn when the selected HCL has no explicit renewal
-    grant. Warnings preserve deliberately short-lived tokens and are
-    advisory; comments or text matches cannot authorize an operation.
-    OpenBao evaluates actual capabilities. Missing renewal permission can
-    lead to token expiry when a fresh credential is unavailable. Controller
-    bootstrap authentication retains its own documented contract.
+    no separate lifecycle baseline and no implicit default exception. The
+    controller publishes fixed lookup/read and agent retirement/update grants
+    inside each selected policy, with renew-self/update when that policy
+    enables agent token renewal. The agent renews only when the effective
+    setting enables it. Otherwise it retains its token to expiry, then requests
+    replacement credentials using existing retry backoff. Access stops at
+    expiry while the controller is unavailable. Controller bootstrap
+    authentication retains its own documented contract.
   verification: >-
     Composition tests cover disjoint and overlapping HCL sources, identical
     path capability unions, deny and wildcard precedence against real OpenBao,
@@ -315,7 +320,7 @@ proposed-design:
     caches
     without mutating them. Recreate tests prove ordinary assignment edits do
     not trigger first-bind recreation. Browser workflows cover multi-selection,
-    preview, conflicts, saved settings, effective HCL, renewal warnings, and
+    preview, conflicts, saved settings, effective HCL, lifecycle settings, and
     recreate acknowledgement.
     Repository gates are task check, task test, and task ci with WYRWOOD_BAO
     set; hosted CI is required at the implementation PR handoff.

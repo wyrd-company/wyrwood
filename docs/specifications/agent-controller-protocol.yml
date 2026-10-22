@@ -4,6 +4,12 @@ relationships:
     - policy
 format: json-schema
 description: >-
+  Effective assignment openbao.agent-token-renewal is the resolved boolean
+  controlling actual agent renewal. Any enabled selected policy enables it.
+  Updated agents infer the existing HCL capability when this field is absent.
+  Agents are upgraded before controllers publish the resolved field; older
+  agents reject unknown effective-assignment fields.
+
   Agents and the controller exchange newline-delimited JSON messages over the
   `wyrwood` SSH subsystem on an authenticated SSH connection. Message shapes
   are defined by `assets/agent-controller-protocol/message.schema.json`.

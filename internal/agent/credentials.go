@@ -51,6 +51,7 @@ type credentials struct {
 
 type heldToken struct {
 	assignment string
+	renew      bool
 	token      openbao.Token
 	// period is the time-to-live the token had at login, which each
 	// renewal asks for again. A renewal that returns less was capped by
@@ -136,7 +137,7 @@ func (manager *credentials) advanceLocked(binding string) uint64 {
 // The previous token is revoked once the new one is held. A token from a
 // stale delivery is revoked instead of held. A failed delivery asks the
 // controller for another credential until a newer delivery begins.
-func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64, ownPolicies []string) {
+func (manager *credentials) deliver(ctx context.Context, credential protocol.Credential, generation uint64, ownPolicies []string, renew bool) {
 	client := manager.openBaoClient()
 	started := manager.now()
 	if client == nil {
@@ -169,7 +170,7 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 		return
 	}
 	previous := manager.held[credential.Binding]
-	manager.held[credential.Binding] = &heldToken{assignment: credential.Assignment, token: token, period: token.TTL, cancel: renewCancel}
+	manager.held[credential.Binding] = &heldToken{assignment: credential.Assignment, renew: renew, token: token, period: token.TTL, cancel: renewCancel}
 	manager.mu.Unlock()
 	if previous != nil {
 		previous.cancel()
@@ -259,6 +260,10 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 		if !ok || held.token.TTL == 0 {
 			return
 		}
+		if !held.renew {
+			manager.awaitExpiry(ctx, binding, held)
+			return
+		}
 		wait := held.token.Expires().Sub(manager.now()) / 2
 		if wait < time.Second {
 			wait = time.Second
@@ -307,6 +312,26 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 			manager.request(binding)
 		}
 	}
+}
+
+// awaitExpiry keeps a non-renewing credential until its existing lease ends.
+// Credential replacement uses the same request and backoff path as failed renewal.
+func (manager *credentials) awaitExpiry(ctx context.Context, binding string, held *heldToken) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(held.token.Expires().Sub(manager.now())):
+	}
+	manager.mu.Lock()
+	if ctx.Err() != nil || manager.held[binding] != held {
+		manager.mu.Unlock()
+		return
+	}
+	delete(manager.held, binding)
+	generation := manager.generation[binding]
+	manager.mu.Unlock()
+	manager.request(binding)
+	manager.retry(ctx, binding, generation)
 }
 
 // retire stops renewal and revokes the binding's token. Deliveries already

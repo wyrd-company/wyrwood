@@ -215,11 +215,15 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		t.Fatalf("inventory environment = %#v", containers[0].EnvNames)
 	}
 
+	renewal := false
 	document := policy.New("teal", policy.StarterHCL+`path "kv/data/teams/teal/*" { capabilities = ["read"] }`)
+	document.OpenBao.AgentTokenRenewal = &renewal
 	if _, err := controller.SavePolicy(ctx, document, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := controller.SavePolicy(ctx, policy.New("zinc", policy.StarterHCL), "operator-1"); err != nil {
+	second := policy.New("zinc", policy.StarterHCL)
+	second.OpenBao.AgentTokenRenewal = &renewal
+	if _, err := controller.SavePolicy(ctx, second, "operator-1"); err != nil {
 		t.Fatal(err)
 	}
 	group := uint32(os.Getgid())
@@ -277,8 +281,15 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		t.Fatal("effective assignment cache absent")
 	}
 	effective := cached.Set.Bindings[0].Policy
-	if strings.Join(effective.Names(), ",") != "teal,zinc" || effective.Sources[0].Revision != 1 || effective.Sources[1].Revision != 1 || effective.Settings.TokenTTL != "20m" || effective.Settings.TokenMaxTTL != "2h" || effective.Settings.AccessGroup == nil || *effective.Settings.AccessGroup != group || effective.Contract.Enforcement != policy.EnforcementReport || cached.Set.Bindings[0].Assignment != bound.Assignment() {
+	if effective.OpenBao.AgentTokenRenewal == nil || effective.AgentRenewal() || strings.Join(effective.Names(), ",") != "teal,zinc" || effective.Sources[0].Revision != 1 || effective.Sources[1].Revision != 1 || effective.Settings.TokenTTL != "20m" || effective.Settings.TokenMaxTTL != "2h" || effective.Settings.AccessGroup == nil || *effective.Settings.AccessGroup != group || effective.Contract.Enforcement != policy.EnforcementReport || cached.Set.Bindings[0].Assignment != bound.Assignment() {
 		t.Fatalf("cached effective assignment lost: %#v", effective)
+	}
+	running.agent.creds.mu.Lock()
+	held := running.agent.creds.held[bound.ID]
+	disabled := held != nil && !held.renew
+	running.agent.creds.mu.Unlock()
+	if !disabled {
+		t.Fatal("policy renewal choice did not reach the credential maintainer")
 	}
 	// The agent keeps serving from cache across a restart without the controller.
 	controller.Stop()
@@ -291,7 +302,7 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 			return false
 		}
 		restored := restarted.agent.set.Bindings[0]
-		return restored.Assignment == bound.Assignment() && restored.Policy.Settings.TokenTTL == "20m" && strings.Join(restored.Policy.Names(), ",") == "teal,zinc"
+		return restored.Policy.OpenBao.AgentTokenRenewal != nil && !restored.Policy.AgentRenewal() && restored.Assignment == bound.Assignment() && restored.Policy.Settings.TokenTTL == "20m" && strings.Join(restored.Policy.Names(), ",") == "teal,zinc"
 	})
 	eventually(t, "restored socket", func() bool { return strings.HasPrefix(probe(t, socket), "teal,zinc ") })
 	if fields := strings.Fields(probe(t, socket)); fields[1] != "false" {
