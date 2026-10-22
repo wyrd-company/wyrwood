@@ -167,3 +167,27 @@ func TestHelloAgentVersionIsOptional(t *testing.T) {
 		}
 	}
 }
+
+func TestLegacyEffectiveAssignmentsKeepRenewalChoice(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		source := ""
+		if enabled {
+			source = `path "auth/token/renew-self" {capabilities=["update"]}`
+		}
+		legacy := policy.New("sample", source).Runtime(policy.DefaultSettings())
+		legacy.OpenBao = policy.OpenBao{Policy: source}
+		message := PolicySet{OpenBao: OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []Binding{{Binding: "b-1", Key: Key{Kind: KeyName, Value: "sample"}, Policy: legacy, Assignment: legacy.Identity()}}}
+		line, err := Encode(message)
+		if err != nil {
+			t.Fatal(err)
+		}
+		decoded, err := Decode(bytes.TrimSuffix(line, []byte("\n")))
+		if err != nil {
+			t.Fatal(err)
+		}
+		set, ok := decoded.(PolicySet)
+		if !ok || set.Bindings[0].Policy.OpenBao.AgentTokenRenewal != nil || set.Bindings[0].Policy.AgentRenewal() != enabled {
+			t.Fatal("field-free assignment changed renewal choice")
+		}
+	}
+}
