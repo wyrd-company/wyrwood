@@ -576,7 +576,17 @@ func TestDisabledExpiryCannotDropReplacement(t *testing.T) {
 	manager.deliver(ctx, credential("bnd-1", "role-2"), manager.begin("bnd-1"), []string{"wyrwood-example"}, false)
 	// Model the old expiry callback arriving after a replacement owns the binding.
 	// The old credential is already cancelled; a fresh context isolates ownership.
-	manager.awaitExpiry(ctx, "bnd-1", old)
+	done := make(chan struct{})
+	t.Cleanup(func() { cancel(); <-done })
+	go func() { defer close(done); manager.awaitExpiry(ctx, "bnd-1", old) }()
+	eventually(t, "the old expiry callback", func() bool {
+		select {
+		case <-done:
+			return true
+		default:
+			return requests.Load() > 0
+		}
+	})
 	if heldValue(manager, "bnd-1") != "token-role-2" || requests.Load() != 0 {
 		t.Fatal("stale expiry changed the replacement")
 	}
