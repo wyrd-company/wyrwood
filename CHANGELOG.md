@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.0
+
+### Features
+
+- Show containers across all approved agents by default, with agent and text filters, sorting, and disconnected last-report state.
+- Show copyable container mount and environment setup from the agent report and effective binding contract.
+- Manage fixed token lookup and retirement grants and control actual agent renewal with a policy setting. Keep container renewal local and return real token metadata without revealing the credential.
+
+### Fixes
+
+- Submit package releases with the publisher action that accepts AUR service files and lifecycle hooks.
+- Publish the account menu and version status screenshots with the wyrd.foo docs.
+- Document a stopped controller-first upgrade procedure and include the container setup screenshot in published documentation.
+
 ## 0.3.0
 
 ### Features
