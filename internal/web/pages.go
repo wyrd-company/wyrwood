@@ -354,16 +354,19 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 						Encoded: string(key.Kind) + ":" + key.Value, First: index == 0})
 				}
 			}
-			if row.Agent == selectedAgent && row.ID == selectedID {
-				selected := row
-				page.Selected = &selected
-			}
 			if page.FilterAgent != "" && row.Agent != page.FilterAgent {
 				continue
 			}
 			searchable := strings.Join([]string{row.Agent, row.ID, row.Name, row.Image, row.State, row.Badge, row.KeyKind, row.KeyValue, strings.Join(row.Policies, " ")}, " ")
+			for _, candidate := range row.Candidates {
+				searchable += " " + candidate.Kind + " " + candidate.Value
+			}
 			if !strings.Contains(strings.ToLower(searchable), strings.ToLower(strings.TrimSpace(page.Query))) {
 				continue
+			}
+			if row.Agent == selectedAgent && row.ID == selectedID {
+				selected := row
+				page.Selected = &selected
 			}
 			page.Rows = append(page.Rows, row)
 		}

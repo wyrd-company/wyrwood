@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -43,6 +44,7 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 		}
 		containers := []protocol.Container{{ID: "shared-id", Name: "sample", Image: "busybox:latest", State: protocol.StateRunning, ConsumerDirectory: "/srv/sample/" + agent.name, Keys: []protocol.Key{{Kind: protocol.KeyName, Value: "sample"}}}}
 		if agent.name == "host-a" {
+			containers[0].Keys = append(containers[0].Keys, protocol.Key{Kind: protocol.KeyCompose, Value: "unique-project/worker"})
 			containers = append(containers, protocol.Container{ID: "other-id", Name: "zebra", Image: "alpine:latest", State: protocol.StateExited})
 		}
 		if agent.name == "empty" {
@@ -123,6 +125,8 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 		{"?filter-agent=empty", []string{}},
 		{"?filter-agent=missing", []string{}},
 		{"?q=%20SAMPLE-POLICY%20", []string{"host-b/shared-id"}},
+		{"?q=UNIQUE-PROJECT%2Fworker", []string{"host-a/shared-id"}},
+		{"?q=compose", []string{"host-a/shared-id"}},
 		{"?q=EXITED", []string{"host-a/other-id"}},
 		{"?q=alpine", []string{"host-a/other-id"}},
 		{"?q=Conforms&filter-agent=host-a", []string{}},
@@ -147,15 +151,29 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 		if page.Rows[0].Bound {
 			t.Fatal("binding leaked into another agent's row")
 		}
-		// Filtering does not change the owner of an explicitly selected detail form.
-		page = load("?agent=host-b&container=shared-id&filter-agent=host-a")
-		if len(page.Rows) != 2 || page.Selected == nil || page.Selected.Agent != "host-b" {
-			t.Fatalf("filtered selection = %#v", page)
-		}
 		for _, query := range []string{"?container=shared-id", "?agent=missing&container=shared-id", "?agent=pending&container=shared-id", "?agent=host-b&container=missing"} {
 			if page := load(query); page.Selected != nil {
 				t.Fatalf("ambiguous or unavailable selection: %s %#v", query, page.Selected)
 			}
 		}
 	})
+	t.Run("excluding filters close selected detail and actions", func(t *testing.T) {
+		for _, query := range []string{
+			"?agent=host-b&container=shared-id&filter-agent=host-a",
+			"?agent=host-a&container=shared-id&filter-agent=host-b",
+			"?agent=host-b&container=shared-id&q=alpine",
+			"?agent=host-a&container=shared-id&q=Conforms",
+			"?agent=host-b&container=shared-id&q=absent",
+		} {
+			page := load(query)
+			if page.Selected != nil || page.Agent != "" {
+				t.Fatalf("excluded selection survives %s: %#v", query, page.Selected)
+			}
+			body := renderModel(t, "containers", page)
+			if strings.Contains(body, "<aside") || strings.Contains(body, "Save binding") || strings.Contains(body, "Bind policies") || strings.Contains(body, "Request recreate") || strings.Contains(body, "Unbind and revoke") {
+				t.Fatalf("excluded detail actions survive %s: %s", query, body)
+			}
+		}
+	})
+
 }

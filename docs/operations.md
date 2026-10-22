@@ -52,6 +52,7 @@ be used, but agents keep serving containers.
 agent or text, sort by container, agent, image or binding state, and choose
 ascending or descending order. Disconnected rows retain the last report and
 show its age. Selecting a container keeps the current filters and order.
+Filtering out the selected container closes its detail panel.
 
 In **Containers**, select a bound container and open **Container setup**. Copy
 the host source, container target, Docker Compose fragment, or `docker run`

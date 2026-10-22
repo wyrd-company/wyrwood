@@ -122,6 +122,7 @@ proposed-design:
     state in either direction and clear filters. Container identity includes
     both agent and container ID. Selection links retain filters and sorting;
     the selected detail and binding forms always use the container's agent.
+    A filter that excludes the selected container closes its detail panel.
     Selecting a container opens a panel. For an unbound container the panel
     offers every candidate key in precedence order with the most stable one
     preselected and labelled, policy checkboxes, and binding settings for TTL,
