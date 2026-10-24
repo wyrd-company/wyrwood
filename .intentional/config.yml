@@ -15,7 +15,23 @@ release-units:
       - adapter: go
         file: go.mod
         mode: none
+      - adapter: yaml
+        file: docs/user/docs.yml
+        mode: committed
+        pointer: /products/wyrwood/version
     tags:
       primary:
         role: primary
         template: '{version}'
+  wyrwood-docs:
+    path: docs/user
+    depends-on: [ wyrwood ]
+    projections:
+      - adapter: yaml
+        file: docs.yml
+        mode: committed
+        pointer: /products/wyrwood/docs-version
+    tags:
+      primary:
+        role: primary
+        template: 'wyrwood-docs@{version}'
