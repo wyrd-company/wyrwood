@@ -15,6 +15,9 @@ assets:
   - assets/web-events.png
   - assets/web-account-menu.png
   - assets/web-versions.png
+  - assets/emblem-light.svg
+  - assets/emblem-dark.svg
+  - assets/icon.svg
 products:
   wyrwood:
     name: wyrwood
@@ -28,6 +31,9 @@ products:
     status: preview
     category: Agent Infrastructure
     order: 6
+    logo: assets/emblem-light.svg
+    logo-dark: assets/emblem-dark.svg
+    favicon: assets/icon.svg
     highlights:
       - A bound container holds no token, no key, and no secret file.
       - Each container gets a socket directory with vault.sock for the OpenBao API and
