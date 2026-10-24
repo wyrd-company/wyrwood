@@ -1,7 +1,7 @@
 ---
 title: Installation
 order: 2
-docs: true
+product: wyrwood
 install: true
 relationships:
   references:

@@ -1,7 +1,7 @@
 ---
 title: Operations and command reference
 order: 5
-docs: true
+product: wyrwood
 relationships:
   references:
     - command-line-interface
@@ -155,7 +155,7 @@ query. Request the `profile`, `email`, and `groups` scopes and release a groups
 claim that includes the exact string `wyrwood_admins` for admitted accounts.
 
 Have an OpenBao site administrator supply a provisioning token issued in the
-target namespace. Its [exact provisioning ACL](technical-designs/openbao-admin-access.yml)
+target namespace. Its [exact provisioning ACL](https://github.com/wyrd-company/wyrwood/blob/main/docs/technical-designs/openbao-admin-access.yml)
 can write the `namespace-admin` policy and configure `auth/admin-oidc`. Treat
 that policy writer as namespace administration authority. Keep its input file
 under the administrator's control; do not give it to the controller or secret
