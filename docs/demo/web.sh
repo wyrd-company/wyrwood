@@ -11,13 +11,13 @@
 # site docs/demo/stack.sh started: sign in, approve the agent, write a policy,
 # bind a container, and read keys and events. Writes the video to
 # $WYRWOOD_DEMO_ROOT/web.mp4 and the documentation screenshots to
-# docs/assets.
+# docs/user/assets.
 set -euo pipefail
 
 repository=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 root=${WYRWOOD_DEMO_ROOT:-/tmp/wyrwood-demo}
 site=http://localhost:18088
-assets=$repository/docs/assets
+assets=$repository/docs/user/assets
 export AGENT_BROWSER_SESSION=wyrwood-demo-web
 
 browse() {

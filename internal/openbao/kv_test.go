@@ -89,7 +89,7 @@ func TestKVBrowserListsOnlyConfiguredNamespacedMetadata(t *testing.T) {
 }
 
 func TestDocumentedControllerPolicyMatchesHarness(t *testing.T) {
-	data, err := os.ReadFile("../../docs/configuration.md")
+	data, err := os.ReadFile("../../docs/user/configuration.md")
 	if err != nil {
 		t.Fatal(err)
 	}

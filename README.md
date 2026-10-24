@@ -28,7 +28,7 @@ request. Private keys never exist on the host or in the container.
 ## Quick start
 
 Run the controller. The image runs as user 65532, so the secret files must
-be readable by that user; [Installation](docs/install.md) shows the
+be readable by that user; [Installation](docs/user/install.md) shows the
 configuration and how to prepare them.
 
 ```console
@@ -57,7 +57,7 @@ bao kv get kv/teams/teal/example
 ssh-add -L
 ```
 
-The [documentation](docs/overview.md) covers installation, policies and
+The [documentation](docs/user/overview.md) covers installation, policies and
 contracts, and operations.
 
 ## Project direction

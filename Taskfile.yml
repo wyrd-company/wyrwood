@@ -133,7 +133,7 @@ tasks:
 
   demo:
     desc: >-
-      Record docs/assets/demo.gif and the web interface screenshots
+      Record docs/user/assets/demo.gif and the web interface screenshots
       (needs Docker Engine, sudo, agent-browser, vhs, ffmpeg, and gifsicle)
     cmds:
       - docs/demo/record.sh
