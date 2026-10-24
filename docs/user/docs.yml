@@ -3,24 +3,7 @@
 #   publishes-to: wyrd-foo
 #   references: wyrwood
 # ---
-name: wyrwood
-tagline: OpenBao-backed secrets and signing for containers, with nothing stored inside.
-blurb: >-
-  A controller that owns policy and an agent on each Docker host that gives
-  every bound container a directory of sockets: an OpenBao endpoint carrying
-  the container's own token and an SSH agent whose keys live in OpenBao.
-category: Agent Infrastructure
-language: Go
-status: preview
-repo: https://github.com/wyrd-company/wyrwood
-order: 6
-install:
-  - label: APT
-    command: sudo apt install wyrwood
-  - label: RPM
-    command: sudo dnf install wyrwood
-  - label: AUR
-    command: paru -S wyrwood-bin
+schemaVersion: 1
 assets:
   - assets/demo.gif
   - assets/web-agents.png
@@ -32,3 +15,69 @@ assets:
   - assets/web-events.png
   - assets/web-account-menu.png
   - assets/web-versions.png
+products:
+  wyrwood:
+    name: wyrwood
+    version: 0.4.0
+    docs-version: 0.1.0
+    tagline: OpenBao-backed secrets and signing for containers, with nothing stored inside.
+    blurb: >-
+      A controller that owns policy and an agent on each Docker host that gives
+      every bound container a directory of sockets: an OpenBao endpoint carrying
+      the container's own token and an SSH agent whose keys live in OpenBao.
+    status: preview
+    category: Agent Infrastructure
+    order: 6
+    highlights:
+      - A bound container holds no token, no key, and no secret file.
+      - Each container gets a socket directory with vault.sock for the OpenBao API and
+        ssh-agent.sock for SSH.
+      - SSH identities are OpenBao Transit keys and SSH-engine certificates, and OpenBao produces
+        every signature.
+      - A policy pairs an OpenBao policy with a container contract, and changes apply on the next
+        request.
+      - Agents enroll over SSH with host-generated keys that an operator approves in the web
+        interface.
+      - Operational events are bounded and categorical, with no tokens, secret values, or raw
+        upstream errors.
+    media:
+      - src: assets/web-agents.png
+        caption: Agents page with one key pending approval.
+        alt: The Agents page of the controller web interface listing an agent whose key awaits
+             approval.
+      - src: assets/web-policy.png
+        caption: Policy editor with a saved policy.
+        alt: The policy editor showing a saved policy document.
+      - src: assets/web-bind.png
+        caption: Binding policies to a container.
+        alt: The binding panel for attaching policies to a container.
+      - src: assets/web-container-setup.png
+        caption: Container setup examples in the binding panel.
+        alt: Container setup examples shown in the binding panel.
+      - src: assets/web-containers.png
+        caption: A bound container that conforms to its contract.
+        alt: The containers list with a bound container that meets its contract.
+      - src: assets/web-keys.png
+        caption: OpenBao keys page with Transit keys and SSH-engine roles.
+        alt: The keys page listing OpenBao Transit keys and SSH-engine roles.
+      - src: assets/web-events.png
+        caption: Controller events, newest first.
+        alt: The events page listing controller events with the newest first.
+      - src: assets/web-account-menu.png
+        caption: Account menu with Security and Sign out.
+        alt: The account menu open to show Security and Sign out.
+      - src: assets/web-versions.png
+        caption: Controller and agent versions with update status.
+        alt: The versions page showing controller and agent versions and their update status.
+    kinds:
+      - kind: app
+        install:
+          - method: apt
+            os: [ linux ]
+            command: sudo apt install wyrwood
+          - method: rpm
+            os: [ linux ]
+            command: sudo dnf install wyrwood
+          - method: aur
+            os: [ linux ]
+            command: paru -S wyrwood-bin
