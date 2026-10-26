@@ -115,9 +115,12 @@ submission uses these product-repository secrets:
 - `REPO_WYRD_FOO_PUBLISHER_APP_ID`
 - `REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`
 
-Dispatch the `Publish docs` workflow with the same tag after every automated
-release; a release created with the Release workflow's `GITHUB_TOKEN` emits no
-event that triggers it. Documentation publishing uses these separate secrets:
+The `Publish to wyrd.foo` workflow publishes `docs/user/` through the
+`wyrd.foo` reusable workflow. It runs when the Release workflow succeeds for a
+code tag, so the GitHub Release it reads exists, and when a `wyrwood-docs@*`
+tag is pushed. A plain push to `main` does not publish. To publish an existing
+tag or commit again, dispatch it with that `ref`. Documentation publishing
+uses these separate secrets:
 
 - `WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`
 - `WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`

@@ -56,9 +56,9 @@ assert_reference README.md '`REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`'
 
 assert_exact_line \
   .github/workflows/publish-docs.yml \
-  '          app-id: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_APP_ID }}'
+  '      WYRD_TOOLS_DOCS_PUBLISHER_APP_ID: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_APP_ID }}'
 assert_exact_line \
   .github/workflows/publish-docs.yml \
-  '          private-key: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY }}'
+  '      WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY: ${{ secrets.WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY }}'
 assert_reference README.md '`WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`'
 assert_reference README.md '`WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`'
