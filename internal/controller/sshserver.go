@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/ssh"
-	"github.com/charmbracelet/wish"
+	"charm.land/ssh"
+	"charm.land/wish/v2"
 	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
