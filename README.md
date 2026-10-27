@@ -115,6 +115,11 @@ submission uses these product-repository secrets:
 - `REPO_WYRD_FOO_PUBLISHER_APP_ID`
 - `REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`
 
+The docs unit can tag the same commit (`wyrwood-docs@<version>`), so the
+Release workflow builds the release tag by name. To rebuild a release, run
+Release by hand with the `tag` input; then run `Publish to wyrd.foo` with
+that tag as `ref`, because only tag-push release runs trigger docs publishing.
+
 The `Publish to wyrd.foo` workflow publishes `docs/user/` through the
 `wyrd.foo` reusable workflow. It runs when the Release workflow succeeds for a
 code tag, so the GitHub Release it reads exists, and when a `wyrwood-docs@*`
