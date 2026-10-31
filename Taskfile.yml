@@ -101,6 +101,8 @@ tasks:
     cmds:
       - go test -c -o .tmp/engineproxy.test ./internal/engineproxy
       - sudo -n .tmp/engineproxy.test -test.v -test.run 'TestRoot|TestRawEngineAccessGuard'
+      - go test -c -o .tmp/consumer.test ./internal/consumer
+      - sudo -n .tmp/consumer.test -test.v -test.run TestRootProcessGroupCapabilities
       - go test -c -o .tmp/linuxservice.test ./internal/linuxservice
       - sudo -n .tmp/linuxservice.test -test.v -test.run TestRootPackage
 

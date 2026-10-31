@@ -89,8 +89,9 @@ unit: minutes or hours on a binding, seconds/minutes/hours for SSH role creation
 The binding form offers groups reported by the running host agent, with numeric
 GIDs and host names when available. Numeric GIDs are authoritative. The choices
 include the effective primary group and supplementary groups, plus owner-only
-access. A privileged agent can also assign another numeric GID. The server
-rejects groups excluded by the current agent report, including stale form posts.
+access. An agent with effective Linux `CAP_CHOWN` can also assign another numeric
+GID. The server rejects groups excluded by the current agent report, including
+stale form posts.
 
 For offline or older agents, the form marks capability information unavailable
 or stale and preserves the existing group as unverified. It does not replace an

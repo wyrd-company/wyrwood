@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strconv"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
@@ -22,11 +24,26 @@ func ProcessGroups() *protocol.AssignableGroups {
 	if err != nil {
 		return nil
 	}
-	return processGroups(os.Geteuid(), os.Getegid(), groups, user.LookupGroupId)
+	any, err := canAssignAnyGroup()
+	if err != nil {
+		return nil
+	}
+	return processGroups(any, os.Getegid(), groups, user.LookupGroupId)
 }
 
-func processGroups(uid, gid int, supplementary []int, lookup func(string) (*user.Group, error)) *protocol.AssignableGroups {
-	result := &protocol.AssignableGroups{Any: uid == 0, Groups: []protocol.Group{}}
+// canAssignAnyGroup reads the running thread's effective Linux capabilities.
+// UID alone does not establish permission to change file ownership.
+func canAssignAnyGroup() (bool, error) {
+	header := unix.CapUserHeader{Version: unix.LINUX_CAPABILITY_VERSION_3}
+	var data [2]unix.CapUserData
+	if err := unix.Capget(&header, &data[0]); err != nil {
+		return false, err
+	}
+	return data[unix.CAP_CHOWN/32].Effective&(1<<(unix.CAP_CHOWN%32)) != 0, nil
+}
+
+func processGroups(any bool, gid int, supplementary []int, lookup func(string) (*user.Group, error)) *protocol.AssignableGroups {
+	result := &protocol.AssignableGroups{Any: any, Groups: []protocol.Group{}}
 	seen := map[int]bool{}
 	for _, id := range append(supplementary, gid) {
 		if id < 0 || uint64(id) >= 4294967295 || seen[id] {
