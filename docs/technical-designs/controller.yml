@@ -107,6 +107,9 @@ proposed-design:
     presented hostname. The server's host key is generated on first start,
     stored on the state volume, and shown in the web interface so an operator
     can compare it with the fingerprint the agent's login command displays.
+    Startup repairs an owned real SSH key directory with mode 0600 to mode
+    0700 through a pinned directory handle. Other directory modes, symlinks,
+    and foreign-owned paths are not permission-repair targets.
   agent-sessions: >-
     An approved agent opens the `wyrwood` SSH subsystem and exchanges
     newline-delimited JSON messages as defined by the agent-controller
