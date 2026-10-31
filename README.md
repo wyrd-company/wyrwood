@@ -82,7 +82,8 @@ covering each delivery path. Decisions live in `docs/decisions` and risks in
 
 ## Development
 
-Builds require Go, Node.js 24 with Corepack, and Task. Corepack uses the pnpm
+Builds require Go, Node.js 26, Corepack, and Task. Install Corepack with
+`npm install --global corepack` and run `corepack enable`. Corepack uses the pnpm
 version declared in `internal/web/frontend/package.json`. `task build` installs
 from the frozen frontend lockfile and builds the interface for embedding in
 `wyrwood`. The executable and controller image need no Node.js runtime or

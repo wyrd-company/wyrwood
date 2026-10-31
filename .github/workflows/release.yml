@@ -73,7 +73,9 @@ jobs:
 
       - name: Enable pnpm through Corepack
         working-directory: internal/web/frontend
-        run: corepack enable
+        run: |
+          npm install --global corepack
+          corepack enable
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
@@ -127,7 +129,9 @@ jobs:
 
       - name: Enable pnpm through Corepack
         working-directory: internal/web/frontend
-        run: corepack enable
+        run: |
+          npm install --global corepack
+          corepack enable
 
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
