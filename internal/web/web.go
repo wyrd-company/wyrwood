@@ -106,6 +106,7 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("POST /keys/transit/rotate", server.handleRotateTransitKey)
 	authenticated.HandleFunc("POST /keys/ssh", server.handleCreateSSHRole)
 	authenticated.HandleFunc("GET /events", server.handleEvents)
+	authenticated.HandleFunc("GET /settings", server.handleSettings)
 	authenticated.HandleFunc("GET /security", server.handleSecurity)
 	authenticated.HandleFunc("POST /security/sessions", server.handleEndOtherSessions)
 	mux.Handle("/", server.requireSession(authenticated))

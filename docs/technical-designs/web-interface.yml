@@ -50,7 +50,7 @@ proposed-design:
     separate components. Bundled scripts load from the controller origin; no
     inline executable script or third-party asset host is needed. The fixed
     primary navigation is: Agents, Containers, Policies, OpenBao keys,
-    and Events. The account menu at the bottom of the sidebar names the
+    Events, and Settings. The account menu at the bottom of the sidebar names the
     signed-in operator and opens with the shadcn/ui Radix DropdownMenu
     primitives. Its items are Security and Sign out. Security links to
     `/security`; Sign out submits a native POST form to `/sign-out` with
@@ -89,6 +89,15 @@ proposed-design:
     each operator's subject, display name, and email at sign-in so events and
     pages can name the operator. Signing out ends the controller session only;
     the provider session is the provider's.
+  settings-page: >-
+    GET /settings uses the shared operator session gate and displays effective
+    controller configuration loaded at startup through an explicit safe field
+    projection. It shows controller listeners, state directory, session lifetime,
+    OpenBao namespace and mounts, operator sign-in settings, and update checks.
+    Credential values, AppRole RoleID, and credential-file paths are excluded.
+    Endpoint URLs show only scheme and host. The page has no configuration
+    mutation handler; operators edit YAML and restart the controller. Agent
+    host configuration is not part of this view.
   security-page: >-
     Shows the signed-in operator, the group that admitted them, the allowed
     groups, the issuer, client identifier, redirect URI, and whether

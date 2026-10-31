@@ -12,6 +12,19 @@ Policy lives on the controller. Agents receive the policies that match their
 containers and cache resolved assignments. A controller outage can be tolerated
 while the current tokens remain valid.
 
+## Controller settings
+
+Open **Settings** in the web admin navigation to inspect the controller settings
+loaded at startup. The page shows listen addresses, session lifetime, state
+directory, OpenBao namespace and mounts, operator admission groups, and update
+check settings. It uses the same operator sign-in requirement as other admin
+pages. Agent configuration remains on each agent host.
+
+This view is read-only. Edit the controller YAML configuration and restart the
+controller to apply changes. Credentials, AppRole RoleID, and credential-file
+paths are omitted from the page data. Endpoint origins show only scheme and
+host; URL userinfo, paths, queries, and fragments are omitted.
+
 ## Policy document
 
 ```yaml

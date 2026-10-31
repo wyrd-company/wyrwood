@@ -214,6 +214,7 @@ interface PageModels {
   keys: KeysData;
   events: EventsData;
   security: SecurityData;
+  settings: SettingsData;
 }
 
 export interface BindingSettings {
@@ -237,4 +238,8 @@ export interface EffectivePolicy {
     enforcement: string;
   };
   settings: BindingSettings;
+}
+
+export interface SettingsData extends Layout {
+  Sections: { Title: string; Settings: { Label: string; Value: string }[] }[];
 }
