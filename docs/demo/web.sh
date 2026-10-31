@@ -144,6 +144,12 @@ browse find role menuitem click --name "Security" --exact
 browse wait --text "Admitted through group"
 shot web-security
 
+# Inspect the effective controller configuration through the normal navigation.
+browse find role link click --name "Settings" --exact
+browse wait --text "Effective controller settings loaded at startup"
+browse wait --text "Update checks"
+shot web-settings
+
 if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
 	browse record stop
 fi

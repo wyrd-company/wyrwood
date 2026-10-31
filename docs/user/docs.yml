@@ -13,6 +13,7 @@ assets:
   - assets/web-containers.png
   - assets/web-keys.png
   - assets/web-events.png
+  - assets/web-settings.png
   - assets/web-security.png
   - assets/web-account-menu.png
   - assets/web-versions.png
@@ -79,6 +80,9 @@ products:
       - src: assets/web-versions.png
         caption: Controller and agent versions with update status.
         alt: The Agents page showing controller and agent versions and their update status.
+      - src: assets/web-settings.png
+        caption: Effective controller settings loaded at startup.
+        alt: The read-only Settings page with controller, OpenBao, sign-in and update settings.
     kinds:
       - kind: app
         install:
