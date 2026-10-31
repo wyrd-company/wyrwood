@@ -49,6 +49,13 @@ description: >-
   identifier. `http.session-ttl` bounds an operator session. Defaults: groups
   claim `groups`, session time-to-live 12 hours.
 
+  Controller local agent execution is opt-in under `local-agent.enabled`,
+  default false. When enabled, controller serve runs the shared agent runtime
+  with `/etc/wyrwood/agent.yml`, `/var/lib/wyrwood` state, and `/run/wyrwood`
+  runtime files. It requires the same service account and filtering Engine
+  proxy as a standalone agent. Enrollment pins this controller's reachable SSH
+  URL and key through agent login; operator approval remains required.
+
   Controller release checks are opt-in under `update-checks.enabled`, which
   defaults to false. An enabled controller checks the public GitHub latest
   release redirect at startup, then waits `update-checks.interval` after each

@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sys/unix"
 )
 
 // HostKeyPath returns the SSH host key location under a state directory. The
@@ -27,11 +29,11 @@ func HostKeyPath(stateDirectory string) string {
 // owner-only mode on first start.
 func LoadOrCreateHostKey(stateDirectory string) (ssh.Signer, error) {
 	path := HostKeyPath(stateDirectory)
+	if err := prepareHostKeyDirectory(filepath.Dir(path)); err != nil {
+		return nil, err
+	}
 	data, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-			return nil, fmt.Errorf("create host key directory: %w", err)
-		}
 		_, private, err := ed25519.GenerateKey(rand.Reader)
 		if err != nil {
 			return nil, err
@@ -64,6 +66,38 @@ func LoadOrCreateHostKey(stateDirectory string) (ssh.Signer, error) {
 		return nil, errors.New("host key is not a valid private key")
 	}
 	return signer, nil
+}
+
+// Only the exact broken mode produced by the former control-socket umask is
+// repaired. Pin the real, owned leaf before changing permissions; never chmod
+// a pathname that could be replaced with a symlink.
+func prepareHostKeyDirectory(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		return err
+	}
+	if err := os.Mkdir(path, 0o700); err != nil && !errors.Is(err, os.ErrExist) {
+		return err
+	}
+	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_DIRECTORY|unix.O_NOFOLLOW|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return fmt.Errorf("open host key directory: %w", err)
+	}
+	directory := os.NewFile(uintptr(fd), path)
+	defer directory.Close()
+	info, err := directory.Stat()
+	if err != nil {
+		return err
+	}
+	status, ok := info.Sys().(*syscall.Stat_t)
+	if !ok || status.Uid != uint32(os.Geteuid()) {
+		return errors.New("host key directory must be owned by the controller user")
+	}
+	if info.Mode().Perm() == 0o600 && info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky) == 0 {
+		if err := directory.Chmod(0o700); err != nil {
+			return fmt.Errorf("repair host key directory: %w", err)
+		}
+	}
+	return nil
 }
 
 // HostKeyFingerprint reads the existing host key and returns its fingerprint

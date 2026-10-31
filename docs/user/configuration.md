@@ -417,3 +417,12 @@ above. Entries of type `other` do not get KV LIST grants or appear in the
 picker. The controller does not read KV metadata or data values, write KV
 data, or list `sys/mounts` for the editor. A denied or unavailable list shows
 a warning without blocking manual editing.
+
+## Controller local agent
+
+Set `local-agent.enabled: true` in the controller document to run the shared
+agent runtime inside `controller serve`. It defaults to false. Agent settings
+remain in `/etc/wyrwood/agent.yml`; enrollment and local commands retain the
+standard agent state and runtime paths. Follow
+[Controller with a local agent](install.md#controller-with-a-local-agent)
+for the Linux service setup and approval steps.

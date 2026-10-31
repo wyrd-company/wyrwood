@@ -87,6 +87,18 @@ proposed-design:
     directly; it does not invent a simpler policy language. The interface also
     lists and creates Transit keys and SSH-engine roles under the configured
     mounts so an operator can name them in a policy without leaving Wyrwood.
+  local-agent: >-
+    An opt-in local agent runs in the controller process through the same agent
+    library runtime as the standalone daemon. It uses the standard agent
+    configuration, identity, approval, SSH transport, Engine proxy, credentials,
+    consumer directories, and local control socket. No CLI subprocess or
+    privileged local transport bypass exists. A supervisor cancels both
+    services when either exits and joins them before closing controller state.
+    The controller joins HTTP serving, including the drain of admitted operator
+    requests, before releasing its store and event writer lock.
+    The packaged Linux agent service can select controller serve through an
+    ExecStart override while retaining its service account and Engine proxy.
+    Controller-only container deployments keep this capability disabled.
   agent-enrollment: >-
     The SSH server accepts public-key authentication only. A key that is not
     approved is recorded as pending with the username the agent presented and
@@ -95,6 +107,9 @@ proposed-design:
     presented hostname. The server's host key is generated on first start,
     stored on the state volume, and shown in the web interface so an operator
     can compare it with the fingerprint the agent's login command displays.
+    Startup repairs an owned real SSH key directory with mode 0600 to mode
+    0700 through a pinned directory handle. Other directory modes, symlinks,
+    and foreign-owned paths are not permission-repair targets.
   agent-sessions: >-
     An approved agent opens the `wyrwood` SSH subsystem and exchanges
     newline-delimited JSON messages as defined by the agent-controller

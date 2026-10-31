@@ -17,7 +17,9 @@ A **controller** runs once per site as a container. It owns policy, serves a
 web interface, and holds the runtime OpenBao credential that writes policies
 and AppRoles. An **agent** runs on each Linux host with Docker Engine. It
 enrolls with the controller over SSH, reports every container, binds
-containers to policy, and publishes each bound container's sockets.
+containers to policy, and publishes each bound container's sockets. The
+controller can also run this agent runtime on its Linux host with
+`local-agent.enabled`; see [Controller with a local agent](docs/user/install.md#controller-with-a-local-agent).
 
 Inside a bound container the mounted directory holds `vault.sock`, an OpenBao
 API endpoint that carries the container's own token on every request, and

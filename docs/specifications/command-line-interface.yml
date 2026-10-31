@@ -9,7 +9,11 @@ description: >-
 
   `wyrwood controller serve` runs the controller with the configuration file
   at `/etc/wyrwood/controller.yml` or the path given by `--config`. It is the
-  container image's entrypoint. `wyrwood controller host-key` prints the SSH
+  container image's entrypoint. With `local-agent.enabled`, it also runs the
+  shared agent library in-process using the standard agent paths. The agent
+  login and query commands also serve this embedded runtime. Either service
+  exiting cancels its peer; both finish before controller state closes.
+  `wyrwood controller host-key` prints the SSH
   host-key fingerprint from the state volume so an operator can compare it
   with an agent's login prompt.
 

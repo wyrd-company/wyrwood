@@ -14,10 +14,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/unix"
@@ -82,7 +84,16 @@ type controlError struct {
 }
 
 func (agent *Agent) listenControl() (net.Listener, error) {
-	path := agent.paths.ControlSocket()
+	listener, err := listenControlSocket(agent.paths.ControlSocket(), net.ListenUnix)
+	if err != nil {
+		return nil, err
+	}
+	go agent.serveControl(listener)
+	return listener, nil
+}
+
+// Bind privately, then publish the secured socket without changing process umask.
+func listenControlSocket(path string, bind func(string, *net.UnixAddr) (*net.UnixListener, error)) (net.Listener, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -95,18 +106,56 @@ func (agent *Agent) listenControl() (net.Listener, error) {
 			return nil, err
 		}
 	}
-	previous := unix.Umask(0o177)
-	listener, err := net.Listen("unix", path)
-	unix.Umask(previous)
+	// A private directory prevents access even before the socket is chmodded.
+	stage, err := os.MkdirTemp(filepath.Dir(path), ".control-")
 	if err != nil {
 		return nil, err
 	}
-	if err := os.Chmod(path, 0o600); err != nil {
+	defer os.RemoveAll(stage)
+	directory, err := os.Open(stage)
+	if err != nil {
+		return nil, err
+	}
+	defer directory.Close()
+	// Keep the bind address short independently of the runtime directory length.
+	address := fmt.Sprintf("/proc/self/fd/%d/socket", directory.Fd())
+	listener, err := bind("unix", &net.UnixAddr{Name: address, Net: "unix"})
+	if err != nil {
+		return nil, err
+	}
+	listener.SetUnlinkOnClose(false)
+	staged := filepath.Join(stage, "socket")
+	if err := os.Chmod(staged, 0o600); err != nil {
 		_ = listener.Close()
 		return nil, err
 	}
-	go agent.serveControl(listener)
-	return listener, nil
+	info, err := os.Lstat(staged)
+	if err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	if err := os.Rename(staged, path); err != nil {
+		_ = listener.Close()
+		return nil, err
+	}
+	return &controlListener{Listener: listener, path: path, info: info}, nil
+}
+
+type controlListener struct {
+	net.Listener
+	path string
+	info os.FileInfo
+	once sync.Once
+}
+
+func (listener *controlListener) Close() error {
+	err := listener.Listener.Close()
+	listener.once.Do(func() {
+		if info, statErr := os.Lstat(listener.path); statErr == nil && os.SameFile(info, listener.info) {
+			_ = os.Remove(listener.path)
+		}
+	})
+	return err
 }
 
 func (agent *Agent) serveControl(listener net.Listener) {

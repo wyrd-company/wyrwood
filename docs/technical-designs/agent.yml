@@ -140,7 +140,9 @@ proposed-design:
     request on an open connection.
   control-interface: >-
     A local owner-only Unix socket at `/run/wyrwood/control.sock` serves the
-    command line. Peer credentials must match the agent user or root. It
+    command line. The socket is bound inside a private temporary directory,
+    set to mode 0600, and published at its runtime path without changing the
+    process umask. Peer credentials must match the agent user or root. It
     offers status, containers, events, and the login handshake. It does not
     offer policy editing; policy lives on the controller.
   operational-events: >-
@@ -151,6 +153,13 @@ proposed-design:
     issuance. Events contain no tokens, secret identifiers, request paths
     beyond the mount category, payloads, signatures, environment values, or
     raw engine or OpenBao errors.
+  embedded-runtime: >-
+    RunDaemon composes the host agent independently of the CLI. Shutdown closes
+    recreate admission and joins registered recreate workers before releasing
+    journals, consumer state, and the event writer lock. Standalone
+    daemon and controller local-agent mode call this entrypoint with identical
+    configuration, Engine permission checks, endpoints, and state paths. The
+    event writer lock prevents simultaneous runtimes sharing agent state.
   package-boundaries: >-
     The module separates engine observation, controller session, credential
     lifecycle, contract enforcement, consumer directories, the two endpoint

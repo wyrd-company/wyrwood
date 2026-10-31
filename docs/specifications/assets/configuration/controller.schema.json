@@ -6,6 +6,13 @@
   "additionalProperties": false,
   "required": ["openbao", "oidc"],
   "properties": {
+    "local-agent": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean", "default": false }
+      }
+    },
     "update-checks": {
       "type": "object",
       "additionalProperties": false,

@@ -98,6 +98,80 @@ an agent logs in:
 docker exec wyrwood-controller wyrwood controller host-key
 ```
 
+## Controller with a local agent
+
+On a Linux Docker host, `wyrwood controller serve` can run the agent in the
+same process. The agent uses the same library, enrollment, approval, policies,
+Engine proxy, state, and status commands as a standalone agent. It has no
+implicit policy binding or additional OpenBao authority.
+
+Install the Linux package and configure the controller as described above.
+Place its document at `/etc/wyrwood/controller.yml`, with this addition:
+
+```yaml
+local-agent:
+  enabled: true
+```
+
+The default is false, so the controller container deployment needs no agent
+configuration or Docker access. Combined mode needs the `wyrwood` system
+account, its writable state and runtime directories, and the separate
+filtering Engine proxy. Use the packaged Linux service on the host for this
+mode. The published controller image uses the `nonroot` account and does not
+provide the agent service account or host directories.
+
+Make the controller's secret files readable by `wyrwood`. Configure agent
+Engine settings in `/etc/wyrwood/agent.yml` as for a standalone agent. Keep
+the proxy separate; do not add the combined process to the Docker group.
+
+Use a service override to run the controller in the packaged agent service:
+
+```bash
+sudo systemctl edit wyrwood-agent.service
+```
+
+Enter:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=/usr/bin/wyrwood controller serve
+```
+
+Start the service with `sudo systemctl start wyrwood-agent.service`. Its first
+start requires a valid agent configuration. To prepare that configuration
+before enrollment, set the controller URL in `/etc/wyrwood/agent.yml`:
+
+```yaml
+controller:
+  url: ssh://127.0.0.1:2222
+```
+
+With the controller running, enroll the local agent:
+
+```bash
+sudo wyrwood agent login ssh://127.0.0.1:2222
+```
+
+Compare the displayed fingerprint with `wyrwood controller host-key`, then
+approve the pending key in **Agents**. The local agent reconnects and appears
+under the host's name. Use the controller's own reachable SSH address if you
+change its listen address or port. Enroll with this controller; the runtime
+uses the URL and pinned key in the agent enrollment state.
+
+`wyrwood agent status`, `containers`, and `events` query the embedded agent.
+`wyrwood agent service start|stop|status` manages the combined process through
+the existing service. Restart it after configuration changes. Start no separate
+`agent daemon` using the same state; the agent event-store lock rejects a
+second runtime. Failure of either service stops both. Missing enrollment or
+an unavailable Engine retains the standalone agent's reconnect behavior.
+
+The consumer root is on the Docker host, so the paths in **Container setup**
+refer directly to that host. Access-group requirements still apply to the
+`wyrwood` account. To return to a standalone agent, stop the service, remove
+its override, disable `local-agent.enabled`, and start the standalone service
+and a separate controller deployment with its existing state.
+
 ## Agent
 
 The agent supports Linux on `amd64` and `arm64`. Install a package from the

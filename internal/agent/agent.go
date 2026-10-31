@@ -68,18 +68,20 @@ type Agent struct {
 	creds     *credentials
 	reconcile chan string
 
-	mu         sync.Mutex
-	containers map[string]engine.Container
-	set        protocol.PolicySet
-	setLoaded  bool
-	known      map[string]bool
-	consumers  map[string]*consumerState
-	results    map[string]protocol.ContractResult
-	recreating map[string]bool
-	pending    map[string]contract.CreateRequest
-	session    *controllerSession
-	connected  bool
-	lastReport time.Time
+	recreateWorkers sync.WaitGroup
+	stopping        bool // guarded by mu; closes recreate admission before joining
+	mu              sync.Mutex
+	containers      map[string]engine.Container
+	set             protocol.PolicySet
+	setLoaded       bool
+	known           map[string]bool
+	consumers       map[string]*consumerState
+	results         map[string]protocol.ContractResult
+	recreating      map[string]bool
+	pending         map[string]contract.CreateRequest
+	session         *controllerSession
+	connected       bool
+	lastReport      time.Time
 }
 
 type consumerState struct {
@@ -134,7 +136,17 @@ func New(options Options) (*Agent, error) {
 // Run serves until ctx ends. Consumer directories and sockets are restored
 // from the policy cache before the controller is contacted.
 func (agent *Agent) Run(ctx context.Context) error {
-	defer agent.shutdown()
+	ctx, cancel := context.WithCancel(ctx)
+	defer func() {
+		agent.mu.Lock()
+		agent.stopping = true
+		agent.mu.Unlock()
+		agent.recreateWorkers.Wait()
+		agent.shutdown()
+	}()
+	var workers sync.WaitGroup
+	defer workers.Wait()
+	defer cancel()
 	agent.loadCache()
 	control, err := agent.listenControl()
 	if err != nil {
@@ -144,8 +156,9 @@ func (agent *Agent) Run(ctx context.Context) error {
 	if err := agent.fullReconcile(ctx); err != nil {
 		agent.logf("engine unavailable at start")
 	}
-	go agent.watchEngine(ctx)
-	go agent.runController(ctx)
+	workers.Add(2)
+	go func() { defer workers.Done(); agent.watchEngine(ctx) }()
+	go func() { defer workers.Done(); agent.runController(ctx) }()
 	ticker := time.NewTicker(reconcileInterval)
 	defer ticker.Stop()
 	for {
