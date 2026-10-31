@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -111,5 +112,47 @@ func TestSettingsRequiresOperatorSessionAndDisplaysEffectiveConfiguration(t *tes
 	h.server.now = func() time.Time { return time.Now().Add(2 * time.Hour) }
 	if result := get(t, client, h.site.URL+"/settings"); !strings.Contains(result.url, "problem=expired") {
 		t.Fatal("expired session admitted")
+	}
+}
+
+func TestSettingsLocalAgentEffectiveValue(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(strconv.FormatBool(enabled), func(t *testing.T) {
+			c := config.Controller{LocalAgent: enabled}
+			want := "Disabled"
+			if enabled {
+				want = "Enabled"
+			}
+			found := false
+			for _, section := range projectSettings(c, "dev") {
+				for _, setting := range section.Settings {
+					if setting.Label == "Local agent" {
+						found = true
+						if setting.Value != want {
+							t.Fatalf("local agent = %q, want %q", setting.Value, want)
+						}
+					}
+				}
+			}
+			if !found {
+				t.Fatal("local agent setting missing")
+			}
+			h := startConfiguredHarness(t, time.Hour, func(c *config.Controller) { c.LocalAgent = enabled })
+			client := browser(t)
+			h.signIn(t, client, operator, oidctest.TamperNone)
+			response, err := client.Get(h.site.URL + "/settings")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer response.Body.Close()
+			raw, err := io.ReadAll(response.Body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := renderedPage(t, raw)
+			if !strings.Contains(body, "<dt>Local agent</dt><dd class=\"mono\">"+want+"</dd>") {
+				t.Fatalf("rendered response omits effective local agent %s", want)
+			}
+		})
 	}
 }

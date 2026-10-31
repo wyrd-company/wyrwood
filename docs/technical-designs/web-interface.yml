@@ -93,6 +93,7 @@ proposed-design:
     GET /settings uses the shared operator session gate and displays effective
     controller configuration loaded at startup through an explicit safe field
     projection. It shows controller listeners, state directory, session lifetime,
+    the effective local-agent enabled flag,
     OpenBao namespace and mounts, operator sign-in settings, and update checks.
     Credential values, AppRole RoleID, and credential-file paths are excluded.
     Endpoint URLs show only scheme and host. The page has no configuration

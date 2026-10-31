@@ -34,6 +34,10 @@ func projectSettings(c config.Controller, version string) []settingsSection {
 	if c.UpdateChecks.Enabled {
 		enabled = "Enabled"
 	}
+	localAgent := "Disabled"
+	if c.LocalAgent {
+		localAgent = "Enabled"
+	}
 	mounts := make([]string, 0, len(c.OpenBao.SecretMounts))
 	for _, mount := range c.OpenBao.SecretMounts {
 		mounts = append(mounts, mount.Path+" ("+mount.Type+")")
@@ -41,6 +45,7 @@ func projectSettings(c config.Controller, version string) []settingsSection {
 	return []settingsSection{
 		{"Controller", []setting{
 			{"Version", version}, {"HTTP listen address", c.HTTPListen}, {"SSH listen address", c.SSHListen},
+			{"Local agent", localAgent},
 			{"Session lifetime", c.SessionTTL.String()}, {"State directory", c.StateDirectory},
 		}},
 		{"OpenBao", []setting{

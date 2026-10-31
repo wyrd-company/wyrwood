@@ -55,7 +55,10 @@ be used, but agents keep serving containers.
 
 Open **Settings** in the sidebar to inspect the controller version, listen
 addresses, session lifetime, state directory, OpenBao namespace and mounts,
-operator sign-in configuration, and update checks.
+operator sign-in configuration, and update checks. **Local agent** shows the
+effective enabled or disabled value of `local-agent.enabled`. See
+[Controller with a local agent](install.md#controller-with-a-local-agent) for
+enrollment and host service operation.
 
 The page is read-only. Edit the [controller configuration](configuration.md)
 and restart the controller to change these values. Credentials and

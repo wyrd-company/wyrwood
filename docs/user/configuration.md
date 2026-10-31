@@ -16,8 +16,8 @@ while the current tokens remain valid.
 
 Open **Settings** in the web admin navigation to inspect the controller settings
 loaded at startup. The page shows listen addresses, session lifetime, state
-directory, OpenBao namespace and mounts, operator admission groups, and update
-check settings. It uses the same operator sign-in requirement as other admin
+directory, the enabled or disabled `local-agent.enabled` flag, OpenBao
+namespace and mounts, operator admission groups, and update check settings. It uses the same operator sign-in requirement as other admin
 pages. Agent configuration remains on each agent host.
 
 This view is read-only. Edit the controller YAML configuration and restart the
