@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.4.1
+
+### Features
+
+- Show effective controller settings in a read-only web admin page with operator authorization and an explicit projection that excludes credentials and credential-file paths.
+- Run the shared host agent inside the controller with opt-in local-agent configuration, retaining standalone enrollment, approval, Engine isolation, and local status commands. Join recreate workers and drain admitted operator requests before releasing durable state during shutdown.
+- Choose binding access groups from the running agent’s reported process groups,
+  reject known unassignable selections on the server, and explain unknown reports,
+  host restarts, owner-only access, and container application group retention.
+
+### Fixes
+
+- Build the controller interface with pnpm 12 while preserving locked dependency versions.
+- Update the controller SSH server to the supported Charm SSH and Wish modules, including authentication and connection handling fixes.
+- Publish the user documentation from docs/user in the wyrd.foo v2 format, with a products map, structured install entries, highlights, the web interface screenshots as product media, and the product logo and favicon.
+- Keep controller image builds working with Node.js 26 by installing Corepack explicitly.
+- Keep Renovate updates for the OpenBao ACL parser on HCL 1 to preserve policy
+  syntax compatibility and avoid adding an unused HCL 2 module.
+
 ## 0.4.0
 
 ### Features
