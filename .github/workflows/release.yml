@@ -38,7 +38,7 @@ jobs:
       REPO_WYRD_FOO_PUBLISHER_COMMIT: a6963dc818e3c98bf31ff62544d333eacd91b67f
     steps:
       - name: Check out release commit
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Check out pinned package publisher contract
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           repository: wyrd-company/repo.wyrd.foo
           ref: ${{ env.REPO_WYRD_FOO_PUBLISHER_COMMIT }}
@@ -105,7 +105,7 @@ jobs:
       contents: write
     steps:
       - name: Check out release commit
-        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           ref: refs/tags/${{ env.RELEASE_TAG }}
           fetch-depth: 0
