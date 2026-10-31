@@ -132,12 +132,16 @@ func (server *Server) Serve(ctx context.Context) error {
 	}
 	httpServer := &http.Server{Handler: server.Handler(), ReadHeaderTimeout: 10 * time.Second, ReadTimeout: 30 * time.Second,
 		WriteTimeout: 30 * time.Second, IdleTimeout: 2 * time.Minute, MaxHeaderBytes: 64 << 10}
+	ctx, cancel := context.WithCancel(ctx)
+	drained := make(chan struct{})
 	go func() {
+		defer close(drained)
 		<-ctx.Done()
-		shutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = httpServer.Shutdown(shutdown)
+		// Listener closure ends Serve before active handlers finish. Retain
+		// controller state until all admitted requests have returned.
+		_ = httpServer.Shutdown(context.Background())
 	}()
+	defer func() { cancel(); <-drained }()
 	if err := httpServer.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

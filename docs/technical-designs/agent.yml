@@ -152,7 +152,9 @@ proposed-design:
     beyond the mount category, payloads, signatures, environment values, or
     raw engine or OpenBao errors.
   embedded-runtime: >-
-    RunDaemon composes the host agent independently of the CLI. Standalone
+    RunDaemon composes the host agent independently of the CLI. Shutdown closes
+    recreate admission and joins registered recreate workers before releasing
+    journals, consumer state, and the event writer lock. Standalone
     daemon and controller local-agent mode call this entrypoint with identical
     configuration, Engine permission checks, endpoints, and state paths. The
     event writer lock prevents simultaneous runtimes sharing agent state.

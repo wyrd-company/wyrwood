@@ -68,18 +68,20 @@ type Agent struct {
 	creds     *credentials
 	reconcile chan string
 
-	mu         sync.Mutex
-	containers map[string]engine.Container
-	set        protocol.PolicySet
-	setLoaded  bool
-	known      map[string]bool
-	consumers  map[string]*consumerState
-	results    map[string]protocol.ContractResult
-	recreating map[string]bool
-	pending    map[string]contract.CreateRequest
-	session    *controllerSession
-	connected  bool
-	lastReport time.Time
+	recreateWorkers sync.WaitGroup
+	stopping        bool // guarded by mu; closes recreate admission before joining
+	mu              sync.Mutex
+	containers      map[string]engine.Container
+	set             protocol.PolicySet
+	setLoaded       bool
+	known           map[string]bool
+	consumers       map[string]*consumerState
+	results         map[string]protocol.ContractResult
+	recreating      map[string]bool
+	pending         map[string]contract.CreateRequest
+	session         *controllerSession
+	connected       bool
+	lastReport      time.Time
 }
 
 type consumerState struct {
@@ -135,7 +137,13 @@ func New(options Options) (*Agent, error) {
 // from the policy cache before the controller is contacted.
 func (agent *Agent) Run(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
-	defer agent.shutdown()
+	defer func() {
+		agent.mu.Lock()
+		agent.stopping = true
+		agent.mu.Unlock()
+		agent.recreateWorkers.Wait()
+		agent.shutdown()
+	}()
 	var workers sync.WaitGroup
 	defer workers.Wait()
 	defer cancel()

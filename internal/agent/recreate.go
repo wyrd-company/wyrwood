@@ -63,6 +63,17 @@ func (agent *Agent) recreatingBindingLocked(id string) bool {
 // startRecreate recreates one container with its binding's contract when
 // the host allows it, and otherwise reports that recreate is not permitted.
 func (agent *Agent) startRecreate(ctx context.Context, bound protocol.Binding, container engine.Container) {
+	// Register under the admission lock so cancellation cannot race a zero-count
+	// Wait with a newly admitted state writer. Keep this registration until
+	// the asynchronous worker has also registered.
+	agent.mu.Lock()
+	if agent.stopping || ctx.Err() != nil {
+		agent.mu.Unlock()
+		return
+	}
+	agent.recreateWorkers.Add(1)
+	agent.mu.Unlock()
+	defer agent.recreateWorkers.Done()
 	key := events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)
 	if !agent.config.AllowRecreate {
 		agent.mu.Lock()
@@ -84,7 +95,11 @@ func (agent *Agent) startRecreate(ctx context.Context, bound protocol.Binding, c
 	agent.reportLocked(protocol.ContractResult{Binding: bound.Binding, Outcome: protocol.OutcomeRecreating})
 	agent.mu.Unlock()
 	agent.record(events.Event{Operation: events.OperationRecreateBegun, Outcome: events.OutcomeOK, Binding: bound.Binding, ContainerKey: key})
-	go agent.recreate(ctx, bound, container)
+	agent.recreateWorkers.Add(1)
+	go func() {
+		defer agent.recreateWorkers.Done()
+		agent.recreate(ctx, bound, container)
+	}()
 }
 
 func (agent *Agent) recreate(ctx context.Context, bound protocol.Binding, container engine.Container) {

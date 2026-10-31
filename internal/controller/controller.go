@@ -212,7 +212,12 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 	errorsChannel := make(chan error, 2)
 	go func() { errorsChannel <- server.ListenAndServe() }()
 	if serveHTTP != nil {
-		go func() { errorsChannel <- serveHTTP(ctx) }()
+		httpDone := make(chan struct{})
+		go func() {
+			defer close(httpDone)
+			errorsChannel <- serveHTTP(ctx)
+		}()
+		defer func() { cancelRun(); <-httpDone }()
 	}
 	controller.logf("controller serving agents on %s", controller.config.SSHListen)
 	select {

@@ -94,6 +94,8 @@ proposed-design:
     consumer directories, and local control socket. No CLI subprocess or
     privileged local transport bypass exists. A supervisor cancels both
     services when either exits and joins them before closing controller state.
+    The controller joins HTTP serving, including the drain of admitted operator
+    requests, before releasing its store and event writer lock.
     The packaged Linux agent service can select controller serve through an
     ExecStart override while retaining its service account and Engine proxy.
     Controller-only container deployments keep this capability disabled.
