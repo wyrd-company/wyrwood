@@ -242,29 +242,30 @@ type agentChoice struct {
 }
 
 type containerRow struct {
-	Agent      string
-	Connected  bool
-	LastReport time.Time
-	Setup      *containerSetup
-	ID         string
-	Name       string
-	Image      string
-	State      string
-	KeyKind    string
-	Policies   []string
-	Revision   int
-	Effective  policy.Effective
-	Warnings   []string
-	Applied    bool
-	Settings   policy.Settings
-	Badge      string
-	BadgeClass string
-	Bound      bool
-	BindingID  string
-	KeyValue   string
-	Token      string
-	Checks     []check
-	Candidates []candidate
+	AssignableGroups *protocol.AssignableGroups
+	Agent            string
+	Connected        bool
+	LastReport       time.Time
+	Setup            *containerSetup
+	ID               string
+	Name             string
+	Image            string
+	State            string
+	KeyKind          string
+	Policies         []string
+	Revision         int
+	Effective        policy.Effective
+	Warnings         []string
+	Applied          bool
+	Settings         policy.Settings
+	Badge            string
+	BadgeClass       string
+	Bound            bool
+	BindingID        string
+	KeyValue         string
+	Token            string
+	Checks           []check
+	Candidates       []candidate
 }
 
 type check struct {
@@ -321,7 +322,7 @@ func (server *Server) handleContainers(writer http.ResponseWriter, request *http
 		bindings, _ := server.controller.Store().Bindings(ctx, agent.Name)
 		connected := server.controller.Connected(agent.Name)
 		for _, container := range containers {
-			row := containerRow{Agent: agent.Name, Connected: connected, LastReport: agent.LastReport, ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
+			row := containerRow{AssignableGroups: server.controller.AssignableGroups(agent.Name), Agent: agent.Name, Connected: connected, LastReport: agent.LastReport, ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
 			if len(container.Keys) > 0 {
 				row.KeyKind = string(container.Keys[0].Kind)
 			}

@@ -181,6 +181,38 @@
         },
         "allow-recreate": {
           "type": "boolean"
+        },
+        "assignable-groups": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "groups"
+          ],
+          "properties": {
+            "any": {
+              "type": "boolean"
+            },
+            "groups": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "gid"
+                ],
+                "properties": {
+                  "gid": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 4294967294
+                  },
+                  "name": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },

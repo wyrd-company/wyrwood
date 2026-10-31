@@ -24,7 +24,15 @@ description: >-
   refuses to connect on mismatch.
 
   Agent to controller: `hello` carries the optional agent build version and
-  whether recreate is allowed on the host. An omitted version is unknown; the
+  whether recreate is allowed on the host. Optional `assignable-groups` reports
+  the effective and supplementary process groups as numeric `gid` and optional
+  host `name` labels. `any` means the privileged process can assign any valid
+  GID. Missing capability data is unknown. The controller uses only the live
+  session report; disconnect and replacement discard its authority. Binding
+  creation and edits reject GIDs excluded by a known report; unknown reports
+  do not restrict existing offline or older-agent operations. The interface
+  labels unknown choices as unverified. Older controllers reject this field;
+  use the stopped controller-first upgrade order. An omitted version is unknown; the
   controller accepts the session. `inventory` carries the complete current container
   list; each entry has the engine identifier, name, state, image reference,
   candidate keys in precedence order as `{kind, value}` with kinds

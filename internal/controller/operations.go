@@ -256,6 +256,9 @@ func (controller *Controller) createBinding(ctx context.Context, agent string, k
 	if _, err := controller.store.ApprovedAgent(ctx, agent); err != nil {
 		return store.Binding{}, operationError(events.ErrorNotBound, "the agent is not approved")
 	}
+	if err := controller.validateAccessGroup(agent, request.Settings.AccessGroup); err != nil {
+		return store.Binding{}, err
+	}
 	effective, err := controller.compose(ctx, request.Policies, request.Settings, nil)
 	if err != nil {
 		return store.Binding{}, err
@@ -300,6 +303,9 @@ func (controller *Controller) changeBinding(ctx context.Context, id string, requ
 	}
 	if request.Revision != b.Revision {
 		return b, operationError(events.ErrorPolicyDenied, "the binding changed; reload before saving")
+	}
+	if err := controller.validateAccessGroup(b.Agent, request.Settings.AccessGroup); err != nil {
+		return b, err
 	}
 	effective, err := controller.compose(ctx, request.Policies, request.Settings, nil)
 	if err != nil {

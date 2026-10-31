@@ -354,7 +354,11 @@ function BindingForm({
         requirements are rejected. Agent token renewal is enabled when any
         selected policy enables it. Binding tokens have no default policy.
       </p>
-      <BindingSettings settings={r.Settings} />
+      <BindingSettings
+        settings={r.Settings}
+        groups={r.AssignableGroups}
+        connected={r.Connected}
+      />
       <Button
         type="button"
         variant="outline"
