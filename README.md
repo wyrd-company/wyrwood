@@ -66,6 +66,9 @@ ssh-add -L
 The [documentation](docs/user/overview.md) covers installation, policies and
 contracts, and operations.
 
+The web admin **Settings** page shows effective controller settings in a
+read-only view. Credentials and credential-file paths are omitted.
+
 ## Project direction
 
 The [concept](docs/concepts/wyrwood.yml) defines the product. The

@@ -13,6 +13,7 @@ import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
 import { Events } from "./pages/events";
 import { Security } from "./pages/security";
+import { Settings } from "./pages/settings";
 function Content({ page }: { page: Page }) {
   switch (page.page) {
     case "sign-in":
@@ -31,6 +32,8 @@ function Content({ page }: { page: Page }) {
       return <Keys data={page.data} />;
     case "events":
       return <Events data={page.data} />;
+    case "settings":
+      return <Settings data={page.data} />;
     case "security":
       return <Security data={page.data} />;
   }

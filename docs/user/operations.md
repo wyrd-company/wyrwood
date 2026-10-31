@@ -26,6 +26,7 @@ behind a reverse proxy that terminates TLS.
 | **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
 | **Containers** | Select a container, bind policies, and inspect its contract check. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
+| **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
 | **Account → Security** | Inspect sign-in details and end operator sessions. |
 
@@ -49,6 +50,21 @@ it from **Security**. While the provider is unreachable the interface cannot
 be used, but agents keep serving containers.
 
 ![Security page with operator and identity-provider details](assets/web-security.png)
+
+## Controller settings
+
+Open **Settings** in the sidebar to inspect the controller version, listen
+addresses, session lifetime, state directory, OpenBao namespace and mounts,
+operator sign-in configuration, and update checks. **Local agent** shows the
+effective enabled or disabled value of `local-agent.enabled`. See
+[Controller with a local agent](install.md#controller-with-a-local-agent) for
+enrollment and host service operation.
+
+The page is read-only. Edit the [controller configuration](configuration.md)
+and restart the controller to change these values. Credentials and
+credential-file paths are omitted. Endpoint origins show only scheme and host.
+
+![Settings page with effective controller configuration](assets/web-settings.png)
 
 ## Container setup
 

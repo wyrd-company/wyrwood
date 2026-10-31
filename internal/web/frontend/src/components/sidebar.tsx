@@ -31,6 +31,7 @@ export function Sidebar({ data }: { data: Layout }) {
           ["policies", "Policies"],
           ["keys", "OpenBao keys"],
           ["events", "Events"],
+          ["settings", "Settings"],
         ].map(([path, label]) => (
           <Fragment key={path}>
             <a
