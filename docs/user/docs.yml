@@ -13,6 +13,7 @@ assets:
   - assets/web-containers.png
   - assets/web-keys.png
   - assets/web-events.png
+  - assets/web-security.png
   - assets/web-account-menu.png
   - assets/web-versions.png
   - assets/emblem-light.svg
@@ -72,9 +73,12 @@ products:
       - src: assets/web-account-menu.png
         caption: Account menu with Security and Sign out.
         alt: The account menu open to show Security and Sign out.
+      - src: assets/web-security.png
+        caption: Operator security and identity-provider details.
+        alt: The Security page showing the operator and identity-provider details.
       - src: assets/web-versions.png
         caption: Controller and agent versions with update status.
-        alt: The versions page showing controller and agent versions and their update status.
+        alt: The Agents page showing controller and agent versions and their update status.
     kinds:
       - kind: app
         install:

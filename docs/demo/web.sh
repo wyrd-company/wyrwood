@@ -18,14 +18,16 @@ repository=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 root=${WYRWOOD_DEMO_ROOT:-/tmp/wyrwood-demo}
 site=http://localhost:18088
 assets=$repository/docs/user/assets
-export AGENT_BROWSER_SESSION=wyrwood-demo-web
+export AGENT_BROWSER_SESSION=${AGENT_BROWSER_SESSION:-wyrwood-demo-web}
+trap 'agent-browser close >/dev/null 2>&1 || true' EXIT
 
 browse() {
 	agent-browser "$@" >/dev/null
 }
 
 shot() {
-	browse screenshot "$assets/$1.png"
+	browse eval "document.fonts.ready.then(() => true)"
+	browse screenshot --full "$assets/$1.png"
 }
 
 hold() {
@@ -37,7 +39,9 @@ browse set viewport 1280 800
 browse open "$site/"
 browse cookies clear
 browse reload
-browse record start "$root/web.mp4" --cursor
+if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
+	browse record start "$root/web.mp4" --cursor
+fi
 hold 2
 
 # Sign in through the identity provider.
@@ -59,6 +63,8 @@ for _ in $(seq 1 30); do
 	sleep 1
 done
 hold 2.5
+browse wait --text "Connected"
+shot web-versions
 
 # Write a policy: HCL, the SSH identities it offers, and the contract.
 browse find role link click --name "Policies"
@@ -97,6 +103,8 @@ hold 1.5
 browse find text "teal-api" click
 browse wait --text "Binding settings"
 browse find role checkbox click --name "teal" --exact
+# Use the real agent-reported root group for this root workload.
+browse select "#binding-group" "0"
 browse select "#binding-enforcement" "recreate"
 hold 1
 browse click 'input[name=understood]'
@@ -112,9 +120,13 @@ for _ in $(seq 1 60); do
 done
 hold 1.5
 browse find text "teal-api" click
+browse wait --text "Conforms"
 browse wait --text "Contract check"
 hold 3
 shot web-containers
+browse scrollintoview "#h-setup"
+browse wait --text "Host source"
+shot web-container-setup
 
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"
@@ -124,5 +136,15 @@ browse find role link click --name "Events"
 hold 3.5
 shot web-events
 
-browse record stop
+# Account and security use the same signed-in operator as the workflow.
+browse find role button click --name "Account"
+browse wait --text "Sign out"
+shot web-account-menu
+browse find role menuitem click --name "Security" --exact
+browse wait --text "Admitted through group"
+shot web-security
+
+if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
+	browse record stop
+fi
 browse close

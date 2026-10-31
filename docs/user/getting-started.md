@@ -10,7 +10,8 @@ relationships:
 ---
 
 This walk-through enrolls one host, writes one policy, and binds one
-container.
+container. Use the controller web interface for policy and binding changes;
+run the host and container commands where indicated.
 
 ## Enroll the agent
 
@@ -26,13 +27,19 @@ sudo wyrwood agent service start
 Sign in to the controller's web interface through your identity provider,
 open **Agents**, and approve the pending key after comparing its fingerprint
 with the one the login command printed. The host's containers appear once
-the agent reports in.
+the agent reports in. For a controller that also runs its local agent, follow
+[Controller with a local agent](install.md#controller-with-a-local-agent) to
+enroll and approve that host; do not start a separate agent daemon.
 
 ![Agents page with one key pending approval](assets/web-agents.png)
 
 ## Write a policy
 
-Open **Policies** and create one. A policy has three parts:
+Open **Policies → New policy** and enter a name, such as `teal`.
+Use **Graphical paths** to add paths and select their capabilities, or
+**Raw HCL** to paste the example below. Select the SSH identities and keep
+the default contract for this example. Choose **Save and validate** and check
+that OpenBao accepts the policy. A policy has three parts:
 
 1. The OpenBao policy, in HCL. For example, read access to one KV path and
    signing with one Transit key. Use **Agent token renewal** to control
@@ -57,8 +64,11 @@ Open **Policies** and create one. A policy has three parts:
 3. The contract. The default mounts the consumer directory at `/run/wyrwood`
    and sets `SSH_AUTH_SOCK` and `VAULT_ADDR` to the sockets inside it.
 
-When binding, set the access group to the numeric group your container's
-processes use. Leave binding enforcement at `report` unless you want one
+When binding, choose **Access group** from the groups reported by the running
+host agent. The container processes must retain that numeric GID as a primary
+or supplementary group. A capable agent also offers a custom numeric GID.
+See [Access group](configuration.md#access-group) for stale reports and host
+group changes. Leave binding enforcement at `report` unless you want one
 recreate with the mount applied on first bind. Preview the effective policy
 before saving. TTL, access group, and enforcement are binding settings.
 
@@ -86,7 +96,8 @@ binding's OpenBao and SSH permissions. See [Access group](configuration.md#acces
 ## Bind a container
 
 Open **Containers**, select the container, then select one or more policies
-and binding settings. The
+and binding settings. Use **Preview effective policy** to inspect the
+combined policy, then **Bind policies** to save. The
 controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.

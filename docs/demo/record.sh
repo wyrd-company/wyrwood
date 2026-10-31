@@ -14,11 +14,23 @@ repository=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 root=${WYRWOOD_DEMO_ROOT:-/tmp/wyrwood-demo}
 demo=$repository/docs/demo
 
+case "${1:-}" in
+""|--screenshots) ;;
+*) echo "usage: $0 [--screenshots]" >&2; exit 2 ;;
+esac
+
 cd "$repository"
 "$demo/stack.sh" down
 trap '"$demo/stack.sh" down' EXIT
 "$demo/stack.sh" up
+if [ "${1:-}" = --screenshots ]; then
+	export WYRWOOD_DEMO_SCREENSHOTS_ONLY=1
+fi
 "$demo/web.sh"
+python3 "$demo/check.py" --record
+if [ "${1:-}" = --screenshots ]; then
+	exit 0
+fi
 vhs "$demo/cli.tape"
 
 # One 960-pixel-wide clip at 10 frames per second, the web interface first.
