@@ -4,7 +4,7 @@
 
 module github.com/wyrd-company/wyrwood
 
-go 1.26.4
+go 1.27.3
 
 require (
 	github.com/charmbracelet/ssh v0.0.0-20250128164007-98fd5ae11894
