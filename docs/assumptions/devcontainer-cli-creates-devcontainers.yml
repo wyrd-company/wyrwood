@@ -9,9 +9,9 @@ description: >-
 end-descendant-type: test-charter
 evidence:
   - >-
-    The devcontainer CLI selects an existing container by the
-    devcontainer.local_folder and devcontainer.config_file labels.
+      The devcontainer CLI selects an existing container by the
+      devcontainer.local_folder and devcontainer.config_file labels.
   - >-
-    VS Code installs its server into the container at connect time rather
-    than depending on container identity.
+      VS Code installs its server into the container at connect time rather
+      than depending on container identity.
   - T3 Code depends only on its mounted userdata directory.

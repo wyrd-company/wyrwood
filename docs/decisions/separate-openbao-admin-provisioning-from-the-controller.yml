@@ -48,6 +48,6 @@ expected-outcomes:
     - A provisioning-token holder can grant arbitrary namespace authority through its policy writer.
     - Group removal does not revoke issued OpenBao tokens before revocation or maximum lifetime.
     - >-
-      A person admitted to Wyrwood retains its existing effective namespace
-      authority through policy writes.
+        A person admitted to Wyrwood retains its existing effective namespace
+        authority through policy writes.
     - Option 1 requires the site administrator to create additional secret mounts.

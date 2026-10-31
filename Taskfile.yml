@@ -180,31 +180,31 @@ tasks:
       - release:ci
     cmds:
       - >-
-        RELEASE_VERSION="{{.RELEASE_VERSION}}"
-        go run github.com/goreleaser/goreleaser/v2@v2.17.0
-        release --snapshot --clean
+          RELEASE_VERSION="{{.RELEASE_VERSION}}"
+          go run github.com/goreleaser/goreleaser/v2@v2.17.0
+          release --snapshot --clean
       - >-
-        scripts/create-release-manifest.py
-        --artifacts-dir dist
-        --version "{{.RELEASE_VERSION}}"
-        --commit "{{.RELEASE_COMMIT}}"
-        --output dist/release-manifest.json
+          scripts/create-release-manifest.py
+          --artifacts-dir dist
+          --version "{{.RELEASE_VERSION}}"
+          --commit "{{.RELEASE_COMMIT}}"
+          --output dist/release-manifest.json
       - >-
-        scripts/validate-publisher-contract.sh
-        "{{.PUBLISHER_ROOT}}"
-        "{{.PUBLISHER_COMMIT}}"
-        dist/release-manifest.json
-        dist
-        dist/publisher-contract
+          scripts/validate-publisher-contract.sh
+          "{{.PUBLISHER_ROOT}}"
+          "{{.PUBLISHER_COMMIT}}"
+          dist/release-manifest.json
+          dist
+          dist/publisher-contract
 
   release:snapshot:
     desc: Build local release artifacts without publishing
     deps: [ frontend:build ]
     cmds:
       - >-
-        RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
-        go run github.com/goreleaser/goreleaser/v2@v2.17.0
-        release --snapshot --clean
+          RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
+          go run github.com/goreleaser/goreleaser/v2@v2.17.0
+          release --snapshot --clean
 
   workflows:check:
     desc: Validate GitHub Actions workflows
