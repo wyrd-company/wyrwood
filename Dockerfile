@@ -6,7 +6,7 @@
 
 # The controller image. Go cross-compiles for the target platform, so a
 # multi-platform build needs no emulation.
-FROM --platform=$BUILDPLATFORM node:24-bookworm-slim AS frontend
+FROM --platform=$BUILDPLATFORM node:26-bookworm-slim AS frontend
 WORKDIR /frontend
 COPY internal/web/frontend/package.json internal/web/frontend/pnpm-lock.yaml ./
 RUN corepack enable && pnpm install --frozen-lockfile
