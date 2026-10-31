@@ -103,6 +103,8 @@ hold 1.5
 browse find text "teal-api" click
 browse wait --text "Binding settings"
 browse find role checkbox click --name "teal" --exact
+# Use the real agent-reported root group for this root workload.
+browse select "#binding-group" "0"
 browse select "#binding-enforcement" "recreate"
 hold 1
 browse click 'input[name=understood]'

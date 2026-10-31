@@ -27,7 +27,9 @@ sudo wyrwood agent service start
 Sign in to the controller's web interface through your identity provider,
 open **Agents**, and approve the pending key after comparing its fingerprint
 with the one the login command printed. The host's containers appear once
-the agent reports in.
+the agent reports in. For a controller that also runs its local agent, follow
+[Controller with a local agent](install.md#controller-with-a-local-agent) to
+enroll and approve that host; do not start a separate agent daemon.
 
 ![Agents page with one key pending approval](assets/web-agents.png)
 
@@ -62,8 +64,11 @@ that OpenBao accepts the policy. A policy has three parts:
 3. The contract. The default mounts the consumer directory at `/run/wyrwood`
    and sets `SSH_AUTH_SOCK` and `VAULT_ADDR` to the sockets inside it.
 
-When binding, set the access group to the numeric group your container's
-processes use. Leave binding enforcement at `report` unless you want one
+When binding, choose **Access group** from the groups reported by the running
+host agent. The container processes must retain that numeric GID as a primary
+or supplementary group. A capable agent also offers a custom numeric GID.
+See [Access group](configuration.md#access-group) for stale reports and host
+group changes. Leave binding enforcement at `report` unless you want one
 recreate with the mount applied on first bind. Preview the effective policy
 before saving. TTL, access group, and enforcement are binding settings.
 
