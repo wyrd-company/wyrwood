@@ -20,6 +20,18 @@ description: >-
   certificates. Every key and role named must also be permitted by the HCL
   policy, or the endpoint reports a denial for it.
 
+  Policy inspection and lifecycle compilation use the HCL 1 native and JSON
+  dialects consumed by OpenBao ACL policies. Native workload text outside
+  exact managed lifecycle stanzas is preserved, including comments and
+  multiple attributes on one line. HCL 2 is a separate language/API and
+  module (`github.com/hashicorp/hcl/v2`), not a compatible dependency update.
+  Renovate allows HCL 1 updates for `github.com/hashicorp/hcl` and excludes
+  cross-major replacements. Compatibility follows OpenBao's policy parser,
+  not the presence of HCL 2 elsewhere in OpenBao's dependency graph.
+  References: https://openbao.org/docs/concepts/policies/,
+  https://github.com/openbao/openbao/blob/v2.7.2/internal/vault/policy/policy.go,
+  https://github.com/hashicorp/hcl/wiki/Version-Selection.
+
   `ssh.not-forwardable.transit-keys` and `ssh.not-forwardable.ca-roles`
   select offered identities by their Transit key name or SSH-engine role name.
   Identities are forwardable by default. For a selected identity, signing is

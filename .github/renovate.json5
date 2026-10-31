@@ -5,6 +5,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["github>wyrd-company/.github:renovate-config"],
+  "packageRules": [
+    {
+      // OpenBao ACL policies use HCL 1, including its native and JSON dialects.
+      // HCL 2 has a different module path, API, and syntax. Keep HCL 1 updates.
+      "matchManagers": ["gomod"],
+      "matchPackageNames": ["github.com/hashicorp/hcl"],
+      "allowedVersions": "<2.0.0"
+    }
+  ],
   "customManagers": [
     {
       "customType": "regex",
