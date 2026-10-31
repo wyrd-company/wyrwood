@@ -46,6 +46,6 @@ expected-outcomes:
     - Recreate discards the container's writable layer and interrupts attached sessions.
     - The agent must reproduce a container definition from inspect output faithfully.
     - >-
-      The agent user has full engine access on every host through docker group
-      membership; the recreate setting limits what the agent executable does,
-      not what its identity can do.
+        The agent user has full engine access on every host through docker group
+        membership; the recreate setting limits what the agent executable does,
+        not what its identity can do.
