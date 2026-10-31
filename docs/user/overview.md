@@ -22,7 +22,9 @@ Wyrwood has two parts:
   policies and AppRoles.
 - The **agent** runs on each Linux host with Docker Engine. It enrolls with the
   controller over SSH, reports every container, and publishes each bound
-  container's sockets.
+  container's sockets. The controller can also run this agent in its own
+  process on a Linux host; see
+  [Controller with a local agent](install.md#controller-with-a-local-agent).
 
 A **policy** pairs an OpenBao policy with a container contract. The OpenBao
 policy names the secrets a container may read and the keys it may sign with.

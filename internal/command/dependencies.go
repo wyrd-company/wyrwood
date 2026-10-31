@@ -8,20 +8,13 @@ package command
 import (
 	"context"
 	"errors"
-	"io"
-	"log"
-	"net"
 	"os"
 
 	"github.com/wyrd-company/wyrwood/internal/agent"
-	"github.com/wyrd-company/wyrwood/internal/binding"
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller"
-	"github.com/wyrd-company/wyrwood/internal/engine"
 	"github.com/wyrd-company/wyrwood/internal/engineproxy"
 	"github.com/wyrd-company/wyrwood/internal/linuxservice"
-	"github.com/wyrd-company/wyrwood/internal/sshagent"
-	"github.com/wyrd-company/wyrwood/internal/vaultproxy"
 	"github.com/wyrd-company/wyrwood/internal/web"
 )
 
@@ -66,42 +59,6 @@ func defaultDependencies() dependencies {
 	}
 }
 
-func runAgentDaemon(ctx context.Context, paths agent.Paths) error {
-	configuration, err := config.LoadAgent(paths.Config)
-	if err != nil {
-		return errConfiguration
-	}
-	if err := engineproxy.CheckAgentAccess(configuration.EngineSocket); err != nil {
-		return err
-	}
-	agent.Version = version
-	// Library diagnostics, such as ssh-agent request failures, are already
-	// recorded as categorical events and are not repeated to the journal.
-	log.SetOutput(io.Discard)
-	instance, err := agent.New(agent.Options{
-		Config: configuration, Paths: paths, Engine: engine.NewClient(configuration.EngineProxySocket), Log: os.Stderr,
-		Endpoints: endpoints{vault: vaultproxy.New(configuration.OpenBaoTimeout), ssh: sshagent.New(configuration.SignTimeout)},
-	})
-	if err != nil {
-		return err
-	}
-	return instance.Run(ctx)
-}
-
-// endpoints serves both consumer sockets.
-type endpoints struct {
-	vault *vaultproxy.Proxy
-	ssh   *sshagent.Endpoint
-}
-
-func (set endpoints) ServeVault(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
-	set.vault.Serve(listener, lookup, record)
-}
-
-func (set endpoints) ServeSSHAgent(listener net.Listener, lookup binding.Lookup, record binding.Recorder) {
-	set.ssh.Serve(listener, lookup, record)
-}
-
 func serveController(ctx context.Context, path string) error {
 	configuration, err := config.LoadController(path)
 	if err != nil {
@@ -116,7 +73,9 @@ func serveController(ctx context.Context, path string) error {
 	if err != nil {
 		return err
 	}
-	return instance.Run(ctx, operators.Serve)
+	return runControllerServices(ctx, configuration.LocalAgent,
+		func(ctx context.Context) error { return instance.Run(ctx, operators.Serve) },
+		func(ctx context.Context) error { return runAgentDaemon(ctx, agent.DefaultPaths()) })
 }
 
 func controllerHostKey(path string) (string, error) {
@@ -125,4 +84,28 @@ func controllerHostKey(path string) (string, error) {
 		return "", errConfiguration
 	}
 	return controller.HostKeyFingerprint(configuration.StateDirectory)
+}
+
+// runControllerServices owns both lifetimes. A startup or runtime failure in
+// either service stops its peer before the controller state is closed.
+func runControllerServices(ctx context.Context, localAgent bool, serve, runAgent func(context.Context) error) error {
+	if !localAgent {
+		return serve(ctx)
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan error, 2)
+	go func() { done <- serve(ctx) }()
+	go func() { done <- runAgent(ctx) }()
+	first := <-done
+	cancel()
+	return errors.Join(first, <-done)
+}
+
+func runAgentDaemon(ctx context.Context, paths agent.Paths) error {
+	err := agent.RunDaemon(ctx, paths, version, os.Stderr)
+	if errors.Is(err, agent.ErrConfiguration) {
+		return errConfiguration
+	}
+	return err
 }

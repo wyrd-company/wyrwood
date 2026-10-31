@@ -91,7 +91,7 @@ errors.
 
 | Command | Purpose |
 | --- | --- |
-| `wyrwood controller serve` | Run the controller. |
+| `wyrwood controller serve` | Run the controller and its optional local agent. |
 | `wyrwood controller host-key` | Print the controller's SSH host-key fingerprint. |
 | `wyrwood agent login <url>` | Generate the agent key, accept the controller fingerprint, and request approval. |
 | `wyrwood agent daemon` | Run the agent through its Engine proxy. |

@@ -151,6 +151,11 @@ proposed-design:
     issuance. Events contain no tokens, secret identifiers, request paths
     beyond the mount category, payloads, signatures, environment values, or
     raw engine or OpenBao errors.
+  embedded-runtime: >-
+    RunDaemon composes the host agent independently of the CLI. Standalone
+    daemon and controller local-agent mode call this entrypoint with identical
+    configuration, Engine permission checks, endpoints, and state paths. The
+    event writer lock prevents simultaneous runtimes sharing agent state.
   package-boundaries: >-
     The module separates engine observation, controller session, credential
     lifecycle, contract enforcement, consumer directories, the two endpoint

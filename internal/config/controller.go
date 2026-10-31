@@ -41,6 +41,7 @@ type Controller struct {
 	OpenBao        ControllerOpenBao
 	OIDC           OIDC
 	UpdateChecks   UpdateChecks
+	LocalAgent     bool
 }
 
 // UpdateChecks controls optional outbound release checks.
@@ -96,6 +97,9 @@ type OIDC struct {
 }
 
 type controllerDocument struct {
+	LocalAgent *struct {
+		Enabled bool `yaml:"enabled"`
+	} `yaml:"local-agent"`
 	UpdateChecks *struct {
 		Enabled  bool    `yaml:"enabled"`
 		Interval *string `yaml:"interval"`
@@ -157,6 +161,9 @@ func ParseController(data []byte) (Controller, error) {
 		SSHListen:      DefaultSSHListen,
 		StateDirectory: DefaultStateDirectory,
 		UpdateChecks:   UpdateChecks{Interval: DefaultUpdateInterval, Timeout: DefaultUpdateTimeout},
+	}
+	if document.LocalAgent != nil {
+		result.LocalAgent = document.LocalAgent.Enabled
 	}
 	if document.UpdateChecks != nil {
 		result.UpdateChecks.Enabled = document.UpdateChecks.Enabled
