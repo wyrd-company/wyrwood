@@ -1,2 +1,4 @@
 node_modules
 coverage
+# pnpm 12 rewrites its environment document on command startup.
+pnpm-lock.yaml

@@ -8,7 +8,7 @@
     "internal/web/auth.go": "a0a9a873a409d8ec2c92abe792f09c7f2f41e979cff6077284016f4b10d3bd41",
     "internal/web/container_setup.go": "0ea25b9d75f041ac7eb4892784ca0a98b819ba955b896bde02b209e7851c403f",
     "internal/web/frontend/index.html": "f24bf6fc5ef21804c2beb10707128165ba28c80f2726b232bb78ffe19fe1fa8e",
-    "internal/web/frontend/pnpm-lock.yaml": "e47babc5c0bb7b35b77465aea745343369c8fe19edf3cb91c6063c8c0b3fa744",
+    "internal/web/frontend/pnpm-lock.yaml": "ec4710ce016ec86bc56963bb67d0d63fe1db5f0baf1622b844c26555a291dcc5",
     "internal/web/frontend/public/apple-touch-icon.png": "b5be2fea7ac2150a609fd94438d17c925f045651913a0b7431fecbbd45886213",
     "internal/web/frontend/public/emblem-dark.svg": "205da1d3de620aeaeae8ef01db750e5a1464cc60cd9468fbfe2e11bba7f1f9b4",
     "internal/web/frontend/public/emblem-light.svg": "e6089d63f10c188e0ce515bcc4813fd2c965bb8382e5a05622840c25b0e7f748",
@@ -57,16 +57,16 @@
     "internal/web/web.go": "313dfd018a87754dc1a19d7e930424b8e18e65c280f38ffafe39446e98666584"
   },
   "screenshots": {
-    "docs/user/assets/web-account-menu.png": "0066ea120025e247a3d8530f05757d29b12dce1b006af3f1c2673d0df61bed9f",
-    "docs/user/assets/web-agents.png": "97ae31dcd8312c788be35a882ff19a116e8787876851f7b40e12baf0a6f31f48",
-    "docs/user/assets/web-bind.png": "3dace05d57d6de830208800cc7140c7be39698d505356b4d0516133353ac5f00",
+    "docs/user/assets/web-account-menu.png": "7bebd0af0f55d197ff59361b5c9ad583bc49e8e4cc4565f97fa0441c6bc2c936",
+    "docs/user/assets/web-agents.png": "56b7fbacd85ae302b946496d863509aa4fdd1b24c2293a1bf614207b7a91a807",
+    "docs/user/assets/web-bind.png": "bc28c513c8ecca632a08d32ea29db2b830c963853a88bf27b089dfb46f04a456",
     "docs/user/assets/web-container-setup.png": "2dbf1e7f207f5eac0577288d535fbfc9ccf377a25c27c8d59d7dc3a321db5ec9",
     "docs/user/assets/web-containers.png": "2537e37646bad4343b61f20aed9fa94614ca0a6d6f9e823330380b3dc2447514",
-    "docs/user/assets/web-events.png": "91363cdae3cba667b76d0dc6723ddd087ee79801ef8e9b8d2e07771d714f5698",
-    "docs/user/assets/web-keys.png": "670d0fa4df55d1a5bc705fa841a8a47a96a225d8cae062744056b2532dd8df4b",
+    "docs/user/assets/web-events.png": "3ba2195a88a2fe6c3de953bd3b53aae28190f168492f8a0c56c0b09bdf58eb7f",
+    "docs/user/assets/web-keys.png": "aebddb040dbb7a4955f5298ecd7f599f6651486c2c4f85be1a7891512728dbcd",
     "docs/user/assets/web-policy.png": "0d7d655d6f8780f262bad6e2717073882d223fa5430b7ec13138b6dddf884756",
-    "docs/user/assets/web-security.png": "b9b2e29b1ffe2bab3d1beaf915fb759a8d039facebfd16bfb3a78ab71340049e",
-    "docs/user/assets/web-settings.png": "4d5e29caa844f7e4b06e80dfcd340ed4290d2589c994cdebeaa61dc6ee57d8f4",
-    "docs/user/assets/web-versions.png": "ad97dc5f5ce95e3540fe23692de12118673576cadd4d669942d011b1e03b08aa"
+    "docs/user/assets/web-security.png": "5a763c76e07c709b386c238d6dc519c1b0972bd591c3fe9a8f2996d2bea5bdb6",
+    "docs/user/assets/web-settings.png": "4081c3ac3f0425ad50d7619665786ea140cdfd28ab226c9aff338d6d011f5bfd",
+    "docs/user/assets/web-versions.png": "b0fe362d036671fd1c1152dbdb2c54bbf22893131c3ae1c6abc6868ec6484eca"
   }
 }

@@ -79,3 +79,7 @@ level = "error"
 forbid-duplicated-merge-keys = false
 check-canonical = false              # ryl-only
 forbid-merge-key-shadowing = false   # ryl-only
+
+# pnpm 12 owns both lockfile documents and rewrites their formatting on startup.
+[lint.per-file-ignores]
+"internal/web/frontend/pnpm-lock.yaml" = ["braces", "brackets", "document-start"]

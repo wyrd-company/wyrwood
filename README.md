@@ -89,6 +89,9 @@ from the frozen frontend lockfile and builds the interface for embedding in
 `wyrwood`. The executable and controller image need no Node.js runtime or
 external UI files. Generated frontend assets are not committed.
 
+pnpm 12 owns the lockfile format, including its package-manager document.
+Keep its generated format; frozen installs validate the dependency graph.
+
 The interface sources are in `internal/web/frontend`. They use React,
 TypeScript, shadcn/ui components, Tailwind v4, and Vite. `task check` checks
 frontend types, formatting, and component tests alongside the Go gates.
