@@ -28,7 +28,10 @@ def inputs():
                     'internal/integration/testdata/Dockerfile',
                     'internal/web/frontend/index.html', 'internal/web/frontend/pnpm-lock.yaml'):
         paths.update(p for p in ROOT.glob(pattern) if p.is_file()
-                     and '_test.go' not in p.name and '.test.' not in p.name)
+                     and '_test.go' not in p.name and '.test.' not in p.name
+                     and p.relative_to(ROOT).as_posix() not in (
+                         'internal/web/frontend/src/test-setup.ts',
+                         'internal/web/frontend/src/render-test.tsx'))
     return {str(p.relative_to(ROOT)): digest(p) for p in sorted(paths)}
 
 

@@ -40,10 +40,12 @@ cleans up the site on success or failure. Do not run it against a live site.
 `task docs:media:check` runs without Docker or a browser and is included in
 `task docs:check` and CI. It checks local user-guide links and anchors,
 publishing asset references, PNG signatures, and the recorded hashes. Changes
-to UI sources, web handlers, recorder scripts, or screenshot bytes require a
-fresh recording. Added and removed files also invalidate the receipt. This
-is a conservative refresh signal, not a pixel comparison or proof that prose
-is correct. Review images after capture; do not update hashes to bypass it.
+to production UI sources, web handlers, recorder scripts, or screenshot bytes
+require a fresh recording. Test files, Vitest setup, and the Go-test SSR entry
+point are excluded; shared production components remain inputs. Added and
+removed inputs also invalidate the receipt. This is a conservative refresh
+signal, not a pixel comparison or proof that prose is correct. Review images
+after capture; do not update hashes to bypass it.
 The CLI animation is outside this receipt and needs review when commands change.
 
 For recording failures, keep the terminal error and inspect the demo logs

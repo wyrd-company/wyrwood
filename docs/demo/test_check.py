@@ -52,6 +52,19 @@ class MediaCheckTest(unittest.TestCase):
         added.unlink()
         self.assertEqual(self.run_check(), 1)
 
+    def test_test_only_frontend_changes_preserve_receipt(self):
+        for name in ('test-setup.ts', 'render-test.tsx', 'example.test.tsx'):
+            source = self.source.with_name(name)
+            source.write_text('test fixture')
+            self.assertEqual(self.run_check(), 0, name)
+            self.assertEqual(self.run_check('--record'), 0)
+            source.write_text('changed test fixture')
+            self.assertEqual(self.run_check(), 0, name)
+            source.unlink()
+            self.assertEqual(self.run_check(), 0, name)
+        self.source.write_text('production page changed')
+        self.assertEqual(self.run_check(), 1)
+
     def test_changed_image(self):
         with (self.root / 'docs/user/assets/web-example.png').open('ab') as image:
             image.write(b'changed')
