@@ -8,3 +8,4 @@ exclude = [".intentional/intents"]
 [per-file-ignores]
 # Intentional owns the generated changelog, including its line wrapping.
 "CHANGELOG.md" = ["MD013"]
+"docs/user/CHANGELOG.md" = ["MD013"]
