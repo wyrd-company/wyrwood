@@ -9,19 +9,9 @@ relationships:
     - web-interface
 ---
 
-Wyrwood provides human-readable output for interactive use and closed,
-versioned JSON for automation.
-
-```bash
-sudo wyrwood agent status
-sudo wyrwood agent containers
-sudo wyrwood agent events --limit 50
-sudo wyrwood agent status --output json
-```
-
-Successful output goes to standard output. Categorical errors go to standard
-error. Automation can distinguish usage, login, daemon, controller, and
-fingerprint failures by exit status without parsing error text.
+Use the controller's web interface for daily operations. Use the agent CLI
+on a host for diagnostics and automation. Installation and service changes
+use host commands; policies and bindings are managed in the web interface.
 
 ## Web interface
 
@@ -29,6 +19,18 @@ The controller's web interface shows agents with pending approvals,
 all reported containers with binding and conformance state, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
 behind a reverse proxy that terminates TLS.
+
+| In the web interface | Action |
+| --- | --- |
+| **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
+| **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
+| **Containers** | Select a container, bind policies, and inspect its contract check. |
+| **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
+| **Events** | Read the controller's operational history. |
+| **Account → Security** | Inspect sign-in details and end operator sessions. |
+
+Follow [Getting started](getting-started.md) for agent approval, policy creation,
+and container binding with screenshots.
 
 ![OpenBao keys page with Transit keys and SSH-engine roles](assets/web-keys.png)
 
@@ -46,6 +48,8 @@ their open session ends at the session time-to-live or when an operator ends
 it from **Security**. While the provider is unreachable the interface cannot
 be used, but agents keep serving containers.
 
+![Security page with operator and identity-provider details](assets/web-security.png)
+
 ## Container setup
 
 **Containers** shows all approved agents’ last reported containers. Filter by
@@ -54,7 +58,7 @@ ascending or descending order. Disconnected rows retain the last report and
 show its age. Selecting a container keeps the current filters and order.
 Filtering out the selected container closes its detail panel.
 
-In **Containers**, select a bound container and open **Container setup**. Copy
+In **Containers**, select a bound container and scroll to **Container setup**. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
 example. The examples use the saved effective contract, including its
 environment values and custom mount target. Run them on the selected agent
@@ -88,6 +92,20 @@ errors.
 ![Controller events, newest first](assets/web-events.png)
 
 ## Commands
+
+Wyrwood provides human-readable output for interactive use and closed,
+versioned JSON for automation.
+
+```bash
+sudo wyrwood agent status
+sudo wyrwood agent containers
+sudo wyrwood agent events --limit 50
+sudo wyrwood agent status --output json
+```
+
+Successful output goes to standard output. Categorical errors go to standard
+error. Automation can distinguish usage, login, daemon, controller, and
+fingerprint failures by exit status without parsing error text.
 
 | Command | Purpose |
 | --- | --- |

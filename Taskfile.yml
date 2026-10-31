@@ -140,9 +140,21 @@ tasks:
     cmds:
       - docs/demo/record.sh
 
+  docs:screenshots:
+    desc: Refresh real UI screenshots using the isolated demo site (no CLI GIF)
+    cmds:
+      - docs/demo/record.sh --screenshots
+
+  docs:media:check:
+    desc: Check screenshot freshness and local user documentation links
+    cmds:
+      - python3 -m unittest discover -s docs/demo -p 'test_*.py'
+      - python3 docs/demo/check.py
+
   docs:check:
     desc: Lint repository artifacts
     cmds:
+      - task: docs:media:check
       - rumdl check .
       - ryl check . --markdown
 

@@ -83,7 +83,7 @@ up() {
 
 	docker run -d --name wyrwood-demo-bao -p "127.0.0.1:$bao_port:8200" \
 		-e BAO_DEV_ROOT_TOKEN_ID="$root_token" -e BAO_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
-		openbao/openbao:2.4.1 >/dev/null
+		openbao/openbao:2.7.2 >/dev/null
 	wait_for "OpenBao" curl -fsS "http://127.0.0.1:$bao_port/v1/sys/health"
 	BAO_NAMESPACE='' bao namespace create "$bao_namespace" >/dev/null
 	bao auth enable approle >/dev/null

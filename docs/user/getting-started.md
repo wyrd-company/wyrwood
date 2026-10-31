@@ -10,7 +10,8 @@ relationships:
 ---
 
 This walk-through enrolls one host, writes one policy, and binds one
-container.
+container. Use the controller web interface for policy and binding changes;
+run the host and container commands where indicated.
 
 ## Enroll the agent
 
@@ -32,7 +33,11 @@ the agent reports in.
 
 ## Write a policy
 
-Open **Policies** and create one. A policy has three parts:
+Open **Policies → New policy** and enter a name, such as `teal`.
+Use **Graphical paths** to add paths and select their capabilities, or
+**Raw HCL** to paste the example below. Select the SSH identities and keep
+the default contract for this example. Choose **Save and validate** and check
+that OpenBao accepts the policy. A policy has three parts:
 
 1. The OpenBao policy, in HCL. For example, read access to one KV path and
    signing with one Transit key. Use **Agent token renewal** to control
@@ -86,7 +91,8 @@ binding's OpenBao and SSH permissions. See [Access group](configuration.md#acces
 ## Bind a container
 
 Open **Containers**, select the container, then select one or more policies
-and binding settings. The
+and binding settings. Use **Preview effective policy** to inspect the
+combined policy, then **Bind policies** to save. The
 controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.

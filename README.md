@@ -51,7 +51,11 @@ sudo wyrwood agent login ssh://controller.example.internal:2222
 sudo systemctl enable --now wyrwood-agent
 ```
 
-Approve the agent, write a policy, and bind a container in the web interface.
+Sign in to the controller's web interface through your identity provider.
+Use **Agents** to approve the agent, **Policies** to create a policy, and
+**Containers** to select and bind a container. The web interface is the primary
+interface; host CLI commands handle enrollment, service control, and diagnostics.
+See the [illustrated guide](docs/user/getting-started.md).
 Inside the container:
 
 ```console
@@ -103,6 +107,10 @@ uncached, verbose tests and fails when OpenBao or real-engine prerequisites
 are missing. CI installs OpenBao and pulls the test image. For local runs,
 set `WYRWOOD_BAO` to a `bao` executable and `WYRWOOD_TEST_IMAGE` to a local
 container image. `task test` permits prerequisite skips for development.
+
+The [screenshot maintenance guide](docs/demo/README.md) describes `task
+docs:screenshots`, the real demo stack, and the freshness check run by
+`task docs:check`. Refresh the screenshots when changing a documented UI flow.
 
 ## Releases
 
