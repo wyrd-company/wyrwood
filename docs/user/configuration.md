@@ -86,6 +86,25 @@ unit: minutes or hours on a binding, seconds/minutes/hours for SSH role creation
 
 ## Access group
 
+The binding form offers groups reported by the running host agent, with numeric
+GIDs and host names when available. Numeric GIDs are authoritative. The choices
+include the effective primary group and supplementary groups, plus owner-only
+access. An agent with effective Linux `CAP_CHOWN` can also assign another numeric
+GID. The server rejects groups excluded by the current agent report, including
+stale form posts.
+
+For offline or older agents, the form marks capability information unavailable
+or stale and preserves the existing group as unverified. It does not replace an
+invalid saved choice. Select a reported group or owner-only access to correct it.
+Add the host agent user to another group and restart the agent, then reload to
+see its new report. Account changes alone do not change a running process.
+
+The container application must retain the selected numeric group as a primary
+or supplementary group; its primary GID need not match. An entrypoint such as
+`s6-setuidgid` can rebuild groups from the container account database and discard
+groups supplied only through Compose `group_add`. Check the application process,
+not only PID 1. The host dropdown does not prove container application access.
+
 The binding's `settings.access-group` is effectively required for non-root
 containers whose
 processes run as a different UID from the host agent user. Set it to a numeric

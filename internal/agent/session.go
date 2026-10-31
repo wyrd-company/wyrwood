@@ -16,6 +16,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/wyrd-company/wyrwood/internal/consumer"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
@@ -146,7 +147,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 	_ = connection.SetDeadline(time.Time{})
 	session := newControllerSession(protocol.NewConn(readWriter{Reader: stdout, Writer: stdin}), client)
 	defer close(session.done)
-	if err := session.conn.Send(protocol.Hello{AgentVersion: Version, AllowRecreate: agent.config.AllowRecreate}); err != nil {
+	if err := session.conn.Send(protocol.Hello{AssignableGroups: consumer.ProcessGroups(), AgentVersion: Version, AllowRecreate: agent.config.AllowRecreate}); err != nil {
 		return false, err
 	}
 	go session.write()

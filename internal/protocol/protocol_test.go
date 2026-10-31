@@ -22,6 +22,7 @@ var containerID = strings.Repeat("ab", 32)
 func sampleMessages() []Message {
 	return []Message{
 		Hello{AgentVersion: "0.2.0", AllowRecreate: true},
+		Hello{AssignableGroups: &AssignableGroups{Groups: []Group{{GID: 987, Name: "sample"}, {GID: 1234}}, Any: true}},
 		Inventory{Containers: []Container{}},
 		Inventory{Containers: []Container{{
 			ID: containerID, Name: "web", State: StateRunning, Image: "ghcr.io/example/web:1",
@@ -188,6 +189,14 @@ func TestLegacyEffectiveAssignmentsKeepRenewalChoice(t *testing.T) {
 		set, ok := decoded.(PolicySet)
 		if !ok || set.Bindings[0].Policy.OpenBao.AgentTokenRenewal != nil || set.Bindings[0].Policy.AgentRenewal() != enabled {
 			t.Fatal("field-free assignment changed renewal choice")
+		}
+	}
+}
+
+func TestHelloRejectsInvalidGroupReports(t *testing.T) {
+	for _, report := range []*AssignableGroups{{}, {Groups: []Group{{GID: 4294967295}}}} {
+		if _, err := Encode(Hello{AssignableGroups: report}); err == nil {
+			t.Fatalf("accepted invalid report: %+v", report)
 		}
 	}
 }

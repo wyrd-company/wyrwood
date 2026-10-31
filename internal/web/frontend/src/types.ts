@@ -53,7 +53,12 @@ export interface PolicyChoice {
   Name: string;
   Selected: boolean;
 }
+export interface AssignableGroups {
+  groups: { gid: number; name?: string }[];
+  any?: boolean;
+}
 export interface ContainerRow {
+  AssignableGroups?: AssignableGroups | null;
   Agent: string;
   Connected: boolean;
   LastReport: string;

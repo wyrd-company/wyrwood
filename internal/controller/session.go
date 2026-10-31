@@ -43,6 +43,9 @@ type agentSession struct {
 	// is never overtaken by an older one.
 	pushMu sync.Mutex
 
+	// groups is immutable after the session is published in the hub.
+	groups *protocol.AssignableGroups
+
 	mu sync.Mutex
 	// credentialed maps each binding the agent received a credential for in
 	// this session to the policy that credential carried.
@@ -71,6 +74,7 @@ func (hub *hub) serve(parent context.Context, identity authenticatedAgent, strea
 	_ = controller.store.RecordConnection(recordCtx, identity.fingerprint, boundedVersion(hello.AgentVersion), hello.AllowRecreate, controller.now())
 	recordCancel()
 
+	session.groups = hello.AssignableGroups
 	hub.mu.Lock()
 	previous := hub.sessions[identity.name]
 	hub.sessions[identity.name] = session
@@ -433,4 +437,27 @@ func (session *agentSession) recordAccessor(ctx context.Context, report protocol
 		return nil
 	}
 	return session.conn.Send(report.Acknowledge())
+}
+
+// AssignableGroups returns only the active session's report. Disconnect and
+// replacement discard old authority without an arbitrary capability timeout.
+func (controller *Controller) AssignableGroups(agent string) *protocol.AssignableGroups {
+	controller.hub.mu.Lock()
+	defer controller.hub.mu.Unlock()
+	if session := controller.hub.sessions[agent]; session != nil {
+		return session.groups
+	}
+	return nil
+}
+
+func (controller *Controller) validateAccessGroup(agent string, group *uint32) error {
+	if group == nil {
+		return nil
+	}
+	if groups := controller.AssignableGroups(agent); groups != nil && !groups.Allows(*group) {
+		return operationError(events.ErrorPolicyDenied, "agent user cannot assign group %d; select a reported group or owner-only access. To add a group, update host agent membership and restart the agent, then reload", *group)
+	}
+	// Unknown capability is not evidence of inability. Preserve existing offline
+	// and older-agent operations; the UI labels such selections unverified.
+	return nil
 }

@@ -158,10 +158,36 @@ func (container Container) Validate() error {
 	return nil
 }
 
+// AssignableGroups describes the running process, not the host account database.
+type AssignableGroups struct {
+	Groups []Group `json:"groups"`
+	Any    bool    `json:"any,omitempty"`
+}
+
+// Group identifies a process group; its name is an optional display hint.
+type Group struct {
+	GID  uint32 `json:"gid"`
+	Name string `json:"name,omitempty"`
+}
+
+// Allows uses numeric authority even when a name is absent.
+func (g AssignableGroups) Allows(gid uint32) bool {
+	if g.Any {
+		return true
+	}
+	for _, group := range g.Groups {
+		if group.GID == gid {
+			return true
+		}
+	}
+	return false
+}
+
 // Hello opens an agent session.
 type Hello struct {
-	AgentVersion  string `json:"agent-version,omitempty"`
-	AllowRecreate bool   `json:"allow-recreate"`
+	AssignableGroups *AssignableGroups `json:"assignable-groups,omitempty"`
+	AgentVersion     string            `json:"agent-version,omitempty"`
+	AllowRecreate    bool              `json:"allow-recreate"`
 }
 
 // Inventory carries the complete current container list.
@@ -326,7 +352,19 @@ func (TokenAccessor) MessageType() Type     { return TypeTokenAccessor }
 func (AccessorRecorded) MessageType() Type  { return TypeAccessorRecorded }
 
 // Validate checks the hello message.
-func (message Hello) Validate() error { return nil }
+func (message Hello) Validate() error {
+	if g := message.AssignableGroups; g != nil {
+		if g.Groups == nil {
+			return errors.New("assignable groups requires a groups array")
+		}
+		for _, group := range g.Groups {
+			if group.GID == 4294967295 {
+				return errors.New("group GID is not assignable")
+			}
+		}
+	}
+	return nil
+}
 
 // Validate checks every inventory entry and the inventory bound.
 func (message Inventory) Validate() error {

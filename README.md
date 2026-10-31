@@ -129,3 +129,7 @@ uses these separate secrets:
 
 - `WYRD_TOOLS_DOCS_PUBLISHER_APP_ID`
 - `WYRD_TOOLS_DOCS_PUBLISHER_PRIVATE_KEY`
+
+Binding access groups come from the running agent’s process groups. See
+[access group configuration](docs/user/configuration.md#access-group) for host
+restart requirements and container application group retention.

@@ -240,7 +240,7 @@ func (directory *Directory) Close() error {
 
 // CanAssign reports whether the agent user can assign gid to its files.
 func CanAssign(gid uint32) bool {
-	if os.Geteuid() == 0 || uint32(os.Getegid()) == gid {
+	if any, err := canAssignAnyGroup(); (err == nil && any) || uint32(os.Getegid()) == gid {
 		return true
 	}
 	groups, err := os.Getgroups()
