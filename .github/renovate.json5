@@ -11,7 +11,8 @@
       // HCL 2 has a different module path, API, and syntax. Keep HCL 1 updates.
       "matchManagers": ["gomod"],
       "matchPackageNames": ["github.com/hashicorp/hcl"],
-      "allowedVersions": "<2.0.0"
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ],
   "customManagers": [
