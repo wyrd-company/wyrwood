@@ -230,8 +230,12 @@ func TestConsumerPushesTheAgentsItApplied(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if set, ok := connection.receive(t).(protocol.PolicySet); !ok || len(set.Bindings) != 1 || set.Bindings[0].Assignment != current.Assignment() {
-		t.Fatalf("policy set = %#v", set)
+	// The inventory's own push can still deliver a set of the old assignment, so
+	// wait for the new one. Without the push, receive times out and fails.
+	for {
+		if set, ok := connection.receive(t).(protocol.PolicySet); ok && len(set.Bindings) == 1 && set.Bindings[0].Assignment == current.Assignment() {
+			break
+		}
 	}
 	bao.set(nil, nil)
 	waitCredential(current.Assignment())
