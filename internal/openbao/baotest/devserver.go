@@ -9,12 +9,16 @@ package baotest
 
 import (
 	"bytes"
+	"context"
+	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -36,6 +40,10 @@ var errAddressTaken = errors.New("address taken before the OpenBao dev server bo
 // devServer is one running OpenBao child process.
 type devServer struct {
 	address string
+	// name is this child's cluster name. Only this child's health answer
+	// carries it.
+	name    string
+	client  http.Client
 	command *exec.Cmd
 	output  *lockedBuffer
 	exited  chan struct{}
@@ -85,8 +93,13 @@ func reserveLoopbackAddress() (string, error) {
 }
 
 func launchDevServer(executable, home, address string) (*devServer, error) {
+	name := "baotest-" + rand.Text()
+	configuration := filepath.Join(home, name+".hcl")
+	if err := os.WriteFile(configuration, []byte(fmt.Sprintf("cluster_name = %q\n", name)), 0o600); err != nil {
+		return nil, err
+	}
 	output := &lockedBuffer{}
-	command := exec.Command(executable, "server", "-dev", "-dev-root-token-id="+RootToken,
+	command := exec.Command(executable, "server", "-dev", "-config="+configuration, "-dev-root-token-id="+RootToken,
 		"-dev-listen-address="+address, "-dev-no-store-token")
 	command.Env = []string{"HOME=" + home, "PATH=" + os.Getenv("PATH")}
 	command.Stdout = output
@@ -94,7 +107,7 @@ func launchDevServer(executable, home, address string) (*devServer, error) {
 	if err := command.Start(); err != nil {
 		return nil, err
 	}
-	server := &devServer{address: address, command: command, output: output, exited: make(chan struct{})}
+	server := &devServer{address: address, name: name, command: command, output: output, exited: make(chan struct{})}
 	go func() {
 		_ = command.Wait()
 		close(server.exited)
@@ -102,13 +115,20 @@ func launchDevServer(executable, home, address string) (*devServer, error) {
 	return server, nil
 }
 
-// waitUntilReady waits for this child to report that it started, and only
-// then asks the address for health. A child that reports it started owns the
-// address, so another socket on that address is never contacted or mistaken
-// for this server.
+// waitUntilReady waits for this child to report that it started, and for a
+// health answer that carries this child's name. It does not ask for health
+// after it has seen the exit, and an exit it sees before it accepts an answer
+// is a failure. These exit checks alone are not enough: the kernel frees the
+// address before Wait reports the exit, so another socket can bind the address
+// and receive a request in that gap. The name is what keeps such a socket from
+// being taken for this server.
 func (server *devServer) waitUntilReady(deadline time.Time) error {
 	for {
-		if server.output.contains(serverStartedLine) && server.healthy(deadline) {
+		ready := !server.hasExited() && server.output.contains(serverStartedLine) && server.healthy(deadline)
+		if server.hasExited() {
+			return server.exitFailure()
+		}
+		if ready {
 			return nil
 		}
 		if !time.Now().Before(deadline) {
@@ -116,9 +136,18 @@ func (server *devServer) waitUntilReady(deadline time.Time) error {
 		}
 		select {
 		case <-server.exited:
-			return server.exitFailure()
 		case <-time.After(startPollInterval):
 		}
+	}
+}
+
+// hasExited reports whether Wait has reaped the child and copied its output.
+func (server *devServer) hasExited() bool {
+	select {
+	case <-server.exited:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -133,18 +162,32 @@ func (server *devServer) exitFailure() error {
 	return fmt.Errorf("OpenBao dev server exited during start: %s", output)
 }
 
+// healthy asks the address for health. The child's exit or the deadline ends a
+// request that is still pending.
 func (server *devServer) healthy(deadline time.Time) bool {
-	remaining := time.Until(deadline)
-	if remaining <= 0 {
-		return false
-	}
-	client := http.Client{Timeout: remaining}
-	response, err := client.Get(server.url() + "/v1/sys/health")
+	ctx, cancel := context.WithDeadline(context.Background(), deadline)
+	defer cancel()
+	go func() {
+		select {
+		case <-server.exited:
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, server.url()+"/v1/sys/health", nil)
 	if err != nil {
 		return false
 	}
-	_ = response.Body.Close()
-	return response.StatusCode == http.StatusOK
+	response, err := server.client.Do(request)
+	if err != nil {
+		return false
+	}
+	defer response.Body.Close()
+	var health struct {
+		ClusterName string `json:"cluster_name"`
+	}
+	_ = json.NewDecoder(response.Body).Decode(&health)
+	return response.StatusCode == http.StatusOK && health.ClusterName == server.name
 }
 
 func (server *devServer) url() string {

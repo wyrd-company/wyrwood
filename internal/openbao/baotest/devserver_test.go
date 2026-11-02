@@ -68,8 +68,9 @@ func assertProcessGone(t *testing.T, pid int) {
 }
 
 // TestStartMovesOffAddressHeldByAHealthySocket holds the address before the
-// real server starts. The holder answers health as OpenBao would, so this also
-// proves the holder is never contacted or taken for the server.
+// real server starts. The holder answers health 200, so this also proves that
+// a socket present before the child starts receives no request and is not taken
+// for the server.
 func TestStartMovesOffAddressHeldByAHealthySocket(t *testing.T) {
 	executable := Executable(t)
 	var requests atomic.Int32
