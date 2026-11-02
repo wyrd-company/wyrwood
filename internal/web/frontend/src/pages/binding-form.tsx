@@ -5,7 +5,7 @@
 import { ScreenTabs, useScreenTabs } from "@/components/screen-tabs";
 import { Button, CSRF, Status } from "@/components/shared";
 import type { BindingData, EffectivePolicy as Effective } from "@/types";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { BindingSettings, groupUnassignable } from "./binding-settings";
 import { ContainerSetup } from "./container-setup";
 import {
@@ -158,7 +158,7 @@ export function BindingForm({ data: d }: { data: BindingData }) {
   const [decisions, setDecisions] = useState(() => savedDecisions(d));
   const [changes, setChanges] = useState(0);
   // Children keep their own field state, so the form is read after they commit.
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (form.current) setDecisions(enteredDecisions(form.current));
   }, [changes]);
   const [preview, setPreview] = useState<Effective | null>(null);
@@ -256,7 +256,11 @@ export function BindingForm({ data: d }: { data: BindingData }) {
         {
           id: "policies",
           label: "Policies",
-          content: <PolicyChoices data={d} />,
+          content: (
+            <div className="binding-choices">
+              <PolicyChoices data={d} />
+            </div>
+          ),
         },
         settingsTab,
         effectiveTab,

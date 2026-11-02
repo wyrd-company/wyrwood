@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 )
 
@@ -278,5 +279,33 @@ func TestPostFormFieldsIgnoreTheTabInTheAddress(t *testing.T) {
 	stored, err := fixture.harness.controller.Store().Policy(context.Background(), "tabbed")
 	if err != nil || stored.Policy.OpenBao.Policy != samplePolicyHCL {
 		t.Fatalf("stored = %#v, %v", stored, err)
+	}
+}
+
+func TestProblemTabMapsEveryPart(t *testing.T) {
+	for _, test := range []struct {
+		part        policy.Part
+		saved       string
+		bind, bound string
+	}{
+		{policy.PartName, "", "", ""},
+		{policy.PartOpenBao, "openbao-policy", "key-and-policies", "policies"},
+		{policy.PartSSH, "ssh-identities", "key-and-policies", "policies"},
+		{policy.PartContract, "container-contract", "key-and-policies", "policies"},
+		{policy.PartKey, "", "key-and-policies", ""},
+		{policy.PartSelection, "", "key-and-policies", "policies"},
+		{policy.PartSettings, "", "settings", "settings"},
+		{"", "", "", ""},
+	} {
+		err := &controller.OperationError{Message: "sample", Part: test.part}
+		if got := policyProblemTab(err); got != test.saved {
+			t.Errorf("%q policy tab = %q, want %q", test.part, got, test.saved)
+		}
+		if got := bindingProblemTab(err, false); got != test.bind {
+			t.Errorf("%q bind tab = %q, want %q", test.part, got, test.bind)
+		}
+		if got := bindingProblemTab(err, true); got != test.bound {
+			t.Errorf("%q bound tab = %q, want %q", test.part, got, test.bound)
+		}
 	}
 }

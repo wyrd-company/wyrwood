@@ -450,7 +450,7 @@ func (controller *Controller) preflight(ctx context.Context, candidates []store.
 	}
 	for _, b := range candidates {
 		if _, err := protocol.Encode(protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{wire(b)}}); err != nil {
-			return partOperationError(policy.PartSelection, events.ErrorPolicyDenied, "effective policy exceeds the agent protocol limits")
+			return operationError(events.ErrorPolicyDenied, "effective policy exceeds the agent protocol limits")
 		}
 		agents[b.Agent] = append(agents[b.Agent], b)
 	}

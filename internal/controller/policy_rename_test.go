@@ -577,6 +577,10 @@ func TestRenamePreflightsEveryAffectedAgent(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "exceeds the agent protocol limits") {
 		t.Fatalf("rename = %v", err)
 	}
+	var refused *OperationError
+	if !errors.As(err, &refused) || refused.Part != "" {
+		t.Fatalf("part of %v", err)
+	}
 	if len(bao.recorded()) != calls {
 		t.Fatalf("calls = %v", bao.recorded()[calls:])
 	}

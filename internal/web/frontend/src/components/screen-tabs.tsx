@@ -6,6 +6,7 @@ import * as Tabs from "@radix-ui/react-tabs";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useState,
   type FormEvent,
   type ReactNode,
@@ -41,7 +42,7 @@ export function useScreenTabs(
       ids[0],
   );
   const [focusing, setFocusing] = useState("");
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (focusing) {
       focusPanel(focusing);
       setFocusing("");

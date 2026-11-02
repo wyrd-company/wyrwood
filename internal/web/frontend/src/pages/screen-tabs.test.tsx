@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { AddBinding } from "./add-binding";
 import { Binding } from "./binding";
 import { Bindings } from "./bindings";
+import { PolicyBindings } from "./policy-bindings";
 import { PolicyEditor } from "./policy-editor";
+import { ScreenTabs, useScreenTabs } from "@/components/screen-tabs";
 import type {
   AddBindingData,
   BindingData,
@@ -325,6 +327,12 @@ describe("row actions", () => {
     expect(action).toHaveAttribute("href", container.Screen);
     expect(action).toHaveTextContent(/^Add binding$/);
     expect(action.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("adds no action to the rename and delete screens' rows", () => {
+    render(<PolicyBindings rows={[row]} hint="sample" />);
+    expect(screen.queryByRole("columnheader", { name: "Actions" })).toBeNull();
+    expect(document.querySelector(".row-action")).toBeNull();
   });
 
   it("reaches the action with Tab", async () => {
@@ -684,6 +692,17 @@ describe("selected tab", () => {
     );
   });
 
+  it("names the tab in the policy form action", async () => {
+    const user = userEvent.setup();
+    render(<PolicyEditor data={policy} />);
+    expect(formOf("Save and validate")).toHaveAttribute("action", "/policies");
+    await user.click(tab("Container contract"));
+    expect(formOf("Save and validate")).toHaveAttribute(
+      "action",
+      "/policies?tab=container-contract",
+    );
+  });
+
   it("selects the tab the page names", () => {
     render(<Binding data={binding(true, { Tab: "container-setup" })} />);
     expect(selected()).toBe("Container setup");
@@ -741,6 +760,23 @@ describe("selected tab", () => {
     expect(document.activeElement).toContainElement(
       document.getElementById("h-bindings"),
     );
+  });
+
+  it("keeps the count link from jumping, which would clear the focus", () => {
+    render(<PolicyEditor data={policy} />);
+    const link = screen.getByRole("link", { name: "1 binding on 1 agent" });
+    expect(fireEvent.click(link)).toBe(false);
+    expect(window.location.hash).toBe("#h-bindings");
+  });
+
+  it("selects the owner of a problem over a fragment in the address", () => {
+    window.location.hash = "#h-bindings";
+    render(
+      <PolicyEditor
+        data={{ ...policy, Problem: "sample", ProblemTab: "ssh-identities" }}
+      />,
+    );
+    expect(selected()).toMatch(/^SSH identities/);
   });
 
   it("opens the bindings tab from the fragment in the address", async () => {
@@ -873,6 +909,45 @@ describe("constraint failures", () => {
     // The name is above the tabs, so the selection does not move.
     expect(selected()).toBe("Container contract");
     expect(screen.getByLabelText("Name")).toBeVisible();
+  });
+
+  it("shows the panel of the tree's first invalid control when two tabs hold one", () => {
+    function TwoInvalid() {
+      const ids = ["first", "second", "third"];
+      const {
+        tab: selectedId,
+        setTab,
+        onInvalidCapture,
+      } = useScreenTabs(ids, {});
+      return (
+        <form onInvalidCapture={onInvalidCapture} aria-label="Two invalid">
+          <ScreenTabs
+            label="Sections"
+            value={selectedId}
+            onValueChange={setTab}
+            tabs={[
+              { id: "first", label: "First", content: <p>nothing</p> },
+              {
+                id: "second",
+                label: "Second",
+                content: <input required aria-label="In second" />,
+              },
+              {
+                id: "third",
+                label: "Third",
+                content: <input required aria-label="In third" />,
+              },
+            ]}
+          />
+        </form>
+      );
+    }
+    render(<TwoInvalid />);
+    expect(screen.getByRole<HTMLFormElement>("form").checkValidity()).toBe(
+      false,
+    );
+    expect(selected()).toBe("Second");
+    expect(screen.getByLabelText("In second")).toBeVisible();
   });
 
   it("ignores a valid form", () => {

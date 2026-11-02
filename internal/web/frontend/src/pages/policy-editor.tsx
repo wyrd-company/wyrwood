@@ -97,7 +97,16 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             {!d.New && (
               <span className="sub">
                 Revision {d.Revision} ·{" "}
-                <a href="#h-bindings" onClick={() => reveal("#h-bindings")}>
+                <a
+                  href="#h-bindings"
+                  onClick={(event) => {
+                    // A browser's own jump to the fragment would clear the
+                    // focus this moves to the panel.
+                    event.preventDefault();
+                    window.history.replaceState(null, "", "#h-bindings");
+                    reveal("#h-bindings");
+                  }}
+                >
                   {d.Bindings} binding
                   {d.Bindings !== 1 && "s"} on {d.Agents} agent
                   {d.Agents !== 1 && "s"}
