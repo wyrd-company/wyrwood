@@ -16,6 +16,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
+	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
@@ -455,7 +456,7 @@ func (controller *Controller) validateAccessGroup(agent string, group *uint32) e
 		return nil
 	}
 	if groups := controller.AssignableGroups(agent); groups != nil && !groups.Allows(*group) {
-		return operationError(events.ErrorPolicyDenied, "agent user cannot assign group %d; select a reported group or owner-only access. To add a group, update host agent membership and restart the agent, then reload", *group)
+		return partOperationError(policy.PartSettings, events.ErrorPolicyDenied, "agent user cannot assign group %d; select a reported group or owner-only access. To add a group, update host agent membership and restart the agent, then reload", *group)
 	}
 	// Unknown capability is not evidence of inability. Preserve existing offline
 	// and older-agent operations; the UI labels such selections unverified.

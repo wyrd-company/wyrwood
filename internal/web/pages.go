@@ -44,6 +44,10 @@ type layout struct {
 	Notice      string
 	Problem     string
 	ProblemPage bool
+	// Tab is the screen tab the request asks for. The frontend honors only a tab
+	// the screen has. ProblemTab is the tab that owns Problem, when one tab does.
+	Tab        string
+	ProblemTab string
 }
 
 type signInPage struct {
@@ -69,6 +73,7 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 		}
 	}
 	return layout{
+		Tab:   request.URL.Query().Get("tab"),
 		Title: title, Current: current, CSRF: session.session.CSRF, Operator: name, Pending: pending,
 		OpenBaoOK: server.controller.OpenBaoReachable(request.Context()), Controller: server.controllerHost(),
 		OpenBaoURL: server.controller.Configuration().OpenBao.UISecretsURL(),
@@ -101,6 +106,49 @@ var notices = map[string]string{
 func operatorSubject(request *http.Request) string {
 	session, _ := operatorFrom(request.Context())
 	return session.session.Subject
+}
+
+// problemPart is the part of the form an error is about, when one part owns it.
+func problemPart(err error) policy.Part {
+	var operation *controller.OperationError
+	if errors.As(err, &operation) {
+		return operation.Part
+	}
+	return policy.PartOf(err)
+}
+
+// policyProblemTab is the policy screen tab that owns a problem. A problem with
+// no owner keeps the tab the operator submitted from.
+func policyProblemTab(err error) string {
+	switch problemPart(err) {
+	case policy.PartOpenBao:
+		return "openbao-policy"
+	case policy.PartSSH:
+		return "ssh-identities"
+	case policy.PartContract:
+		return "container-contract"
+	}
+	return ""
+}
+
+// bindingProblemTab is the bind or bound screen tab that owns a problem. Anything
+// a policy contributes is corrected through the selection on a binding screen.
+func bindingProblemTab(err error, bound bool) string {
+	selection := "key-and-policies"
+	if bound {
+		selection = "policies"
+	}
+	switch problemPart(err) {
+	case policy.PartKey:
+		if !bound {
+			return selection
+		}
+	case policy.PartSelection, policy.PartOpenBao, policy.PartSSH, policy.PartContract:
+		return selection
+	case policy.PartSettings:
+		return "settings"
+	}
+	return ""
 }
 
 func problemMessage(err error) string {
@@ -606,12 +654,18 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	if parseErr == nil {
 		saved, err := server.controller.SavePolicy(request.Context(), document, operatorSubject(request))
 		if err == nil {
-			http.Redirect(writer, request, "/policies/edit?name="+url.QueryEscape(saved.Name)+"&notice=saved", http.StatusSeeOther)
+			target := "/policies/edit?name=" + url.QueryEscape(saved.Name) + "&notice=saved"
+			if tab := request.URL.Query().Get("tab"); tab != "" {
+				target += "&tab=" + url.QueryEscape(tab)
+			}
+			http.Redirect(writer, request, target, http.StatusSeeOther)
 			return
 		}
 		page.Problem = problemMessage(err)
+		page.ProblemTab = policyProblemTab(err)
 	} else {
 		page.Problem = parseErr.Error()
+		page.ProblemTab = policyProblemTab(parseErr)
 	}
 	server.fillPolicyPage(&page, document)
 	page.NotForwardableTransitKeys = request.PostFormValue("not-forwardable-transit-keys")
@@ -641,7 +695,7 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 
 	if value := request.PostFormValue("agent-token-renewal"); value != "" {
 		if value != "true" && value != "false" {
-			return document, fmt.Errorf("agent token renewal must be true or false")
+			return document, &policy.PartError{Part: policy.PartOpenBao, Message: "agent token renewal must be true or false"}
 		}
 		renew := value == "true"
 		document.OpenBao.AgentTokenRenewal = &renew
@@ -660,7 +714,7 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 	for _, line := range lines(request.PostFormValue("env")) {
 		name, value, ok := strings.Cut(line, "=")
 		if !ok {
-			return document, fmt.Errorf("each environment line must be NAME=value")
+			return document, &policy.PartError{Part: policy.PartContract, Message: "each environment line must be NAME=value"}
 		}
 		document.Contract.Env[strings.TrimSpace(name)] = strings.TrimSpace(value)
 	}
@@ -887,7 +941,7 @@ func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
 	if group := strings.TrimSpace(request.PostFormValue("access-group")); group != "" {
 		n, err := strconv.ParseUint(group, 10, 32)
 		if err != nil {
-			return result, &controller.OperationError{Message: "access group must be a numeric GID"}
+			return result, &controller.OperationError{Message: "access group must be a numeric GID", Part: policy.PartSettings}
 		}
 		value := uint32(n)
 		result.Settings.AccessGroup = &value
@@ -900,7 +954,7 @@ func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
 		result.Revision = n
 	}
 	if err := result.Settings.Validate(); err != nil {
-		return result, &controller.OperationError{Message: err.Error()}
+		return result, &controller.OperationError{Message: err.Error(), Part: policy.PartOf(err)}
 	}
 	return result, nil
 }

@@ -95,6 +95,9 @@ func screenContext(request *http.Request) url.Values {
 	if container := query.Get("container"); container != "" {
 		values.Set("container", container)
 	}
+	if tab := query.Get("tab"); tab != "" {
+		values.Set("tab", tab)
+	}
 	return values
 }
 
@@ -192,7 +195,7 @@ func (server *Server) policyChoices(ctx context.Context, selected []string) []po
 	return choices
 }
 
-func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http.Request, status int, row containerRow, form bindingForm, problem string) {
+func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http.Request, status int, row containerRow, form bindingForm, problem string, problemTab string) {
 	if !slices.ContainsFunc(row.Candidates, func(item candidate) bool { return item.Encoded == form.Key }) {
 		form.Key = ""
 		if len(row.Candidates) > 0 {
@@ -200,7 +203,7 @@ func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http
 		}
 	}
 	base := server.layout(request, "Add binding", "bindings")
-	base.Problem = problem
+	base.Problem, base.ProblemTab = problem, problemTab
 	list := listContext(request.URL.Query())
 	server.renderStatus(writer, request, status, "binding", bindingScreen{
 		layout: base, Row: row, Reported: true, Policies: server.policyChoices(request.Context(), form.Policies), Form: form,
@@ -208,7 +211,7 @@ func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http
 	})
 }
 
-func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *http.Request, status int, binding store.Binding, preferred string, form *bindingForm, problem string) {
+func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *http.Request, status int, binding store.Binding, preferred string, form *bindingForm, problem string, problemTab string) {
 	row, reported, err := server.boundContainer(request.Context(), binding, preferred)
 	if err != nil {
 		server.renderContainersUnreadable(writer, problem)
@@ -219,7 +222,7 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 		shown = *form
 	}
 	base := server.layout(request, "Binding", "bindings")
-	base.Problem = problem
+	base.Problem, base.ProblemTab = problem, problemTab
 	list := listContext(request.URL.Query())
 	values := maps.Clone(list)
 	if reported {
@@ -301,12 +304,12 @@ func (server *Server) handleBindScreen(writer http.ResponseWriter, request *http
 		http.Redirect(writer, request, containerScreenURL(row, listContext(query)), http.StatusSeeOther)
 		return
 	}
-	server.renderBindScreen(writer, request, http.StatusOK, row, bindingForm{}, "")
+	server.renderBindScreen(writer, request, http.StatusOK, row, bindingForm{}, "", "")
 }
 
 func (server *Server) handleBindingScreen(writer http.ResponseWriter, request *http.Request) {
 	if binding, ok := server.loadBinding(writer, request); ok {
-		server.renderBoundScreen(writer, request, http.StatusOK, binding, request.URL.Query().Get("container"), nil, "")
+		server.renderBoundScreen(writer, request, http.StatusOK, binding, request.URL.Query().Get("container"), nil, "", "")
 	}
 }
 
@@ -316,7 +319,7 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	kind, value, _ := strings.Cut(request.PostFormValue("key"), ":")
 	bindingRequest, err := bindingFromForm(request)
 	if err == nil && bindingRequest.Settings.Enforcement == policy.EnforcementRecreate && request.PostFormValue("understood") != "yes" {
-		err = &controller.OperationError{Message: "recreate discards the container writable layer; confirm before binding"}
+		err = &controller.OperationError{Message: "recreate discards the container writable layer; confirm before binding", Part: policy.PartSettings}
 	}
 	var binding store.Binding
 	if err == nil {
@@ -326,13 +329,16 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	if err == nil {
 		values.Set("container", container)
 		values.Set("notice", "bound")
+		if tab := request.URL.Query().Get("tab"); tab != "" {
+			values.Set("tab", tab)
+		}
 		http.Redirect(writer, request, withQuery(bindingPath(binding.ID), values), http.StatusSeeOther)
 		return
 	}
 	problem := problemMessage(err)
 	// A binding can be saved before OpenBao refuses its assignment.
 	if binding.ID != "" {
-		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, container, nil, problem)
+		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, container, nil, problem, "")
 		return
 	}
 	row, ok, readErr := server.reportedContainer(ctx, agent, container)
@@ -347,11 +353,11 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	if row.Bound {
 		// Another operator bound it first, so the saved binding is the current state.
 		if current, readErr := server.controller.Store().Binding(ctx, row.BindingID); readErr == nil {
-			server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, current, container, nil, problem)
+			server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, current, container, nil, problem, "")
 			return
 		}
 	}
-	server.renderBindScreen(writer, request, http.StatusUnprocessableEntity, row, enteredForm(request), problem)
+	server.renderBindScreen(writer, request, http.StatusUnprocessableEntity, row, enteredForm(request), problem, bindingProblemTab(err, false))
 }
 
 func (server *Server) handleChangeBinding(writer http.ResponseWriter, request *http.Request) {
@@ -365,7 +371,7 @@ func (server *Server) handleChangeBinding(writer http.ResponseWriter, request *h
 	}
 	if err != nil {
 		form := enteredForm(request)
-		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), &form, problemMessage(err))
+		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), &form, problemMessage(err), bindingProblemTab(err, true))
 		return
 	}
 	server.redirectToBinding(writer, request, binding.ID, "changed")
@@ -407,7 +413,7 @@ func (server *Server) handleRecreate(writer http.ResponseWriter, request *http.R
 		return
 	}
 	if err := server.controller.RequestRecreate(request.Context(), binding.ID, operatorSubject(request)); err != nil {
-		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), nil, problemMessage(err))
+		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), nil, problemMessage(err), "")
 		return
 	}
 	server.redirectToBinding(writer, request, binding.ID, "recreate")
@@ -440,7 +446,7 @@ func (server *Server) handleUnbind(writer http.ResponseWriter, request *http.Req
 		notice, err = "unbound-token-live", nil
 	}
 	if err != nil {
-		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), nil, problemMessage(err))
+		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, request.URL.Query().Get("container"), nil, problemMessage(err), "")
 		return
 	}
 	values := listContext(request.URL.Query())

@@ -146,13 +146,13 @@ func ValidName(name string) bool {
 // Go-side canonical form of the mount target.
 func (policy Policy) Validate() error {
 	if !ValidName(policy.Name) {
-		return errors.New("policy name must be a lower-kebab-case slug of at most 64 bytes")
+		return partError(PartName, "policy name must be a lower-kebab-case slug of at most 64 bytes")
 	}
 	if policy.Revision < 0 {
 		return errors.New("policy revision must be positive")
 	}
 	if len(policy.OpenBao.Policy) > maximumHCLBytes {
-		return errors.New("OpenBao policy exceeds 65536 bytes")
+		return partError(PartOpenBao, "OpenBao policy exceeds 65536 bytes")
 	}
 	if policy.SSH != nil {
 		if err := validateIdentities("transit key", policy.SSH.TransitKeys); err != nil {
@@ -170,7 +170,10 @@ func (policy Policy) Validate() error {
 			}
 		}
 	}
-	return (Contract{MountTarget: policy.Contract.MountTarget, Env: policy.Contract.Env, Enforcement: EnforcementReport}).Validate()
+	if err := (Contract{MountTarget: policy.Contract.MountTarget, Env: policy.Contract.Env, Enforcement: EnforcementReport}).Validate(); err != nil {
+		return partError(PartContract, "%s", err)
+	}
+	return nil
 }
 
 // Validate checks the contract fields.
@@ -315,15 +318,15 @@ func parseTTL(field, value string) (time.Duration, error) {
 
 func validateIdentities(kind string, names []string) error {
 	if len(names) > maximumIdentityNames {
-		return fmt.Errorf("more than 64 %s names", kind)
+		return partError(PartSSH, "more than 64 %s names", kind)
 	}
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
 		if len(name) > maximumIdentityBytes || !identityPattern.MatchString(name) {
-			return fmt.Errorf("%s name %q is invalid", kind, name)
+			return partError(PartSSH, "%s name %q is invalid", kind, name)
 		}
 		if seen[name] {
-			return fmt.Errorf("%s name %q is repeated", kind, name)
+			return partError(PartSSH, "%s name %q is repeated", kind, name)
 		}
 		seen[name] = true
 	}

@@ -34,12 +34,19 @@ type OperationError struct {
 	PolicyMissing bool
 	// PolicyBound marks a policy deletion refused because a binding selects it.
 	PolicyBound bool
+	// Part is what the operator must change. It is empty when no single part
+	// of the form owns the problem.
+	Part policy.Part
 }
 
 func (err *OperationError) Error() string { return err.Message }
 
 func operationError(code events.ErrorCode, format string, arguments ...any) error {
 	return &OperationError{Message: fmt.Sprintf(format, arguments...), Code: code}
+}
+
+func partOperationError(part policy.Part, code events.ErrorCode, format string, arguments ...any) error {
+	return &OperationError{Message: fmt.Sprintf(format, arguments...), Code: code, Part: part}
 }
 
 var roleNameUnsafe = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -91,13 +98,13 @@ func (controller *Controller) compose(ctx context.Context, names []string, setti
 		}
 		stored, err := controller.store.Policy(ctx, name)
 		if err != nil {
-			return policy.Effective{}, operationError(events.ErrorPolicyDenied, "policy %s does not exist", boundedPolicyName(name))
+			return policy.Effective{}, partOperationError(policy.PartSelection, events.ErrorPolicyDenied, "policy %s does not exist", boundedPolicyName(name))
 		}
 		sources = append(sources, stored.Policy)
 	}
 	effective, err := policy.Compose(sources, settings)
 	if err != nil {
-		return policy.Effective{}, operationError(events.ErrorPolicyDenied, "the policy selection is invalid: %v", err)
+		return policy.Effective{}, partOperationError(policy.PartOf(err), events.ErrorPolicyDenied, "the policy selection is invalid: %v", err)
 	}
 	return effective, nil
 }
@@ -147,22 +154,23 @@ func (controller *Controller) SavePolicy(ctx context.Context, document policy.Po
 }
 func (controller *Controller) savePolicy(ctx context.Context, document policy.Policy, operator string) (policy.Policy, map[string]bool, error) {
 	agents := map[string]bool{}
-	fail := func(message string) (policy.Policy, map[string]bool, error) {
-		return policy.Policy{}, agents, operationError(events.ErrorPolicyDenied, "%s", message)
+	failPart := func(part policy.Part, message string) (policy.Policy, map[string]bool, error) {
+		return policy.Policy{}, agents, partOperationError(part, events.ErrorPolicyDenied, "%s", message)
 	}
+	fail := func(message string) (policy.Policy, map[string]bool, error) { return failPart("", message) }
 	if err := document.Validate(); err != nil {
-		return fail("the policy is invalid: " + err.Error())
+		return failPart(policy.PartOf(err), "the policy is invalid: "+err.Error())
 	}
 	for _, name := range document.TransitKeys() {
 		exists, err := controller.openbao.TransitKeyExists(ctx, name)
 		if err != nil || !exists {
-			return fail("OpenBao could not confirm Transit key " + name)
+			return failPart(policy.PartSSH, "OpenBao could not confirm Transit key "+name)
 		}
 	}
 	for _, name := range document.CARoles() {
 		exists, err := controller.openbao.SSHRoleExists(ctx, name)
 		if err != nil || !exists {
-			return fail("OpenBao could not confirm SSH role " + name)
+			return failPart(policy.PartSSH, "OpenBao could not confirm SSH role "+name)
 		}
 	}
 	old, lookup := controller.store.Policy(ctx, document.Name)
@@ -210,7 +218,7 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 	}
 	if err := controller.openbao.WritePolicy(ctx, document.OpenBaoPolicyName(), document.PublishedHCL()); err != nil {
 		if openbao.CategoryOf(err) == openbao.CategoryInvalid {
-			return fail("OpenBao rejected the HCL policy")
+			return failPart(policy.PartOpenBao, "OpenBao rejected the HCL policy")
 		}
 		if err := controller.restorePolicy(ctx, document, old, lookup == nil); err != nil {
 			return fail("OpenBao policy publication was uncertain; restoration is pending and fresh issuance is blocked")
@@ -261,7 +269,7 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 }
 func (controller *Controller) createBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
 	if err := key.Validate(); err != nil {
-		return store.Binding{}, operationError(events.ErrorPolicyDenied, "the container key is invalid")
+		return store.Binding{}, partOperationError(policy.PartKey, events.ErrorPolicyDenied, "the container key is invalid")
 	}
 	if _, err := controller.store.ApprovedAgent(ctx, agent); err != nil {
 		return store.Binding{}, operationError(events.ErrorNotBound, "the agent is not approved")
@@ -442,7 +450,7 @@ func (controller *Controller) preflight(ctx context.Context, candidates []store.
 	}
 	for _, b := range candidates {
 		if _, err := protocol.Encode(protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{wire(b)}}); err != nil {
-			return operationError(events.ErrorPolicyDenied, "effective policy exceeds the agent protocol limits")
+			return partOperationError(policy.PartSelection, events.ErrorPolicyDenied, "effective policy exceeds the agent protocol limits")
 		}
 		agents[b.Agent] = append(agents[b.Agent], b)
 	}
