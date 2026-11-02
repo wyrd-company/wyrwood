@@ -270,8 +270,8 @@ func TestPolicyRenameReplayIsAClearMessage(t *testing.T) {
 }
 
 // A real denial after the commit: the controller's policy loses delete on managed
-// policies. The operator lands on the new name with a pending notice, and the
-// server finishes when the denial ends.
+// policies. The operator lands on the new name with a pending notice, and the old
+// ACL stays while the denial holds.
 func TestPolicyRenameThatIsPendingLandsOnTheNewName(t *testing.T) {
 	fixture := newListFixture(t)
 	saved := fixture.published(t, freePolicy)
@@ -286,9 +286,6 @@ func TestPolicyRenameThatIsPendingLandsOnTheNewName(t *testing.T) {
 		t.Fatal(err)
 	}
 	done := fixture.renameSaved(t, saved, "scratch-moved")
-	if err := root.PutPolicy(baotest.ControllerName, baotest.ControllerPolicy); err != nil {
-		t.Fatal(err)
-	}
 	if done.status != http.StatusSeeOther || done.location != policyPath("scratch-moved")+"&notice=rename-pending" {
 		t.Fatalf("rename = %d %q %s", done.status, done.location, done.raw)
 	}
@@ -302,6 +299,9 @@ func TestPolicyRenameThatIsPendingLandsOnTheNewName(t *testing.T) {
 	event := fixture.lastRenameEvent(t)
 	if event.Outcome != events.OutcomeDenied || event.ErrorCode != events.ErrorOpenBaoDenied {
 		t.Fatalf("event = %#v", event)
+	}
+	if err := root.PutPolicy(baotest.ControllerName, baotest.ControllerPolicy); err != nil {
+		t.Fatal(err)
 	}
 }
 
