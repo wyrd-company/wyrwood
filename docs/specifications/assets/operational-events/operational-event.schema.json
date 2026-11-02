@@ -15,7 +15,7 @@
         "login", "renew", "revoke", "vault-request",
         "ssh-list", "ssh-sign", "ssh-certificate", "ssh-session-bind",
         "agent-approved", "agent-rejected", "session-opened", "session-closed",
-        "policy-saved", "binding-created", "binding-changed", "binding-deleted",
+        "policy-saved", "policy-deleted", "binding-created", "binding-changed", "binding-deleted",
         "credential-issued", "recreate-requested",
         "operator-signed-in", "operator-signed-out"
       ]

@@ -54,6 +54,7 @@ const (
 	OperationSessionOpened     Operation = "session-opened"
 	OperationSessionClosed     Operation = "session-closed"
 	OperationPolicySaved       Operation = "policy-saved"
+	OperationPolicyDeleted     Operation = "policy-deleted"
 	OperationBindingCreated    Operation = "binding-created"
 	OperationBindingChanged    Operation = "binding-changed"
 	OperationBindingDeleted    Operation = "binding-deleted"
@@ -70,7 +71,7 @@ var Operations = []Operation{
 	OperationLogin, OperationRenew, OperationRevoke, OperationVaultRequest,
 	OperationSSHList, OperationSSHSign, OperationSSHCertificate, OperationSSHSessionBind,
 	OperationAgentApproved, OperationAgentRejected, OperationSessionOpened, OperationSessionClosed,
-	OperationPolicySaved, OperationBindingCreated, OperationBindingChanged, OperationBindingDeleted,
+	OperationPolicySaved, OperationPolicyDeleted, OperationBindingCreated, OperationBindingChanged, OperationBindingDeleted,
 	OperationCredentialIssued, OperationRecreateRequested,
 	OperationOperatorSignedIn, OperationOperatorSignedOut,
 }
