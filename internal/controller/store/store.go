@@ -370,6 +370,24 @@ func (store *Store) SavePolicyBindings(ctx context.Context, document policy.Poli
 	return saved, transaction.Commit()
 }
 
+// DeletePolicy removes one policy. It returns ErrNotFound when no such policy is
+// stored. The binding_policies foreign key refuses a policy that a binding
+// selects, and the policy then stays.
+func (store *Store) DeletePolicy(ctx context.Context, name string) error {
+	result, err := store.db.ExecContext(ctx, `DELETE FROM policies WHERE name = ?`, name)
+	if err != nil {
+		return err
+	}
+	removed, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if removed == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 // StoredPolicy is a policy with its save metadata.
 type StoredPolicy struct {
 	Policy  policy.Policy

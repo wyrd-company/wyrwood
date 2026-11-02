@@ -134,10 +134,15 @@ func Decode(data []byte) (Policy, error) {
 	return result, nil
 }
 
+// ValidName reports whether name is a lower-kebab-case slug of at most 64 bytes.
+func ValidName(name string) bool {
+	return len(name) <= maximumNameBytes && namePattern.MatchString(name)
+}
+
 // Validate checks every structural constraint of the policy schema plus the
 // Go-side canonical form of the mount target.
 func (policy Policy) Validate() error {
-	if len(policy.Name) > maximumNameBytes || !namePattern.MatchString(policy.Name) {
+	if !ValidName(policy.Name) {
 		return errors.New("policy name must be a lower-kebab-case slug of at most 64 bytes")
 	}
 	if policy.Revision < 0 {

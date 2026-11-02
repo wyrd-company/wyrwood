@@ -30,6 +30,10 @@ type OperationError struct {
 	// TokenLive marks a binding deletion that took effect while the
 	// binding's token may still be valid.
 	TokenLive bool
+	// PolicyMissing marks a policy deletion of a policy that does not exist.
+	PolicyMissing bool
+	// PolicyBound marks a policy deletion refused because a binding selects it.
+	PolicyBound bool
 }
 
 func (err *OperationError) Error() string { return err.Message }

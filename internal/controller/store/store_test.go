@@ -156,3 +156,38 @@ func TestPoliciesBindingsInventoryAndResults(t *testing.T) {
 		t.Fatalf("token accessor outlived its binding: %v", err)
 	}
 }
+
+func TestDeletePolicyRefusedWhileABindingSelectsIt(t *testing.T) {
+	ctx := context.Background()
+	data, _ := openTest(t)
+	now := time.Now().UTC()
+	saved, err := data.SavePolicy(ctx, policy.New("sample", policy.StarterHCL), "operator", now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := data.CreateBinding(ctx, Binding{ID: "b-one", Agent: "host-a", Key: protocol.Key{Kind: protocol.KeyName, Value: "sample"}, Policies: []string{saved.Name}, Revision: 1}); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.DeletePolicy(ctx, saved.Name); err == nil {
+		t.Fatal("deleted a policy that a binding selects")
+	}
+	if _, err := data.Policy(ctx, saved.Name); err != nil {
+		t.Fatalf("policy after refusal: %v", err)
+	}
+	if _, err := data.RetireBinding(ctx, "b-one", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := data.DeletePolicy(ctx, saved.Name); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := data.Policy(ctx, saved.Name); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("policy lookup = %v", err)
+	}
+	if err := data.DeletePolicy(ctx, saved.Name); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("second delete = %v", err)
+	}
+	again, err := data.SavePolicy(ctx, policy.New(saved.Name, policy.StarterHCL), "operator", now)
+	if err != nil || again.Revision != 1 {
+		t.Fatalf("reused name = %#v %v", again, err)
+	}
+}
