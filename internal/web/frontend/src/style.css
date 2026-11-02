@@ -70,11 +70,13 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
-a {
-  color: var(--accent);
-}
-a:hover {
-  color: var(--accent-ink);
+@layer base {
+  a {
+    color: var(--accent);
+  }
+  a:hover {
+    color: var(--accent-ink);
+  }
 }
 :focus-visible {
   outline: 2px solid var(--accent);
