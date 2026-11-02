@@ -8,6 +8,7 @@ package events
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -74,6 +75,10 @@ func TestEveryValidRecordValidatesAgainstSchema(t *testing.T) {
 		{
 			Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Operation: OperationBindingCreated,
 			Outcome: OutcomeOK, Agent: "host.example", Policy: "teal", Operator: "subject-1",
+		},
+		{
+			Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Operation: OperationPolicyRenamed,
+			Outcome: OutcomeOK, Policy: "teal", NewPolicy: "cyan", Operator: "subject-1",
 		},
 	}
 	for _, operation := range Operations {
@@ -163,6 +168,31 @@ func TestEventValidationClosesCategoricalVocabularies(t *testing.T) {
 				t.Fatal("Validate() error = nil")
 			}
 		})
+	}
+}
+
+func TestRenamedEventKeepsBothNamesThroughTheStore(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state", "events.log")
+	store, err := Open(path, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	event := sampleEvent(1)
+	event.Operation, event.Policy, event.NewPolicy = OperationPolicyRenamed, "teal", "cyan"
+	if err := store.Append(event); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatal(err)
+	}
+	store, err = Open(path, 8)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	recent := store.Recent(1)
+	if len(recent) != 1 || recent[0].Policy != "teal" || recent[0].NewPolicy != "cyan" {
+		t.Fatalf("recent = %#v", recent)
 	}
 }
 
