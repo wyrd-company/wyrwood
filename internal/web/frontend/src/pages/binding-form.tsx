@@ -2,27 +2,179 @@
 // relationships:
 //   implements: web-interface
 // ---
-import { Button, CSRF } from "@/components/shared";
+import { ScreenTabs, useScreenTabs } from "@/components/screen-tabs";
+import { Button, CSRF, Status } from "@/components/shared";
 import type { BindingData, EffectivePolicy as Effective } from "@/types";
-import { useRef, useState } from "react";
-import { BindingSettings } from "./binding-settings";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { BindingSettings, groupUnassignable } from "./binding-settings";
+import { ContainerSetup } from "./container-setup";
+import {
+  DecisionSummary,
+  enteredDecisions,
+  savedDecisions,
+} from "./decision-summary";
 import { EffectivePolicy } from "./effective-policy";
+
+export function BindingHeading({
+  data: d,
+  actions,
+}: {
+  data: BindingData;
+  actions?: ReactNode;
+}) {
+  const r = d.Row;
+  return (
+    <div className="screen-heading">
+      <div>
+        <h2 id="h-container">{r.Name}</h2>
+        <span className="hint">
+          on {r.Agent}
+          {d.Reported && (
+            <>
+              {" "}
+              · <span className="mono">{r.Image}</span> · {r.State}
+            </>
+          )}
+        </span>
+      </div>
+      <div className="screen-heading-end">
+        <Status kind={r.BadgeClass}>{r.Badge}</Status>
+        {actions}
+      </div>
+    </div>
+  );
+}
+
+function KeyChoice({ data: d }: { data: BindingData }) {
+  return (
+    <fieldset>
+      <legend>Bind by key</legend>
+      {d.Row.Candidates?.map((candidate) => (
+        <label className="choice" key={candidate.Encoded}>
+          <input
+            type="radio"
+            name="key"
+            value={candidate.Encoded}
+            defaultChecked={candidate.Encoded === d.Form.Key}
+          />
+          <span>
+            {candidate.Kind} · {candidate.Note}
+            <br />
+            <span className="mono">{candidate.Value}</span>
+          </span>
+        </label>
+      ))}
+    </fieldset>
+  );
+}
+
+function PolicyChoices({ data: d }: { data: BindingData }) {
+  return (
+    <>
+      <fieldset>
+        <legend>Policies</legend>
+        {d.Policies?.map((p) => (
+          <label className="choice" key={p.Name}>
+            <input
+              type="checkbox"
+              name="policies"
+              value={p.Name}
+              defaultChecked={p.Selected}
+            />
+            <span>{p.Name}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p className="hint">
+        Select one or more policies. Conflicting mount or environment
+        requirements are rejected. Agent token renewal is enabled when any
+        selected policy enables it. Binding tokens have no default policy.
+      </p>
+    </>
+  );
+}
+
+function BindingStatus({ data: d }: { data: BindingData }) {
+  const r = d.Row;
+  return (
+    <>
+      <div className="binding-summary">
+        <dl className="facts">
+          <div>
+            <dt>Policies</dt>
+            <dd className="mono">{r.Policies?.join(", ")}</dd>
+          </div>
+          <div>
+            <dt>Token</dt>
+            <dd>{r.Token}</dd>
+          </div>
+          <div className="col-span-full">
+            <dt>Bound by {r.KeyKind} key</dt>
+            <dd className="mono">{r.KeyValue}</dd>
+          </div>
+        </dl>
+        {d.Reported && (
+          <div>
+            <h3>Contract check</h3>
+            <ul className="plain">
+              {r.Checks?.map((check) => (
+                <li key={check.Label}>
+                  <Status kind={`mark ${check.Status}`}>{check.Mark}</Status>
+                  <span className="mono">{check.Label}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      <p className="hint">
+        {r.Applied
+          ? "AppRole assignment applied"
+          : "Token transition pending; fresh issuance is blocked"}
+      </p>
+    </>
+  );
+}
+
+const fragments = { "#h-setup": "container-setup" };
 
 export function BindingForm({ data: d }: { data: BindingData }) {
   const r = d.Row;
+  const ids = r.Bound
+    ? [
+        "status",
+        "policies",
+        "settings",
+        "effective-policy",
+        ...(d.Reported ? ["container-setup"] : []),
+      ]
+    : ["key-and-policies", "settings", "effective-policy"];
+  const { tab, setTab, onInvalidCapture, withTab } = useScreenTabs(
+    ids,
+    d,
+    fragments,
+  );
+  const form = useRef<HTMLFormElement>(null);
+  const [decisions, setDecisions] = useState(() => savedDecisions(d));
+  const [changes, setChanges] = useState(0);
+  // Children keep their own field state, so the form is read after they commit.
+  useEffect(() => {
+    if (form.current) setDecisions(enteredDecisions(form.current));
+  }, [changes]);
   const [preview, setPreview] = useState<Effective | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [problem, setProblem] = useState("");
   const [busy, setBusy] = useState(false);
   const previewRequest = useRef(0);
-  async function showPreview(form: HTMLFormElement) {
+  async function showPreview(target: HTMLFormElement) {
     const request = ++previewRequest.current;
+    setTab("effective-policy");
     setBusy(true);
     setProblem("");
     setPreview(null);
     try {
       const body = new URLSearchParams();
-      new FormData(form).forEach((value, key) => {
+      new FormData(target).forEach((value, key) => {
         if (typeof value === "string") body.append(key, value);
       });
       const response = await fetch("/bindings/preview", {
@@ -43,91 +195,169 @@ export function BindingForm({ data: d }: { data: BindingData }) {
       if (request === previewRequest.current) setBusy(false);
     }
   }
+  const saved = r.Bound && r.Effective?.sources?.length > 0;
+  const effective = (
+    <div className="flex flex-col gap-4">
+      {problem && (
+        <p className="problem" role="alert">
+          {problem}
+        </p>
+      )}
+      {preview && (
+        <EffectivePolicy
+          effective={preview}
+          warnings={warnings}
+          title="Previewed effective policy"
+        />
+      )}
+      {saved && (
+        <EffectivePolicy effective={r.Effective} warnings={r.Warnings} />
+      )}
+      {!preview && !saved && !problem && (
+        <p className="hint">
+          {busy
+            ? "Composing the selected policies."
+            : "Select Preview effective policy to see what these choices compose."}
+        </p>
+      )}
+    </div>
+  );
+  const settings = (
+    <BindingSettings
+      settings={d.Form.Settings}
+      groups={r.AssignableGroups}
+      connected={r.Connected}
+      understood={d.Form.Understood}
+    />
+  );
+  const settingsTab = {
+    id: "settings",
+    label: "Settings",
+    attention: groupUnassignable(
+      decisions.group,
+      r.AssignableGroups,
+      r.Connected,
+    ),
+    content: settings,
+  };
+  const effectiveTab = {
+    id: "effective-policy",
+    label: "Effective policy",
+    attention: Boolean(r.Warnings?.length || warnings.length),
+    content: effective,
+  };
+  const tabs = r.Bound
+    ? [
+        {
+          id: "status",
+          label: "Status",
+          content: <BindingStatus data={d} />,
+        },
+        {
+          id: "policies",
+          label: "Policies",
+          content: <PolicyChoices data={d} />,
+        },
+        settingsTab,
+        effectiveTab,
+        ...(d.Reported
+          ? [
+              {
+                id: "container-setup",
+                label: "Container setup",
+                content: <ContainerSetup setup={r.Setup} />,
+              },
+            ]
+          : []),
+      ]
+    : [
+        {
+          id: "key-and-policies",
+          label: "Key and policies",
+          content: (
+            <div className="binding-choices">
+              <KeyChoice data={d} />
+              <PolicyChoices data={d} />
+            </div>
+          ),
+        },
+        settingsTab,
+        effectiveTab,
+      ];
+  const actions = (
+    <div className="actions">
+      <Button type="submit" className="primary">
+        {r.Bound ? "Save binding" : "Bind policies"}
+      </Button>
+      <Button
+        type="button"
+        variant="outline"
+        disabled={busy}
+        onClick={(event) => {
+          const target = event.currentTarget.form;
+          if (target) void showPreview(target);
+        }}
+      >
+        {busy ? "Composing…" : "Preview effective policy"}
+      </Button>
+      {r.Bound && (
+        <div className="actions-separate">
+          <Button asChild variant="outline">
+            <a href={withTab(d.Recreate)}>Request recreate</a>
+          </Button>
+          <Button asChild variant="outline" className="danger">
+            <a href={withTab(d.Unbind)}>Unbind and revoke AppRole</a>
+          </Button>
+        </div>
+      )}
+    </div>
+  );
   return (
     <form
+      ref={form}
       method="post"
-      action={d.Action}
+      action={withTab(d.Action)}
       className="flex flex-col gap-4"
+      onInvalidCapture={onInvalidCapture}
       onChange={() => {
         previewRequest.current++;
         setBusy(false);
         setPreview(null);
         setProblem("");
+        setChanges((count) => count + 1);
       }}
     >
       <CSRF token={d.CSRF} />
       <input type="hidden" name="agent" value={r.Agent} />
       <input type="hidden" name="container" value={r.ID} />
       <input type="hidden" name="revision" value={d.Form.Revision || 0} />
-      <div className="binding-sections">
-        <div className="binding-choices">
-          {!r.Bound && (
-            <fieldset>
-              <legend>Bind by key</legend>
-              {r.Candidates?.map((candidate) => (
-                <label className="choice" key={candidate.Encoded}>
-                  <input
-                    type="radio"
-                    name="key"
-                    value={candidate.Encoded}
-                    defaultChecked={candidate.Encoded === d.Form.Key}
-                  />
-                  <span>
-                    {candidate.Kind} · {candidate.Note}
-                    <br />
-                    <span className="mono">{candidate.Value}</span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          )}
-          <fieldset>
-            <legend>Policies</legend>
-            {d.Policies?.map((p) => (
-              <label className="choice" key={p.Name}>
-                <input
-                  type="checkbox"
-                  name="policies"
-                  value={p.Name}
-                  defaultChecked={p.Selected}
-                />
-                <span>{p.Name}</span>
-              </label>
-            ))}
-          </fieldset>
-          <p className="hint">
-            Select one or more policies. Conflicting mount or environment
-            requirements are rejected. Agent token renewal is enabled when any
-            selected policy enables it. Binding tokens have no default policy.
-          </p>
-        </div>
-        <BindingSettings
-          settings={d.Form.Settings}
-          groups={r.AssignableGroups}
-          connected={r.Connected}
-          understood={d.Form.Understood}
-        />
-      </div>
-      <Button
-        type="button"
-        variant="outline"
-        disabled={busy}
-        onClick={(event) => {
-          const form = event.currentTarget.form;
-          if (form) void showPreview(form);
-        }}
-      >
-        {busy ? "Composing…" : "Preview effective policy"}
-      </Button>
-      {problem && (
+      {d.Problem && (
         <p className="problem" role="alert">
-          {problem}
+          {d.Problem}{" "}
+          {r.Bound && <a href={withTab(d.Screen)}>Reload saved values</a>}
         </p>
       )}
-      {preview && <EffectivePolicy effective={preview} warnings={warnings} />}
-      <Button type="submit">
-        {r.Bound ? "Save binding" : "Bind policies"}
-      </Button>
+      {!d.Reported && (
+        <p className="caution">
+          The agent does not report a container for this binding now. The
+          contract check and setup examples return when it does.
+        </p>
+      )}
+      <section
+        className="card flex flex-col gap-4"
+        aria-labelledby="h-container"
+      >
+        <BindingHeading data={d} actions={actions} />
+        <DecisionSummary data={d} decisions={decisions} />
+      </section>
+      <section className="card" aria-label="Binding details">
+        <ScreenTabs
+          label="Binding sections"
+          tabs={tabs}
+          value={tab}
+          onValueChange={setTab}
+        />
+      </section>
     </form>
   );
 }

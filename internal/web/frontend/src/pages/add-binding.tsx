@@ -2,6 +2,7 @@
 // relationships:
 //   implements: web-interface
 // ---
+import { RowAction } from "@/components/row-action";
 import { Notice, Table } from "@/components/shared";
 import type { AddBindingData } from "@/types";
 import { AgentReport, ListFilters } from "./list-filters";
@@ -35,7 +36,13 @@ export function AddBinding({ data: d }: { data: AddBindingData }) {
             />
             <section aria-label="Reported containers with no binding">
               <Table
-                columns={["Container", "Agent", "Keys offered", "State"]}
+                columns={[
+                  "Container",
+                  "Agent",
+                  "Keys offered",
+                  "State",
+                  "Actions",
+                ]}
                 count={d.Rows?.length ?? 0}
                 empty={
                   d.FilterAgent || d.Query ? (
@@ -71,6 +78,14 @@ export function AddBinding({ data: d }: { data: AddBindingData }) {
                       ))}
                     </td>
                     <td>{row.State}</td>
+                    <td>
+                      <RowAction
+                        href={row.Screen}
+                        text="Add binding"
+                        icon="add"
+                        name={`Add binding for ${row.Name} on ${row.Agent}`}
+                      />
+                    </td>
                   </tr>
                 ))}
               </Table>

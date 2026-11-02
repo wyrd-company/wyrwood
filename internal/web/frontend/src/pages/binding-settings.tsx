@@ -7,6 +7,22 @@ import { Field, Input } from "@/components/shared";
 import { DurationPicker } from "@/components/duration-picker";
 import type { AssignableGroups, EnteredBindingSettings } from "@/types";
 
+// groupUnassignable reports a selected group that the connected agent says it
+// cannot assign.
+export function groupUnassignable(
+  value: string,
+  groups: AssignableGroups | null | undefined,
+  connected: boolean | undefined,
+) {
+  return (
+    value !== "" &&
+    Boolean(connected) &&
+    groups != null &&
+    !groups.any &&
+    !groups.groups.some((g) => String(g.gid) === value)
+  );
+}
+
 export function BindingSettings({
   settings,
   groups,
@@ -21,11 +37,7 @@ export function BindingSettings({
   const [value, setValue] = useState(String(settings?.["access-group"] ?? ""));
   const [custom, setCustom] = useState(false);
   const known = connected && groups != null;
-  const invalid =
-    value !== "" &&
-    known &&
-    !groups.any &&
-    !groups.groups.some((g) => String(g.gid) === value);
+  const invalid = groupUnassignable(value, groups, connected);
   const listed = groups?.groups.some((g) => String(g.gid) === value);
 
   return (

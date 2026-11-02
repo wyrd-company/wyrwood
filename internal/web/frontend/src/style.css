@@ -499,6 +499,13 @@ button.small {
   flex-wrap: wrap;
   gap: 10px;
 }
+.actions-separate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
+}
 form.inline {
   display: inline;
 }
@@ -667,6 +674,65 @@ ul.plain li {
   justify-content: space-between;
   gap: 8px 16px;
 }
+.screen-heading-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.decision-summary {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.screen-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.screen-tab {
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.screen-tab:hover {
+  color: var(--ink);
+}
+.screen-tab[data-state="active"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.screen-tab:focus-visible,
+.screen-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tab-attention {
+  color: var(--ink);
+  font-weight: 600;
+}
+.screen-panel {
+  padding-top: 16px;
+}
+.screen-panel[hidden] {
+  display: none;
+}
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  white-space: nowrap;
+}
 .screen-heading h2 {
   font-size: 17px;
   font-weight: 600;
@@ -681,14 +747,8 @@ ul.plain li {
   gap: 24px;
 }
 .binding-summary > *,
-.binding-sections > *,
 .binding-choices > * {
   min-width: 0;
-}
-.binding-sections {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 24px;
 }
 .binding-choices {
   display: flex;
@@ -712,11 +772,6 @@ ul.plain li {
 }
 #binding-enforcement {
   max-width: 480px;
-}
-@media (min-width: 1000px) {
-  .binding-sections {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
-  }
 }
 
 .signin {

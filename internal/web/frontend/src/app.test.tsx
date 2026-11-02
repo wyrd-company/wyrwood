@@ -649,7 +649,7 @@ it("lists bindings at full width with row links and no detail panel", () => {
   expect(filter).toHaveAttribute("action", "/bindings");
   expect(new FormData(filter).get("filter-agent")).toBe("");
   expect(
-    screen.getByRole("link", { name: /sample-container/ }),
+    screen.getByRole("link", { name: /^sample-container/ }),
   ).toHaveAttribute("href", bindingRow.Containers[0].Screen);
   expect(screen.getByRole("link", { name: "Add binding" })).toHaveAttribute(
     "href",
@@ -683,7 +683,7 @@ it("shows a binding with no reported container, with its agent and key", () => {
     },
   ];
   draw({ page: "bindings", data });
-  expect(screen.getByRole("link", { name: /sample\/worker/ })).toHaveAttribute(
+  expect(screen.getByRole("link", { name: /^sample\/worker/ })).toHaveAttribute(
     "href",
     bindingRow.Screen,
   );
@@ -712,13 +712,13 @@ it("shows every container that one binding governs", () => {
     "href",
     other.Screen,
   );
-  expect(screen.getByRole("link", { name: /sample-container/ })).toBeVisible();
+  expect(screen.getByRole("link", { name: /^sample-container/ })).toBeVisible();
 });
 it("lists containers with no binding on the add screen", () => {
   const view = draw({ page: "add-binding", data: addBinding() });
   expect(formFor("Apply filters")).toHaveAttribute("action", "/bindings/add");
   expect(
-    screen.getByRole("link", { name: /sample-container/ }),
+    screen.getByRole("link", { name: /^sample-container/ }),
   ).toHaveAttribute("href", row.Screen);
   expect(
     screen.getByRole("link", { name: "Back to bindings" }),
@@ -747,8 +747,9 @@ it("preserves binding keys and explicit recreate consent on the bind screen", as
   expect(
     screen.getByText(/Recreate discards the writable layer/),
   ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
   await userEvent.click(screen.getByRole("checkbox", { name: /I understand/ }));
-  expectPost("Bind policies", "/bindings", { understood: "yes" });
+  expectPost("Bind policies", "/bindings?tab=settings", { understood: "yes" });
 });
 it("shows a failed submission's message and every entered value", () => {
   const data = binding(false);
@@ -782,12 +783,13 @@ it("shows a failed submission's message and every entered value", () => {
       enforcement: "recreate",
     },
   };
+  data.Tab = "settings";
   draw({ page: "binding", data });
   expect(screen.getByRole("alert")).toHaveTextContent(
     "Sample actionable problem",
   );
   expect(screen.getByRole("checkbox", { name: /I understand/ })).toBeChecked();
-  expectPost("Bind policies", "/bindings", {
+  expectPost("Bind policies", "/bindings?tab=settings", {
     key: "name:sample-container",
     policies: "second",
     "token-ttl": "not-a-duration",
@@ -1052,6 +1054,7 @@ it("preserves relative time units and zero-time semantics", () => {
 it("keeps not-forwardable identity selectors editable and clearable", async () => {
   const user = userEvent.setup();
   draw({ page: "policy", data: { ...policy, New: false } });
+  await user.click(screen.getByRole("tab", { name: /^SSH identities/ }));
   const keys = screen.getByRole("checkbox", {
     name: "Not forwardable sample-restricted-key",
   });
@@ -1062,7 +1065,7 @@ it("keeps not-forwardable identity selectors editable and clearable", async () =
   expect(roles).toBeChecked();
   await user.click(keys);
   await user.click(roles);
-  expectPost("Save and validate", "/policies", {
+  expectPost("Save and validate", "/policies?tab=ssh-identities", {
     "not-forwardable-transit-keys": "",
     "not-forwardable-ca-roles": "",
     "transit-keys": policy.TransitKeys,
@@ -1212,6 +1215,7 @@ it("previews several selected policies with binding settings and lifecycle grant
     expect(request.body.getAll("policies")).toEqual(["sample", "second"]);
     expect(request.body.get("csrf")).toBe("sample-csrf");
     expect(request.body.get("token-ttl")).toBe("1h");
+    await user.click(screen.getByRole("tab", { name: "Key and policies" }));
     await user.click(screen.getByRole("checkbox", { name: "second" }));
     expect(screen.queryByText("combined source HCL")).not.toBeInTheDocument();
   } finally {
@@ -1239,7 +1243,9 @@ it("shows a composition conflict without losing the selected policies", async ()
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "different mount targets",
     );
-    expect(screen.getByRole("checkbox", { name: "sample" })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "sample", hidden: true }),
+    ).toBeChecked();
   } finally {
     vi.unstubAllGlobals();
   }
@@ -1255,7 +1261,7 @@ it("keeps duplicate container IDs distinct across agents and submits the screen'
   };
   data.Rows = [{ ...row }, other];
   const view = draw({ page: "add-binding", data });
-  const links = screen.getAllByRole("link", { name: /sample-container/ });
+  const links = screen.getAllByRole("link", { name: /^sample-container/ });
   expect(links).toHaveLength(2);
   expect(links[1]).toHaveAttribute("href", other.Screen);
   expect(screen.getByText("Connected", { exact: true })).toBeVisible();
@@ -1271,7 +1277,7 @@ it("keeps duplicate container IDs distinct across agents and submits the screen'
 it("renders rows and filter controls", async () => {
   const user = userEvent.setup();
   draw({ page: "bindings", data: bindings() });
-  expect(screen.getByRole("link", { name: /sample-container/ })).toBeVisible();
+  expect(screen.getByRole("link", { name: /^sample-container/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText("Agent"), "sample-host");
   await user.type(screen.getByLabelText("Filter bindings"), "alpine");
   await user.selectOptions(screen.getByLabelText("Sort by"), "policies");

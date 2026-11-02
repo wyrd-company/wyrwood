@@ -5,6 +5,7 @@
 import { Button, Notice, Table } from "@/components/shared";
 import type { BindingsData } from "@/types";
 import {
+  BindingActionCell,
   BindingAgentCell,
   BindingContainerCell,
   BindingKeyCell,
@@ -43,7 +44,14 @@ export function Bindings({ data: d }: { data: BindingsData }) {
             />
             <section aria-label="Bindings">
               <Table
-                columns={["Container", "Agent", "Key", "Policies", "State"]}
+                columns={[
+                  "Container",
+                  "Agent",
+                  "Key",
+                  "Policies",
+                  "State",
+                  "Actions",
+                ]}
                 count={d.Rows?.length ?? 0}
                 empty={
                   d.FilterAgent || d.Query ? (
@@ -63,6 +71,7 @@ export function Bindings({ data: d }: { data: BindingsData }) {
                     <BindingKeyCell row={row} />
                     <td className="mono">{row.Policies?.join(", ")}</td>
                     <BindingStateCell row={row} />
+                    <BindingActionCell row={row} />
                   </tr>
                 ))}
               </Table>

@@ -2,6 +2,7 @@
 // relationships:
 //   implements: web-interface
 // ---
+import { RowAction } from "@/components/row-action";
 import { Status } from "@/components/shared";
 import type { BindingRow } from "@/types";
 import { AgentReport } from "./list-filters";
@@ -24,6 +25,27 @@ export function BindingContainerCell({ row }: { row: BindingRow }) {
         </a>
       )}
     </th>
+  );
+}
+
+// A row with several containers or none is named by its binding key, so that each
+// row's action has its own name.
+function bindingTarget(row: BindingRow) {
+  return row.Containers?.length === 1
+    ? `for ${row.Containers[0].Name}`
+    : row.KeyValue;
+}
+
+export function BindingActionCell({ row }: { row: BindingRow }) {
+  return (
+    <td>
+      <RowAction
+        href={row.Screen}
+        text="Edit"
+        icon="edit"
+        name={`Edit binding ${bindingTarget(row)} on ${row.Agent}`}
+      />
+    </td>
   );
 }
 

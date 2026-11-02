@@ -16,10 +16,61 @@ import { OpenBaoLink } from "@/components/openbao-link";
 import { HCLEditor } from "@/components/hcl-editor";
 import { IdentityPicker } from "@/components/identity-picker";
 import { EnvironmentEditor } from "@/components/environment-editor";
+import { ScreenTabs, useScreenTabs } from "@/components/screen-tabs";
 import { useRef, useState } from "react";
 import type { PolicyData } from "@/types";
 import { PolicyBindings } from "./policy-bindings";
+const fragments = { "#h-bindings": "bindings" };
+
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
+  const ids = [
+    "openbao-policy",
+    "ssh-identities",
+    "container-contract",
+    ...(d.New ? [] : ["bindings"]),
+  ];
+  const { tab, setTab, reveal, onInvalidCapture, withTab } = useScreenTabs(
+    ids,
+    d,
+    fragments,
+  );
+  const [warnings, setWarnings] = useState(d.Warnings ?? []);
+  const tabs = [
+    {
+      id: "openbao-policy",
+      label: "OpenBao policy",
+      attention: warnings.length > 0,
+      content: (
+        <OpenBaoPolicy data={d} warnings={warnings} setWarnings={setWarnings} />
+      ),
+    },
+    {
+      id: "ssh-identities",
+      label: "SSH identities",
+      attention: Boolean(d.IdentityProblems?.length || d.Unpermitted?.length),
+      content: <SSHIdentities data={d} />,
+    },
+    {
+      id: "container-contract",
+      label: "Container contract",
+      content: <ContainerContract data={d} />,
+    },
+    ...(d.New
+      ? []
+      : [
+          {
+            id: "bindings",
+            label: "Bindings",
+            content: (
+              <PolicyBindings
+                rows={d.BindingRows}
+                editable
+                hint="What a change to this policy affects, including containers that are no longer reported."
+              />
+            ),
+          },
+        ]),
+  ];
   return (
     <main>
       <Notice text={d.Notice} />
@@ -28,7 +79,12 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
           {d.Problem}
         </p>
       )}
-      <form method="post" action="/policies" className="flex flex-col gap-6">
+      <form
+        method="post"
+        action={withTab("/policies")}
+        className="flex flex-col gap-6"
+        onInvalidCapture={onInvalidCapture}
+      >
         <CSRF token={d.CSRF} />
         {d.New ? (
           <input type="hidden" name="new" value="yes" />
@@ -41,7 +97,7 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             {!d.New && (
               <span className="sub">
                 Revision {d.Revision} ·{" "}
-                <a href="#h-bindings">
+                <a href="#h-bindings" onClick={() => reveal("#h-bindings")}>
                   {d.Bindings} binding
                   {d.Bindings !== 1 && "s"} on {d.Agents} agent
                   {d.Agents !== 1 && "s"}
@@ -50,19 +106,21 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             )}
           </div>
           <div className="actions">
+            <Button type="submit" className="primary">
+              Save and validate
+            </Button>
             {!d.New && (
               <Button asChild variant="outline">
                 <a href={policyRenameURL(d.Name)}>Rename</a>
               </Button>
             )}
             {!d.New && (
-              <Button asChild variant="outline" className="danger">
-                <a href={policyDeleteURL(d.Name)}>Delete policy</a>
-              </Button>
+              <div className="actions-separate">
+                <Button asChild variant="outline" className="danger">
+                  <a href={policyDeleteURL(d.Name)}>Delete policy</a>
+                </Button>
+              </div>
             )}
-            <Button type="submit" className="primary">
-              Save and validate
-            </Button>
           </div>
         </div>
         {d.New && (
@@ -91,27 +149,25 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             </Field>
           </Panel>
         )}
-        <div className="split p-0">
-          <div className="main-column flex flex-col gap-6">
-            <OpenBaoPolicy data={d} />
-            <SSHIdentities data={d} />
-          </div>
-          <ContainerContract data={d} />
-        </div>
-      </form>
-      {!d.New && (
-        // The list follows the form, so that its length cannot move the Save
-        // action.
-        <PolicyBindings
-          rows={d.BindingRows}
-          hint="What a change to this policy affects, including containers that are no longer reported."
+        <ScreenTabs
+          label="Policy sections"
+          tabs={tabs}
+          value={tab}
+          onValueChange={setTab}
         />
-      )}
+      </form>
     </main>
   );
 }
-function OpenBaoPolicy({ data: d }: { data: PolicyData }) {
-  const [warnings, setWarnings] = useState(d.Warnings ?? []);
+function OpenBaoPolicy({
+  data: d,
+  warnings,
+  setWarnings,
+}: {
+  data: PolicyData;
+  warnings: string[];
+  setWarnings: (warnings: string[]) => void;
+}) {
   const latestCheck = useRef(0);
   const [renewal, setRenewal] = useState(d.AgentTokenRenewal);
 
@@ -205,7 +261,7 @@ function SSHIdentities({ data: d }: { data: PolicyData }) {
         <h2 id="h-ssh">SSH agent identities</h2>
         <span className="sub">
           What <code>ssh-agent.sock</code> offers. Each must also be allowed by
-          the HCL above.
+          the HCL on the OpenBao policy tab.
         </span>
       </div>
       <p className="hint">
@@ -242,7 +298,7 @@ function SSHIdentities({ data: d }: { data: PolicyData }) {
 }
 function ContainerContract({ data: d }: { data: PolicyData }) {
   return (
-    <Panel aria-labelledby="h-con" className="flex-[1_1_340px]">
+    <Panel aria-labelledby="h-con">
       <div>
         <h2 id="h-con">Container contract</h2>
         <span className="hint">

@@ -69,11 +69,17 @@ const section = () => screen.getByRole("region", { name: "Bindings" });
 it("lists a reported binding with its container, agent, key, state and link", () => {
   render(
     <PolicyEditor
-      data={{ ...saved, BindingRows: [row], Bindings: 1, Agents: 1 }}
+      data={{
+        ...saved,
+        Tab: "bindings",
+        BindingRows: [row],
+        Bindings: 1,
+        Agents: 1,
+      }}
     />,
   );
   const list = within(section());
-  expect(list.getByRole("link", { name: /sample-container/ })).toHaveAttribute(
+  expect(list.getByRole("link", { name: /^sample-container/ })).toHaveAttribute(
     "href",
     "/bindings/b-one?container=sample-id",
   );
@@ -90,6 +96,7 @@ it("marks a binding with no reported container and its disconnected agent", () =
     <PolicyEditor
       data={{
         ...saved,
+        Tab: "bindings",
         BindingRows: [
           {
             ...row,
@@ -106,7 +113,7 @@ it("marks a binding with no reported container and its disconnected agent", () =
   );
   const list = within(section());
   expect(list.getByText("Not reported")).toBeInTheDocument();
-  expect(list.getByRole("link", { name: /sample/ })).toHaveAttribute(
+  expect(list.getByRole("link", { name: /^sample/ })).toHaveAttribute(
     "href",
     "/bindings/b-one",
   );
@@ -119,6 +126,7 @@ it("says that an agent is not approved instead of its last report", () => {
     <PolicyEditor
       data={{
         ...saved,
+        Tab: "bindings",
         BindingRows: [
           {
             ...row,
@@ -140,28 +148,42 @@ it("says that an agent is not approved instead of its last report", () => {
 });
 
 it("says that no binding selects the policy", () => {
-  render(<PolicyEditor data={saved} />);
+  render(<PolicyEditor data={{ ...saved, Tab: "bindings" }} />);
   expect(
     within(section()).getByText("No binding selects this policy."),
   ).toBeInTheDocument();
 });
 
 it("shows no section for a new policy", () => {
-  render(<PolicyEditor data={{ ...saved, New: true, BindingRows: null }} />);
+  render(
+    <PolicyEditor
+      data={{ ...saved, Tab: "bindings", New: true, BindingRows: null }}
+    />,
+  );
   expect(screen.queryByRole("region", { name: "Bindings" })).toBeNull();
 });
 
 it("links the counts in the header to the list, with singular and plural", () => {
   const { unmount } = render(
     <PolicyEditor
-      data={{ ...saved, BindingRows: [row], Bindings: 1, Agents: 1 }}
+      data={{
+        ...saved,
+        Tab: "bindings",
+        BindingRows: [row],
+        Bindings: 1,
+        Agents: 1,
+      }}
     />,
   );
   expect(
     screen.getByRole("link", { name: "1 binding on 1 agent" }),
   ).toHaveAttribute("href", "#h-bindings");
   unmount();
-  render(<PolicyEditor data={{ ...saved, Bindings: 2, Agents: 2 }} />);
+  render(
+    <PolicyEditor
+      data={{ ...saved, Tab: "bindings", Bindings: 2, Agents: 2 }}
+    />,
+  );
   expect(
     screen.getByRole("link", { name: "2 bindings on 2 agents" }),
   ).toBeInTheDocument();
@@ -174,13 +196,18 @@ it("keeps Save in the header, ahead of a list of 50 bindings", () => {
   }));
   render(
     <PolicyEditor
-      data={{ ...saved, BindingRows: rows, Bindings: 50, Agents: 1 }}
+      data={{
+        ...saved,
+        Tab: "bindings",
+        BindingRows: rows,
+        Bindings: 50,
+        Agents: 1,
+      }}
     />,
   );
   const save = screen.getByRole("button", { name: "Save and validate" });
   expect(save.closest(".section-head")).not.toBeNull();
   const list = section();
-  expect(save.closest("form")?.contains(list)).toBe(false);
   expect(
     save.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();

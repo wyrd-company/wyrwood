@@ -14,6 +14,8 @@ export interface Layout {
   Controller: string;
   Notice: string;
   Problem: string;
+  Tab?: string;
+  ProblemTab?: string;
 }
 export interface SignInData extends Layout {
   Provider: string;

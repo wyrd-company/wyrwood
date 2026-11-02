@@ -354,12 +354,13 @@ func TestPolicyPageWithFiftyBindingsKeepsSaveInTheHeader(t *testing.T) {
 		t.Fatalf("rows %d, header %d on %d", len(page.BindingRows), page.Bindings, page.Agents)
 	}
 	body := renderModel(t, policyPageName, page)
-	save, formEnd, section := strings.Index(body, "Save and validate"), strings.LastIndex(body, "</form>"), strings.Index(body, bindingsSectionMark)
-	editor := strings.Index(body, `id="h-hcl"`)
-	if save < 0 || editor < save || formEnd < editor || section < formEnd {
-		t.Fatalf("order: save %d, editor %d, form end %d, section %d", save, editor, formEnd, section)
+	save, section := strings.Index(body, "Save and validate"), strings.Index(body, bindingsSectionMark)
+	tabs, editor := strings.Index(body, `role="tablist"`), strings.Index(body, `id="h-hcl"`)
+	if save < 0 || tabs < save || editor < tabs || section < editor {
+		t.Fatalf("order: save %d, tabs %d, editor %d, section %d", save, tabs, editor, section)
 	}
-	if strings.Count(body, `href="/bindings/b-wide-`) != 50 {
-		t.Fatalf("links = %d", strings.Count(body, `href="/bindings/b-wide-`))
+	// Each row keeps its container link and has one Edit action.
+	if strings.Count(body, `href="/bindings/b-wide-`) != 100 || strings.Count(body, `class="row-action"`) != 50 {
+		t.Fatalf("links = %d, actions = %d", strings.Count(body, `href="/bindings/b-wide-`), strings.Count(body, `class="row-action"`))
 	}
 }
