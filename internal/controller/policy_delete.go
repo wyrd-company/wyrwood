@@ -57,7 +57,7 @@ func (controller *Controller) deletePolicy(ctx context.Context, name string) err
 	if err := controller.openbao.DeletePolicy(ctx, stored.Policy.OpenBaoPolicyName()); err != nil {
 		code := openBaoError(err)
 		// An interrupted response can hide a successful delete.
-		if err := controller.restorePolicy(ctx, name, stored, true); err != nil {
+		if err := controller.restorePolicy(ctx, stored.Policy, stored, true); err != nil {
 			return operationError(code, "OpenBao could not confirm the deletion; the policy is kept, its restoration is pending, and fresh issuance is blocked until OpenBao answers")
 		}
 		return operationError(code, "OpenBao could not delete the policy; the policy is kept, so try again")
@@ -84,7 +84,7 @@ func (controller *Controller) settleFailedPolicyDelete(ctx context.Context, stor
 		controller.policySyncPending = true
 		return operationError(events.ErrorInternal, "the deletion could not be confirmed; its OpenBao policy is restored if the policy is still stored, and fresh issuance is blocked until then")
 	}
-	if err := controller.restorePolicy(ctx, name, stored, true); err != nil {
+	if err := controller.restorePolicy(ctx, stored.Policy, stored, true); err != nil {
 		return operationError(events.ErrorInternal, "the policy could not be removed; it is kept, its OpenBao restoration is pending, and fresh issuance is blocked until then")
 	}
 	return operationError(events.ErrorInternal, "the policy could not be removed; it is kept, so try again")

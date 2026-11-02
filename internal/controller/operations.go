@@ -170,6 +170,7 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		return fail("the stored policy could not be read")
 	}
 	if lookup == nil {
+		document.Generation = old.Policy.Generation
 		previous := old.Policy.Clone()
 		candidate := document.Clone()
 		previous.Revision = 0
@@ -179,6 +180,11 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		}
 		document.Revision = old.Policy.Revision + 1
 	} else {
+		next, err := controller.store.NextPolicyGeneration(ctx, document.Name)
+		if err != nil {
+			return fail("the stored policy could not be read")
+		}
+		document.Generation = next
 		document.Revision = 1
 	}
 	bindings, err := controller.store.Bindings(ctx, "")
@@ -206,14 +212,14 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		if openbao.CategoryOf(err) == openbao.CategoryInvalid {
 			return fail("OpenBao rejected the HCL policy")
 		}
-		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
+		if err := controller.restorePolicy(ctx, document, old, lookup == nil); err != nil {
 			return fail("OpenBao policy publication was uncertain; restoration is pending and fresh issuance is blocked")
 		}
 		return fail("OpenBao could not store the HCL policy; its change was rolled back")
 	}
 	saved, err := controller.store.SavePolicyBindings(ctx, document, affected, operator, controller.now())
 	if err != nil {
-		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
+		if err := controller.restorePolicy(ctx, document, old, lookup == nil); err != nil {
 			return fail("the policy could not be recorded; OpenBao restoration is pending and fresh issuance is blocked")
 		}
 		return fail("the policy could not be recorded; the OpenBao change was rolled back")
@@ -522,14 +528,14 @@ func (controller *Controller) recordBinding(b store.Binding, event events.Event)
 
 // An interrupted response can hide a successful remote write. Restore the
 // authoritative source on either a remote or local publication failure.
-func (controller *Controller) restorePolicy(ctx context.Context, name string, previous store.StoredPolicy, existed bool) error {
+func (controller *Controller) restorePolicy(ctx context.Context, attempted policy.Policy, previous store.StoredPolicy, existed bool) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operationTimeout)
 	defer cancel()
 	var err error
 	if existed {
 		err = controller.openbao.WritePolicy(rollbackCtx, previous.Policy.OpenBaoPolicyName(), previous.Policy.PublishedHCL())
 	} else {
-		err = controller.openbao.DeletePolicy(rollbackCtx, "wyrwood-"+name)
+		err = controller.openbao.DeletePolicy(rollbackCtx, attempted.OpenBaoPolicyName())
 	}
 	if err != nil {
 		controller.policySyncPending = true

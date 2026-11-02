@@ -60,6 +60,9 @@ type Policy struct {
 	OpenBao  OpenBao      `json:"openbao"`
 	SSH      *SSH         `json:"ssh,omitempty"`
 	Contract Requirements `json:"contract"`
+	// Generation selects the OpenBao identity. The store owns it and it is not
+	// part of the document: zero and one both mean the first use of the name.
+	Generation int `json:"-"`
 }
 
 // OpenBao carries the operator-authored HCL document.
@@ -220,7 +223,28 @@ type EnvEntry struct {
 }
 
 // OpenBaoPolicyName is the name the controller writes the HCL under.
-func (policy Policy) OpenBaoPolicyName() string { return openBaoPolicyPrefix + policy.Name }
+func (policy Policy) OpenBaoPolicyName() string {
+	return openBaoPolicyName(policy.Name, policy.Generation)
+}
+
+// openBaoPolicyName derives every OpenBao policy name, so that a policy created
+// under a name used before never answers to a token of the earlier policy. A
+// name cannot contain "--", so no generation can spell another policy's name.
+func openBaoPolicyName(name string, generation int) string {
+	if generation <= 1 {
+		return openBaoPolicyPrefix + name
+	}
+	return openBaoPolicyPrefix + name + "--" + strconv.Itoa(generation)
+}
+
+// sourceGeneration omits the first generation from an assignment, so that an
+// assignment that names only first uses keeps its identity.
+func (policy Policy) sourceGeneration() int {
+	if policy.Generation <= 1 {
+		return 0
+	}
+	return policy.Generation
+}
 
 func durationOr(value, fallback string) time.Duration {
 	if value == "" {

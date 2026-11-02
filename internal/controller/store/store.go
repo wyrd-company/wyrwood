@@ -118,7 +118,16 @@ var migrations = []string{
 		created_at INTEGER NOT NULL,
 		expires_at INTEGER NOT NULL
 	);`,
+	`ALTER TABLE policies ADD COLUMN generation INTEGER NOT NULL DEFAULT 1 CHECK (generation >= 1);
+	CREATE TABLE policy_generations (
+		name TEXT PRIMARY KEY,
+		generation INTEGER NOT NULL CHECK (generation >= 1)
+	);
+	INSERT INTO policy_generations (name, generation) SELECT name, 1 FROM policies;`,
 }
+
+// schemaVersion is the controller state version that this controller reads and writes.
+const schemaVersion = 3
 
 // Open opens or creates the database at path, applying migrations.
 func Open(path string) (*Store, error) {
@@ -157,10 +166,10 @@ func (store *Store) migrate() error {
 	if version == 1 {
 		return errors.New("controller state version 1 is unsupported")
 	}
-	if version > 2 {
+	if version > schemaVersion {
 		return errors.New("database schema is newer than this controller")
 	}
-	if version == 2 {
+	if version == schemaVersion {
 		return nil
 	}
 	tx, err := store.db.Begin()
@@ -168,10 +177,15 @@ func (store *Store) migrate() error {
 		return err
 	}
 	defer tx.Rollback()
-	if _, err = tx.Exec(migrations[0]); err != nil {
-		return fmt.Errorf("create schema: %w", err)
+	if version == 0 {
+		if _, err = tx.Exec(migrations[0]); err != nil {
+			return fmt.Errorf("create schema: %w", err)
+		}
 	}
-	if _, err = tx.Exec("PRAGMA user_version = 2"); err != nil {
+	if _, err = tx.Exec(migrations[1]); err != nil {
+		return fmt.Errorf("migrate schema to version %d: %w", schemaVersion, err)
+	}
+	if _, err = tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 		return err
 	}
 	return tx.Commit()
@@ -325,6 +339,23 @@ func boolInt(value bool) int {
 	return 0
 }
 
+// NextPolicyGeneration returns the generation that a new policy with this name
+// takes. The per-name record outlives the policy, so no generation is used twice.
+func (store *Store) NextPolicyGeneration(ctx context.Context, name string) (int, error) {
+	return nextPolicyGeneration(ctx, store.db, name)
+}
+
+func nextPolicyGeneration(ctx context.Context, reader interface {
+	QueryRowContext(context.Context, string, ...any) *sql.Row
+}, name string) (int, error) {
+	var last int
+	err := reader.QueryRowContext(ctx, `SELECT generation FROM policy_generations WHERE name = ?`, name).Scan(&last)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, err
+	}
+	return last + 1, nil
+}
+
 // SavePolicy records a policy, incrementing its revision, and returns the
 // stored document.
 func (store *Store) SavePolicy(ctx context.Context, document policy.Policy, operator string, now time.Time) (policy.Policy, error) {
@@ -338,21 +369,39 @@ func (store *Store) SavePolicyBindings(ctx context.Context, document policy.Poli
 		return policy.Policy{}, err
 	}
 	defer transaction.Rollback()
-	var revision int
-	err = transaction.QueryRowContext(ctx, `SELECT revision FROM policies WHERE name = ?`, document.Name).Scan(&revision)
+	var revision, generation int
+	err = transaction.QueryRowContext(ctx, `SELECT revision, generation FROM policies WHERE name = ?`, document.Name).Scan(&revision, &generation)
+	exists := err == nil
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return policy.Policy{}, err
 	}
+	if !exists {
+		if generation, err = nextPolicyGeneration(ctx, transaction, document.Name); err != nil {
+			return policy.Policy{}, err
+		}
+	}
+	// A caller publishes its OpenBao policy before this commit, so a generation
+	// that disagrees with the stored one must not become durable.
+	if document.Generation != 0 && document.Generation != generation {
+		return policy.Policy{}, ErrConflict
+	}
 	saved := document.Clone()
 	saved.Revision = revision + 1
+	saved.Generation = generation
 	encoded, err := json.Marshal(saved)
 	if err != nil {
 		return policy.Policy{}, err
 	}
-	if _, err := transaction.ExecContext(ctx, `INSERT INTO policies (name, revision, document, saved_at, saved_by) VALUES (?, ?, ?, ?, ?)
+	if _, err := transaction.ExecContext(ctx, `INSERT INTO policies (name, revision, document, saved_at, saved_by, generation) VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(name) DO UPDATE SET revision = excluded.revision, document = excluded.document, saved_at = excluded.saved_at, saved_by = excluded.saved_by`,
-		saved.Name, saved.Revision, string(encoded), unix(now), operator); err != nil {
+		saved.Name, saved.Revision, string(encoded), unix(now), operator, saved.Generation); err != nil {
 		return policy.Policy{}, err
+	}
+	if !exists {
+		if _, err := transaction.ExecContext(ctx, `INSERT INTO policy_generations (name, generation) VALUES (?, ?)
+			ON CONFLICT(name) DO UPDATE SET generation = excluded.generation`, saved.Name, saved.Generation); err != nil {
+			return policy.Policy{}, err
+		}
 	}
 	for _, b := range bindings {
 		settings, effective, err := bindingData(b)
@@ -372,7 +421,8 @@ func (store *Store) SavePolicyBindings(ctx context.Context, document policy.Poli
 
 // DeletePolicy removes one policy. It returns ErrNotFound when no such policy is
 // stored. The binding_policies foreign key refuses a policy that a binding
-// selects, and the policy then stays.
+// selects, and the policy then stays. The name's generation record stays, so a
+// later policy with this name takes a new OpenBao identity.
 func (store *Store) DeletePolicy(ctx context.Context, name string) error {
 	result, err := store.db.ExecContext(ctx, `DELETE FROM policies WHERE name = ?`, name)
 	if err != nil {
@@ -397,12 +447,12 @@ type StoredPolicy struct {
 
 // Policy returns one policy.
 func (store *Store) Policy(ctx context.Context, name string) (StoredPolicy, error) {
-	return scanPolicy(store.db.QueryRowContext(ctx, `SELECT document, saved_at, saved_by FROM policies WHERE name = ?`, name))
+	return scanPolicy(store.db.QueryRowContext(ctx, `SELECT document, saved_at, saved_by, generation FROM policies WHERE name = ?`, name))
 }
 
 // Policies lists every policy by name.
 func (store *Store) Policies(ctx context.Context) ([]StoredPolicy, error) {
-	rows, err := store.db.QueryContext(ctx, `SELECT document, saved_at, saved_by FROM policies ORDER BY name`)
+	rows, err := store.db.QueryContext(ctx, `SELECT document, saved_at, saved_by, generation FROM policies ORDER BY name`)
 	if err != nil {
 		return nil, err
 	}
@@ -422,7 +472,8 @@ func scanPolicy(row interface{ Scan(...any) error }) (StoredPolicy, error) {
 	var document string
 	var savedAt int64
 	var stored StoredPolicy
-	if err := row.Scan(&document, &savedAt, &stored.SavedBy); err != nil {
+	var generation int
+	if err := row.Scan(&document, &savedAt, &stored.SavedBy, &generation); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return StoredPolicy{}, ErrNotFound
 		}
@@ -433,6 +484,7 @@ func scanPolicy(row interface{ Scan(...any) error }) (StoredPolicy, error) {
 		return StoredPolicy{}, err
 	}
 	stored.Policy = decoded
+	stored.Policy.Generation = generation
 	stored.SavedAt = time.Unix(0, savedAt).UTC()
 	return stored, nil
 }

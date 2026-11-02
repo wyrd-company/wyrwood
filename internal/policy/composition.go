@@ -75,6 +75,8 @@ type Source struct {
 	Name     string `json:"name"`
 	Revision int    `json:"revision"`
 	HCL      string `json:"hcl"`
+	// Generation is present only above the first use of the name.
+	Generation int `json:"generation,omitempty"`
 }
 
 // Effective is a resolved binding assignment, with its source provenance.
@@ -94,9 +96,9 @@ func (e Effective) Names() []string {
 	return names
 }
 func (e Effective) OpenBaoPolicies() []string {
-	names := e.Names()
-	for i := range names {
-		names[i] = openBaoPolicyPrefix + names[i]
+	names := make([]string, 0, len(e.Sources))
+	for _, s := range e.Sources {
+		names = append(names, openBaoPolicyName(s.Name, s.Generation))
 	}
 	return names
 }
@@ -141,6 +143,9 @@ func (e Effective) Validate() error {
 			return errors.New("policy selection is repeated")
 		}
 		seen[s.Name] = true
+		if s.Generation == 1 || s.Generation < 0 {
+			return errors.New("policy source generation is invalid")
+		}
 		p := New(s.Name, s.HCL)
 		p.Revision = s.Revision
 		if err := p.Validate(); err != nil {
@@ -155,7 +160,7 @@ func (e Effective) Validate() error {
 func (p Policy) Runtime(settings Settings) Effective {
 	settings = settings.Defaults()
 	renew := p.AgentRenewal()
-	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy}}, OpenBao: OpenBao{Policy: p.PublishedHCL(), AgentTokenRenewal: &renew}, SSH: p.Clone().SSH,
+	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy, Generation: p.sourceGeneration()}}, OpenBao: OpenBao{Policy: p.PublishedHCL(), AgentTokenRenewal: &renew}, SSH: p.Clone().SSH,
 		Contract: Contract{MountTarget: p.Contract.MountTarget, Env: p.Clone().Contract.Env, AccessGroup: settings.AccessGroup, Enforcement: settings.Enforcement}, Settings: settings}
 }
 
@@ -194,7 +199,7 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 			result.Contract.Env[name] = value
 			envSource[name] = p.Name
 		}
-		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy})
+		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy, Generation: p.sourceGeneration()})
 		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, p.PublishedHCL())
 		renew = renew || p.AgentRenewal()
 		for _, k := range p.TransitKeys() {

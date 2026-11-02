@@ -334,6 +334,9 @@ func TestSaveWaitsForAHeldDeleteWhoseStoreAnswerIsLostAndThenOwnsTheName(t *test
 	if got.saved.Revision != 1 {
 		t.Fatalf("revision = %d, want 1", got.saved.Revision)
 	}
+	if got.saved.OpenBaoPolicyName() != secondACL {
+		t.Fatalf("identity = %s, want %s", got.saved.OpenBaoPolicyName(), secondACL)
+	}
 	if c.policySyncPending {
 		t.Fatal("a committed delete left a sync pending")
 	}
@@ -342,6 +345,9 @@ func TestSaveWaitsForAHeldDeleteWhoseStoreAnswerIsLostAndThenOwnsTheName(t *test
 		t.Fatal(err)
 	}
 	assertKept(t, h, got.saved)
+	if acl := aclOf(t, h, alphaACL); acl != "" {
+		t.Fatalf("the first identity came back: %q", acl)
+	}
 }
 
 // With the store unreadable, whether the row is gone is unknown. The sync

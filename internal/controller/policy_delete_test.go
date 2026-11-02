@@ -235,6 +235,9 @@ func TestNewPolicyWithADeletedNameStartsAtRevisionOneAndWorks(t *testing.T) {
 	if again.Revision != 1 {
 		t.Fatalf("revision = %d, want 1", again.Revision)
 	}
+	if again.OpenBaoPolicyName() != secondACL {
+		t.Fatalf("identity = %s, want %s", again.OpenBaoPolicyName(), secondACL)
+	}
 	assertKept(t, h, again)
 	approveAgent(t, h, "host-a")
 	binding, err := c.CreateBinding(ctx, "host-a", exampleKey("example"), bindRequest(saved.Name), deleteOperator)
@@ -245,7 +248,7 @@ func TestNewPolicyWithADeletedNameStartsAtRevisionOneAndWorks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !reflect.DeepEqual(token.Policies, []string{alphaACL}) {
+	if !reflect.DeepEqual(token.Policies, []string{secondACL}) {
 		t.Fatalf("token policies = %v", token.Policies)
 	}
 }

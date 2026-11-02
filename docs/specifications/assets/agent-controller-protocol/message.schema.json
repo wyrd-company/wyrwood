@@ -581,6 +581,10 @@
               "hcl": {
                 "type": "string",
                 "maxLength": 65536
+              },
+              "generation": {
+                "type": "integer",
+                "minimum": 2
               }
             }
           }
