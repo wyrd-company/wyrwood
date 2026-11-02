@@ -135,7 +135,8 @@ returns to the list with the same filters and order.
 **Add binding** lists the reported containers that have no binding, with the
 same filters. Every container an agent reports is on one of these two pages.
 **Add binding** on a row, or a container's name, opens its bind screen. Links
-to the former `/containers` address go to **Bindings** with their filters.
+to the former `/containers` address go to **Bindings** and keep their agent
+filter, text filter, and sort. A container selected by a former link is not kept.
 
 The policy and binding screens keep their actions at the top and split their
 content into tabs. A tab that holds something you should read says **Needs
