@@ -40,6 +40,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/consumer"
 	"github.com/wyrd-company/wyrwood/internal/contract"
+	controllerpkg "github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/controller/controllertest"
 	"github.com/wyrd-company/wyrwood/internal/engine"
 	"github.com/wyrd-company/wyrwood/internal/engineproxy"
@@ -432,7 +433,7 @@ func TestLinuxIntegrationGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, err := contract.BuildCreateRequest(previous, document.Contract, consumerDirectory, previous.Image)
+	request, err := contract.BuildCreateRequest(previous, bound.Effective.Contract, consumerDirectory, previous.Image)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -470,6 +471,27 @@ func TestLinuxIntegrationGate(t *testing.T) {
 	after, err = os.Stat(consumerDirectory)
 	if err != nil || !os.SameFile(before, after) {
 		t.Fatalf("manual replacement changed mount source: %v", err)
+	}
+
+	// Renaming the bound policy gives the same container a fresh credential: its
+	// socket keeps serving the secret, every token holds the new OpenBao policy, and
+	// the old one is gone from OpenBao.
+	stored, err := controller.Store().Policy(ctx, "teal")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controller.RenamePolicy(ctx, controllerpkg.PolicyRename{Name: "teal", NewName: "cyan", Revision: stored.Policy.Revision, Generation: stored.Policy.Generation}, "gate-operator"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "bao kv get through the socket after the rename", time.Minute, func() bool {
+		output, err := container.exec(t, "bao", "kv", "get", "-field=value", "kv/teams/teal/example")
+		return err == nil && strings.TrimSpace(output) == gateSecret && bindingTokens(t, bao, "wyrwood-cyan") > 0
+	})
+	if got := bindingTokens(t, bao, "wyrwood-teal"); got != 0 {
+		t.Fatalf("%d tokens still carry the old OpenBao policy", got)
+	}
+	if acl, err := bao.Root.Sys().GetPolicy("wyrwood-teal"); err != nil || acl != "" {
+		t.Fatalf("old OpenBao policy = %q, %v", acl, err)
 	}
 	restarted.stop()
 }
