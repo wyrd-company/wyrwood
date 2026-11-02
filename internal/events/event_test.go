@@ -153,6 +153,7 @@ func TestEventValidationClosesCategoricalVocabularies(t *testing.T) {
 		"latency":         func(event *Event) { event.Latency = -1 },
 		"control":         func(event *Event) { event.Agent = "host\nname" },
 		"policy":          func(event *Event) { event.Policy = strings.Repeat("p", 65) },
+		"new-policy":      func(event *Event) { event.NewPolicy = strings.Repeat("p", 65) },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {

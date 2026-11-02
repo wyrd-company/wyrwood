@@ -36,6 +36,7 @@ type Record struct {
 	Binding      string    `json:"binding,omitempty"`
 	ContainerKey string    `json:"container-key,omitempty"`
 	Policy       string    `json:"policy,omitempty"`
+	NewPolicy    string    `json:"new-policy,omitempty"`
 	Operator     string    `json:"operator,omitempty"`
 	Fingerprint  string    `json:"fingerprint,omitempty"`
 	Mount        Mount     `json:"mount,omitempty"`
@@ -54,6 +55,7 @@ func (event Event) Record() Record {
 		Binding:      event.Binding,
 		ContainerKey: event.ContainerKey,
 		Policy:       event.Policy,
+		NewPolicy:    event.NewPolicy,
 		Operator:     event.Operator,
 		Fingerprint:  event.Fingerprint,
 		Mount:        event.Mount,
@@ -80,6 +82,7 @@ func (record Record) Event() (Event, error) {
 		Binding:      record.Binding,
 		ContainerKey: record.ContainerKey,
 		Policy:       record.Policy,
+		NewPolicy:    record.NewPolicy,
 		Operator:     record.Operator,
 		Fingerprint:  record.Fingerprint,
 		Mount:        record.Mount,
