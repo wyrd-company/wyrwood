@@ -315,7 +315,7 @@ proposed-design:
     structural composition or revision conflicts return conflict diagnostics.
   web-and-policy-editor: >-
     The bind and binding screens expose a multi-select policy control and a separate
-    binding-settings section for both TTL values, access group, and enforcement.
+    Settings tab for both TTL values, access group, and enforcement.
     The read-only effective panel shows source revisions, combined HCL, offered
     identities, forwarding restrictions, expanded contract, and runtime
     settings with provenance and apply state. Preview never modifies a policy.
