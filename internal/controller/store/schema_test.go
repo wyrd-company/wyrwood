@@ -184,6 +184,19 @@ func TestSchemaTwoStateMigratesWithEveryRowIntact(t *testing.T) {
 	}
 }
 
+func TestSchemaTwoStateGainsAnEmptyRetirementTable(t *testing.T) {
+	path, _ := populatedSchemaTwo(t)
+	opened, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	identities, err := opened.PolicyRetirements(context.Background())
+	if err != nil || len(identities) != 0 {
+		t.Fatalf("retirements = %v, %v", identities, err)
+	}
+}
+
 func TestFreshDatabaseStartsAtTheCurrentSchema(t *testing.T) {
 	ctx := context.Background()
 	opened, _ := openTest(t)

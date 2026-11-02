@@ -230,7 +230,7 @@ func TestUpgradeFromSchemaTwoKeepsIdentityTokensAndAssignments(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, statement := range []string{`DROP TABLE policy_generations`, `ALTER TABLE policies DROP COLUMN generation`, `PRAGMA user_version = 2`} {
+	for _, statement := range []string{`DROP TABLE policy_retirements`, `DROP TABLE policy_generations`, `ALTER TABLE policies DROP COLUMN generation`, `PRAGMA user_version = 2`} {
 		if _, err := db.Exec(statement); err != nil {
 			t.Fatalf("%s: %v", statement, err)
 		}

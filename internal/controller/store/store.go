@@ -123,7 +123,11 @@ var migrations = []string{
 		name TEXT PRIMARY KEY,
 		generation INTEGER NOT NULL CHECK (generation >= 1)
 	);
-	INSERT INTO policy_generations (name, generation) SELECT name, 1 FROM policies;`,
+	INSERT INTO policy_generations (name, generation) SELECT name, 1 FROM policies;
+	CREATE TABLE policy_retirements (
+		identity TEXT PRIMARY KEY,
+		recorded_at INTEGER NOT NULL
+	);`,
 }
 
 // schemaVersion is the controller state version that this controller reads and writes.
