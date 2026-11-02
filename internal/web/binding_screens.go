@@ -121,34 +121,51 @@ func containerScreenURL(row containerRow, list url.Values) string {
 	return withQuery("/bindings/new", values)
 }
 
-// reportedContainer finds a container in an approved agent's last report.
-func (server *Server) reportedContainer(ctx context.Context, agentName, id string) (containerRow, bool) {
+// reportedContainer finds a container in an approved agent's last report. Found
+// is false only when the reads succeed and show no such container.
+func (server *Server) reportedContainer(ctx context.Context, agentName, id string) (containerRow, bool, error) {
 	agent, err := server.controller.Store().ApprovedAgent(ctx, agentName)
-	if err != nil {
-		return containerRow{}, false
+	if errors.Is(err, store.ErrNotFound) {
+		return containerRow{}, false, nil
 	}
-	for _, row := range server.agentRows(ctx, server.inventoryView(ctx), agent) {
+	if err != nil {
+		return containerRow{}, false, err
+	}
+	rows, err := server.agentRows(ctx, server.inventoryView(ctx), agent)
+	if err != nil {
+		return containerRow{}, false, err
+	}
+	for _, row := range rows {
 		if row.ID == id {
-			return row, true
+			return row, true, nil
 		}
 	}
-	return containerRow{}, false
+	return containerRow{}, false, nil
 }
 
 // boundContainer finds the reported container that a binding's key selects. A
 // key can select several containers; preferred chooses among those only, so it
 // cannot show a container this binding does not select. With no reported match
-// the row shows the binding record alone.
-func (server *Server) boundContainer(ctx context.Context, binding store.Binding, preferred string) (containerRow, bool) {
+// the row shows the binding record alone. A failed read is an error, so that it
+// cannot read as the container not being reported.
+func (server *Server) boundContainer(ctx context.Context, binding store.Binding, preferred string) (containerRow, bool, error) {
 	view := server.inventoryView(ctx)
-	if agent, err := server.controller.Store().ApprovedAgent(ctx, binding.Agent); err == nil {
+	agent, err := server.controller.Store().ApprovedAgent(ctx, binding.Agent)
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
+		return containerRow{}, false, err
+	}
+	if err == nil {
+		rows, err := server.agentRows(ctx, view, agent)
+		if err != nil {
+			return containerRow{}, false, err
+		}
 		var found *containerRow
-		for _, row := range server.agentRows(ctx, view, agent) {
+		for _, row := range rows {
 			if row.BindingID != binding.ID {
 				continue
 			}
 			if row.ID == preferred {
-				return row, true
+				return row, true, nil
 			}
 			if found == nil {
 				selected := row
@@ -156,14 +173,14 @@ func (server *Server) boundContainer(ctx context.Context, binding store.Binding,
 			}
 		}
 		if found != nil {
-			return *found, true
+			return *found, true, nil
 		}
 	}
 	row := containerRow{AssignableGroups: server.controller.AssignableGroups(binding.Agent), Agent: binding.Agent,
 		Connected: server.controller.Connected(binding.Agent), Name: binding.Key.Value}
 	view.applyBinding(&row, binding)
 	row.Badge, row.BadgeClass = notReportedBadge()
-	return row, false
+	return row, false, nil
 }
 
 func (server *Server) policyChoices(ctx context.Context, selected []string) []policyChoice {
@@ -192,7 +209,11 @@ func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http
 }
 
 func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *http.Request, status int, binding store.Binding, preferred string, form *bindingForm, problem string) {
-	row, reported := server.boundContainer(request.Context(), binding, preferred)
+	row, reported, err := server.boundContainer(request.Context(), binding, preferred)
+	if err != nil {
+		server.renderContainersUnreadable(writer, problem)
+		return
+	}
 	shown := savedForm(row)
 	if form != nil {
 		shown = *form
@@ -210,6 +231,17 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 		Screen: withQuery(path, values), Action: withQuery(path+"/policy", values), Recreate: withQuery(path+"/recreate", values),
 		Unbind: withQuery(path+"/unbind", values), Back: listURL(list),
 	})
+}
+
+// renderContainersUnreadable answers a failed store read, which no screen can
+// show as a container's state. Problem is why the submission that led to the
+// read failed, so that the operator keeps the reason.
+func (server *Server) renderContainersUnreadable(writer http.ResponseWriter, problem string) {
+	message := "Containers could not be read."
+	if problem != "" {
+		message += " The request failed: " + problem
+	}
+	http.Error(writer, message, http.StatusInternalServerError)
 }
 
 func (server *Server) renderNotFound(writer http.ResponseWriter, request *http.Request, heading, body, back string) {
@@ -247,7 +279,11 @@ func (server *Server) loadBinding(writer http.ResponseWriter, request *http.Requ
 
 func (server *Server) handleBindScreen(writer http.ResponseWriter, request *http.Request) {
 	query := request.URL.Query()
-	row, ok := server.reportedContainer(request.Context(), query.Get("agent"), query.Get("container"))
+	row, ok, err := server.reportedContainer(request.Context(), query.Get("agent"), query.Get("container"))
+	if err != nil {
+		server.renderContainersUnreadable(writer, "")
+		return
+	}
 	if !ok {
 		server.renderContainerNotReported(writer, request, "")
 		return
@@ -290,7 +326,11 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, container, nil, problem)
 		return
 	}
-	row, ok := server.reportedContainer(ctx, agent, container)
+	row, ok, readErr := server.reportedContainer(ctx, agent, container)
+	if readErr != nil {
+		server.renderContainersUnreadable(writer, problem)
+		return
+	}
 	if !ok {
 		server.renderContainerNotReported(writer, request, problem)
 		return

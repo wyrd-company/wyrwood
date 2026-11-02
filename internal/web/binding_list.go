@@ -258,7 +258,7 @@ func (server *Server) handleAddBinding(writer http.ResponseWriter, request *http
 	ctx := request.Context()
 	agents, err := server.controller.Store().Agents(ctx)
 	if err != nil {
-		http.Error(writer, "Containers could not be read.", http.StatusInternalServerError)
+		server.renderContainersUnreadable(writer, "")
 		return
 	}
 	query := request.URL.Query()
@@ -271,7 +271,12 @@ func (server *Server) handleAddBinding(writer http.ResponseWriter, request *http
 		if agent.State != store.AgentApproved {
 			continue
 		}
-		for _, row := range server.agentRows(ctx, view, agent) {
+		rows, err := server.agentRows(ctx, view, agent)
+		if err != nil {
+			server.renderContainersUnreadable(writer, "")
+			return
+		}
+		for _, row := range rows {
 			if row.Bound {
 				continue
 			}

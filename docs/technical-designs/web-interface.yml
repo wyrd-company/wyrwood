@@ -156,7 +156,9 @@ proposed-design:
     of them. The screen has the same agent filter, a text filter across agent,
     container ID, name, image, runtime state and offered keys, and sort by
     container name, agent, image or runtime state. A row link opens the bind
-    screen and retains the filters, and the bind screen links back here.
+    screen and retains the filters, and the bind screen links back here. A failed
+    read of an inventory or of the bindings answers an error page and never reads
+    as containers being absent or having no binding.
   containers-address: >-
     GET /containers redirects permanently to GET /bindings, so that a saved link
     keeps working. It retains filter-agent, q, sort and order. The agent query
@@ -175,7 +177,10 @@ proposed-design:
     forwarding restrictions, contract, and settings. A conflicting selection
     shows an actionable error. A container that no approved agent reports gives
     a 404 page that says so and links back to the add-binding screen. A container
-    that is already bound goes to its binding screen.
+    that is already bound goes to its binding screen. A failed read of the agent,
+    its inventory or its bindings answers an error page, and never reads as the
+    container being unbound or not reported. A failed submission keeps its reason
+    on that page.
   binding-screen: >-
     GET /bindings/{id} shows one bound container, taking the agent from the
     binding record. A binding key can select several reported containers; the
@@ -188,8 +193,10 @@ proposed-design:
     escapes interpolation and disables automatic host-path creation; the agent
     owns the directory. Missing directory or image observations leave examples
     unavailable rather than guessing a source. A binding whose container is not
-    reported shows the binding record with the state Not reported and says so. A binding that does not exist
-    gives a 404 page. Cancelling a recreate or unbind confirmation returns to
+    reported shows the binding record with the state Not reported and says so. A
+    failed read of the agent, its inventory or its bindings answers an error page,
+    keeps the reason of a failed submission, and never reads as the container
+    not being reported. A binding that does not exist gives a 404 page. Cancelling a recreate or unbind confirmation returns to
     this screen.
   binding-failures: >-
     A failed create or change answers 422 with the same screen, its message, and
@@ -197,8 +204,9 @@ proposed-design:
     the submitted revision, so that a retry cannot overwrite a concurrent edit.
     The bound screen links to its saved values. A failed preview keeps the form
     and shows the message beside it. A failed recreate or unbind answers 422 with
-    the binding screen and its message. Session and anti-forgery checks apply to
-    every route.
+    the binding screen and its message. A store read that fails while answering
+    gives the error page with that message, in place of the screen. Session and
+    anti-forgery checks apply to every route.
   policies-page: >-
     Edits reusable HCL, Transit keys and SSH-engine roles, forwarding
     selectors, mount target, and environment requirements. Token lifetime,

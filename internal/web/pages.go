@@ -277,10 +277,18 @@ func (server *Server) inventoryView(ctx context.Context) inventoryState {
 	return inventoryState{results: results, issued: lastCredential(server.controller.Events().Recent(10_000))}
 }
 
-// agentRows builds a row for each container in the agent's last report.
-func (server *Server) agentRows(ctx context.Context, view inventoryState, agent store.Agent) []containerRow {
-	containers, _, _ := server.controller.Store().Inventory(ctx, agent.Name)
-	bindings, _ := server.controller.Store().Bindings(ctx, agent.Name)
+// agentRows builds a row for each container in the agent's last report. A failed
+// read is an error and not an empty result, so that a store failure cannot read
+// as a container being absent or having no binding.
+func (server *Server) agentRows(ctx context.Context, view inventoryState, agent store.Agent) ([]containerRow, error) {
+	containers, _, err := server.controller.Store().Inventory(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
+	bindings, err := server.controller.Store().Bindings(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
 	connected := server.controller.Connected(agent.Name)
 	rows := make([]containerRow, 0, len(containers))
 	for _, container := range containers {
@@ -310,7 +318,7 @@ func (server *Server) agentRows(ctx context.Context, view inventoryState, agent 
 		}
 		rows = append(rows, row)
 	}
-	return rows
+	return rows, nil
 }
 
 // applyBinding copies the durable binding record into a row.
