@@ -4,7 +4,8 @@
 // ---
 import { Notice } from "@/components/shared";
 import type { BindingData } from "@/types";
-import { BindingForm, BindingHeading } from "./binding-form";
+import { BindingForm } from "./binding-form";
+import { BindingHeading } from "./binding-sections";
 
 export function Binding({ data: d }: { data: BindingData }) {
   const r = d.Row;
