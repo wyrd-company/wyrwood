@@ -100,6 +100,9 @@ export function Field({
 export function policyURL(name: string) {
   return `/policies/edit?name=${encodeURIComponent(name)}`;
 }
+export function policyDeleteURL(name: string) {
+  return `/policies/delete?name=${encodeURIComponent(name)}`;
+}
 export function agentBindingsURL(agent: string) {
   return `/bindings?${new URLSearchParams({ "filter-agent": agent })}`;
 }

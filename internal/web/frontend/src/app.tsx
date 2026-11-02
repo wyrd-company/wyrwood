@@ -10,6 +10,7 @@ import { Bindings } from "./pages/bindings";
 import { AddBinding } from "./pages/add-binding";
 import { Binding } from "./pages/binding";
 import { Confirm } from "./pages/confirm";
+import { PolicyDelete } from "./pages/policy-delete";
 import { Policies } from "./pages/policies";
 import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
@@ -30,6 +31,8 @@ function Content({ page }: { page: Page }) {
       return <Binding data={page.data} />;
     case "confirm":
       return <Confirm data={page.data} />;
+    case "policy-delete":
+      return <PolicyDelete data={page.data} />;
     case "policies":
       return <Policies data={page.data} />;
     case "policy":

@@ -9,7 +9,7 @@ import {
   Input,
   Notice,
   Panel,
-  Table,
+  policyDeleteURL,
 } from "@/components/shared";
 import { OpenBaoLink } from "@/components/openbao-link";
 import { HCLEditor } from "@/components/hcl-editor";
@@ -17,12 +17,7 @@ import { IdentityPicker } from "@/components/identity-picker";
 import { EnvironmentEditor } from "@/components/environment-editor";
 import { useRef, useState } from "react";
 import type { PolicyData } from "@/types";
-import {
-  BindingAgentCell,
-  BindingContainerCell,
-  BindingKeyCell,
-  BindingStateCell,
-} from "./binding-cells";
+import { PolicyBindings } from "./policy-bindings";
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
   return (
     <main>
@@ -53,9 +48,16 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
               </span>
             )}
           </div>
-          <Button type="submit" className="primary">
-            Save and validate
-          </Button>
+          <div className="actions">
+            {!d.New && (
+              <Button asChild variant="outline" className="danger">
+                <a href={policyDeleteURL(d.Name)}>Delete policy</a>
+              </Button>
+            )}
+            <Button type="submit" className="primary">
+              Save and validate
+            </Button>
+          </div>
         </div>
         {d.New && (
           <Panel>
@@ -89,36 +91,15 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
           <ContainerContract data={d} />
         </div>
       </form>
-      {!d.New && <PolicyBindings data={d} />}
+      {!d.New && (
+        // The list follows the form, so that its length cannot move the Save
+        // action.
+        <PolicyBindings
+          rows={d.BindingRows}
+          hint="What a change to this policy affects, including containers that are no longer reported."
+        />
+      )}
     </main>
-  );
-}
-// The list follows the form, so that its length cannot move the Save action.
-function PolicyBindings({ data: d }: { data: PolicyData }) {
-  return (
-    <Panel aria-labelledby="h-bindings" className="mt-6">
-      <div>
-        <h2 id="h-bindings">Bindings</h2>
-        <span className="hint">
-          What a change to this policy affects, including containers that are no
-          longer reported.
-        </span>
-      </div>
-      <Table
-        columns={["Container", "Agent", "Key", "State"]}
-        count={d.BindingRows?.length ?? 0}
-        empty="No binding selects this policy."
-      >
-        {d.BindingRows?.map((row) => (
-          <tr key={row.ID}>
-            <BindingContainerCell row={row} />
-            <BindingAgentCell row={row} />
-            <BindingKeyCell row={row} />
-            <BindingStateCell row={row} />
-          </tr>
-        ))}
-      </Table>
-    </Panel>
   );
 }
 function OpenBaoPolicy({ data: d }: { data: PolicyData }) {

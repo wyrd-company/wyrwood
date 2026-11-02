@@ -3,8 +3,15 @@
 //   implements: web-interface
 // ---
 import { Button, CSRF, Panel } from "@/components/shared";
+import type { ReactNode } from "react";
 import type { ConfirmData } from "@/types";
-export function Confirm({ data: d }: { data: ConfirmData }) {
+export function Confirm({
+  data: d,
+  children,
+}: {
+  data: ConfirmData;
+  children?: ReactNode;
+}) {
   return (
     <main>
       <Panel aria-labelledby="h-confirm" className="max-w-[640px]">
@@ -34,6 +41,7 @@ export function Confirm({ data: d }: { data: ConfirmData }) {
           </Button>
         </div>
       </Panel>
+      {children}
     </main>
   );
 }

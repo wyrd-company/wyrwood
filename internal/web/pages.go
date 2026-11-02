@@ -79,12 +79,13 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 // notices are fixed messages selected by a redirect's query, so no request
 // data is ever echoed into a page.
 var notices = map[string]string{
-	"approved": "Agent approved. It can connect now.",
-	"rejected": "Agent key rejected.",
-	"bound":    "Policy bound. The agent receives it on its next report.",
-	"changed":  "Binding moved to the new policy. The agent obtains a fresh token.",
-	"recreate": "Recreate requested. The agent reports the result.",
-	"unbound":  "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"approved":       "Agent approved. It can connect now.",
+	"rejected":       "Agent key rejected.",
+	"bound":          "Policy bound. The agent receives it on its next report.",
+	"changed":        "Binding moved to the new policy. The agent obtains a fresh token.",
+	"recreate":       "Recreate requested. The agent reports the result.",
+	"unbound":        "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"policy-deleted": "Policy deleted, and its OpenBao policy removed.",
 	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
 		"it stays valid until the agent revokes it or it expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",

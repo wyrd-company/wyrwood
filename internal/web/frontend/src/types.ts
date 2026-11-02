@@ -158,6 +158,9 @@ export interface ConfirmData extends Layout {
   Danger: boolean;
   Back: string;
 }
+export interface PolicyDeleteData extends ConfirmData {
+  Blockers: BindingRow[] | null;
+}
 export interface PoliciesData extends Layout {
   Policies:
     | {
@@ -254,6 +257,7 @@ interface PageModels {
   "add-binding": AddBindingData;
   binding: BindingData;
   confirm: ConfirmData;
+  "policy-delete": PolicyDeleteData;
   policies: PoliciesData;
   policy: PolicyData;
   keys: KeysData;

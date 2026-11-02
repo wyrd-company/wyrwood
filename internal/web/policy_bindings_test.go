@@ -21,7 +21,6 @@ import (
 )
 
 const (
-	policyEditPath      = "/policies/edit?name="
 	bindingsUnreadable  = "Bindings could not be read."
 	policyPageName      = "policy"
 	bindingsSectionMark = `id="h-bindings"`

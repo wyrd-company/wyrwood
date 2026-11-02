@@ -186,3 +186,19 @@ it("keeps Save in the header, ahead of a list of 50 bindings", () => {
   ).toBeTruthy();
   expect(within(list).getAllByRole("row")).toHaveLength(51);
 });
+
+it("links a saved policy to its delete screen, with the name encoded", () => {
+  render(<PolicyEditor data={{ ...saved, Name: "a&b" }} />);
+  expect(screen.getByRole("link", { name: "Delete policy" })).toHaveAttribute(
+    "href",
+    "/policies/delete?name=a%26b",
+  );
+  expect(
+    screen.getByRole("button", { name: "Save and validate" }),
+  ).toBeInTheDocument();
+});
+
+it("offers no delete on a new policy", () => {
+  render(<PolicyEditor data={{ ...saved, New: true, Name: "" }} />);
+  expect(screen.queryByRole("link", { name: "Delete policy" })).toBeNull();
+});
