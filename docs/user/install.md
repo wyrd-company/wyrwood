@@ -316,9 +316,9 @@ back.
 
 Controller 0.4.x refuses a schema 3 database at startup with
 `database schema is newer than this controller`, and leaves the file unchanged.
-It also refuses an event log that holds a `policy-deleted` or `policy-renamed` event. To go back,
-stop the controller and agents, restore the state directory from the backup, and
-install the earlier controller and agent versions.
+It also refuses an event log that holds a `policy-deleted` or `policy-renamed`
+event. To go back, stop the controller and agents, restore the state directory
+from the backup, and install the earlier controller and agent versions.
 
 Do not delete the event log to get past a refusal. The log is the audit record,
 and the database refusal stays.
