@@ -38,8 +38,8 @@ func TestContractChecksExplainAccessGroupFailure(t *testing.T) {
 			result.FailedItems = []protocol.FailedItem{protocol.FailedAccessGroup}
 		}
 		checks := contractChecks(document, protocol.Container{}, result)
-		page := containersPage{Selected: &containerRow{Bound: true, Checks: checks}}
-		output := renderModel(t, "containers", page)
+		page := bindingScreen{Row: containerRow{Bound: true, Checks: checks}, Reported: true}
+		output := renderModel(t, "binding", page)
 		if strings.Contains(output, "agent user cannot assign group 1000") != failed {
 			t.Fatalf("failed=%t: %s", failed, output)
 		}

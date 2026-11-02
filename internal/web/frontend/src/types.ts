@@ -59,6 +59,7 @@ export interface AssignableGroups {
 }
 export interface ContainerRow {
   AssignableGroups?: AssignableGroups | null;
+  Screen: string;
   Agent: string;
   Connected: boolean;
   LastReport: string;
@@ -92,21 +93,33 @@ export interface ContainerRow {
         Value: string;
         Note: string;
         Encoded: string;
-        First: boolean;
       }[]
     | null;
 }
 export interface ContainersData extends Layout {
   Agents: { Name: string; Containers: number; Selected: boolean }[] | null;
-  Agent: string;
   FilterAgent: string;
   Query: string;
   Sort: string;
   Order: string;
   Rows: ContainerRow[] | null;
-  Selected: ContainerRow | null;
+}
+export interface BindingForm {
+  Key: string;
+  Revision: number;
+  Settings: EnteredBindingSettings;
+  Understood: boolean;
+}
+export interface BindingData extends Layout {
+  Row: ContainerRow;
+  Reported: boolean;
   Policies: PolicyChoice[] | null;
-  Recreate: string[] | null;
+  Form: BindingForm;
+  Screen: string;
+  Action: string;
+  Recreate: string;
+  Unbind: string;
+  Back: string;
 }
 export interface ConfirmData extends Layout {
   Heading: string;
@@ -208,6 +221,7 @@ interface PageModels {
   "sign-in": SignInData;
   agents: AgentsData;
   containers: ContainersData;
+  binding: BindingData;
   confirm: ConfirmData;
   policies: PoliciesData;
   policy: PolicyData;
@@ -222,6 +236,12 @@ export interface BindingSettings {
   "token-max-ttl": string;
   "access-group"?: number;
   enforcement: "report" | "recreate";
+}
+export interface EnteredBindingSettings {
+  "token-ttl"?: string;
+  "token-max-ttl"?: string;
+  "access-group"?: number | string;
+  enforcement?: string;
 }
 export interface EffectivePolicy {
   sources: { name: string; revision: number; hcl: string }[];

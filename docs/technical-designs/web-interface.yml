@@ -135,25 +135,45 @@ proposed-design:
     agent, container ID, name, image, runtime state, binding state, key and
     policies. Operators can sort by container name, agent, image or binding
     state in either direction and clear filters. Container identity includes
-    both agent and container ID. Selection links retain filters and sorting;
-    the selected detail and binding forms always use the container's agent.
-    A filter that excludes the selected container closes its detail panel.
-    Selecting a container opens a panel. For an unbound container the panel
+    both agent and container ID. The table has no detail panel and uses the
+    full width of the page. A row link opens the container's screen and retains
+    the list's filters and sorting, and each screen links back to that list.
+  bind-screen: >-
+    GET /bindings/new?agent=<agent>&container=<id> shows one unbound reported
+    container, taking the agent from the approved agent's report. The screen
     offers every candidate key in precedence order with the most stable one
     preselected and labelled, policy checkboxes, and binding settings for TTL,
-    maximum TTL, access group, and enforcement. Recreate enforcement requires
-    explicit first-bind acknowledgement of writable-layer loss. Preview uses
-    controller composition and shows source names/revisions, combined HCL,
-    identities, forwarding restrictions, contract, and settings. A conflicting
-    selection shows an actionable error. A bound container shows the saved
-    effective assignment, pending transition state, contract report, and
-    actions to edit the selection/settings, request recreate, or unbind.
-    The bound panel shows the agent-reported consumer directory and effective
-    mount target with copyable Docker Compose and docker run examples. Examples
-    use the observed container name and image and expand effective contract
-    environment values. Compose escapes interpolation and disables automatic
-    host-path creation; the agent owns the directory. Missing directory or image
-    observations leave examples unavailable rather than guessing a source.
+    maximum TTL, access group, and enforcement, in sections that share the page
+    width and form one column on a phone. Recreate enforcement requires explicit
+    first-bind acknowledgement of writable-layer loss. Preview uses controller
+    composition and shows source names/revisions, combined HCL, identities,
+    forwarding restrictions, contract, and settings. A conflicting selection
+    shows an actionable error. A container that no approved agent reports gives
+    a 404 page that says so and links back to the list. A container that is
+    already bound goes to its binding screen.
+  binding-screen: >-
+    GET /bindings/{id} shows one bound container, taking the agent from the
+    binding record. A binding key can select several reported containers; the
+    container query value chooses among those only. The screen shows the saved
+    effective assignment, pending transition state, contract report, and actions
+    to edit the selection/settings, request recreate, or unbind. It shows the
+    agent-reported consumer directory and effective mount target with copyable
+    Docker Compose and docker run examples. Examples use the observed container
+    name and image and expand effective contract environment values. Compose
+    escapes interpolation and disables automatic host-path creation; the agent
+    owns the directory. Missing directory or image observations leave examples
+    unavailable rather than guessing a source. A binding whose container is not
+    reported shows the binding record and says so. A binding that does not exist
+    gives a 404 page. Cancelling a recreate or unbind confirmation returns to
+    this screen.
+  binding-failures: >-
+    A failed create or change answers 422 with the same screen, its message, and
+    the values the operator entered, including text that does not validate and
+    the submitted revision, so that a retry cannot overwrite a concurrent edit.
+    The bound screen links to its saved values. A failed preview keeps the form
+    and shows the message beside it. A failed recreate or unbind answers 422 with
+    the binding screen and its message. Session and anti-forgery checks apply to
+    every route.
   policies-page: >-
     Edits reusable HCL, Transit keys and SSH-engine roles, forwarding
     selectors, mount target, and environment requirements. Token lifetime,

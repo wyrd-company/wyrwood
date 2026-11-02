@@ -24,7 +24,7 @@ behind a reverse proxy that terminates TLS.
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
 | **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
-| **Containers** | Select a container, bind policies, and inspect its contract check. |
+| **Containers** | Find a container, then open its screen to bind policies and inspect its contract check. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
@@ -72,10 +72,10 @@ credential-file paths are omitted. Endpoint origins show only scheme and host.
 **Containers** shows all approved agents’ last reported containers. Filter by
 agent or text, sort by container, agent, image or binding state, and choose
 ascending or descending order. Disconnected rows retain the last report and
-show its age. Selecting a container keeps the current filters and order.
-Filtering out the selected container closes its detail panel.
+show its age. Selecting a container opens its screen. **Back to containers**
+returns to the list with the same filters and order.
 
-In **Containers**, select a bound container and scroll to **Container setup**. Copy
+In **Containers**, open a bound container and scroll to **Container setup**. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
 example. The examples use the saved effective contract, including its
 environment values and custom mount target. Run them on the selected agent
@@ -87,7 +87,7 @@ it before starting the container; the Compose fragment disables automatic
 host-path creation. The examples do not include application commands, ports,
 networks, or unrelated mounts. They do not change an existing container.
 
-![Container setup examples in the binding panel](assets/web-container-setup.png)
+![Container setup examples on the binding screen](assets/web-container-setup.png)
 
 If the report lacks the consumer directory or image, setup examples are
 unavailable. An agent that omits the directory must be updated. Follow the

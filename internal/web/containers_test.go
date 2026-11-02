@@ -162,37 +162,36 @@ func TestAllContainersInventoryFilteringSortingAndIdentity(t *testing.T) {
 			}
 		})
 	}
-	t.Run("selection uses both agent and container and retains setup", func(t *testing.T) {
-		page := load("?agent=host-b&container=shared-id&filter-agent=&q=" + url.QueryEscape("busybox"))
-		if len(page.Rows) != 2 || page.Selected == nil || page.Selected.Agent != "host-b" || page.Agent != "host-b" || page.Selected.BindingID != "binding-b" || page.Selected.Setup == nil || page.Selected.Setup.Source != "/srv/sample/host-b" {
-			t.Fatalf("selection = %#v", page)
+	t.Run("row links identify the agent and container and retain the list", func(t *testing.T) {
+		page := load("?filter-agent=host-b&q=" + url.QueryEscape("busybox") + "&sort=agent&order=desc")
+		if len(page.Rows) != 1 {
+			t.Fatalf("rows = %#v", page.Rows)
 		}
-		if page.Rows[0].Bound {
-			t.Fatal("binding leaked into another agent's row")
+		bound, err := url.Parse(page.Rows[0].Screen)
+		if err != nil || bound.Path != "/bindings/binding-b" {
+			t.Fatalf("bound link = %q", page.Rows[0].Screen)
 		}
-		for _, query := range []string{"?container=shared-id", "?agent=missing&container=shared-id", "?agent=pending&container=shared-id", "?agent=host-b&container=missing"} {
-			if page := load(query); page.Selected != nil {
-				t.Fatalf("ambiguous or unavailable selection: %s %#v", query, page.Selected)
+		want := url.Values{"filter-agent": {"host-b"}, "q": {"busybox"}, "sort": {"agent"}, "order": {"desc"}, "container": {"shared-id"}}
+		if !reflect.DeepEqual(bound.Query(), want) {
+			t.Fatalf("bound link query = %v", bound.Query())
+		}
+		for _, row := range load("?filter-agent=host-a&sort=name").Rows {
+			link, err := url.Parse(row.Screen)
+			if err != nil || link.Path != "/bindings/new" || link.Query().Get("agent") != "host-a" || link.Query().Get("container") != row.ID {
+				t.Fatalf("unbound link = %q", row.Screen)
 			}
 		}
 	})
-	t.Run("excluding filters close selected detail and actions", func(t *testing.T) {
-		for _, query := range []string{
-			"?agent=host-b&container=shared-id&filter-agent=host-a",
-			"?agent=host-a&container=shared-id&filter-agent=host-b",
-			"?agent=host-b&container=shared-id&q=alpine",
-			"?agent=host-a&container=shared-id&q=Conforms",
-			"?agent=host-b&container=shared-id&q=absent",
-		} {
-			page := load(query)
-			if page.Selected != nil || page.Agent != "" {
-				t.Fatalf("excluded selection survives %s: %#v", query, page.Selected)
-			}
-			body := renderModel(t, "containers", page)
-			if strings.Contains(body, "<aside") || strings.Contains(body, "Save binding") || strings.Contains(body, "Bind policies") || strings.Contains(body, "Request recreate") || strings.Contains(body, "Unbind and revoke") {
-				t.Fatalf("excluded detail actions survive %s: %s", query, body)
+	t.Run("the list has no selected detail or binding actions", func(t *testing.T) {
+		page := load("?agent=host-b&container=shared-id")
+		if got, want := identities(page), []string{"host-b/shared-id"}; !reflect.DeepEqual(got, want) {
+			t.Fatalf("rows = %v, want %v", got, want)
+		}
+		body := renderModel(t, "containers", page)
+		for _, absent := range []string{"<aside", "Save binding", "Bind policies", "Request recreate", "Unbind and revoke"} {
+			if strings.Contains(body, absent) {
+				t.Fatalf("list contains %q: %s", absent, body)
 			}
 		}
 	})
-
 }

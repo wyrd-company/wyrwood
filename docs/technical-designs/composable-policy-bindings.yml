@@ -231,11 +231,11 @@ proposed-design:
     Existing unbind and recreate routes remain. An authenticated, CSRF-checked
     POST /bindings/preview composes an unsaved selection without storing data,
     writing OpenBao, or issuing credentials, and returns the typed result or
-    field diagnostics. The container page data embeds the same result for a
-    stored binding. Unknown names and malformed fields are validation errors;
+    field diagnostics. The binding screen's page data embeds the same result for
+    a stored binding. Unknown names and malformed fields are validation errors;
     structural composition or revision conflicts return conflict diagnostics.
   web-and-policy-editor: >-
-    Container selection exposes a multi-select policy control and a separate
+    The bind and binding screens expose a multi-select policy control and a separate
     binding-settings section for both TTL values, access group, and enforcement.
     The read-only effective panel shows source revisions, combined HCL, offered
     identities, forwarding restrictions, expanded contract, and runtime

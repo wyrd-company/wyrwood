@@ -109,8 +109,10 @@ browse select "#binding-enforcement" "recreate"
 hold 1
 browse click 'input[name=understood]'
 hold 1.5
+browse eval "window.scrollTo(0, 0)"
 shot web-bind
 browse find role button click --name "Bind policies"
+browse wait --text "Contract check"
 for _ in $(seq 1 60); do
 	if agent-browser get text main | grep -q "Conforms"; then
 		break
@@ -118,15 +120,18 @@ for _ in $(seq 1 60); do
 	sleep 1
 	browse reload
 done
-hold 1.5
-browse find text "teal-api" click
 browse wait --text "Conforms"
-browse wait --text "Contract check"
 hold 3
-shot web-containers
+shot web-binding
 browse scrollintoview "#h-setup"
 browse wait --text "Host source"
 shot web-container-setup
+
+# Return to the list, which shows the bound container's state.
+browse find role link click --name "Back to containers"
+browse wait --text "Filter containers"
+hold 2
+shot web-containers
 
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"

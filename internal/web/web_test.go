@@ -43,6 +43,7 @@ type harness struct {
 	provider   *oidctest.Provider
 	site       *httptest.Server
 	server     *Server
+	bao        *baotest.Server
 }
 
 type swappable struct {
@@ -102,7 +103,7 @@ func startHarnessWithConfig(t *testing.T, sessionTTL time.Duration, settings con
 	swap.mu.Lock()
 	swap.handler = server.Handler()
 	swap.mu.Unlock()
-	return &harness{controller: running, provider: provider, site: site, server: server}
+	return &harness{controller: running, provider: provider, site: site, server: server, bao: bao}
 }
 
 func browser(t *testing.T) *http.Client {
@@ -349,7 +350,7 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 	}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	containers := get(t, client, harness.site.URL+"/containers?agent=host-a")
+	containers := get(t, client, harness.site.URL+"/bindings/new?agent=host-a&container="+containerID)
 	if !strings.Contains(containers.body, "Bind by key") || !strings.Contains(containers.body, "shop/web") || !strings.Contains(containers.body, "Recreate discards the writable layer") {
 		t.Fatalf("containers page = %s", containers.body)
 	}

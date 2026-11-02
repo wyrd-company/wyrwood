@@ -291,21 +291,8 @@ main {
   width: 100%;
   max-width: 1240px;
 }
-.split {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 24px;
+main.wide {
   max-width: none;
-  flex-direction: row;
-}
-.split > .main-column {
-  flex: 999 1 560px;
-  min-width: 0;
-}
-.split > aside {
-  flex: 1 1 340px;
-  min-width: 0;
 }
 
 .card {
@@ -403,10 +390,6 @@ tbody tr:last-child td {
 tbody th {
   text-align: left;
   font-weight: 500;
-}
-tr.selected {
-  background: #eef5f0;
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 .row-link {
   display: flex;
@@ -642,9 +625,12 @@ ul.plain li {
 }
 .container-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
   align-items: end;
+}
+.container-filters input {
+  height: 44px;
 }
 .container-filter-actions {
   grid-column: 1 / -1;
@@ -668,6 +654,65 @@ ul.plain li {
   background: var(--nav);
   border-color: var(--nav);
   color: #ffffff;
+}
+
+.screen-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.screen-heading h2 {
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.screen-heading .hint {
+  overflow-wrap: anywhere;
+}
+.binding-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 24px;
+}
+.binding-summary > *,
+.binding-sections > *,
+.binding-choices > * {
+  min-width: 0;
+}
+.binding-sections {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+.binding-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.binding-choices .mono,
+.binding-summary .mono {
+  overflow-wrap: anywhere;
+}
+.binding-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.binding-settings > p,
+.binding-settings > .choice,
+.binding-settings > .field:has(#binding-enforcement) {
+  grid-column: 1 / -1;
+}
+#binding-enforcement {
+  max-width: 480px;
+}
+@media (min-width: 1000px) {
+  .binding-sections {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  }
 }
 
 .signin {

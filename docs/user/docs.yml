@@ -10,6 +10,7 @@ assets:
   - assets/web-policy.png
   - assets/web-bind.png
   - assets/web-container-setup.png
+  - assets/web-binding.png
   - assets/web-containers.png
   - assets/web-keys.png
   - assets/web-events.png
@@ -58,12 +59,15 @@ products:
         alt: The policy editor showing a saved policy document.
       - src: assets/web-bind.png
         caption: Binding policies to a container.
-        alt: The binding panel for attaching policies to a container.
+        alt: The bind screen for attaching policies to a container.
       - src: assets/web-container-setup.png
-        caption: Container setup examples in the binding panel.
-        alt: Container setup examples shown in the binding panel.
-      - src: assets/web-containers.png
+        caption: Container setup examples on the binding screen.
+        alt: Container setup examples shown on the binding screen.
+      - src: assets/web-binding.png
         caption: A bound container that conforms to its contract.
+        alt: The binding screen of a container that meets its contract.
+      - src: assets/web-containers.png
+        caption: The container list with a bound container.
         alt: The containers list with a bound container that meets its contract.
       - src: assets/web-keys.png
         caption: OpenBao keys page with Transit keys and SSH-engine roles.

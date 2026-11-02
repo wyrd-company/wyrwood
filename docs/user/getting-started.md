@@ -95,9 +95,10 @@ binding's OpenBao and SSH permissions. See [Access group](configuration.md#acces
 
 ## Bind a container
 
-Open **Containers**, select the container, then select one or more policies
-and binding settings. Use **Preview effective policy** to inspect the
-combined policy, then **Bind policies** to save. The
+Open **Containers** and select the container. Its bind screen opens. Select one
+or more policies and binding settings. Use **Preview effective policy** to
+inspect the combined policy, then **Bind policies** to save. If the controller
+refuses the binding, the same screen shows why and keeps what you entered. The
 controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.
@@ -154,7 +155,12 @@ Stop if `rmdir` fails; do not recursively delete the directory. The agent applie
 its configured access group when it opens the repaired directory. Repair before
 starting the container so its bind mount refers to the new directory.
 
-![A bound container that conforms to its contract](assets/web-containers.png)
+![A bound container that conforms to its contract](assets/web-binding.png)
+
+**Containers** then shows the container's state in the list. Select the row to
+return to this screen.
+
+![The container list with a bound container](assets/web-containers.png)
 
 For a devcontainer named `app`, set the Docker name explicitly so rebuilds
 reuse its consumer directory. Use the existing container's Docker name in both

@@ -100,8 +100,8 @@ export function Field({
 export function policyURL(name: string) {
   return `/policies/edit?name=${encodeURIComponent(name)}`;
 }
-export function containerURL(agent: string, id?: string) {
-  return `/containers?${new URLSearchParams({ agent, ...(id ? { container: id } : {}) })}`;
+export function containerURL(agent: string) {
+  return `/containers?${new URLSearchParams({ agent })}`;
 }
 export function PolicyLinks({ names }: { names: string[] | null }) {
   return names?.length ? (
