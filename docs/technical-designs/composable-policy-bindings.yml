@@ -84,11 +84,33 @@ proposed-design:
     pending, which blocks fresh issuance until the next credential request or
     startup publishes every stored row. A restart between the two deletes takes
     the same synchronization, so the policy stays and the delete can be retried.
-    A later policy with the same name starts at revision 1. Binding settings, revision, and desired/applied
+    A later policy with the same name starts at revision 1 and is a different
+    policy with its own OpenBao identity, described in policy-identity. Binding
+    settings, revision, and desired/applied
     assignment state are durable binding data. Membership and settings update
     in one SQLite transaction; reads resolve a consistent source snapshot.
     AppRole names retain the existing agent-and-binding identity. No token,
     SecretID, wrapping token, or container environment observation is stored.
+  policy-identity: >-
+    OpenBao resolves a token's policies by name on each request, so a token that
+    outlives its binding holds whatever a later policy publishes under that name.
+    An accessor that no agent reported cannot be revoked, and listing accessors
+    needs sudo, so identity carries the separation. Every OpenBao policy name is
+    derived in one place from the policy name and a durable generation: generation
+    1 is wyrwood-<name> and a later generation is wyrwood-<name>--<generation>,
+    which no policy name can spell. The store allocates a generation in the
+    transaction that inserts the row, from the policy_generations record for that
+    name. A delete keeps that record, so no generation is used twice. A new row
+    takes the next generation; a saved edit keeps its generation, so live tokens
+    still observe accepted HCL. A store commit refuses a generation that disagrees
+    with the store, because the OpenBao policy is published first. Restoration and
+    removal use the exact identity of the attempted or stored row. A crash between
+    publication and commit leaves an OpenBao policy that no token names, and the
+    next save of that name overwrites it. Restoring an older backup returns the
+    generation record to that time, so it can issue a generation again.
+    Effective sources carry a generation only above 1. An assignment that names
+    only first uses keeps its bytes and its identity across the move to schema 3,
+    and that move issues no credential. There is no name-reuse ban and no timer.
   hcl-composition: >-
     The effective HCL is the union of the selected named source documents,
     sorted by policy name and annotated with source name and revision. The
@@ -147,8 +169,8 @@ proposed-design:
     contract conflicts. A request that exceeds existing transport bounds
     returns a size diagnostic rather than saving an undeliverable assignment.
   approle-policy-mapping: >-
-    For binding b, let S(b) be exactly the sorted names wyrwood-<policy-name>
-    derived from its stored selected policies. Its AppRole token_policies is
+    For binding b, let S(b) be exactly the OpenBao identities, by policy-identity,
+    of its stored selected policies, in policy name order. Its AppRole token_policies is
     exactly S(b); for policies alpha and beta, it is [wyrwood-alpha,
     wyrwood-beta]. The controller derives this list from resolved records and
     accepts no raw OpenBao policy names from a form, API client, or agent.
@@ -158,7 +180,7 @@ proposed-design:
     missing names, default, root, the
     controller policy, and arbitrary names are refused as explicit policies.
     This preserves the rule that the controller refuses any token policy
-    outside the binding's own. Per-policy HCL stays at wyrwood-<policy-name>;
+    outside the binding's own. Per-policy HCL stays at the policy's identity;
     the role name stays binding-specific. Role token_ttl and token_max_ttl
     come only from binding settings. One-use SecretIDs, response wrapping,
     service tokens, and existing wrapping TTLs retain their contracts. The
@@ -308,7 +330,7 @@ proposed-design:
     or a new timeout mechanic.
   default-policy-choice: >-
     Binding AppRoles set token_no_default_policy=true. Their exact
-    token_policies list is the selected wyrwood-<policy-name> set; there is
+    token_policies list is the selected policy identity set; there is
     no separate lifecycle baseline and no implicit default exception. The
     controller publishes fixed lookup/read and agent retirement/update grants
     inside each selected policy, with renew-self/update when that policy

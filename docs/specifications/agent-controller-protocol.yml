@@ -58,7 +58,8 @@ description: >-
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory: binding identifier, the matched key, the
-  effective policy (source names, revisions and HCL, combined HCL, SSH identity
+  effective policy (source names, revisions and HCL, a source generation of at
+  least 2 when the name was used before, combined HCL, SSH identity
   unions and forwarding restrictions, resolved contract and binding settings),
   assignment identity, the OpenBao address, CA,
   namespace, and the Transit and SSH-engine mount names the controller

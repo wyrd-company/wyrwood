@@ -201,8 +201,9 @@ identity. Sources must require the same mount target. Environment entries
 are merged after expanding `{mount-target}`; different values for one name
 are rejected. A conflicting source edit is rejected before saving.
 
-The controller creates one AppRole per binding carrying exactly the selected
-`wyrwood-<policy-name>` policies. It disables the implicit `default` policy;
+The controller creates one AppRole per binding carrying exactly the OpenBao
+policies of the selected policies, `wyrwood-<policy-name>` on the first use of a
+name. It disables the implicit `default` policy;
 each named policy contains the fixed and settings-derived lifecycle grants.
 Renewal is enabled for a composed binding when any selected policy enables it.
 The effective preview includes the compiled lifecycle grants and the resolved

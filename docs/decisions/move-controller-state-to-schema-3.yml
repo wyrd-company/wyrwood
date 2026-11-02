@@ -1,0 +1,31 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - controller
+    - composable-policy-bindings
+description: >-
+  Policy identity and rename need durable records. An additive table could stay at
+  schema 2 so that a 0.4.x controller still starts, but that controller also refuses
+  an event log holding a policy-deleted or policy-renamed event. Every delete attempt
+  writes one, including a refused attempt.
+considered-options:
+  "1": >-
+    Add tables at schema 2. A 0.4.x controller starts until the first delete or rename
+    attempt, and then fails with an event-store corruption message.
+  "2": >-
+    Move to schema 3 with a forward migration. A 0.4.x controller refuses at startup
+    with database schema is newer than this controller, and leaves the file unchanged.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    Wyrwood is coming online in staged testing and has no established production use
+    that depends on going back in place. Option 2 makes the boundary clear at the first
+    start. Option 1 keeps a startup that later fails with a misleading message. The
+    way back is restoring a backup taken before the upgrade, with the earlier version.
+expected-outcomes:
+  positive:
+    - An older controller stops with a clear message before it reads state it cannot use.
+    - The forward migration keeps every row, assignment, and live token.
+  negative:
+    - Going back in place is not available. It needs a backup from before the upgrade.
+    - Work done after the backup is lost, and OpenBao objects made after it stay.

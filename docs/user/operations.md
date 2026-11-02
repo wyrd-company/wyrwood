@@ -55,7 +55,8 @@ be used, but agents keep serving containers.
 ## Delete a policy
 
 Open a policy and select **Delete policy**. The confirm screen names the policy
-and its OpenBao policy, `wyrwood-<name>`. Delete removes both.
+and its OpenBao policy, `wyrwood-<name>` on the first use of a name. Delete removes
+both.
 
 ![Confirm screen for deleting a policy that no binding selects](assets/web-policy-delete-confirm.png)
 
@@ -68,8 +69,12 @@ forced delete, and a delete never unbinds a container.
 ![A policy that cannot be deleted, with the binding that blocks it](assets/web-policy-delete.png)
 
 If OpenBao or the controller's database fails during a delete, the page shows the
-error and the policy stays, so you can try again. A new policy with the same name
-starts at revision 1.
+error and the policy stays, so you can try again.
+
+You can create a new policy with the name of a deleted policy. It starts at
+revision 1 and is a different policy: its OpenBao policy is
+`wyrwood-<name>--<number>`, so a token that outlived the earlier policy has no
+access to it. The page of a policy shows its OpenBao policy.
 
 ## Controller settings
 

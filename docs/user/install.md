@@ -282,7 +282,8 @@ agent is stopped.
    sudo wyrwood agent service stop
    ```
 
-2. Upgrade the controller.
+2. [Back up the controller state](#back-up-before-an-upgrade), then upgrade the
+   controller.
 3. Upgrade every agent package or executable while its service is stopped.
    Package upgrades leave inactive agents stopped.
 4. Start the upgraded agents:
@@ -297,11 +298,39 @@ consumer directory as `consumer-directory`; the controller sends the resolved
 close the session. Neither an agent-first nor a controller-first rolling
 upgrade keeps mixed versions connected.
 
-Keep agent keys, policy caches, bindings and consumer directories. Stored
-inventories and policies need no data migration. Updated agents accept cached
-assignments without the renewal field and infer their existing choice. Setup
-examples remain unavailable until the agent reports both the consumer
-directory and image.
+Keep agent keys, policy caches, bindings and consumer directories. The
+controller moves its database to schema 3 when it starts, in one transaction,
+and keeps every row. Existing policies keep their OpenBao policy names, existing
+assignments keep their identity, and live tokens stay valid. Updated agents
+accept cached assignments without the renewal field and infer their existing
+choice. Setup examples remain unavailable until the agent reports both the
+consumer directory and image.
+
+## Back up before an upgrade
+
+Stop the controller and copy its whole state directory, `/var/lib/wyrwood` in
+the controller container. A backup taken before the upgrade is the only way
+back.
+
+## Go back to an earlier version
+
+Controller 0.4.x refuses a schema 3 database at startup with
+`database schema is newer than this controller`, and leaves the file unchanged.
+It also refuses an event log that holds a `policy-deleted` event. To go back,
+stop the controller and agents, restore the state directory from the backup, and
+install the earlier controller and agent versions.
+
+A backup does not restore OpenBao, and work done after the backup is lost:
+
+- OpenBao policies and AppRoles created after the backup stay in OpenBao. Remove
+  them by hand.
+- The controller publishes each restored policy again. A token that outlived its
+  binding, and that names a restored policy, can read through it again until the
+  token expires.
+- A restored binding whose AppRole was removed after the backup has no AppRole.
+  It stays marked as applied, so unbind it and bind it again.
+- A policy name deleted and reused after the backup can take the same OpenBao
+  policy name again if it is reused after the restore.
 
 ## Verify
 
