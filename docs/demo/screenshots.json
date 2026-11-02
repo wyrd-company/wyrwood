@@ -6,8 +6,8 @@
     "docs/demo/web.sh": "f2c8ed3fe7139438bacabb970e9c68583b0fce36e31ad6918607fa3fdcd70ce5",
     "internal/integration/testdata/Dockerfile": "53cb10d86595d35a3ccd4f37a6305962efcfe797a7be94ceef5acc5ce84f2238",
     "internal/web/auth.go": "a0a9a873a409d8ec2c92abe792f09c7f2f41e979cff6077284016f4b10d3bd41",
-    "internal/web/binding_list.go": "ff0dc98b84ae438d8fb6feeadfb7df3e5e4f258989758eda1fed5929fbd2a094",
-    "internal/web/binding_screens.go": "c11ef97facd5a39ce725a4b74f8e20dead96824bb4366aa890ddbbe1e4415c96",
+    "internal/web/binding_list.go": "5baade0aac98fc2cec81452b388b22acc5d1bef9c8644c1e6d0fa1a724381ac7",
+    "internal/web/binding_screens.go": "1023191d6d38902615c22bfa0a5653d47d258fe0d3ad87d4154f2903219a7014",
     "internal/web/container_setup.go": "0ea25b9d75f041ac7eb4892784ca0a98b819ba955b896bde02b209e7851c403f",
     "internal/web/frontend/index.html": "f24bf6fc5ef21804c2beb10707128165ba28c80f2726b232bb78ffe19fe1fa8e",
     "internal/web/frontend/pnpm-lock.yaml": "ec4710ce016ec86bc56963bb67d0d63fe1db5f0baf1622b844c26555a291dcc5",
@@ -56,25 +56,25 @@
     "internal/web/frontend/src/pages/sign-in.tsx": "98ed38487c7fabc52acf48e584c395cc267c36db8f7f8e4f81b82e5c627a8338",
     "internal/web/frontend/src/style.css": "dfb75927816aab33ed57d643ef48ec194d020b55e5cc3a07d43cd968ff38c657",
     "internal/web/frontend/src/types.ts": "3b5ae583a0b0e70ef1b6b18ceda63ee2cd34eb430263e2516efa2690e3982c20",
-    "internal/web/pages.go": "77ba4dd4bc021271df0f316078d133ca0a8b1d3f1c070bf220bc100d784499e9",
+    "internal/web/pages.go": "716f2a83dd20d0d0183d6d355f72a9dd22e31ca5dba55c675497535e4daf10dd",
     "internal/web/policy_editor.go": "55e8e5080e2345163eea3c9b3b165771aea187c8822cc021efa191784505224e",
     "internal/web/policy_warnings.go": "4c5ea8b87bdc083d2bec0d05948dd8d8b319476c5eff59f90aedb44307adff93",
     "internal/web/settings.go": "2c254cb1a7e15974c17cfb02187673d06832a100e7d27996f021f56246707e8d",
     "internal/web/web.go": "26d6594581b0194e935f40a4f2778b92beff4de7efe7fcab30f2f594ca239fd7"
   },
   "screenshots": {
-    "docs/user/assets/web-account-menu.png": "24d34a51469a7fa23a57d19b9c5cf578fbad381bbd8a3fce9e4ded26a129031f",
+    "docs/user/assets/web-account-menu.png": "39a3c184c83cc6894a4e82002ad81a8291a48e9d36561e72260571243c2a584b",
     "docs/user/assets/web-add-binding.png": "a4b45938472ab3a99001f8effd797d5918808e5862888314d691f1e8df8ec4a5",
-    "docs/user/assets/web-agents.png": "639054b0fa15095a509bef3167b008c20a809c612973351a562eb0faec837aa9",
+    "docs/user/assets/web-agents.png": "195706b053868d63c1c007d58853897bce17a9ddac8735dea3c538b5fe61c334",
     "docs/user/assets/web-bind.png": "919ef67889ba74f6ff2cd0ecf7c95aadab555e511464f4712f15c69e68f31654",
     "docs/user/assets/web-binding.png": "a29d999d0975bca530a86f63adef9e53a6cf89d53f44ffcca730f934e6fda4dc",
     "docs/user/assets/web-bindings.png": "b4a89532fff3d9c4be38fb5213cada4fff5c4b7358201707a2002e9babb44650",
     "docs/user/assets/web-container-setup.png": "57198d8f57ab4ed35db477370c1ebfa9288837b7809eac6a480ea74594c21b4c",
-    "docs/user/assets/web-events.png": "bc91262ee8e69cf9a99cc50923a7feca031f1b2895500dc242dc8b9cc2e8c4d7",
-    "docs/user/assets/web-keys.png": "92584ec533ad46de8f8c43b58e2dee8efbdba6882543874ac97000a094672522",
+    "docs/user/assets/web-events.png": "3512b4a897f3a94e39a4033787c486de5e68be11225900790b566235b72fede9",
+    "docs/user/assets/web-keys.png": "3748af404f144c3c1ce67904d5a64828e0cf33b9aabbe4762aa5907e0634edf0",
     "docs/user/assets/web-policy.png": "81ac54eadfe0f32f1a3e228d2da1fc2d46e4a28da412aca36577a011cab3a7b8",
     "docs/user/assets/web-security.png": "4f3ad5b2cb9104ecea02a669f7da426975867c27bd97124624e62704f6f60e6f",
     "docs/user/assets/web-settings.png": "82e3ab08d767e5bf12aedaafe31842c8878a4cb90d009d1748eee07872009741",
-    "docs/user/assets/web-versions.png": "83e3910a09f61d9a7d1026ff5475a196672e46fcbdd68d6ccd4569351c8eda37"
+    "docs/user/assets/web-versions.png": "2fb9aa31e8208d8b74b0f43e908463346e39c046d53c43bf0628e8a145509e83"
   }
 }
