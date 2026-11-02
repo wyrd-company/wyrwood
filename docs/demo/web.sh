@@ -145,6 +145,25 @@ hold 2
 browse eval "window.scrollTo(0, 0)"
 shot web-policy
 
+# A bound policy cannot be deleted, and the screen says what blocks it.
+browse find role link click --name "Delete policy"
+browse wait --text "cannot be deleted"
+hold 2
+shot web-policy-delete
+
+# A policy that no binding selects can be, through its confirm screen.
+browse open "$site/policies/edit"
+browse type "#name" "scratch"
+browse find role button click --name "Save and validate"
+browse wait --text "Revision 1"
+browse find role link click --name "Delete policy"
+browse wait --text "wyrwood-scratch"
+hold 2
+shot web-policy-delete-confirm
+browse find role button click --name "Delete policy"
+browse wait --text "Policy deleted"
+hold 2
+
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"
 hold 3

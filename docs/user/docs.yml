@@ -8,6 +8,8 @@ assets:
   - assets/demo.gif
   - assets/web-agents.png
   - assets/web-policy.png
+  - assets/web-policy-delete-confirm.png
+  - assets/web-policy-delete.png
   - assets/web-bind.png
   - assets/web-container-setup.png
   - assets/web-binding.png
@@ -58,6 +60,13 @@ products:
       - src: assets/web-policy.png
         caption: Policy editor with a saved policy and its bindings.
         alt: The policy editor showing a saved policy document and the binding that selects it.
+      - src: assets/web-policy-delete-confirm.png
+        caption: Confirm screen for deleting a policy that no binding selects.
+        alt: A confirm screen naming the policy and its OpenBao policy, with a Delete policy button.
+      - src: assets/web-policy-delete.png
+        caption: A policy that cannot be deleted, with the binding that blocks it.
+        alt: A screen saying that the policy cannot be deleted, above a table of the binding that
+             selects it.
       - src: assets/web-bind.png
         caption: Binding policies to a container.
         alt: The bind screen for attaching policies to a container.

@@ -161,7 +161,7 @@ proposed-design:
     sessions, and admission are defined by the web-interface design.
   operational-events: >-
     The controller records bounded events for operator sign-in, agent
-    approval and rejection, session open and close, policy saves, binding
+    approval and rejection, session open and close, policy saves and deletes, binding
     changes, AppRole creation and deletion, credential issuance, and recreate
     requests. Events carry agent name, container key, policy name, the
     operator who acted when an operator acted, and categorical outcome. They

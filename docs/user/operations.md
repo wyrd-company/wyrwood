@@ -23,7 +23,7 @@ behind a reverse proxy that terminates TLS.
 | In the web interface | Action |
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
-| **Policies** | Create or edit HCL, select SSH identities, save and validate, and see the bindings that select a policy. |
+| **Policies** | Create or edit HCL, select SSH identities, save and validate, see the bindings that select a policy, and delete a policy that no binding selects. |
 | **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
@@ -51,6 +51,25 @@ it from **Security**. While the provider is unreachable the interface cannot
 be used, but agents keep serving containers.
 
 ![Security page with operator and identity-provider details](assets/web-security.png)
+
+## Delete a policy
+
+Open a policy and select **Delete policy**. The confirm screen names the policy
+and its OpenBao policy, `wyrwood-<name>`. Delete removes both.
+
+![Confirm screen for deleting a policy that no binding selects](assets/web-policy-delete-confirm.png)
+
+You cannot delete a policy while a binding selects it. The screen lists each
+binding that blocks the delete, with a link to it. This includes a binding marked
+`Not reported`, whose container no longer exists, and a binding on an agent that
+is not approved. Change or unbind each one, then delete the policy. There is no
+forced delete, and a delete never unbinds a container.
+
+![A policy that cannot be deleted, with the binding that blocks it](assets/web-policy-delete.png)
+
+If OpenBao or the controller's database fails during a delete, the page shows the
+error and the policy stays, so you can try again. A new policy with the same name
+starts at revision 1.
 
 ## Controller settings
 
@@ -109,10 +128,10 @@ The agent and the controller each retain a bounded event history. Agent
 events cover container observation, bindings, contract checks and recreates,
 token login and renewal, vault requests by mount category, and SSH identity
 listing, signing, and certificate issuance. Controller events cover operator
-sign-in and sign-out, agent approval, sessions, policy saves, bindings, and
-credential issuance, and name the operator who acted. Events contain no
-tokens, secret values, request bodies, paths, signatures, or raw upstream
-errors.
+sign-in and sign-out, agent approval, sessions, policy saves and deletes,
+bindings, and credential issuance, and name the operator who acted. Events
+contain no tokens, secret values, request bodies, paths, signatures, or raw
+upstream errors.
 
 ![Controller events, newest first](assets/web-events.png)
 

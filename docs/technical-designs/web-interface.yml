@@ -225,6 +225,18 @@ proposed-design:
     and a new policy has no section. Refused saves keep the section. A failed
     read answers 500 and not an empty list, and a refused save keeps its reason
     on that answer. Only the agents that hold a listed binding are read.
+    A saved policy's page has a Delete policy action. GET `/policies/delete`
+    with the name in its query opens a confirm screen that names the policy and
+    its OpenBao policy; POST to the same address deletes. The name comes only
+    from the query. While any stored binding selects the policy, including one
+    with no reported container or on an agent that is not approved, the server
+    refuses whatever the page sent, the screen offers no delete, and it lists
+    the blocking bindings with links, through the Bindings section's projection.
+    A failed read answers 500 and not an empty list. A policy that does not
+    exist answers 404 with a way back, and a failed delete keeps its reason and
+    offers the delete again. A successful delete returns to the Policies page
+    with a notice. Both routes require the operator session, and POST requires
+    the anti-forgery token.
     Simple path/capability HCL has graphical path rows and capability checkboxes.
     Graphical edits replace only the chosen source span. Unsupported constructs
     fall back to the complete raw HCL text; switching views alone does not

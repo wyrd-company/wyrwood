@@ -93,6 +93,11 @@ description: >-
   The editor calls this endpoint when the HCL field loses focus and discards
   responses for HCL that changed while the check was pending.
 
+  A policy that no binding selects can be deleted. Delete removes the stored
+  document and the exact OpenBao policy `wyrwood-<name>`. It is refused while any
+  stored binding selects the policy, whether or not its container is reported.
+  A later policy with the same name starts at revision 1.
+
   A policy document contains no secret. The controller stores it in SQLite
   and in OpenBao as compiled HCL with the managed lifecycle grants.
 validation-criteria: >-

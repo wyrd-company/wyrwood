@@ -72,7 +72,19 @@ proposed-design:
     key, references bindings with delete cascade, and references policies
     without delete cascade. It supports reverse lookup for policy edits and
     usage counts. A referenced policy cannot be deleted without an explicit
-    binding update or unbind. Binding settings, revision, and desired/applied
+    binding update or unbind: the controller refuses it under the mutation lock,
+    the lock also held by binding create and change, and the foreign key refuses
+    it in the store. There is no forced delete and no cascade unbind. A delete
+    removes the exact OpenBao policy first, then the row, so that an OpenBao
+    policy never outlives its row. On a failed OpenBao delete, whose answer may
+    hide a success, the controller publishes the stored HCL again. On a failed
+    store delete it reads the row back: a row that is gone is a completed delete,
+    a row that stays is published again, and an unreadable store publishes
+    nothing. A publication that cannot finish marks policy synchronization
+    pending, which blocks fresh issuance until the next credential request or
+    startup publishes every stored row. A restart between the two deletes takes
+    the same synchronization, so the policy stays and the delete can be retried.
+    A later policy with the same name starts at revision 1. Binding settings, revision, and desired/applied
     assignment state are durable binding data. Membership and settings update
     in one SQLite transaction; reads resolve a consistent source snapshot.
     AppRole names retain the existing agent-and-binding identity. No token,
