@@ -42,9 +42,10 @@
     "internal/web/frontend/src/pages/add-binding.tsx": "e570082faf268a02e238f35911dc5882071fdb4b324463c1eb96c10375d2eb9d",
     "internal/web/frontend/src/pages/agents.tsx": "43d3127ea33bc41309118b25eceae25de5fbd0b2d67724acff678e5c2ea59d87",
     "internal/web/frontend/src/pages/binding-cells.tsx": "386672d87b93c25f337e518f22484b41d2feec727c3342ceb8e522b94c49e873",
-    "internal/web/frontend/src/pages/binding-form.tsx": "5da52fbfd120309e49cb9193240eca09c93fbb39e52ff48be0d799975c783b18",
+    "internal/web/frontend/src/pages/binding-form.tsx": "01624e3fcb29b47a96e025d3bba10cc9027ee6691062e0a3afc17819d9e4585c",
+    "internal/web/frontend/src/pages/binding-sections.tsx": "b55f3ec3cb30b1efe188459deea15ec575e8206f13f487d413b5ce1c33039fb6",
     "internal/web/frontend/src/pages/binding-settings.tsx": "945cbfdbbd0595e0419b6d162fa34b60da894d41dda9f11a6db97a158f276fec",
-    "internal/web/frontend/src/pages/binding.tsx": "4f87733cb71069340660245a4a6598e1b1a0f5b5af2a21b21cd0ef95a77ccb30",
+    "internal/web/frontend/src/pages/binding.tsx": "34350d6ea9e30e5d21416eef1bbf013b323f45e7f10f144f6c13e1d06735cfb9",
     "internal/web/frontend/src/pages/bindings.tsx": "e7c1e7956b9bf19f89dc962cd9e8b2b36c277e98ba7531818a19b9a46e25e442",
     "internal/web/frontend/src/pages/confirm.tsx": "8652084dee0722b20338a49b223cbf8beeb6a0a442ee701ea91920c9862f3bfc",
     "internal/web/frontend/src/pages/container-setup.tsx": "7351f66285c016217af8908f3153b0f0d74639a41fc447e97e19b891476067ba",
@@ -73,9 +74,9 @@
     "internal/web/web.go": "2546fa0bae032676daa28ecbe432cb54b29a6b35d6e86e96fa828d398a14d673"
   },
   "screenshots": {
-    "docs/user/assets/web-account-menu.png": "cf053d317feb87b72ed201e4751e595c336206559b1e295cf9757db126c13822",
+    "docs/user/assets/web-account-menu.png": "70f9940bcf807e5e64cca7702e61c5a219317e14904b473b9dd3f81831145115",
     "docs/user/assets/web-add-binding.png": "d1ad8fafac046bdbf4408b898bffea9bf3f3ce43ccabecb62bdc892cc065d692",
-    "docs/user/assets/web-agents.png": "09dea4e162a7d3aa2c6d5d3fed7dd1be3b83167ef6490396ef9ea81df291b555",
+    "docs/user/assets/web-agents.png": "b86d6e738797a6eec57c882461070b7d0cc14cf228ea6679eaf2706300146a2f",
     "docs/user/assets/web-bind-effective.png": "f13b633eec4bbe329984e976fd700061b9f307955143e48ec20310656360eeb8",
     "docs/user/assets/web-bind-settings.png": "21e52623748af579595db3b974f2f338b35f9f9646fed4a12f2f381faecf626f",
     "docs/user/assets/web-bind.png": "a4f9678c66ca07e72d0f5359f603f654ddc9df6c99191ce8ff5ee63442f54bfe",
@@ -85,9 +86,9 @@
     "docs/user/assets/web-binding.png": "de02eeab94550bce9788f725f64b5015942114fcd3c57cc98fe4a9677469df24",
     "docs/user/assets/web-bindings.png": "5e773314ad9a7f235b11099f2ab7bf6479d7c876f1a3c51efbea76fc8829aa63",
     "docs/user/assets/web-container-setup.png": "3b94339b5d29e879fde5e5180f659dc49315f65644529e4b7151464bb297b55b",
-    "docs/user/assets/web-events.png": "e5307a33b3e2f98ed3289612003aecda8b7c6d1f5a17584d8c9374e0e8e54008",
-    "docs/user/assets/web-keys.png": "b55a9a269ba03a32e8806074ec99f02f44b3ed999c661c32f1f445a5d3529e41",
-    "docs/user/assets/web-policy-bindings.png": "591104d49e0b8b118cd03b29005475e0cc63e919bb1e838c3371577d8638c9e0",
+    "docs/user/assets/web-events.png": "f1d1d46d69f9be0c03481578fded214e0354375662fb625c46e8e95cfd64289f",
+    "docs/user/assets/web-keys.png": "bcf9e786f276743f8e3766397d959619c152d32fca8032646a2409c187d995cb",
+    "docs/user/assets/web-policy-bindings.png": "4d306ccaefa131bfea869f063a5a88f25b7a111e4b5e5e0b486ac22bed13ffd5",
     "docs/user/assets/web-policy-contract.png": "75f86a385f03b14a91cefd6151e1122c7e9ff3e3a115eed0dbfc868a4d0e20ca",
     "docs/user/assets/web-policy-delete-confirm.png": "80e1b209725c69cfab78c012958c087e18c3a6bfe1d49372ada25fdfdafa0677",
     "docs/user/assets/web-policy-delete.png": "f5ca3f274c5967da9aea8f828c1f5225ba200cb300f78d16e3910f919a398834",
@@ -96,6 +97,6 @@
     "docs/user/assets/web-policy.png": "9c32ddc155d8be009eeb6d3c9f2c2d4520444fcd2e08fcaf2d1fa878cc782208",
     "docs/user/assets/web-security.png": "cc5447b6f2f17ec1ce852936b1bd72618728c28838d17697d579cfcf167c91b3",
     "docs/user/assets/web-settings.png": "82e3ab08d767e5bf12aedaafe31842c8878a4cb90d009d1748eee07872009741",
-    "docs/user/assets/web-versions.png": "74caa54cf57bbbe4e06bd75cd976012da93e8c09f6c2ea62f3929b736ef505ac"
+    "docs/user/assets/web-versions.png": "1b0aeb36b2566e20bf99361942f26448675e5903c23ffcee33dafa71aa2c03df"
   }
 }
