@@ -7,8 +7,10 @@ package controller
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -16,6 +18,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/openbao"
+	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 )
 
@@ -197,29 +200,148 @@ func TestStoreForeignKeyRefusesABindingThatArrivesAfterTheCheck(t *testing.T) {
 	}
 }
 
-// The answer of a committed store delete can be lost. A restoration would leave
-// an OpenBao policy that nothing removes.
-func TestCommittedStoreDeleteIsNotRestored(t *testing.T) {
+// loseDeleteAnswers makes the real store's delete of the named row return an error
+// after the row is gone: RAISE(FAIL) keeps what the statement already did.
+func loseDeleteAnswers(t *testing.T, db *sql.DB, names string) {
+	t.Helper()
+	runSQL(t, db, `CREATE TRIGGER lost_delete_answer AFTER DELETE ON policies WHEN OLD.name IN (`+names+`) BEGIN SELECT RAISE(FAIL, 'lost delete answer'); END`)
+}
+
+// The answer of a committed store delete can be lost. The delete still succeeded,
+// and a restoration would leave an OpenBao policy that nothing removes.
+func TestDeletePolicySucceedsWhenTheStoreLosesTheAnswerOfACommittedDelete(t *testing.T) {
 	ctx := context.Background()
 	h, bao, saved := startDeleteHarness(t)
 	c := h.controller
-	stored, err := c.store.Policy(ctx, saved.Name)
+	other, err := c.SavePolicy(ctx, policy.New("alpha-two", policy.StarterHCL), deleteOperator)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := bao.OpenBao.DeletePolicy(ctx, alphaACL); err != nil {
+	probe, err := c.SavePolicy(ctx, policy.New("alpha-probe", policy.StarterHCL), deleteOperator)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := c.store.DeletePolicy(ctx, saved.Name); err != nil {
+	controllerACL := aclOf(t, h, baotest.ControllerName)
+	db := stateDB(t, c)
+	loseDeleteAnswers(t, db, `'alpha', 'alpha-probe'`)
+
+	// The fault reaches the real store: an error, with the row gone.
+	if err := c.store.DeletePolicy(ctx, probe.Name); err == nil || !strings.Contains(err.Error(), "lost delete answer") {
+		t.Fatalf("store delete under the fault = %v", err)
+	}
+	if _, err := c.store.Policy(ctx, probe.Name); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("probe row after the fault = %v, want not found", err)
+	}
+	if err := bao.OpenBao.DeletePolicy(ctx, probe.OpenBaoPolicyName()); err != nil {
 		t.Fatal(err)
 	}
-	if err := c.settleFailedPolicyDelete(ctx, stored); err != nil {
-		t.Fatalf("settle = %v, want success", err)
+
+	writes := 0
+	bao.failWrite = func() error {
+		writes++
+		return nil
+	}
+	if err := c.DeletePolicy(ctx, saved.Name, deleteOperator); err != nil {
+		t.Fatalf("DeletePolicy = %v, want success", err)
+	}
+	bao.failWrite = nil
+	if writes != 0 {
+		t.Fatalf("OpenBao policy writes = %d, want no restoration", writes)
+	}
+	if !reflect.DeepEqual(bao.calls(), []string{alphaACL}) {
+		t.Fatalf("OpenBao deletes = %v", bao.calls())
 	}
 	if c.policySyncPending {
 		t.Fatal("a committed delete left a sync pending")
 	}
 	assertGone(t, h, saved.Name)
+	assertKept(t, h, other)
+	if acl := aclOf(t, h, baotest.ControllerName); acl == "" || acl != controllerACL {
+		t.Fatal("the controller's policy changed")
+	}
+	wantEvent(t, lastDeleteEvent(t, c), saved.Name, events.OutcomeOK, events.ErrorNone)
+
+	// With the fault gone, nothing comes back, and the name is free again.
+	runSQL(t, db, `DROP TRIGGER lost_delete_answer`)
+	if err := c.reconcileBindings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertGone(t, h, saved.Name)
+	assertKept(t, h, other)
+	again, err := c.SavePolicy(ctx, policy.New(saved.Name, policy.StarterHCL), deleteOperator)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Revision != 1 {
+		t.Fatalf("revision = %d, want 1", again.Revision)
+	}
+	assertKept(t, h, again)
+	if err := c.DeletePolicy(ctx, saved.Name, deleteOperator); err != nil {
+		t.Fatal(err)
+	}
+	assertGone(t, h, saved.Name)
+}
+
+// A save of the same name waits for a delete whose store answer is lost, so that
+// the delete cannot settle against the new owner. The saved policy then owns the
+// name and its OpenBao policy.
+func TestSaveWaitsForAHeldDeleteWhoseStoreAnswerIsLostAndThenOwnsTheName(t *testing.T) {
+	ctx := context.Background()
+	h, bao, saved := startDeleteHarness(t)
+	c := h.controller
+	loseDeleteAnswers(t, stateDB(t, c), `'alpha'`)
+	entered, release := make(chan struct{}), make(chan struct{})
+	var hold sync.Once
+	bao.beforeDelete = func(context.Context) error {
+		hold.Do(func() {
+			close(entered)
+			<-release
+		})
+		return nil
+	}
+	deleted := make(chan error, 1)
+	go func() { deleted <- c.DeletePolicy(ctx, saved.Name, deleteOperator) }()
+	select {
+	case <-entered:
+	case err := <-deleted:
+		t.Fatalf("delete ended before OpenBao: %v", err)
+	}
+	type answer struct {
+		saved policy.Policy
+		err   error
+	}
+	replaced := make(chan answer, 1)
+	replacement := policy.New(saved.Name, policy.StarterHCL+`path "kv/data/sample" { capabilities = ["read"] }`)
+	go func() {
+		document, err := c.SavePolicy(ctx, replacement, deleteOperator)
+		replaced <- answer{document, err}
+	}()
+	select {
+	case got := <-replaced:
+		close(release)
+		<-deleted
+		t.Fatalf("save finished inside the delete: %v", got.err)
+	case <-time.After(300 * time.Millisecond):
+	}
+	close(release)
+	deleteErr, got := <-deleted, <-replaced
+	if deleteErr != nil {
+		t.Fatalf("DeletePolicy = %v, want success", deleteErr)
+	}
+	if got.err != nil {
+		t.Fatal(got.err)
+	}
+	if got.saved.Revision != 1 {
+		t.Fatalf("revision = %d, want 1", got.saved.Revision)
+	}
+	if c.policySyncPending {
+		t.Fatal("a committed delete left a sync pending")
+	}
+	assertKept(t, h, got.saved)
+	if err := c.reconcileBindings(ctx); err != nil {
+		t.Fatal(err)
+	}
+	assertKept(t, h, got.saved)
 }
 
 // With the store unreadable, whether the row is gone is unknown. The sync
