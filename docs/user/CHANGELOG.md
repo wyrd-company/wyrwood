@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.2
+
+### Fixes
+
+- Describe the Report an issue link in the operations guide.
+- Describe the separate bind and binding screens in the getting started and operations guides, with new screenshots.
+- Describe the Bindings page and the Add binding screen in the getting started and operations guides, with new screenshots.
+- Describe the row actions and the tabs on the policy and binding screens in the guides, with new screenshots.
+- Describe deleting a policy, what blocks it, and reusing its name in the operations guide, with two new screenshots. Describe the backup, schema 3, and the way back in the install guide.
+- Describe the Bindings tab of the policy page in the getting started and operations guides, with a new screenshot.
+- Describe renaming a policy, what happens to its bindings and tokens, and how a pending transition finishes in the operations guide, with a new screenshot.
+
 ## 0.1.1
 
 ### Fixes

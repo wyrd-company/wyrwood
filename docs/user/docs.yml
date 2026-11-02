@@ -36,8 +36,8 @@ assets:
 products:
   wyrwood:
     name: wyrwood
-    version: 0.4.1
-    docs-version: 0.1.1
+    version: 0.5.0
+    docs-version: 0.1.2
     tagline: OpenBao-backed secrets and signing for containers, with nothing stored inside.
     blurb: >-
       A controller that owns policy and an agent on each Docker host that gives
