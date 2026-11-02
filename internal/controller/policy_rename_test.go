@@ -20,6 +20,8 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/openbao"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
+	"github.com/wyrd-company/wyrwood/internal/protocol"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 const (
@@ -1418,4 +1420,182 @@ func TestConsumerWakesAtStartupForARecordAlreadyThere(t *testing.T) {
 	if hasACL(t, restarted, "wyrwood-orphan") {
 		t.Fatal("recorded identity stayed")
 	}
+}
+
+// With no durable record of the attempt nothing is published.
+func TestRenameRefusedWhenTheAttemptCannotBeRecorded(t *testing.T) {
+	ctx := context.Background()
+	h, bao := startRenameHarness(t)
+	saved := saveAlpha(t, h, policy.StarterHCL)
+	db := stateDB(t, h.controller)
+	runSQL(t, db, `CREATE TRIGGER fail_record BEFORE INSERT ON policy_retirements BEGIN SELECT RAISE(ABORT, 'injected fault'); END`)
+	calls := len(bao.recorded())
+	if _, err := h.controller.RenamePolicy(ctx, requestRename(t, h.controller, "alpha", "beta"), deleteOperator); err == nil || !strings.Contains(err.Error(), "nothing changed") {
+		t.Fatalf("rename = %v", err)
+	}
+	runSQL(t, db, `DROP TRIGGER fail_record`)
+	if len(bao.recorded()) != calls {
+		t.Fatalf("calls = %v", bao.recorded()[calls:])
+	}
+	assertKept(t, h, saved)
+}
+
+// The store fails after the commit, at each later write. The record outlives
+// the failure, and the consumer finishes.
+func TestRenameConvergesWhenTheStoreFailsAfterTheCommit(t *testing.T) {
+	ctx := context.Background()
+	for label, trigger := range map[string]string{
+		"marking the binding applied": `CREATE TRIGGER fail_later BEFORE UPDATE OF applied ON bindings WHEN NEW.applied = 1 BEGIN SELECT RAISE(ABORT, 'injected fault'); END`,
+		"ending the record":           `CREATE TRIGGER fail_later BEFORE DELETE ON policy_retirements WHEN OLD.identity = 'wyrwood-alpha' BEGIN SELECT RAISE(ABORT, 'injected fault'); END`,
+	} {
+		t.Run(label, func(t *testing.T) {
+			h, _ := startRenameHarness(t)
+			c := h.controller
+			saveAlpha(t, h, policy.StarterHCL)
+			approveAgent(t, h, "host-a")
+			binding := bindAlpha(t, h, "host-a", "web")
+			db := stateDB(t, c)
+			runSQL(t, db, trigger)
+			got, err := c.RenamePolicy(ctx, requestRename(t, c, "alpha", "beta"), deleteOperator)
+			if got.Name != "beta" || err == nil {
+				t.Fatalf("rename = %#v, %v", got, err)
+			}
+			wantRetirements(t, c, alphaACL)
+			runSQL(t, db, `DROP TRIGGER fail_later`)
+			waitForRetirements(t, h)
+			after, err := c.store.Binding(ctx, binding.ID)
+			if err != nil || !after.Applied || hasACL(t, h, alphaACL) {
+				t.Fatalf("binding = %#v, %v", after, err)
+			}
+		})
+	}
+}
+
+// A publication that is pending is finished first, as a sync publishes every row
+// and no identity goes while the rows are not known to be published.
+func TestRetirementWaitsForAPendingPolicySync(t *testing.T) {
+	h, bao := startRenameHarness(t)
+	c := h.controller
+	saveAlpha(t, h, policy.StarterHCL)
+	bao.set(outage(callDelete), nil)
+	if got, err := c.RenamePolicy(context.Background(), requestRename(t, c, "alpha", "beta"), deleteOperator); got.Name != "beta" || err == nil {
+		t.Fatalf("rename = %#v, %v", got, err)
+	}
+	c.mutationMu.Lock()
+	c.policySyncPending = true
+	c.mutationMu.Unlock()
+	bao.set(outage(callWrite), nil)
+	deletes := bao.count(callDelete + " " + alphaACL)
+	waitFor(t, "a sync attempt", func() bool { return bao.count(callWrite+" "+betaACL) >= 3 })
+	if bao.count(callDelete+" "+alphaACL) != deletes {
+		t.Fatalf("calls = %v", bao.recorded())
+	}
+	wantRetirements(t, c, alphaACL)
+	bao.set(nil, nil)
+	waitForRetirements(t, h)
+	c.mutationMu.Lock()
+	pending := c.policySyncPending
+	c.mutationMu.Unlock()
+	if pending {
+		t.Fatal("the sync stayed pending")
+	}
+}
+
+// A selection whose complete policy set the agent protocol refuses is refused
+// before anything is published, whatever the renamed policy's own size.
+func TestRenamePreflightsEveryAffectedAgent(t *testing.T) {
+	ctx := context.Background()
+	h, bao := startRenameHarness(t)
+	c := h.controller
+	saved := saveAlpha(t, h, policy.StarterHCL)
+	approveAgent(t, h, "host-a")
+	bindAlpha(t, h, "host-a", "web")
+	if err := c.store.SaveInventory(ctx, "host-a", "SHA256:host-a", []protocol.Container{
+		{ID: "c-web", Name: "web", Image: "example/web:1", State: protocol.StateRunning, Keys: []protocol.Key{exampleKey("web")}},
+		{ID: "c-bad", Name: "bad", Image: "example/bad:1", State: protocol.StateRunning, Keys: []protocol.Key{exampleKey("bad")}},
+	}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.SavePolicy(ctx, policy.New("other", policy.StarterHCL), deleteOperator); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.store.CreateBinding(ctx, store.Binding{ID: "b-bad", Agent: "host-a", Key: exampleKey("bad"), Policies: []string{"other"}, Revision: 1, Role: "wyrwood-host-a-b-bad"}); err != nil {
+		t.Fatal(err)
+	}
+	calls := len(bao.recorded())
+	_, err := c.RenamePolicy(ctx, requestRename(t, c, "alpha", "beta"), deleteOperator)
+	if err == nil || !strings.Contains(err.Error(), "exceeds the agent protocol limits") {
+		t.Fatalf("rename = %v", err)
+	}
+	if len(bao.recorded()) != calls {
+		t.Fatalf("calls = %v", bao.recorded()[calls:])
+	}
+	assertKept(t, h, saved)
+	wantRetirements(t, c)
+}
+
+func TestPolicyExistsReadsBackOnlyManagedNames(t *testing.T) {
+	ctx := context.Background()
+	h, _ := startRenameHarness(t)
+	saveAlpha(t, h, policy.StarterHCL)
+	for name, want := range map[string]bool{alphaACL: true, "wyrwood-absent": false} {
+		if exists, err := h.controller.openbao.PolicyExists(ctx, name); err != nil || exists != want {
+			t.Fatalf("PolicyExists(%s) = %v, %v", name, exists, err)
+		}
+	}
+	if _, err := h.controller.openbao.PolicyExists(ctx, "outside"); openbao.CategoryOf(err) != openbao.CategoryInvalid {
+		t.Fatalf("PolicyExists(outside) = %v", err)
+	}
+}
+
+// The consumer applied a binding after an outage, so a connected agent that could
+// not get a credential during the outage takes one with no request of its own.
+func TestConsumerPushesTheAgentsItApplied(t *testing.T) {
+	ctx := context.Background()
+	h, bao := startRenameHarness(t)
+	c := h.controller
+	saveAlpha(t, h, policy.StarterHCL)
+	key := newAgentKey(t)
+	if _, err := h.dial("host-a", key); err == nil {
+		t.Fatal("unapproved key authenticated")
+	}
+	if err := c.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, deleteOperator); err != nil {
+		t.Fatal(err)
+	}
+	connection, err := h.dial("host-a", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	inventory := protocol.Inventory{Containers: []protocol.Container{{ID: strings.Repeat("c", 64), Name: "web", State: protocol.StateRunning, Keys: []protocol.Key{exampleKey("web")}}}}
+	if err := connection.conn.Send(inventory); err != nil {
+		t.Fatal(err)
+	}
+	binding := bindAlpha(t, h, "host-a", "web")
+	waitCredential := func(assignment string) {
+		t.Helper()
+		for {
+			if credential, ok := connection.receive(t).(protocol.Credential); ok && credential.Assignment == assignment {
+				return
+			}
+		}
+	}
+	waitCredential(binding.Assignment())
+	bao.set(outage(callRole), nil)
+	if got, err := c.RenamePolicy(ctx, requestRename(t, c, "alpha", "beta"), deleteOperator); got.Name != "beta" || err == nil {
+		t.Fatalf("rename = %#v, %v", got, err)
+	}
+	current, err := c.store.Binding(ctx, binding.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if set, ok := connection.receive(t).(protocol.PolicySet); !ok || len(set.Bindings) != 1 || set.Bindings[0].Assignment != current.Assignment() {
+		t.Fatalf("policy set = %#v", set)
+	}
+	bao.set(nil, nil)
+	waitCredential(current.Assignment())
+	waitForRetirements(t, h)
 }
