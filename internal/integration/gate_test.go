@@ -305,7 +305,7 @@ func TestLinuxIntegrationGate(t *testing.T) {
 	if key.Kind != protocol.KeyDevcontainer {
 		t.Fatalf("most stable key = %#v", key)
 	}
-	bound, err := controller.CreateBinding(ctx, "gate-host", key, policy.Selection{Policies: []string{"teal"}}, "gate-operator")
+	bound, err := controller.CreateBinding(ctx, "gate-host", key, policy.Selection{Policies: []string{"teal"}, Settings: policy.Settings{Enforcement: policy.EnforcementRecreate}}, "gate-operator")
 	if err != nil {
 		t.Fatal(err)
 	}
