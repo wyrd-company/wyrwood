@@ -91,11 +91,13 @@ host group with that GID first if none exists. Use a separate group from
 who can reach these sockets can use the
 binding's OpenBao and SSH permissions. See [Access group](configuration.md#access-group).
 
-After you bind a container, the policy's page lists the binding under
-**Bindings**. A binding stays on that list, marked `Not reported`, when its
+After you bind a container, the policy's **Bindings** tab lists the binding. A
+binding stays on that list, marked `Not reported`, when its
 container no longer exists, so you can see what a policy change affects.
 
-![Policy editor with a saved policy and its bindings](assets/web-policy.png)
+![Policy editor with a saved policy](assets/web-policy.png)
+
+![The Bindings tab of a saved policy](assets/web-policy-bindings.png)
 
 ## Bind a container
 
@@ -104,15 +106,20 @@ containers that have no binding.
 
 ![Reported containers with no binding](assets/web-add-binding.png)
 
-Select the container. Its bind screen opens. Select one or more policies and
-binding settings. Use **Preview effective policy** to inspect the combined
-policy, then **Bind policies** to save. If the controller
-refuses the binding, the same screen shows why and keeps what you entered. The
+Select **Add binding** on the container's row. Its bind screen opens, with
+its actions at the top and a summary of what you are about to save. Select one
+or more policies on **Key and policies**, and change any defaults on **Settings**.
+Use **Preview effective policy** to inspect the combined policy, then
+**Bind policies** to save. You do not need to open every tab. If the controller
+refuses the binding, the same screen shows why, selects the tab that holds the
+problem, and keeps what you entered. The
 controller binds by the most stable key the container offers and shows which
 one it used. The agent creates the container's consumer directory, obtains
 its OpenBao token, and checks the contract.
 
 ![Binding policies to a container](assets/web-bind.png)
+
+![Binding settings on their own tab](assets/web-bind-settings.png)
 
 A container created without the mount is reported as non-conforming. Either
 add the mount and environment to the container's definition and recreate it
@@ -166,8 +173,8 @@ starting the container so its bind mount refers to the new directory.
 
 ![A bound container that conforms to its contract](assets/web-binding.png)
 
-**Bindings** then shows the binding's state in the list. Select the row to
-return to this screen.
+**Bindings** then shows the binding's state in the list. Select **Edit** on the
+row to return to this screen.
 
 ![The bindings list with a binding and its container](assets/web-bindings.png)
 

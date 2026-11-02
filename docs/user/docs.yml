@@ -8,12 +8,20 @@ assets:
   - assets/demo.gif
   - assets/web-agents.png
   - assets/web-policy.png
+  - assets/web-policy-identities.png
+  - assets/web-policy-contract.png
+  - assets/web-policy-bindings.png
   - assets/web-policy-rename.png
   - assets/web-policy-delete-confirm.png
   - assets/web-policy-delete.png
   - assets/web-bind.png
+  - assets/web-bind-settings.png
+  - assets/web-bind-effective.png
   - assets/web-container-setup.png
   - assets/web-binding.png
+  - assets/web-binding-policies.png
+  - assets/web-binding-settings.png
+  - assets/web-binding-effective.png
   - assets/web-add-binding.png
   - assets/web-bindings.png
   - assets/web-keys.png
@@ -59,8 +67,17 @@ products:
         alt: The Agents page of the controller web interface listing an agent whose key awaits
              approval.
       - src: assets/web-policy.png
-        caption: Policy editor with a saved policy and its bindings.
-        alt: The policy editor showing a saved policy document and the binding that selects it.
+        caption: Policy editor with a saved policy, on its OpenBao policy tab.
+        alt: The policy editor with its actions at the top and the OpenBao policy tab selected.
+      - src: assets/web-policy-identities.png
+        caption: The SSH identities tab of the policy editor.
+        alt: The policy editor with the SSH identities tab selected, listing Transit keys and SSH-engine roles.
+      - src: assets/web-policy-contract.png
+        caption: The Container contract tab of the policy editor.
+        alt: The policy editor with the Container contract tab selected, showing the mount target and environment.
+      - src: assets/web-policy-bindings.png
+        caption: The Bindings tab of a saved policy.
+        alt: The policy editor with the Bindings tab selected, listing a binding with an Edit action.
       - src: assets/web-policy-rename.png
         caption: Rename screen for a policy that one binding selects.
         alt: A screen taking the new name of a policy, stating that one binding gets a fresh
@@ -75,12 +92,27 @@ products:
       - src: assets/web-bind.png
         caption: Binding policies to a container.
         alt: The bind screen for attaching policies to a container.
+      - src: assets/web-bind-settings.png
+        caption: The Settings tab of the bind screen.
+        alt: The bind screen with the Settings tab selected, showing token lifetimes, access group, and enforcement.
+      - src: assets/web-bind-effective.png
+        caption: A preview on the Effective policy tab of the bind screen.
+        alt: The bind screen with the Effective policy tab selected, showing the previewed composition.
       - src: assets/web-container-setup.png
         caption: Container setup examples on the binding screen.
         alt: Container setup examples shown on the binding screen.
       - src: assets/web-binding.png
         caption: A bound container that conforms to its contract.
         alt: The binding screen of a container that meets its contract.
+      - src: assets/web-binding-policies.png
+        caption: The Policies tab of a binding.
+        alt: The binding screen with the Policies tab selected.
+      - src: assets/web-binding-settings.png
+        caption: The Settings tab of a binding.
+        alt: The binding screen with the Settings tab selected.
+      - src: assets/web-binding-effective.png
+        caption: The Effective policy tab of a binding.
+        alt: The binding screen with the Effective policy tab selected, showing the saved composition.
       - src: assets/web-add-binding.png
         caption: Reported containers that have no binding.
         alt: The add binding screen listing reported containers with no binding.

@@ -128,15 +128,21 @@ policies or state, and choose ascending or descending order. Disconnected rows
 retain the last report and show its age. A binding whose container the agent no
 longer reports stays in the list, marked **Not reported**, with its agent and
 key. This is not an error, and the binding applies again when a container with
-its key returns. Selecting a row opens the binding's screen. **Back to bindings**
+its key returns. **Edit** on a row, or a container's name, opens the binding's
+screen. **Back to bindings**
 returns to the list with the same filters and order.
 
 **Add binding** lists the reported containers that have no binding, with the
 same filters. Every container an agent reports is on one of these two pages.
-Selecting a container opens its bind screen. Links to the former `/containers`
-address go to **Bindings** with their filters.
+**Add binding** on a row, or a container's name, opens its bind screen. Links
+to the former `/containers` address go to **Bindings** with their filters.
 
-In **Bindings**, open a binding and scroll to **Container setup**. Copy
+The policy and binding screens keep their actions at the top and split their
+content into tabs. A tab that holds something you should read says **Needs
+attention**. A problem from a refused save appears above the tabs, and the screen
+selects the tab that holds it.
+
+In **Bindings**, open a binding and select the **Container setup** tab. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
 example. The examples use the saved effective contract, including its
 environment values and custom mount target. Run them on the selected agent
