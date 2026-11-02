@@ -67,7 +67,9 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
               hint={
                 <>
                   Lower-kebab-case. Written to OpenBao as{" "}
-                  <code>wyrwood-&lt;name&gt;</code>.
+                  <code>wyrwood-&lt;name&gt;</code>, with a{" "}
+                  <code>--&lt;number&gt;</code> suffix when the name was used
+                  before.
                 </>
               }
             >

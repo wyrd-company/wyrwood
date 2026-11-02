@@ -31,7 +31,7 @@ func (server *Server) policyDeleteConfirm(request *http.Request, stored store.St
 	name := stored.Policy.Name
 	return policyDeletePage{confirmPage: confirmPage{
 		layout: server.layout(request, "Delete policy", "policies"), Heading: "Delete policy " + name + "?",
-		Body:   "This removes the policy " + name + " and its OpenBao policy " + stored.Policy.OpenBaoPolicyName() + ". No binding selects it. A new policy with this name starts at revision 1.",
+		Body:   "This removes the policy " + name + " and its OpenBao policy " + stored.Policy.OpenBaoPolicyName() + ". No binding selects it. A new policy with this name starts at revision 1 and is a different policy with its own OpenBao policy, so a token of this one has no access to it.",
 		Action: "/policies/delete?name=" + url.QueryEscape(name), Button: "Delete policy", Danger: true, Back: policyPath(name),
 	}}
 }

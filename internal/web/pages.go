@@ -619,6 +619,7 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	stored, err := server.controller.Store().Policy(request.Context(), document.Name)
 	if err == nil {
 		page.Revision = stored.Policy.Revision
+		page.PolicyPath = "sys/policies/acl/" + stored.Policy.OpenBaoPolicyName()
 	}
 	if !page.New {
 		if err == nil {

@@ -309,3 +309,45 @@ func TestPolicyDeleteCraftedNamesReachNothing(t *testing.T) {
 		t.Fatal("a crafted name changed a policy")
 	}
 }
+
+// Every screen names the identity the policy has, not the one its name implies.
+func TestPolicyScreensNameTheIdentityOfARecreatedPolicy(t *testing.T) {
+	fixture := newListFixture(t)
+	const name = "scratch-policy"
+	fixture.published(t, name)
+	if got := fixture.deletePolicy(t, name); got.status != http.StatusSeeOther {
+		t.Fatalf("delete status = %d", got.status)
+	}
+	const identity = "wyrwood-scratch-policy--2"
+	if saved := fixture.published(t, name); saved.OpenBaoPolicyName() != identity {
+		t.Fatalf("identity = %s", saved.OpenBaoPolicyName())
+	}
+	path := "sys/policies/acl/" + identity
+	editor := get(t, fixture.client, fixture.harness.site.URL+policyPath(name))
+	if !strings.Contains(editor.body, path) {
+		t.Fatalf("the editor does not name %s", path)
+	}
+	confirm := fixture.confirmDelete(t, name)
+	if !strings.Contains(confirm.data.Body, identity) {
+		t.Fatalf("confirm body = %q", confirm.data.Body)
+	}
+	if !strings.Contains(confirm.data.Body, "a token of this one has no access") {
+		t.Fatalf("confirm body = %q", confirm.data.Body)
+	}
+	// A refused save renders from the form, which holds no identity.
+	refused := post(t, fixture.client, fixture.harness.site.URL+"/policies", url.Values{
+		"csrf": {fixture.deleteToken(t)}, "name": {name}, "hcl": {`path "kv/*" { capabilities = [`},
+	})
+	if refused.status != http.StatusUnprocessableEntity {
+		t.Fatalf("refused save status = %d", refused.status)
+	}
+	if !strings.Contains(refused.body, path) {
+		t.Fatalf("the refused save does not name %s", path)
+	}
+	if got := fixture.deletePolicy(t, name); got.status != http.StatusSeeOther {
+		t.Fatalf("delete status = %d", got.status)
+	}
+	if fixture.acl(t, identity) != "" || fixture.stored(t, name) {
+		t.Fatal("the delete left the recreated policy")
+	}
+}
