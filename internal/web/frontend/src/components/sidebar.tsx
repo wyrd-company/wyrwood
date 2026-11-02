@@ -20,6 +20,9 @@ export function Brand() {
     </a>
   );
 }
+// The new-issue form takes no query data, so that no site value leaves through
+// this link.
+const reportIssueURL = "https://github.com/wyrd-company/wyrwood/issues/new";
 export function Sidebar({ data }: { data: Layout }) {
   return (
     <nav className="nav" aria-label="Primary">
@@ -62,6 +65,10 @@ export function Sidebar({ data }: { data: Layout }) {
           </span>
         )}
         <span className="mono">{data.Controller}</span>
+        <a href={reportIssueURL} target="_blank" rel="noopener noreferrer">
+          Report an issue{" "}
+          <span className="visually-hidden">(opens GitHub in a new tab)</span>
+        </a>
       </div>
       <Account data={data} />
     </nav>

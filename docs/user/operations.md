@@ -29,6 +29,7 @@ behind a reverse proxy that terminates TLS.
 | **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
 | **Account → Security** | Inspect sign-in details and end operator sessions. |
+| **Report an issue** | Open the GitHub form for a new Wyrwood issue in a new tab. The link sends no data about your site. |
 
 Follow [Getting started](getting-started.md) for agent approval, policy creation,
 and container binding with screenshots.

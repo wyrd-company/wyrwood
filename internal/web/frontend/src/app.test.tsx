@@ -162,6 +162,9 @@ describe("sign-in", () => {
       expect(form).toHaveAttribute("action", "/auth/start");
       expect(form).toHaveAttribute("method", "post");
       expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Report an issue/ }),
+      ).not.toBeInTheDocument();
       if (Problem === "denied")
         expect(screen.getByText("sample@example.com")).toBeInTheDocument();
       if (Problem === "expired")
@@ -312,6 +315,59 @@ it("marks Security as the current menu item", async () => {
     "aria-current",
     "page",
   );
+});
+
+const agentsPage: Page = {
+  page: "agents",
+  data: {
+    ...layout,
+    ...versionInfo,
+    HostKey: "sample-fingerprint",
+    PendingKeys: null,
+    Approved: null,
+  },
+};
+describe("Report an issue link", () => {
+  it("goes to the GitHub form with no site data, in a new tab", () => {
+    draw(agentsPage);
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const link = within(nav).getByRole("link", {
+      name: "Report an issue (opens GitHub in a new tab)",
+    });
+    expect(link.getAttribute("href")).toBe(
+      "https://github.com/wyrd-company/wyrwood/issues/new",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(link.parentElement).toHaveClass("nav-foot");
+  });
+
+  it("shows on the confirm page", () => {
+    draw({
+      page: "confirm",
+      data: {
+        ...layout,
+        Heading: "Sample",
+        Body: "Sample",
+        Action: "/sample",
+        Button: "Sample",
+        Danger: false,
+        Back: "/agents",
+      },
+    });
+    expect(
+      screen.getByRole("link", { name: /Report an issue/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("is reachable by keyboard", async () => {
+    const user = userEvent.setup();
+    draw(agentsPage);
+    const link = screen.getByRole("link", { name: /Report an issue/ });
+    for (let stop = 0; stop < 20 && document.activeElement !== link; stop += 1)
+      await user.tab();
+    expect(link).toHaveFocus();
+  });
 });
 
 const openBaoURL =

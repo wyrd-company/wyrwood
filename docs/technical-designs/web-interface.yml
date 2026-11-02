@@ -55,7 +55,12 @@ proposed-design:
     primitives. Its items are Security and Sign out. Security links to
     `/security`; Sign out submits a native POST form to `/sign-out` with
     the per-session anti-forgery token. The menu supports keyboard navigation,
-    screen-reader semantics, and focus restoration on dismissal. Beside the
+    screen-reader semantics, and focus restoration on dismissal. The sidebar
+    foot shows a Report an issue link to
+    `https://github.com/wyrd-company/wyrwood/issues/new`. It opens a new tab
+    with noopener noreferrer, its accessible name says that it opens GitHub,
+    and its URL carries no query data, so that no site value leaves through
+    it. The sign-in page has no sidebar and does not show the link. Beside the
     page, the sidebar stays in the viewport and scrolls independently when
     its controls exceed the viewport height. Above the page, the sidebar
     uses its content height. The controller binds to a configurable address
