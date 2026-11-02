@@ -10,17 +10,13 @@
 package baotest
 
 import (
-	"bytes"
 	"context"
 	"fmt"
-	"net"
-	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/openbao/openbao/api/v2"
 )
@@ -85,41 +81,15 @@ func Executable(t testing.TB) string {
 func Start(t testing.TB) *Server {
 	t.Helper()
 	executable := Executable(t)
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	process, taken, err := startDevServer(executable, t.TempDir(), reserveLoopbackAddress, startBudget)
+	for _, address := range taken {
+		t.Logf("OpenBao dev server lost %s to another socket before binding it; used another address", address)
+	}
 	if err != nil {
 		t.Fatal(err)
 	}
-	address := listener.Addr().String()
-	_ = listener.Close()
-
-	var output bytes.Buffer
-	command := exec.Command(executable, "server", "-dev", "-dev-root-token-id="+RootToken,
-		"-dev-listen-address="+address, "-dev-no-store-token")
-	command.Env = []string{"HOME=" + t.TempDir(), "PATH=" + os.Getenv("PATH")}
-	command.Stdout = &output
-	command.Stderr = &output
-	if err := command.Start(); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = command.Process.Kill()
-		_ = command.Wait()
-	})
-	url := "http://" + address
-	deadline := time.Now().Add(20 * time.Second)
-	for {
-		response, err := http.Get(url + "/v1/sys/health")
-		if err == nil {
-			_ = response.Body.Close()
-			if response.StatusCode == http.StatusOK {
-				break
-			}
-		}
-		if time.Now().After(deadline) {
-			t.Fatalf("OpenBao dev server did not start: %s", output.String())
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	t.Cleanup(process.stop)
+	url := process.url()
 	configuration := api.DefaultConfig()
 	configuration.Address = url
 	topLevel, err := api.NewClient(configuration)
