@@ -103,6 +103,12 @@ description: >-
   generation; the controller's store owns it. An edit keeps the OpenBao policy, so
   a live token observes accepted HCL.
 
+  A rename keeps the document, HCL, and binding selection of a policy, changes its
+  name, and records a revision. Its OpenBao policy becomes the next generation of the
+  new name, the old OpenBao policy is removed, and a later policy with the old name is
+  a different policy. A rename onto a name in use is refused, and a rename to the same
+  name changes nothing.
+
   A policy document contains no secret. The controller stores it in SQLite
   and in OpenBao as compiled HCL with the managed lifecycle grants.
 validation-criteria: >-

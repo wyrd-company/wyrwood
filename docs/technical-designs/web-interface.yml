@@ -237,6 +237,18 @@ proposed-design:
     offers the delete again. A successful delete returns to the Policies page
     with a notice. Both routes require the operator session, and POST requires
     the anti-forgery token.
+    A saved policy's page has a Rename action. GET `/policies/rename` with the
+    name in its query opens a screen that takes the new name, names the current
+    OpenBao policy, and states the count of affected bindings, that each gets a
+    fresh credential, and that token lifetime is unchanged. It lists those bindings
+    through the Bindings section's projection. POST to the same address renames, and
+    the name comes only from the query. A refusal keeps the reason and what the
+    operator typed. A policy that does not exist answers 404 with a way back, which
+    also answers a replay. A successful rename opens the policy under its new name
+    with a notice. A rename that committed with its transition pending opens the same
+    page with a notice that the controller is finishing it. A rename to the same name
+    returns to the policy. Both routes require the operator session, and POST requires
+    the anti-forgery token.
     Simple path/capability HCL has graphical path rows and capability checkboxes.
     Graphical edits replace only the chosen source span. Unsupported constructs
     fall back to the complete raw HCL text; switching views alone does not

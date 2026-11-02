@@ -111,6 +111,51 @@ proposed-design:
     Effective sources carry a generation only above 1. An assignment that names
     only first uses keeps its bytes and its identity across the move to schema 3,
     and that move issues no credential. There is no name-reuse ban and no timer.
+  policy-rename: >-
+    A rename keeps the logical policy: its document, ACL text, revision history,
+    and binding membership. It changes the one name, records a revision, and moves
+    the row to the next generation of the new name, so that a later policy of the
+    old name is a different policy that tokens of this one cannot reach. Renaming
+    to the same name changes nothing and records no revision or event. The request
+    carries the revision and generation the operator saw, so a page opened before a
+    save, or a page of an earlier policy of that name, is refused. A replay finds
+    no such policy. A name in use is refused. The order is: record the new identity
+    for retirement, publish it, commit, apply each binding, remove the old identity.
+    The commit is one transaction that inserts the new row and its generation
+    record, moves every binding_policies row, writes each affected binding's next
+    assignment with a revision increment and applied 0, deletes the old row, ends
+    the new identity's retirement record, and records the old identity's. A rename
+    computed from a stale membership or binding revision is refused by that
+    transaction. Bindings that do not select the policy keep their assignment.
+    Applying a binding writes its role with the new identity, then revokes its old
+    token by the reported accessor, as an ordinary change does. A connected agent
+    then requires a fresh credential, because its membership check is exact. A
+    disconnected agent's role and revocation proceed through OpenBao, and it takes
+    the new assignment and a fresh credential on reconnect.
+    A failed or uncertain publication removes what it wrote, and nothing else
+    changes. A failed commit reads the store back: a committed rename goes on, a
+    rename that did not commit removes its identity, and an unreadable store removes
+    nothing now.
+  policy-retirement: >-
+    A retirement record in the policy_retirements table names one exact OpenBao
+    identity to remove. Only a derived identity is recorded, and only a recorded
+    identity is removed; the controller never lists OpenBao policies to find one. A
+    record written before publication covers a failure or restart before the commit,
+    and the commit ends it. A record written by the commit covers the old identity.
+    The consumer runs in the controller, needs no client, and sleeps until a rename
+    or startup wakes it. While a record remains, it retries on the controller's
+    OpenBao retry interval. Each pass finishes any pending policy synchronization and
+    applies every binding that is not applied, because the role of such a binding can
+    still name a retired identity. Until every binding is applied, it removes nothing,
+    so the old ACL stays while a transition is pending. It then handles each record.
+    A record whose identity a stored row holds ends without a delete, because that
+    policy took the identity after the record was written. Any other record is
+    deleted from OpenBao and ends only after a read-back confirms that the policy is
+    gone. A pending ordinary save, with no record present, keeps its existing recovery
+    at the next credential request or startup. All of this runs under the mutation
+    lock, so a save or rename that races a removal waits, and then finds its own new
+    identity. A rename of a policy held by a token whose accessor no agent reported
+    leaves that token until the old identity goes; it then has no access.
   hcl-composition: >-
     The effective HCL is the union of the selected named source documents,
     sorted by policy name and annotated with source name and revision. The

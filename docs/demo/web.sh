@@ -151,11 +151,24 @@ browse wait --text "cannot be deleted"
 hold 2
 shot web-policy-delete
 
-# A policy that no binding selects can be, through its confirm screen.
+# A bound policy can be renamed, and the screen says who gets a fresh credential.
+browse open "$site/policies/edit?name=teal"
+browse wait --text "1 binding on 1 agent"
+browse find role link click --name "Rename"
+browse wait --text "fresh credential"
+hold 2
+shot web-policy-rename
+
+# A policy that no binding selects can be deleted, through its confirm screen.
 browse open "$site/policies/edit"
-browse type "#name" "scratch"
+browse type "#name" "draft"
 browse find role button click --name "Save and validate"
 browse wait --text "Revision 1"
+browse find role link click --name "Rename"
+browse wait --text "New name"
+browse fill "#new-name" "scratch"
+browse find role button click --name "Rename policy"
+browse wait --text "Policy renamed"
 browse find role link click --name "Delete policy"
 browse wait --text "wyrwood-scratch"
 hold 2

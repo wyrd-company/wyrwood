@@ -23,7 +23,7 @@ behind a reverse proxy that terminates TLS.
 | In the web interface | Action |
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
-| **Policies** | Create or edit HCL, select SSH identities, save and validate, see the bindings that select a policy, and delete a policy that no binding selects. |
+| **Policies** | Create or edit HCL, select SSH identities, save and validate, see the bindings that select a policy, rename a policy, and delete a policy that no binding selects. |
 | **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
@@ -51,6 +51,35 @@ it from **Security**. While the provider is unreachable the interface cannot
 be used, but agents keep serving containers.
 
 ![Security page with operator and identity-provider details](assets/web-security.png)
+
+## Rename a policy
+
+Open a policy and select **Rename**. Enter the new name, which follows the same
+rule as any policy name and must not be in use. You can rename a policy that
+bindings select. The screen states how many bindings are affected and lists them.
+Each one gets a fresh credential, and its token lifetime does not change.
+
+![Rename screen for a policy that one binding selects](assets/web-policy-rename.png)
+
+The policy keeps its document, HCL, and bindings. Its OpenBao policy changes to the
+one for the new name, and the old OpenBao policy is removed after every binding has
+moved. A container's old token is revoked and it reads with the new token, as with
+any binding change. An agent that is not connected takes the new assignment and a
+fresh credential when it reconnects.
+
+If you rename `alpha` to `beta`, and later create a policy named `alpha`, the new
+`alpha` is a different policy with its own OpenBao policy, such as `wyrwood-alpha--2`.
+A token of the renamed policy has no access to it. The same is true when you rename a
+policy back to a name it had before.
+
+If OpenBao is not available after the rename is recorded, the policy page says the
+transition is pending. The old OpenBao policy stays until the controller finishes.
+The controller retries while the work is pending, with no action from you and without
+a restart. If OpenBao refuses the new policy before the rename is recorded, the
+policy keeps its name.
+
+A page opened before a save or an earlier rename cannot rename the policy: reload it
+and try again.
 
 ## Delete a policy
 
@@ -133,7 +162,7 @@ The agent and the controller each retain a bounded event history. Agent
 events cover container observation, bindings, contract checks and recreates,
 token login and renewal, vault requests by mount category, and SSH identity
 listing, signing, and certificate issuance. Controller events cover operator
-sign-in and sign-out, agent approval, sessions, policy saves and deletes,
+sign-in and sign-out, agent approval, sessions, policy saves, deletes, and renames,
 bindings, and credential issuance, and name the operator who acted. Events
 contain no tokens, secret values, request bodies, paths, signatures, or raw
 upstream errors.
