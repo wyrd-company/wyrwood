@@ -9,6 +9,7 @@ package web
 import (
 	"context"
 	"errors"
+	"maps"
 	"net/http"
 	"net/url"
 	"slices"
@@ -104,20 +105,13 @@ func withQuery(path string, values url.Values) string {
 	return path + "?" + values.Encode()
 }
 
-func listURL(list url.Values) string {
-	return withQuery("/containers", list)
-}
-
 func bindingPath(id string) string {
 	return "/bindings/" + url.PathEscape(id)
 }
 
 // containerScreenURL is the screen for a row, opened from the given list.
 func containerScreenURL(row containerRow, list url.Values) string {
-	values := url.Values{}
-	for name, value := range list {
-		values[name] = value
-	}
+	values := maps.Clone(list)
 	if row.Bound {
 		values.Set("container", row.ID)
 		return withQuery(bindingPath(row.BindingID), values)
@@ -168,6 +162,7 @@ func (server *Server) boundContainer(ctx context.Context, binding store.Binding,
 	row := containerRow{AssignableGroups: server.controller.AssignableGroups(binding.Agent), Agent: binding.Agent,
 		Connected: server.controller.Connected(binding.Agent), Name: binding.Key.Value}
 	view.applyBinding(&row, binding)
+	row.Badge, row.BadgeClass = notReportedBadge()
 	return row, false
 }
 
@@ -187,12 +182,12 @@ func (server *Server) renderBindScreen(writer http.ResponseWriter, request *http
 			form.Key = row.Candidates[0].Encoded
 		}
 	}
-	base := server.layout(request, "Bind container", "containers")
+	base := server.layout(request, "Add binding", "bindings")
 	base.Problem = problem
 	list := listContext(request.URL.Query())
 	server.renderStatus(writer, request, status, "binding", bindingScreen{
 		layout: base, Row: row, Reported: true, Policies: server.policyChoices(request.Context(), form.Policies), Form: form,
-		Screen: containerScreenURL(row, list), Action: withQuery("/bindings", list), Back: listURL(list),
+		Screen: containerScreenURL(row, list), Action: withQuery(bindingsPath, list), Back: addBindingURL(list),
 	})
 }
 
@@ -202,13 +197,10 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 	if form != nil {
 		shown = *form
 	}
-	base := server.layout(request, "Container binding", "containers")
+	base := server.layout(request, "Binding", "bindings")
 	base.Problem = problem
 	list := listContext(request.URL.Query())
-	values := url.Values{}
-	for name, value := range list {
-		values[name] = value
-	}
+	values := maps.Clone(list)
 	if reported {
 		values.Set("container", row.ID)
 	}
@@ -220,22 +212,23 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 	})
 }
 
-func (server *Server) renderNotFound(writer http.ResponseWriter, request *http.Request, heading, body string) {
+func (server *Server) renderNotFound(writer http.ResponseWriter, request *http.Request, heading, body, back string) {
 	server.renderStatus(writer, request, http.StatusNotFound, "confirm", confirmPage{
-		layout: server.layout(request, heading, "containers"), Heading: heading, Body: body, Back: listURL(listContext(request.URL.Query())),
+		layout: server.layout(request, heading, "bindings"), Heading: heading, Body: body, Back: back,
 	})
 }
 
 func (server *Server) renderBindingNotFound(writer http.ResponseWriter, request *http.Request) {
-	server.renderNotFound(writer, request, "Binding not found", "This binding does not exist. It may have been removed. Return to the list to find the container.")
+	server.renderNotFound(writer, request, "Binding not found", "This binding does not exist. It may have been removed. Return to the bindings list to find its container.",
+		listURL(listContext(request.URL.Query())))
 }
 
 func (server *Server) renderContainerNotReported(writer http.ResponseWriter, request *http.Request, problem string) {
-	body := "No approved agent reports this container now. Return to the list to choose a container that is reported."
+	body := "No approved agent reports this container now. Return to Add binding to choose a container that is reported."
 	if problem != "" {
 		body += " The binding was not saved: " + problem
 	}
-	server.renderNotFound(writer, request, "Container not reported", body)
+	server.renderNotFound(writer, request, "Container not reported", body, addBindingURL(listContext(request.URL.Query())))
 }
 
 // loadBinding answers for the request when the binding cannot be read.
@@ -353,7 +346,7 @@ func (server *Server) handleConfirmRecreate(writer http.ResponseWriter, request 
 	values := screenContext(request)
 	path := bindingPath(binding.ID)
 	server.render(writer, request, "confirm", confirmPage{
-		layout: server.layout(request, "Request recreate", "containers"), Heading: "Recreate this container?",
+		layout: server.layout(request, "Request recreate", "bindings"), Heading: "Recreate this container?",
 		Body:   "The agent stops the container bound by " + string(binding.Key.Kind) + " key, removes it with its volumes kept, and creates it again with the contract's mount and environment applied. Its writable layer is discarded and attached editors reconnect. The host must allow recreate.",
 		Action: withQuery(path+"/recreate", values), Button: "Recreate container", Danger: true, Back: withQuery(path, values),
 	})
@@ -379,7 +372,7 @@ func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *h
 	values := screenContext(request)
 	path := bindingPath(binding.ID)
 	server.render(writer, request, "confirm", confirmPage{
-		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
+		layout: server.layout(request, "Unbind", "bindings"), Heading: "Unbind and revoke?",
 		Body:   "This deletes the binding of policies " + strings.Join(binding.Policies, ", ") + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the container's sockets stop answering. The agent removes the sockets and leaves their directory in place.",
 		Action: withQuery(path+"/unbind", values), Button: "Unbind and revoke AppRole", Danger: true, Back: withQuery(path, values),
 	})

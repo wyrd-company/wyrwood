@@ -96,13 +96,41 @@ export interface ContainerRow {
       }[]
     | null;
 }
-export interface ContainersData extends Layout {
-  Agents: { Name: string; Containers: number; Selected: boolean }[] | null;
+export interface BindingRow {
+  ID: string;
+  Agent: string;
+  Connected: boolean;
+  LastReport: string;
+  KeyKind: string;
+  KeyValue: string;
+  Policies: string[] | null;
+  Containers:
+    | {
+        ID: string;
+        Name: string;
+        Image: string;
+        State: string;
+        Screen: string;
+      }[]
+    | null;
+  Badge: string;
+  BadgeClass: string;
+  Screen: string;
+}
+export interface ListData extends Layout {
+  Agents: { Name: string; Count: number; Selected: boolean }[] | null;
   FilterAgent: string;
   Query: string;
   Sort: string;
   Order: string;
+}
+export interface BindingsData extends ListData {
+  Rows: BindingRow[] | null;
+  Add: string;
+}
+export interface AddBindingData extends ListData {
   Rows: ContainerRow[] | null;
+  Back: string;
 }
 export interface BindingForm {
   Key: string;
@@ -220,7 +248,8 @@ export type Page = {
 interface PageModels {
   "sign-in": SignInData;
   agents: AgentsData;
-  containers: ContainersData;
+  bindings: BindingsData;
+  "add-binding": AddBindingData;
   binding: BindingData;
   confirm: ConfirmData;
   policies: PoliciesData;

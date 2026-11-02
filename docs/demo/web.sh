@@ -97,9 +97,13 @@ hold 2.5
 shot web-policy
 
 # Bind a reported container to the policy.
-browse find role link click --name "Containers"
+browse find role link click --name "Bindings"
+browse wait --text "No bindings yet"
+hold 1.5
+browse find role link click --name "Add binding"
 browse wait --text "teal-api"
 hold 1.5
+shot web-add-binding
 browse find text "teal-api" click
 browse wait --text "Binding settings"
 browse find role checkbox click --name "teal" --exact
@@ -127,11 +131,11 @@ browse scrollintoview "#h-setup"
 browse wait --text "Host source"
 shot web-container-setup
 
-# Return to the list, which shows the bound container's state.
-browse find role link click --name "Back to containers"
-browse wait --text "Filter containers"
+# Return to the list, which shows the binding and its state.
+browse find role link click --name "Back to bindings"
+browse wait --text "Filter bindings"
 hold 2
-shot web-containers
+shot web-bindings
 
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"

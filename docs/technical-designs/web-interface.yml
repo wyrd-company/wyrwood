@@ -49,7 +49,7 @@ proposed-design:
     anti-forgery token. The sidebar, account area, and policy editor have
     separate components. Bundled scripts load from the controller origin; no
     inline executable script or third-party asset host is needed. The fixed
-    primary navigation is: Agents, Containers, Policies, OpenBao keys,
+    primary navigation is: Agents, Bindings, Policies, OpenBao keys,
     Events, and Settings. The account menu at the bottom of the sidebar names the
     signed-in operator and opens with the shadcn/ui Radix DropdownMenu
     primitives. Its items are Security and Sign out. Security links to
@@ -126,18 +126,43 @@ proposed-design:
     disabled, checking, unavailable, up to date, or have found an update.
     A failed check retains the last successful release and its observation age.
     Development versions are displayed without a release comparison.
-  containers-page: >-
-    Lists all approved agents' reported containers by default with name, image,
-    agent, connection state, last report time, key kind, bound policies, and
-    one binding state: conforms, non-conforming, degraded, or not bound.
-    Disconnected agents retain their last reported containers and are labelled
-    disconnected. A GET form filters by agent and case-insensitive text across
-    agent, container ID, name, image, runtime state, binding state, key and
-    policies. Operators can sort by container name, agent, image or binding
-    state in either direction and clear filters. Container identity includes
-    both agent and container ID. The table has no detail panel and uses the
-    full width of the page. A row link opens the container's screen and retains
-    the list's filters and sorting, and each screen links back to that list.
+  bindings-page: >-
+    GET /bindings lists one row per stored binding across approved agents, with
+    the observed name and image of each container that its agent reports for
+    the binding, agent, connection state, last report time, key kind and value,
+    policies, and one state: conforms, non-conforming, degraded, or not
+    reported. A binding key can select several containers, and the row shows
+    each one, so that no reported container is hidden by the row count. A
+    binding with no matching reported container keeps its row, marked Not
+    reported, with its agent and key and a link to its screen. This state is
+    not an error, and it does not remove the binding, which survives a rebuild
+    that preserves its key. Disconnected agents' rows use their last report and
+    are labelled disconnected. A failed store read answers an error page and
+    never reads as bindings being absent or not reported. The rows come from one
+    read projection, shared by every page that lists bindings. A GET form
+    filters by agent and case-insensitive text across agent, key, policies,
+    state, and each container's ID, name, image and runtime state. Operators can
+    sort by container name, agent, image, key, policies or state in either
+    direction. A filter that matches nothing says so and clears with one link.
+    The table has no detail panel and uses the full width of the page. A row
+    link opens the binding's screen and retains the list's filters and sorting,
+    and each screen links back to that list. Add binding opens the add-binding
+    screen with the same filters.
+  add-binding-screen: >-
+    GET /bindings/add lists the containers that approved agents report and that
+    have no binding, with name, image, agent, connection state, last report
+    time, offered key kinds, and runtime state. Together with the bindings list
+    this shows every container an agent reports: a container is on exactly one
+    of them. The screen has the same agent filter, a text filter across agent,
+    container ID, name, image, runtime state and offered keys, and sort by
+    container name, agent, image or runtime state. A row link opens the bind
+    screen and retains the filters, and the bind screen links back here.
+  containers-address: >-
+    GET /containers redirects permanently to GET /bindings, so that a saved link
+    keeps working. It retains filter-agent, q, sort and order. The agent query
+    value becomes filter-agent when filter-agent is absent. Other values are
+    dropped, including the container value of a former selection link. The
+    Agents page links directly to /bindings.
   bind-screen: >-
     GET /bindings/new?agent=<agent>&container=<id> shows one unbound reported
     container, taking the agent from the approved agent's report. The screen
@@ -149,8 +174,8 @@ proposed-design:
     composition and shows source names/revisions, combined HCL, identities,
     forwarding restrictions, contract, and settings. A conflicting selection
     shows an actionable error. A container that no approved agent reports gives
-    a 404 page that says so and links back to the list. A container that is
-    already bound goes to its binding screen.
+    a 404 page that says so and links back to the add-binding screen. A container
+    that is already bound goes to its binding screen.
   binding-screen: >-
     GET /bindings/{id} shows one bound container, taking the agent from the
     binding record. A binding key can select several reported containers; the
@@ -163,7 +188,7 @@ proposed-design:
     escapes interpolation and disables automatic host-path creation; the agent
     owns the directory. Missing directory or image observations leave examples
     unavailable rather than guessing a source. A binding whose container is not
-    reported shows the binding record and says so. A binding that does not exist
+    reported shows the binding record with the state Not reported and says so. A binding that does not exist
     gives a 404 page. Cancelling a recreate or unbind confirmation returns to
     this screen.
   binding-failures: >-

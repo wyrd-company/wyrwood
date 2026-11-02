@@ -12,7 +12,9 @@ export function Binding({ data: d }: { data: BindingData }) {
   const r = d.Row;
   return (
     <main className="wide">
-      <a href={d.Back}>Back to containers</a>
+      <a href={d.Back}>
+        {r.Bound ? "Back to bindings" : "Back to Add binding"}
+      </a>
       <Notice text={d.Notice} />
       {d.Problem && (
         <p className="problem" role="alert">

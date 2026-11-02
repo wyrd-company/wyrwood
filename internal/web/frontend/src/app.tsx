@@ -6,7 +6,8 @@ import type { Page } from "./types";
 import { Sidebar } from "./components/sidebar";
 import { SignIn } from "./pages/sign-in";
 import { Agents } from "./pages/agents";
-import { Containers } from "./pages/containers";
+import { Bindings } from "./pages/bindings";
+import { AddBinding } from "./pages/add-binding";
 import { Binding } from "./pages/binding";
 import { Confirm } from "./pages/confirm";
 import { Policies } from "./pages/policies";
@@ -21,8 +22,10 @@ function Content({ page }: { page: Page }) {
       return <SignIn data={page.data} />;
     case "agents":
       return <Agents data={page.data} />;
-    case "containers":
-      return <Containers data={page.data} />;
+    case "bindings":
+      return <Bindings data={page.data} />;
+    case "add-binding":
+      return <AddBinding data={page.data} />;
     case "binding":
       return <Binding data={page.data} />;
     case "confirm":

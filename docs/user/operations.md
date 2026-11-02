@@ -16,7 +16,7 @@ use host commands; policies and bindings are managed in the web interface.
 ## Web interface
 
 The controller's web interface shows agents with pending approvals,
-all reported containers with binding and conformance state, policies, OpenBao
+bindings with their conformance state, reported containers, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
 behind a reverse proxy that terminates TLS.
 
@@ -24,7 +24,7 @@ behind a reverse proxy that terminates TLS.
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
 | **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
-| **Containers** | Find a container, then open its screen to bind policies and inspect its contract check. |
+| **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
@@ -69,13 +69,21 @@ credential-file paths are omitted. Endpoint origins show only scheme and host.
 
 ## Container setup
 
-**Containers** shows all approved agents’ last reported containers. Filter by
-agent or text, sort by container, agent, image or binding state, and choose
-ascending or descending order. Disconnected rows retain the last report and
-show its age. Selecting a container opens its screen. **Back to containers**
+**Bindings** lists every binding of the approved agents, with the containers
+each one governs. Filter by agent or text, sort by container, agent, image, key,
+policies or state, and choose ascending or descending order. Disconnected rows
+retain the last report and show its age. A binding whose container the agent no
+longer reports stays in the list, marked **Not reported**, with its agent and
+key. This is not an error, and the binding applies again when a container with
+its key returns. Selecting a row opens the binding's screen. **Back to bindings**
 returns to the list with the same filters and order.
 
-In **Containers**, open a bound container and scroll to **Container setup**. Copy
+**Add binding** lists the reported containers that have no binding, with the
+same filters. Every container an agent reports is on one of these two pages.
+Selecting a container opens its bind screen. Links to the former `/containers`
+address go to **Bindings** with their filters.
+
+In **Bindings**, open a binding and scroll to **Container setup**. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
 example. The examples use the saved effective contract, including its
 environment values and custom mount target. Run them on the selected agent

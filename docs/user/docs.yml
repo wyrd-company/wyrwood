@@ -11,7 +11,8 @@ assets:
   - assets/web-bind.png
   - assets/web-container-setup.png
   - assets/web-binding.png
-  - assets/web-containers.png
+  - assets/web-add-binding.png
+  - assets/web-bindings.png
   - assets/web-keys.png
   - assets/web-events.png
   - assets/web-settings.png
@@ -66,9 +67,12 @@ products:
       - src: assets/web-binding.png
         caption: A bound container that conforms to its contract.
         alt: The binding screen of a container that meets its contract.
-      - src: assets/web-containers.png
-        caption: The container list with a bound container.
-        alt: The containers list with a bound container that meets its contract.
+      - src: assets/web-add-binding.png
+        caption: Reported containers that have no binding.
+        alt: The add binding screen listing reported containers with no binding.
+      - src: assets/web-bindings.png
+        caption: The bindings list with a binding and its container.
+        alt: The bindings list with a binding whose container meets its contract.
       - src: assets/web-keys.png
         caption: OpenBao keys page with Transit keys and SSH-engine roles.
         alt: The keys page listing OpenBao Transit keys and SSH-engine roles.

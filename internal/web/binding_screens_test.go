@@ -159,7 +159,7 @@ func TestBindScreenRendersFormFromTheAgentsReport(t *testing.T) {
 		t.Fatalf("policies = %#v", screen.data.Policies)
 	}
 	back, err := url.Parse(screen.data.Back)
-	if err != nil || back.Path != "/containers" || !reflect.DeepEqual(back.Query(), url.Values{"q": {"sample"}, "sort": {"agent"}, "order": {"desc"}}) {
+	if err != nil || back.Path != "/bindings/add" || !reflect.DeepEqual(back.Query(), url.Values{"q": {"sample"}, "sort": {"agent"}, "order": {"desc"}}) {
 		t.Fatalf("back = %q", screen.data.Back)
 	}
 	body := renderedPage(t, screen.raw)
@@ -262,7 +262,7 @@ func TestFailedCreateStaysOnBindScreenWithEnteredValues(t *testing.T) {
 	if got := selectedPolicies(data.Policies); !reflect.DeepEqual(got, []string{"first"}) {
 		t.Fatalf("selected = %v", got)
 	}
-	if data.Back != "/containers?order=desc&q=sample" || !strings.HasPrefix(data.Action, "/bindings?") {
+	if data.Back != "/bindings/add?order=desc&q=sample" || !strings.HasPrefix(data.Action, "/bindings?") {
 		t.Fatalf("back = %q action = %q", data.Back, data.Action)
 	}
 	if bindings, _ := fixture.harness.controller.Store().Bindings(context.Background(), "host-a"); len(bindings) != 0 {
@@ -331,7 +331,7 @@ func TestSuccessfulCreateGoesToTheBindingScreen(t *testing.T) {
 	if err != nil || !strings.HasPrefix(target.Path, "/bindings/b-") || target.Query().Get("q") != "sample" || target.Query().Get("container") != "shared-id" {
 		t.Fatalf("redirect = %s", bound.url)
 	}
-	if !strings.Contains(bound.data.Notice, "Policy bound") || bound.data.Row.ID != "shared-id" || bound.data.Back != "/containers?q=sample" {
+	if !strings.Contains(bound.data.Notice, "Policy bound") || bound.data.Row.ID != "shared-id" || bound.data.Back != "/bindings?q=sample" {
 		t.Fatalf("bound = %#v", bound.data)
 	}
 }
@@ -440,7 +440,7 @@ func TestUnbindReturnsToTheList(t *testing.T) {
 	binding := fixture.bind(t, "host-a")
 	unbound := fixture.post(t, "/bindings/"+binding.ID+"/unbind?q=sample", url.Values{})
 	target, err := url.Parse(unbound.url)
-	if err != nil || target.Path != "/containers" || target.Query().Get("q") != "sample" || target.Query().Get("filter-agent") != "host-a" || !strings.HasPrefix(target.Query().Get("notice"), "unbound") {
+	if err != nil || target.Path != "/bindings" || target.Query().Get("q") != "sample" || target.Query().Get("filter-agent") != "host-a" || !strings.HasPrefix(target.Query().Get("notice"), "unbound") {
 		t.Fatalf("unbound = %s", unbound.url)
 	}
 }
@@ -466,7 +466,7 @@ func TestUnknownBindingIsNotFound(t *testing.T) {
 				t.Fatalf("response = %d %s", response.status, response.page)
 			}
 			body := renderedPage(t, response.raw)
-			if !strings.Contains(body, "Binding not found") || !strings.Contains(body, `href="/containers"`) {
+			if !strings.Contains(body, "Binding not found") || response.data.Back != "/bindings" {
 				t.Fatalf("not found page = %s", body)
 			}
 		})
@@ -488,7 +488,7 @@ func TestBindScreenForUnreportedContainerSaysSoAndLinksBack(t *testing.T) {
 			t.Fatalf("%q = %d %s", query, screen.status, screen.page)
 		}
 		body := renderedPage(t, screen.raw)
-		if !strings.Contains(body, "Container not reported") || !strings.Contains(body, `href="/containers"`) || strings.Contains(body, "Bind policies") {
+		if !strings.Contains(body, "Container not reported") || screen.data.Back != "/bindings/add" || strings.Contains(body, "Bind policies") {
 			t.Fatalf("%q page = %s", query, body)
 		}
 	}
@@ -504,7 +504,10 @@ func TestBindingScreensRequireASessionAndAntiForgeryToken(t *testing.T) {
 	binding := fixture.bind(t, "host-a")
 	site := fixture.harness.site.URL
 	signedOut := browser(t)
-	for _, path := range []string{"/bindings/new?agent=host-b&container=shared-id", "/bindings/" + binding.ID, "/bindings/" + binding.ID + "/recreate", "/bindings/" + binding.ID + "/unbind"} {
+	// The first answer is the session gate's, so that a route outside the gate
+	// cannot pass by redirecting to one inside it.
+	signedOut.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	for _, path := range []string{"/containers", "/containers?agent=host-b", "/bindings", "/bindings/add", "/bindings/new?agent=host-b&container=shared-id", "/bindings/" + binding.ID, "/bindings/" + binding.ID + "/recreate", "/bindings/" + binding.ID + "/unbind"} {
 		for _, method := range []string{http.MethodGet, http.MethodHead} {
 			request, err := http.NewRequest(method, site+path, nil)
 			if err != nil {
@@ -515,8 +518,8 @@ func TestBindingScreensRequireASessionAndAntiForgeryToken(t *testing.T) {
 				t.Fatal(err)
 			}
 			_ = response.Body.Close()
-			if !strings.HasSuffix(response.Request.URL.Path, "/sign-in") {
-				t.Fatalf("%s %s without a session reached %s", method, path, response.Request.URL)
+			if location := response.Header.Get("Location"); response.StatusCode != http.StatusSeeOther || location != "/sign-in" {
+				t.Fatalf("%s %s without a session = %d %q", method, path, response.StatusCode, location)
 			}
 		}
 	}

@@ -30,7 +30,7 @@ export function Sidebar({ data }: { data: Layout }) {
       <div className="nav-links">
         {[
           ["agents", "Agents"],
-          ["containers", "Containers"],
+          ["bindings", "Bindings"],
           ["policies", "Policies"],
           ["keys", "OpenBao keys"],
           ["events", "Events"],

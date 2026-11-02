@@ -623,21 +623,25 @@ ul.plain li {
   align-items: center;
   gap: 8px;
 }
-.container-filters {
+.list-filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
   align-items: end;
 }
-.container-filters input {
+.list-filters input {
   height: 44px;
 }
-.container-filter-actions {
+.list-filter-actions {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 .filters a {
   min-height: 44px;

@@ -48,7 +48,7 @@ export function Table({
 }: {
   columns: string[];
   children: ReactNode;
-  empty: string;
+  empty: ReactNode;
   count: number;
 }) {
   return (
@@ -100,8 +100,8 @@ export function Field({
 export function policyURL(name: string) {
   return `/policies/edit?name=${encodeURIComponent(name)}`;
 }
-export function containerURL(agent: string) {
-  return `/containers?${new URLSearchParams({ agent })}`;
+export function agentBindingsURL(agent: string) {
+  return `/bindings?${new URLSearchParams({ "filter-agent": agent })}`;
 }
 export function PolicyLinks({ names }: { names: string[] | null }) {
   return names?.length ? (

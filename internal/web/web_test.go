@@ -447,7 +447,7 @@ func TestReportIssueLinkOnEveryAuthenticatedPageOnly(t *testing.T) {
 
 	client := browser(t)
 	harness.signIn(t, client, operator, oidctest.TamperNone)
-	for _, path := range []string{"/agents", "/containers", "/policies", "/policies/edit", "/keys", "/events", "/settings", "/security"} {
+	for _, path := range []string{"/agents", "/bindings", "/bindings/add", "/policies", "/policies/edit", "/keys", "/events", "/settings", "/security"} {
 		result := get(t, client, harness.site.URL+path)
 		if !strings.HasSuffix(result.url, path) {
 			t.Fatalf("%s landed on %s", path, result.url)

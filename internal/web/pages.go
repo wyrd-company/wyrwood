@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -219,23 +218,7 @@ func (server *Server) renderProblem(writer http.ResponseWriter, request *http.Re
 	server.render(writer, request, "confirm", confirmPage{layout: base, Heading: "That did not work", Body: base.Problem, Back: back})
 }
 
-// --- Containers
-
-type containersPage struct {
-	layout
-	Agents      []agentChoice
-	FilterAgent string
-	Query       string
-	Sort        string
-	Order       string
-	Rows        []containerRow
-}
-
-type agentChoice struct {
-	Name       string
-	Containers int
-	Selected   bool
-}
+// --- Container rows
 
 type containerRow struct {
 	AssignableGroups *protocol.AssignableGroups
@@ -281,77 +264,6 @@ type candidate struct {
 type policyChoice struct {
 	Name     string
 	Selected bool
-}
-
-func (server *Server) handleContainers(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	page := containersPage{layout: server.layout(request, "Containers", "containers")}
-	agents, _ := server.controller.Store().Agents(ctx)
-	query := request.URL.Query()
-	page.FilterAgent = query.Get("filter-agent")
-	// Keep agent-only links from the Agents page focused on that host.
-	if !query.Has("filter-agent") {
-		page.FilterAgent = query.Get("agent")
-	}
-	page.Query = query.Get("q")
-	page.Sort = query.Get("sort")
-	if !slices.Contains([]string{"name", "agent", "image", "state"}, page.Sort) {
-		page.Sort = "name"
-	}
-	page.Order = query.Get("order")
-	if page.Order != "desc" {
-		page.Order = "asc"
-	}
-	list := listContext(url.Values{"filter-agent": {page.FilterAgent}, "q": {page.Query}, "sort": {page.Sort}, "order": {page.Order}})
-	view := server.inventoryView(ctx)
-	for _, agent := range agents {
-		if agent.State != store.AgentApproved {
-			continue
-		}
-		rows := server.agentRows(ctx, view, agent)
-		page.Agents = append(page.Agents, agentChoice{Name: agent.Name, Containers: len(rows), Selected: agent.Name == page.FilterAgent})
-		for _, row := range rows {
-			if page.FilterAgent != "" && row.Agent != page.FilterAgent {
-				continue
-			}
-			searchable := strings.Join([]string{row.Agent, row.ID, row.Name, row.Image, row.State, row.Badge, row.KeyKind, row.KeyValue, strings.Join(row.Policies, " ")}, " ")
-			for _, candidate := range row.Candidates {
-				searchable += " " + candidate.Kind + " " + candidate.Value
-			}
-			if !strings.Contains(strings.ToLower(searchable), strings.ToLower(strings.TrimSpace(page.Query))) {
-				continue
-			}
-			row.Screen = containerScreenURL(row, list)
-			page.Rows = append(page.Rows, row)
-		}
-	}
-	sort.Slice(page.Rows, func(left, right int) bool {
-		a, b := page.Rows[left], page.Rows[right]
-		value := func(row containerRow) string {
-			switch page.Sort {
-			case "agent":
-				return row.Agent
-			case "image":
-				return row.Image
-			case "state":
-				return row.Badge
-			default:
-				return row.Name
-			}
-		}
-		comparison := strings.Compare(strings.ToLower(value(a)), strings.ToLower(value(b)))
-		if comparison == 0 {
-			comparison = strings.Compare(a.Agent, b.Agent)
-		}
-		if comparison == 0 {
-			comparison = strings.Compare(a.ID, b.ID)
-		}
-		if page.Order == "desc" {
-			return comparison > 0
-		}
-		return comparison < 0
-	})
-	server.render(writer, request, "containers", page)
 }
 
 // inventoryState holds the controller-wide facts shared by every container row.
