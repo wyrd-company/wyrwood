@@ -23,6 +23,7 @@ const data: PolicyData = {
   New: true,
   Name: "sample",
   Revision: 0,
+  BindingRows: null,
   Bindings: 0,
   Agents: 0,
   HCL: 'path "sample-data/*" { capabilities = ["read"] }',

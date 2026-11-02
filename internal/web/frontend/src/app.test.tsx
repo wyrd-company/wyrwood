@@ -50,6 +50,7 @@ const policy: PolicyData = {
   New: true,
   Name: "sample",
   Revision: 1,
+  BindingRows: [],
   Bindings: 1,
   Agents: 1,
   Warnings: [],
@@ -570,6 +571,7 @@ it.each([1000, 0])(
 const bindingRow = {
   ID: "sample-binding",
   Agent: "sample-host",
+  AgentNotApproved: false,
   Connected: false,
   LastReport: "2026-01-01T00:00:00Z",
   KeyKind: "compose",

@@ -99,6 +99,7 @@ export interface ContainerRow {
 export interface BindingRow {
   ID: string;
   Agent: string;
+  AgentNotApproved: boolean;
   Connected: boolean;
   LastReport: string;
   KeyKind: string;
@@ -179,6 +180,7 @@ export interface PolicyData extends Layout {
   New: boolean;
   Name: string;
   Revision: number;
+  BindingRows: BindingRow[] | null;
   Bindings: number;
   Agents: number;
   HCL: string;

@@ -29,17 +29,18 @@ const (
 // that agent reports for it and the binding's state. It is the read projection
 // for every page that lists bindings.
 type bindingRow struct {
-	ID         string
-	Agent      string
-	Connected  bool
-	LastReport time.Time
-	KeyKind    string
-	KeyValue   string
-	Policies   []string
-	Containers []observedContainer
-	Badge      string
-	BadgeClass string
-	Screen     string
+	ID               string
+	Agent            string
+	AgentNotApproved bool
+	Connected        bool
+	LastReport       time.Time
+	KeyKind          string
+	KeyValue         string
+	Policies         []string
+	Containers       []observedContainer
+	Badge            string
+	BadgeClass       string
+	Screen           string
 }
 
 // observedContainer is one reported container that a binding governs.
@@ -69,34 +70,58 @@ func (server *Server) bindingRows(ctx context.Context) ([]bindingRow, error) {
 		if agent.State != store.AgentApproved {
 			continue
 		}
-		bindings, err := data.Bindings(ctx, agent.Name)
+		agentRows, err := server.agentBindingRows(ctx, agent, results)
 		if err != nil {
 			return nil, err
 		}
-		containers, _, err := data.Inventory(ctx, agent.Name)
-		if err != nil {
-			return nil, err
-		}
-		observed := map[string][]observedContainer{}
-		for _, container := range containers {
-			if binding, ok := controller.ContainerBinding(container, bindings); ok {
-				observed[binding.ID] = append(observed[binding.ID], observedContainer{ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State)})
-			}
-		}
-		connected := server.controller.Connected(agent.Name)
-		for _, binding := range bindings {
-			row := bindingRow{ID: binding.ID, Agent: agent.Name, Connected: connected, LastReport: agent.LastReport,
-				KeyKind: string(binding.Key.Kind), KeyValue: binding.Key.Value, Policies: binding.Policies, Containers: observed[binding.ID]}
-			sort.SliceStable(row.Containers, func(left, right int) bool { return row.Containers[left].Name < row.Containers[right].Name })
-			if len(row.Containers) == 0 {
-				row.Badge, row.BadgeClass = notReportedBadge()
-			} else {
-				row.Badge, row.BadgeClass = stateBadge(results[binding.ID])
-			}
-			rows = append(rows, row)
-		}
+		rows = append(rows, agentRows...)
 	}
 	return rows, nil
+}
+
+// agentBindingRows projects one approved agent's bindings onto the containers
+// that agent reports, so that a key on another agent cannot match.
+func (server *Server) agentBindingRows(ctx context.Context, agent store.Agent, results map[string]store.ContractResult) ([]bindingRow, error) {
+	data := server.controller.Store()
+	bindings, err := data.Bindings(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
+	containers, _, err := data.Inventory(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
+	observed := map[string][]observedContainer{}
+	for _, container := range containers {
+		if binding, ok := controller.ContainerBinding(container, bindings); ok {
+			observed[binding.ID] = append(observed[binding.ID], observedContainer{ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State)})
+		}
+	}
+	connected := server.controller.Connected(agent.Name)
+	rows := make([]bindingRow, 0, len(bindings))
+	for _, binding := range bindings {
+		row := storedBindingRow(binding)
+		row.Connected, row.LastReport, row.Containers = connected, agent.LastReport, observed[binding.ID]
+		sort.SliceStable(row.Containers, func(left, right int) bool { return row.Containers[left].Name < row.Containers[right].Name })
+		if len(row.Containers) > 0 {
+			row.Badge, row.BadgeClass = stateBadge(results[binding.ID])
+		}
+		rows = append(rows, row)
+	}
+	return rows, nil
+}
+
+// storedBindingRow is what the stored binding alone says: no container matched,
+// and therefore not reported.
+func storedBindingRow(binding store.Binding) bindingRow {
+	row := bindingRow{ID: binding.ID, Agent: binding.Agent, KeyKind: string(binding.Key.Kind), KeyValue: binding.Key.Value, Policies: binding.Policies}
+	row.Badge, row.BadgeClass = notReportedBadge()
+	return row
+}
+
+func sortBindingRows(rows []bindingRow, filter listFilter) {
+	sortRows(rows, filter, func(row bindingRow) string { return row.sortValue(filter.Sort) },
+		func(row bindingRow) string { return row.Agent }, func(row bindingRow) string { return row.ID })
 }
 
 // notReportedBadge is the state of a binding with no matching reported
@@ -229,8 +254,7 @@ func (server *Server) handleBindings(writer http.ResponseWriter, request *http.R
 		}
 	}
 	page.Agents = agentChoices(agents, counts, page.FilterAgent)
-	sortRows(page.Rows, page.listFilter, func(row bindingRow) string { return row.sortValue(page.Sort) },
-		func(row bindingRow) string { return row.Agent }, func(row bindingRow) string { return row.ID })
+	sortBindingRows(page.Rows, page.listFilter)
 	server.render(writer, request, "bindings", page)
 }
 

@@ -473,6 +473,7 @@ type policyPage struct {
 	New                  bool
 	Name                 string
 	Revision             int
+	BindingRows          []bindingRow
 	Bindings             int
 	Agents               int
 	HCL                  string
@@ -506,8 +507,10 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 			return
 		}
 		document = stored.Policy
-		bindings, _ := server.controller.Store().Bindings(ctx, "")
-		page.Bindings, page.Agents = boundCounts(bindings, name)
+		if err := server.fillPolicyBindings(ctx, &page, name); err != nil {
+			renderBindingsUnreadable(writer, "")
+			return
+		}
 	}
 	server.fillPolicyPage(&page, document)
 	server.fillPolicyChoices(request.Context(), &page)
@@ -612,8 +615,18 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	page.NotForwardableCARoles = request.PostFormValue("not-forwardable-ca-roles")
 	page.TransitKeys, page.CARoles, page.Env = request.PostFormValue("transit-keys"), request.PostFormValue("ca-roles"),
 		request.PostFormValue("env")
-	if stored, err := server.controller.Store().Policy(request.Context(), document.Name); err == nil {
+	stored, err := server.controller.Store().Policy(request.Context(), document.Name)
+	if err == nil {
 		page.Revision = stored.Policy.Revision
+	}
+	if !page.New {
+		if err == nil {
+			err = server.fillPolicyBindings(request.Context(), &page, document.Name)
+		}
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			renderBindingsUnreadable(writer, page.Problem)
+			return
+		}
 	}
 	server.fillPolicyChoices(request.Context(), &page)
 	server.renderStatus(writer, request, http.StatusUnprocessableEntity, "policy", page)

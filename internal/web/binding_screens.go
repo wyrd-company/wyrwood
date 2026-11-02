@@ -237,7 +237,16 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 // show as a container's state. Problem is why the submission that led to the
 // read failed, so that the operator keeps the reason.
 func (server *Server) renderContainersUnreadable(writer http.ResponseWriter, problem string) {
-	message := "Containers could not be read."
+	renderUnreadable(writer, "Containers could not be read.", problem)
+}
+
+// renderBindingsUnreadable answers a failed read of a policy's bindings, so that
+// it cannot read as the policy having none.
+func renderBindingsUnreadable(writer http.ResponseWriter, problem string) {
+	renderUnreadable(writer, "Bindings could not be read.", problem)
+}
+
+func renderUnreadable(writer http.ResponseWriter, message, problem string) {
 	if problem != "" {
 		message += " The request failed: " + problem
 	}

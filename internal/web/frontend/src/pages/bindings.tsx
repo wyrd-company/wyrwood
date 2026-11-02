@@ -2,9 +2,15 @@
 // relationships:
 //   implements: web-interface
 // ---
-import { Button, Notice, Status, Table } from "@/components/shared";
+import { Button, Notice, Table } from "@/components/shared";
 import type { BindingsData } from "@/types";
-import { AgentReport, ListFilters } from "./list-filters";
+import {
+  BindingAgentCell,
+  BindingContainerCell,
+  BindingKeyCell,
+  BindingStateCell,
+} from "./binding-cells";
+import { ListFilters } from "./list-filters";
 
 export function Bindings({ data: d }: { data: BindingsData }) {
   return (
@@ -52,40 +58,11 @@ export function Bindings({ data: d }: { data: BindingsData }) {
               >
                 {d.Rows?.map((row) => (
                   <tr key={row.ID}>
-                    <th scope="row">
-                      {row.Containers?.length ? (
-                        row.Containers.map((container) => (
-                          <a
-                            key={container.ID}
-                            className="row-link"
-                            href={container.Screen}
-                          >
-                            <span>{container.Name}</span>
-                            <span className="mono">{container.Image}</span>
-                          </a>
-                        ))
-                      ) : (
-                        <a className="row-link" href={row.Screen}>
-                          <span>{row.KeyValue}</span>
-                          <span className="hint">No container reported</span>
-                        </a>
-                      )}
-                    </th>
-                    <td>
-                      <AgentReport
-                        agent={row.Agent}
-                        connected={row.Connected}
-                        lastReport={row.LastReport}
-                      />
-                    </td>
-                    <td>
-                      <span className="tag">{row.KeyKind}</span>
-                      <div className="mono">{row.KeyValue}</div>
-                    </td>
+                    <BindingContainerCell row={row} />
+                    <BindingAgentCell row={row} />
+                    <BindingKeyCell row={row} />
                     <td className="mono">{row.Policies?.join(", ")}</td>
-                    <td>
-                      <Status kind={row.BadgeClass}>{row.Badge}</Status>
-                    </td>
+                    <BindingStateCell row={row} />
                   </tr>
                 ))}
               </Table>
