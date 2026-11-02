@@ -94,7 +94,6 @@ hold 1.5
 browse find role button click --name "Save and validate"
 browse wait --text "Revision 1"
 hold 2.5
-shot web-policy
 
 # Bind a reported container to the policy.
 browse find role link click --name "Bindings"
@@ -136,6 +135,15 @@ browse find role link click --name "Back to bindings"
 browse wait --text "Filter bindings"
 hold 2
 shot web-bindings
+
+# The policy lists the binding it now has.
+browse open "$site/policies/edit?name=teal"
+browse wait --text "1 binding on 1 agent"
+hold 2
+browse scrollintoview "#h-bindings"
+hold 2
+browse eval "window.scrollTo(0, 0)"
+shot web-policy
 
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"

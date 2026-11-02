@@ -91,7 +91,11 @@ host group with that GID first if none exists. Use a separate group from
 who can reach these sockets can use the
 binding's OpenBao and SSH permissions. See [Access group](configuration.md#access-group).
 
-![Policy editor with a saved policy](assets/web-policy.png)
+After you bind a container, the policy's page lists the binding under
+**Bindings**. A binding stays on that list, marked `Not reported`, when its
+container no longer exists, so you can see what a policy change affects.
+
+![Policy editor with a saved policy and its bindings](assets/web-policy.png)
 
 ## Bind a container
 

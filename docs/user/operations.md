@@ -23,7 +23,7 @@ behind a reverse proxy that terminates TLS.
 | In the web interface | Action |
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
-| **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
+| **Policies** | Create or edit HCL, select SSH identities, save and validate, and see the bindings that select a policy. |
 | **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |

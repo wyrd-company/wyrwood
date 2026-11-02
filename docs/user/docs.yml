@@ -56,8 +56,8 @@ products:
         alt: The Agents page of the controller web interface listing an agent whose key awaits
              approval.
       - src: assets/web-policy.png
-        caption: Policy editor with a saved policy.
-        alt: The policy editor showing a saved policy document.
+        caption: Policy editor with a saved policy and its bindings.
+        alt: The policy editor showing a saved policy document and the binding that selects it.
       - src: assets/web-bind.png
         caption: Binding policies to a container.
         alt: The bind screen for attaching policies to a container.

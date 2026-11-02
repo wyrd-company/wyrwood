@@ -212,6 +212,19 @@ proposed-design:
     selectors, mount target, and environment requirements. Token lifetime,
     access group, and enforcement are edited on bindings. The editor is
     separate from the binding settings and effective preview components.
+    A saved policy's page has a Bindings section that follows the form, so that
+    its length cannot move the Save action. It lists every stored binding that
+    selects the policy, through the same projection as the Bindings page:
+    container name and image when reported, agent, key kind and value, state,
+    and a link to the binding screen. A binding with no reported container stays
+    listed and marked Not reported. A disconnected agent's row is labelled with
+    its last report. A binding on an agent that is not approved is listed with
+    that label; its agent's reports are not read. The header counts come from
+    the same rows, as bindings and agents, and link to the section. A policy
+    with no bindings says so,
+    and a new policy has no section. Refused saves keep the section. A failed
+    read answers 500 and not an empty list, and a refused save keeps its reason
+    on that answer. Only the agents that hold a listed binding are read.
     Simple path/capability HCL has graphical path rows and capability checkboxes.
     Graphical edits replace only the chosen source span. Unsupported constructs
     fall back to the complete raw HCL text; switching views alone does not
