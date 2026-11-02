@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -35,6 +36,8 @@ type harness struct {
 	bao        *baotest.Server
 	address    string
 	hostKey    gossh.PublicKey
+	state      string
+	stop       func()
 }
 
 func freeAddress(t *testing.T) string {
@@ -57,15 +60,20 @@ func startHarness(t *testing.T) *harness {
 // wrap when it is not nil.
 func startHarnessWith(t *testing.T, wrap func(OpenBao) OpenBao) *harness {
 	t.Helper()
-	bao := baotest.Start(t)
+	return runHarness(t, baotest.Start(t), t.TempDir(), wrap, 0)
+}
+
+// runHarness runs a controller on a given OpenBao server and state directory, so
+// that a test can stop it and start another on the same state.
+func runHarness(t *testing.T, bao *baotest.Server, state string, wrap func(OpenBao) OpenBao, retirementRetry time.Duration) *harness {
+	t.Helper()
 	roleID, secretFile := bao.ControllerCredentials(t)
-	state := t.TempDir()
 	configuration := config.Controller{
 		HTTPListen: freeAddress(t), SSHListen: freeAddress(t), StateDirectory: state, SessionTTL: time.Hour,
 		OpenBao: config.ControllerOpenBao{Address: bao.Address, Namespace: bao.Namespace, AppRoleMount: "approle", RoleID: roleID,
 			SecretIDFile: secretFile, TransitMount: "transit", SSHMount: "ssh"},
 	}
-	options := Options{}
+	options := Options{RetirementRetry: retirementRetry}
 	if wrap != nil {
 		client, err := openbao.NewClient(openbao.Endpoint{Address: bao.Address, Namespace: bao.Namespace, Timeout: 5 * time.Second})
 		if err != nil {
@@ -81,11 +89,15 @@ func startHarnessWith(t *testing.T, wrap func(OpenBao) OpenBao) *harness {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan error, 1)
 	go func() { done <- controller.Run(ctx, nil) }()
-	t.Cleanup(func() {
-		cancel()
-		<-done
-		_ = controller.Close()
-	})
+	var once sync.Once
+	stop := func() {
+		once.Do(func() {
+			cancel()
+			<-done
+			_ = controller.Close()
+		})
+	}
+	t.Cleanup(stop)
 	deadline := time.Now().Add(10 * time.Second)
 	for {
 		connection, err := net.Dial("tcp", configuration.SSHListen)
@@ -106,7 +118,7 @@ func startHarnessWith(t *testing.T, wrap func(OpenBao) OpenBao) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &harness{controller: controller, bao: bao, address: configuration.SSHListen, hostKey: signer.PublicKey()}
+	return &harness{controller: controller, bao: bao, address: configuration.SSHListen, hostKey: signer.PublicKey(), state: state, stop: stop}
 }
 
 func newAgentKey(t *testing.T) gossh.Signer {

@@ -49,7 +49,11 @@ proposed-design:
     connections on a dedicated port, and an OpenBao client configured with an
     AppRole whose policy covers only Wyrwood-managed paths. Durable state is
     one SQLite database on a mounted volume: approved and pending agents,
-    policies, bindings, and the latest container report per agent. OpenBao
+    policies, the generation record of each policy name, the retirement record of
+    each OpenBao identity still to remove, bindings, and the latest
+    container report per agent. The database is schema 3. Startup migrates schema 2
+    forward in one transaction and refuses a newer schema without changing the file,
+    so an older controller stops before it reads state it cannot use. OpenBao
     holds the policy documents, AppRoles, and Transit keys the controller
     manages; the database holds only Wyrwood's references to them.
   openbao-integration: >-
@@ -82,7 +86,8 @@ proposed-design:
     composable-policy-bindings. Saving a policy compiles fixed token lifecycle
     grants and its agent-renewal
     choice into the workload HCL, then writes that HCL to OpenBao under
-    `wyrwood-<policy>`, validates it through OpenBao's own
+    the policy's OpenBao identity (`wyrwood-<policy>` on the first use of the
+    name), validates it through OpenBao's own
     parser, and records the policy revision. The web interface edits the HCL
     directly; it does not invent a simpler policy language. The interface also
     lists and creates Transit keys and SSH-engine roles under the configured
@@ -161,7 +166,7 @@ proposed-design:
     sessions, and admission are defined by the web-interface design.
   operational-events: >-
     The controller records bounded events for operator sign-in, agent
-    approval and rejection, session open and close, policy saves, binding
+    approval and rejection, session open and close, policy saves, deletes, and renames, binding
     changes, AppRole creation and deletion, credential issuance, and recreate
     requests. Events carry agent name, container key, policy name, the
     operator who acted when an operator acted, and categorical outcome. They

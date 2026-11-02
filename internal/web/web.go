@@ -88,7 +88,11 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("POST /sign-out", server.handleSignOut)
 	authenticated.HandleFunc("GET /agents", server.handleAgents)
 	authenticated.HandleFunc("POST /agents/decide", server.handleDecideAgent)
-	authenticated.HandleFunc("GET /containers", server.handleContainers)
+	authenticated.HandleFunc("GET /containers", server.handleContainersRedirect)
+	authenticated.HandleFunc("GET /bindings", server.handleBindings)
+	authenticated.HandleFunc("GET /bindings/add", server.handleAddBinding)
+	authenticated.HandleFunc("GET /bindings/new", server.handleBindScreen)
+	authenticated.HandleFunc("GET /bindings/{id}", server.handleBindingScreen)
 	authenticated.HandleFunc("POST /bindings", server.handleCreateBinding)
 	authenticated.HandleFunc("POST /bindings/preview", server.handlePreviewBinding)
 	authenticated.HandleFunc("POST /bindings/{id}/policy", server.handleChangeBinding)
@@ -100,6 +104,10 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("GET /policies/edit", server.handlePolicyEditor)
 	authenticated.HandleFunc("GET /policies/kv", server.handleKVPaths)
 	authenticated.HandleFunc("POST /policies", server.handleSavePolicy)
+	authenticated.HandleFunc("GET /policies/delete", server.handleConfirmPolicyDelete)
+	authenticated.HandleFunc("POST /policies/delete", server.handleDeletePolicy)
+	authenticated.HandleFunc("GET /policies/rename", server.handleConfirmPolicyRename)
+	authenticated.HandleFunc("POST /policies/rename", server.handleRenamePolicy)
 	authenticated.HandleFunc("POST /policies/warnings", server.handlePolicyWarnings)
 	authenticated.HandleFunc("GET /keys", server.handleKeys)
 	authenticated.HandleFunc("POST /keys/transit", server.handleCreateTransitKey)
@@ -150,6 +158,10 @@ func (server *Server) Serve(ctx context.Context) error {
 }
 
 func (server *Server) render(writer http.ResponseWriter, request *http.Request, name string, data any) {
+	server.renderStatus(writer, request, http.StatusOK, name, data)
+}
+
+func (server *Server) renderStatus(writer http.ResponseWriter, _ *http.Request, status int, name string, data any) {
 	// encoding/json escapes HTML delimiters, including </script>, so page data
 	// cannot terminate this inert data block. All executable code is bundled.
 	payload, err := json.Marshal(struct {
@@ -164,6 +176,7 @@ func (server *Server) render(writer http.ResponseWriter, request *http.Request, 
 	block = append(block, []byte(`</script>`)...)
 	body := bytes.Replace(server.shell, []byte("<!--wyrwood-page-->"), block, 1)
 	writer.Header().Set("Content-Type", "text/html; charset=utf-8")
+	writer.WriteHeader(status)
 	_, _ = writer.Write(body)
 }
 

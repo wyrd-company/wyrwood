@@ -7,6 +7,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { App } from "./app";
 import type {
+  AddBindingData,
+  BindingData,
+  BindingsData,
   ContainerRow,
   Layout,
   Page,
@@ -47,6 +50,7 @@ const policy: PolicyData = {
   New: true,
   Name: "sample",
   Revision: 1,
+  BindingRows: [],
   Bindings: 1,
   Agents: 1,
   Warnings: [],
@@ -67,6 +71,7 @@ const policy: PolicyData = {
   PolicyPath: "sys/policies/acl/sample",
 };
 const row: ContainerRow = {
+  Screen: "/bindings/new?agent=sample-host&container=sample-id&q=sample",
   Agent: "sample-host",
   Connected: false,
   LastReport: "2026-01-01T00:00:00Z",
@@ -102,7 +107,6 @@ const row: ContainerRow = {
       Kind: "name",
       Value: "sample-container",
       Encoded: "name:sample-container",
-      First: true,
       Note: "sample note",
     },
   ],
@@ -162,6 +166,9 @@ describe("sign-in", () => {
       expect(form).toHaveAttribute("action", "/auth/start");
       expect(form).toHaveAttribute("method", "post");
       expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("link", { name: /Report an issue/ }),
+      ).not.toBeInTheDocument();
       if (Problem === "denied")
         expect(screen.getByText("sample@example.com")).toBeInTheDocument();
       if (Problem === "expired")
@@ -187,7 +194,7 @@ it("keeps sidebar routes, pending count, account identity, and sign out", async 
   const nav = screen.getByRole("navigation", { name: "Primary" });
   for (const [name, href] of [
     ["Agents", "/agents"],
-    ["Containers", "/containers"],
+    ["Bindings", "/bindings"],
     ["Policies", "/policies"],
     ["OpenBao keys", "/keys"],
     ["Events", "/events"],
@@ -314,6 +321,59 @@ it("marks Security as the current menu item", async () => {
   );
 });
 
+const agentsPage: Page = {
+  page: "agents",
+  data: {
+    ...layout,
+    ...versionInfo,
+    HostKey: "sample-fingerprint",
+    PendingKeys: null,
+    Approved: null,
+  },
+};
+describe("Report an issue link", () => {
+  it("goes to the GitHub form with no site data, in a new tab", () => {
+    draw(agentsPage);
+    const nav = screen.getByRole("navigation", { name: "Primary" });
+    const link = within(nav).getByRole("link", {
+      name: "Report an issue (opens GitHub in a new tab)",
+    });
+    expect(link.getAttribute("href")).toBe(
+      "https://github.com/wyrd-company/wyrwood/issues/new",
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(link.parentElement).toHaveClass("nav-foot");
+  });
+
+  it("shows on the confirm page", () => {
+    draw({
+      page: "confirm",
+      data: {
+        ...layout,
+        Heading: "Sample",
+        Body: "Sample",
+        Action: "/sample",
+        Button: "Sample",
+        Danger: false,
+        Back: "/agents",
+      },
+    });
+    expect(
+      screen.getByRole("link", { name: /Report an issue/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("is reachable by keyboard", async () => {
+    const user = userEvent.setup();
+    draw(agentsPage);
+    const link = screen.getByRole("link", { name: /Report an issue/ });
+    for (let stop = 0; stop < 20 && document.activeElement !== link; stop += 1)
+      await user.tab();
+    expect(link).toHaveFocus();
+  });
+});
+
 const openBaoURL =
   "https://vault.example:8443/proxy/ui/openbao/secrets?namespace=team%2Fsample";
 function expectOpenBaoLink(link: HTMLElement) {
@@ -416,7 +476,7 @@ it("keeps approval decisions, fingerprints, host links, and cached health", () =
   );
   expect(screen.getByRole("link", { name: "sample/host" })).toHaveAttribute(
     "href",
-    "/containers?agent=sample%2Fhost",
+    "/bindings?filter-agent=sample%2Fhost",
   );
   expect(screen.getByText(/serving from cache/)).toBeInTheDocument();
   expect(screen.getByText("1 degraded")).toBeInTheDocument();
@@ -497,12 +557,9 @@ it("preserves every policy value, edit/new identity, validation feedback and acc
 it.each([1000, 0])(
   "keeps binding access group %s without an owner-only warning",
   (group) => {
-    const data = containers(true);
-    data.Selected = {
-      ...data.Selected,
-      Settings: { ...data.Selected.Settings, "access-group": group },
-    };
-    draw({ page: "containers", data });
+    const data = binding(true);
+    data.Form.Settings["access-group"] = String(group);
+    draw({ page: "binding", data });
     expect(screen.queryByText(/No access group:/)).not.toBeInTheDocument();
     expectPost("Save binding", "/bindings/sample-binding/policy", {
       "access-group": String(group),
@@ -511,36 +568,175 @@ it.each([1000, 0])(
   },
 );
 
-function containers(Bound: boolean) {
+const bindingRow = {
+  ID: "sample-binding",
+  Agent: "sample-host",
+  AgentNotApproved: false,
+  Connected: false,
+  LastReport: "2026-01-01T00:00:00Z",
+  KeyKind: "compose",
+  KeyValue: "sample/worker",
+  Policies: ["first", "second"],
+  Containers: [
+    {
+      ID: "sample-id",
+      Name: "sample-container",
+      Image: "busybox:latest",
+      State: "running",
+      Screen: "/bindings/sample-binding?container=sample-id",
+    },
+  ],
+  Badge: "Conforms",
+  BadgeClass: "good",
+  Screen: "/bindings/sample-binding",
+};
+function listData() {
   return {
     ...layout,
-    Current: "containers",
-    Agents: [{ Name: "sample-host", Containers: 1, Selected: true }],
-    Agent: "sample-host",
+    Current: "bindings",
+    Agents: [{ Name: "sample-host", Count: 1, Selected: true }],
     FilterAgent: "",
     Query: "",
     Sort: "name",
     Order: "asc",
-    Rows: [{ ...row, Bound }],
-    Selected: { ...row, Bound },
-    Policies: [{ Name: "sample", Selected: true }],
-    Recreate: ["sample"],
   };
 }
-it("preserves container filtering, selection, binding keys and explicit recreate consent", async () => {
-  draw({ page: "containers", data: containers(false) });
+function bindings(): BindingsData {
+  return {
+    ...listData(),
+    Add: "/bindings/add?q=sample",
+    Rows: [bindingRow],
+  };
+}
+function addBinding(): AddBindingData {
+  return {
+    ...listData(),
+    Back: "/bindings?q=sample",
+    Rows: [{ ...row, Bound: false }],
+  };
+}
+function binding(Bound: boolean): BindingData {
+  return {
+    ...layout,
+    Current: "bindings",
+    Row: { ...row, Bound },
+    Reported: true,
+    Policies: [{ Name: "sample", Selected: Bound }],
+    Form: {
+      Key: Bound ? "" : "name:sample-container",
+      Revision: 1,
+      Understood: false,
+      Settings: {
+        "token-ttl": "1h",
+        "token-max-ttl": "8h",
+        "access-group": "",
+        enforcement: "report",
+      },
+    },
+    Screen: "/bindings/sample-binding?q=sample",
+    Action: Bound ? "/bindings/sample-binding/policy" : "/bindings",
+    Recreate: "/bindings/sample-binding/recreate?q=sample",
+    Unbind: "/bindings/sample-binding/unbind?q=sample",
+    Back: Bound ? "/bindings?q=sample" : "/bindings/add?q=sample",
+  };
+}
+it("lists bindings at full width with row links and no detail panel", () => {
+  const view = draw({ page: "bindings", data: bindings() });
   const filter = screen
     .getByRole("button", { name: "Apply filters" })
     .closest("form")!;
   expect(filter).toHaveAttribute("method", "get");
-  expect(filter).toHaveAttribute("action", "/containers");
+  expect(filter).toHaveAttribute("action", "/bindings");
   expect(new FormData(filter).get("filter-agent")).toBe("");
   expect(
-    screen.getByRole("link", { name: /sample-container/ }),
-  ).toHaveAttribute(
+    screen.getByRole("link", { name: /^sample-container/ }),
+  ).toHaveAttribute("href", bindingRow.Containers[0].Screen);
+  expect(screen.getByRole("link", { name: "Add binding" })).toHaveAttribute(
     "href",
-    "/containers?agent=sample-host&container=sample-id&filter-agent=&q=&sort=name&order=asc",
+    "/bindings/add?q=sample",
   );
+  for (const text of [
+    "busybox:latest",
+    "sample-host",
+    "compose",
+    "sample/worker",
+    "first, second",
+    "Conforms",
+  ]) {
+    expect(screen.getByText(text)).toBeVisible();
+  }
+  expect(view.container.querySelector("main")).toHaveClass("wide");
+  expect(view.container.querySelector("aside.card")).toBeNull();
+  expect(view.container.querySelector("tr.selected")).toBeNull();
+  expect(
+    screen.queryByRole("button", { name: "Bind policies" }),
+  ).not.toBeInTheDocument();
+});
+it("shows a binding with no reported container, with its agent and key", () => {
+  const data = bindings();
+  data.Rows = [
+    {
+      ...bindingRow,
+      Containers: null,
+      Badge: "Not reported",
+      BadgeClass: "neutral",
+    },
+  ];
+  draw({ page: "bindings", data });
+  expect(screen.getByRole("link", { name: /^sample\/worker/ })).toHaveAttribute(
+    "href",
+    bindingRow.Screen,
+  );
+  expect(screen.getByText("No container reported")).toBeVisible();
+  expect(screen.getByText("Not reported")).toBeVisible();
+  expect(screen.getByText("sample-host")).toBeVisible();
+  expect(screen.getByText("Disconnected · last report shown")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+});
+it("shows every container that one binding governs", () => {
+  const data = bindings();
+  const other = {
+    ...bindingRow.Containers[0],
+    ID: "other-id",
+    Name: "other-container",
+    Screen: "/bindings/sample-binding?container=other-id",
+  };
+  data.Rows = [
+    {
+      ...bindingRow,
+      Containers: [...bindingRow.Containers, other],
+    },
+  ];
+  draw({ page: "bindings", data });
+  expect(screen.getByRole("link", { name: /other-container/ })).toHaveAttribute(
+    "href",
+    other.Screen,
+  );
+  expect(screen.getByRole("link", { name: /^sample-container/ })).toBeVisible();
+});
+it("lists containers with no binding on the add screen", () => {
+  const view = draw({ page: "add-binding", data: addBinding() });
+  expect(formFor("Apply filters")).toHaveAttribute("action", "/bindings/add");
+  expect(
+    screen.getByRole("link", { name: /^sample-container/ }),
+  ).toHaveAttribute("href", row.Screen);
+  expect(
+    screen.getByRole("link", { name: "Back to bindings" }),
+  ).toHaveAttribute("href", "/bindings?q=sample");
+  expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
+    "href",
+    "/bindings/add",
+  );
+  expect(screen.getByText(row.State)).toBeVisible();
+  expect(view.container.querySelector("main")).toHaveClass("wide");
+});
+it("preserves binding keys and explicit recreate consent on the bind screen", async () => {
+  draw({ page: "binding", data: binding(false) });
+  expect(
+    screen.getByRole("link", { name: "Back to Add binding" }),
+  ).toHaveAttribute("href", "/bindings/add?q=sample");
+  expect(screen.getByRole("checkbox", { name: "sample" })).not.toBeChecked();
+  await userEvent.click(screen.getByRole("checkbox", { name: "sample" }));
   expectPost("Bind policies", "/bindings", {
     agent: "sample-host",
     container: "sample-id",
@@ -551,25 +747,98 @@ it("preserves container filtering, selection, binding keys and explicit recreate
   expect(
     screen.getByText(/Recreate discards the writable layer/),
   ).toBeInTheDocument();
+  await userEvent.click(screen.getByRole("tab", { name: "Settings" }));
   await userEvent.click(screen.getByRole("checkbox", { name: /I understand/ }));
-  expectPost("Bind policies", "/bindings", { understood: "yes" });
+  expectPost("Bind policies", "/bindings?tab=settings", { understood: "yes" });
+});
+it("shows a failed submission's message and every entered value", () => {
+  const data = binding(false);
+  data.Problem = "Sample actionable problem";
+  data.Row.Candidates = [
+    {
+      Kind: "compose",
+      Value: "sample/one",
+      Note: "most stable",
+      Encoded: "compose:sample/one",
+    },
+    {
+      Kind: "name",
+      Value: "sample-container",
+      Note: "less stable",
+      Encoded: "name:sample-container",
+    },
+  ];
+  data.Policies = [
+    { Name: "sample", Selected: false },
+    { Name: "second", Selected: true },
+  ];
+  data.Form = {
+    Key: "name:sample-container",
+    Revision: 1,
+    Understood: true,
+    Settings: {
+      "token-ttl": "not-a-duration",
+      "token-max-ttl": "2h",
+      "access-group": "not-a-gid",
+      enforcement: "recreate",
+    },
+  };
+  data.Tab = "settings";
+  draw({ page: "binding", data });
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Sample actionable problem",
+  );
+  expect(screen.getByRole("checkbox", { name: /I understand/ })).toBeChecked();
+  expectPost("Bind policies", "/bindings?tab=settings", {
+    key: "name:sample-container",
+    policies: "second",
+    "token-ttl": "not-a-duration",
+    "token-max-ttl": "2h",
+    "access-group": "not-a-gid",
+    enforcement: "recreate",
+    understood: "yes",
+  });
+});
+it("offers saved values after a failed change to a bound container", () => {
+  const data = binding(true);
+  data.Problem = "the binding changed; reload before saving";
+  data.Form.Revision = 3;
+  draw({ page: "binding", data });
+  expect(
+    screen.getByRole("link", { name: "Reload saved values" }),
+  ).toHaveAttribute("href", data.Screen);
+  expectPost("Save binding", "/bindings/sample-binding/policy", {
+    revision: "3",
+  });
 });
 it("keeps bound container diagnostics, change policy, and confirmation links", () => {
-  draw({ page: "containers", data: containers(true) });
+  draw({ page: "binding", data: binding(true) });
   expect(screen.getByText("sample check")).toBeInTheDocument();
   expect(screen.getByText("FAIL")).toBeInTheDocument();
   expectPost("Save binding", "/bindings/sample-binding/policy", {
+    agent: "sample-host",
     policies: "sample",
   });
   expect(
     screen.getByRole("link", { name: "Request recreate" }),
-  ).toHaveAttribute("href", "/bindings/sample-binding/recreate");
+  ).toHaveAttribute("href", "/bindings/sample-binding/recreate?q=sample");
   expect(
     screen.getByRole("link", { name: "Unbind and revoke AppRole" }),
-  ).toHaveAttribute("href", "/bindings/sample-binding/unbind");
+  ).toHaveAttribute("href", "/bindings/sample-binding/unbind?q=sample");
+  expect(screen.getByText("AppRole assignment applied")).toBeInTheDocument();
+});
+it("says so when a binding's container is not reported", () => {
+  const data = binding(true);
+  data.Reported = false;
+  draw({ page: "binding", data });
+  expect(screen.getByText(/does not report a container/)).toBeInTheDocument();
+  expect(screen.queryByText("sample check")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("link", { name: "Unbind and revoke AppRole" }),
+  ).toBeInTheDocument();
 });
 it("shows a policy creation link when no policy can be bound", () => {
-  draw({ page: "containers", data: { ...containers(false), Policies: null } });
+  draw({ page: "binding", data: { ...binding(false), Policies: null } });
   expect(screen.getByRole("link", { name: "New policy" })).toHaveAttribute(
     "href",
     "/policies/edit",
@@ -589,14 +858,14 @@ it.each([false, true])(
         Body: "Sample consequence",
         Action: "/bindings/sample/unbind",
         Button: "Confirm",
-        Back: "/containers?agent=sample",
+        Back: "/bindings?filter-agent=sample",
         Danger,
       },
     });
     expectPost("Confirm", "/bindings/sample/unbind");
     expect(screen.getByRole("link", { name: "Cancel" })).toHaveAttribute(
       "href",
-      "/containers?agent=sample",
+      "/bindings?filter-agent=sample",
     );
   },
 );
@@ -785,6 +1054,7 @@ it("preserves relative time units and zero-time semantics", () => {
 it("keeps not-forwardable identity selectors editable and clearable", async () => {
   const user = userEvent.setup();
   draw({ page: "policy", data: { ...policy, New: false } });
+  await user.click(screen.getByRole("tab", { name: /^SSH identities/ }));
   const keys = screen.getByRole("checkbox", {
     name: "Not forwardable sample-restricted-key",
   });
@@ -795,7 +1065,7 @@ it("keeps not-forwardable identity selectors editable and clearable", async () =
   expect(roles).toBeChecked();
   await user.click(keys);
   await user.click(roles);
-  expectPost("Save and validate", "/policies", {
+  expectPost("Save and validate", "/policies?tab=ssh-identities", {
     "not-forwardable-transit-keys": "",
     "not-forwardable-ca-roles": "",
     "transit-keys": policy.TransitKeys,
@@ -911,8 +1181,11 @@ it.each([
 
 it("previews several selected policies with binding settings and lifecycle grants", async () => {
   const user = userEvent.setup();
-  const data = containers(false);
-  data.Policies.push({ Name: "second", Selected: false });
+  const data = binding(false);
+  data.Policies = [
+    { Name: "sample", Selected: true },
+    { Name: "second", Selected: false },
+  ];
   const effective = {
     ...row.Effective,
     sources: [
@@ -930,7 +1203,7 @@ it("previews several selected policies with binding settings and lifecycle grant
   });
   vi.stubGlobal("fetch", fetcher);
   try {
-    draw({ page: "containers", data });
+    draw({ page: "binding", data });
     await user.click(screen.getByRole("checkbox", { name: "second" }));
     await user.click(
       screen.getByRole("button", { name: "Preview effective policy" }),
@@ -942,6 +1215,7 @@ it("previews several selected policies with binding settings and lifecycle grant
     expect(request.body.getAll("policies")).toEqual(["sample", "second"]);
     expect(request.body.get("csrf")).toBe("sample-csrf");
     expect(request.body.get("token-ttl")).toBe("1h");
+    await user.click(screen.getByRole("tab", { name: "Key and policies" }));
     await user.click(screen.getByRole("checkbox", { name: "second" }));
     expect(screen.queryByText("combined source HCL")).not.toBeInTheDocument();
   } finally {
@@ -960,104 +1234,116 @@ it("shows a composition conflict without losing the selected policies", async ()
     }),
   );
   try {
-    draw({ page: "containers", data: containers(false) });
+    const data = binding(false);
+    data.Policies = [{ Name: "sample", Selected: true }];
+    draw({ page: "binding", data });
     await userEvent.click(
       screen.getByRole("button", { name: "Preview effective policy" }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "different mount targets",
     );
-    expect(screen.getByRole("checkbox", { name: "sample" })).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "sample", hidden: true }),
+    ).toBeChecked();
   } finally {
     vi.unstubAllGlobals();
   }
 });
 
-it("keeps duplicate container IDs distinct across agents and submits the selected owner", () => {
-  const data = containers(false);
-  const other = { ...row, Agent: "other/host", Connected: true };
+it("keeps duplicate container IDs distinct across agents and submits the screen's agent", () => {
+  const data = addBinding();
+  const other = {
+    ...row,
+    Agent: "other/host",
+    Connected: true,
+    Screen: "/bindings/new?agent=other%2Fhost&container=sample-id",
+  };
   data.Rows = [{ ...row }, other];
-  data.Selected = other;
-  data.Agent = "sample-host";
-  data.Query = "sample";
-  data.Sort = "agent";
-  data.Order = "desc";
-  draw({ page: "containers", data });
-  const links = screen.getAllByRole("link", { name: /sample-container/ });
+  const view = draw({ page: "add-binding", data });
+  const links = screen.getAllByRole("link", { name: /^sample-container/ });
   expect(links).toHaveLength(2);
-  expect(links[0]).not.toHaveAttribute("aria-current");
-  expect(links[1]).toHaveAttribute("aria-current", "true");
-  const target = new URL(links[1].getAttribute("href")!, "https://example.com");
-  expect(Object.fromEntries(target.searchParams)).toEqual({
-    agent: "other/host",
-    container: "sample-id",
-    "filter-agent": "",
-    q: "sample",
-    sort: "agent",
-    order: "desc",
-  });
+  expect(links[1]).toHaveAttribute("href", other.Screen);
   expect(screen.getByText("Connected", { exact: true })).toBeVisible();
   expect(screen.getByText("Disconnected · last report shown")).toBeVisible();
+  view.unmount();
+  draw({ page: "binding", data: { ...binding(false), Row: other } });
   expectPost("Bind policies", "/bindings", {
     agent: "other/host",
     container: "sample-id",
   });
 });
 
-it("resets binding edits when selecting the same container ID on another agent", async () => {
+it("renders rows and filter controls", async () => {
   const user = userEvent.setup();
-  const data = containers(false);
-  const view = draw({ page: "containers", data });
-  await user.click(screen.getByRole("checkbox", { name: "sample" }));
-  expect(screen.getByRole("checkbox", { name: "sample" })).not.toBeChecked();
-  const other = { ...data.Selected, Agent: "other-host" };
-  view.rerender(
-    <App page={{ page: "containers", data: { ...data, Selected: other } }} />,
-  );
-  expect(screen.getByRole("checkbox", { name: "sample" })).toBeChecked();
-  expectPost("Bind policies", "/bindings", { agent: "other-host" });
-});
-
-it("renders rows and filter controls without a selected detail", async () => {
-  const user = userEvent.setup();
-  draw({ page: "containers", data: { ...containers(false), Selected: null } });
-  expect(screen.getByRole("link", { name: /sample-container/ })).toBeVisible();
-  expect(
-    screen.queryByRole("button", { name: "Bind policies" }),
-  ).not.toBeInTheDocument();
+  draw({ page: "bindings", data: bindings() });
+  expect(screen.getByRole("link", { name: /^sample-container/ })).toBeVisible();
   await user.selectOptions(screen.getByLabelText("Agent"), "sample-host");
-  await user.type(screen.getByLabelText("Filter containers"), "alpine");
-  await user.selectOptions(screen.getByLabelText("Sort by"), "image");
+  await user.type(screen.getByLabelText("Filter bindings"), "alpine");
+  await user.selectOptions(screen.getByLabelText("Sort by"), "policies");
   await user.selectOptions(screen.getByLabelText("Order"), "desc");
   expect(Object.fromEntries(new FormData(formFor("Apply filters")))).toEqual({
     "filter-agent": "sample-host",
     q: "alpine",
-    sort: "image",
+    sort: "policies",
     order: "desc",
   });
   expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
     "href",
-    "/containers",
+    "/bindings",
   );
 });
 
+it("names the agent's count in the unit of each list", () => {
+  const view = draw({ page: "bindings", data: bindings() });
+  expect(
+    screen.getByRole("option", { name: "sample-host · 1 binding" }),
+  ).toBeVisible();
+  view.unmount();
+  draw({
+    page: "add-binding",
+    data: {
+      ...addBinding(),
+      Agents: [{ Name: "sample-host", Count: 2, Selected: false }],
+    },
+  });
+  expect(
+    screen.getByRole("option", { name: "sample-host · 2 containers" }),
+  ).toBeVisible();
+});
+
+it("offers Add binding when no binding exists", () => {
+  draw({ page: "bindings", data: { ...bindings(), Rows: [] } });
+  expect(screen.getByText(/No bindings yet/)).toBeVisible();
+  expect(screen.getByRole("link", { name: "Add binding" })).toBeVisible();
+});
+
 it.each([
-  ["", "", "No containers have been reported."],
-  ["sample-host", "", "No containers match these filters."],
-  ["", "absent", "No containers match these filters."],
+  ["sample-host", ""],
+  ["", "absent"],
 ])(
-  "explains an empty inventory or filter result (%s, %s)",
-  (FilterAgent, Query, message) => {
+  "clears a bindings filter that matches nothing with one link (%s, %s)",
+  (FilterAgent, Query) => {
     draw({
-      page: "containers",
-      data: {
-        ...containers(false),
-        FilterAgent,
-        Query,
-        Rows: [],
-        Selected: null,
-      },
+      page: "bindings",
+      data: { ...bindings(), FilterAgent, Query, Rows: [] },
     });
-    expect(screen.getByText(message)).toBeVisible();
+    const message = screen.getByText(/No bindings match these filters\./);
+    expect(message).toBeVisible();
+    expect(
+      within(message).getByRole("link", { name: "Clear filters" }),
+    ).toHaveAttribute("href", "/bindings");
   },
 );
+
+it.each([
+  ["", "", "Every reported container has a binding."],
+  ["sample-host", "", "No containers match these filters."],
+  ["", "absent", "No containers match these filters."],
+])("explains an empty add screen (%s, %s)", (FilterAgent, Query, message) => {
+  draw({
+    page: "add-binding",
+    data: { ...addBinding(), FilterAgent, Query, Rows: [] },
+  });
+  expect(screen.getByText(message)).toBeVisible();
+});

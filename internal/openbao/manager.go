@@ -177,6 +177,22 @@ func (manager *Manager) DeletePolicy(ctx context.Context, name string) error {
 	return categorize(err)
 }
 
+// PolicyExists reads an ACL policy back. It reports whether OpenBao holds it.
+func (manager *Manager) PolicyExists(ctx context.Context, name string) (bool, error) {
+	if err := managed(name); err != nil {
+		return false, err
+	}
+	client, err := manager.authorized(ctx)
+	if err != nil {
+		return false, err
+	}
+	secret, err := client.Logical().ReadWithContext(ctx, "sys/policies/acl/"+name)
+	if err != nil {
+		return false, categorize(err)
+	}
+	return secret != nil, nil
+}
+
 // WriteRole creates or updates a binding AppRole: one-use secret identifiers
 // and tokens carrying exactly the given managed policy, time-to-live, and
 // maximum lifetime.

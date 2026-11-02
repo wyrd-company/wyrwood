@@ -42,7 +42,7 @@ func TestContractChecksShowSocketFailures(t *testing.T) {
 			if found != 2 {
 				t.Fatalf("socket checks = %d, want 2", found)
 			}
-			output := renderModel(t, "containers", containersPage{Selected: &containerRow{Bound: true, Checks: checks}})
+			output := renderModel(t, "binding", bindingScreen{Row: containerRow{Bound: true, Checks: checks}, Reported: true})
 			if !strings.Contains(output, "socket access (") || (accessGroup != nil && !strings.Contains(output, "verifiable member of access group 1000")) {
 				t.Fatalf("socket access diagnostic missing: %s", output)
 			}

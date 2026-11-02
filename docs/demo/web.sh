@@ -34,6 +34,21 @@ hold() {
 	sleep "$1"
 }
 
+tab() {
+	browse find role tab click --name "$1"
+}
+
+# Fails the recording when the page disagrees: the browser's own state is the
+# only proof of what it does with a field on a hidden tab.
+expect_page() {
+	local got
+	got=$(agent-browser eval "$1")
+	if [ "$got" != "\"$2\"" ]; then
+		echo "web.sh: $1 = $got, want $2" >&2
+		exit 1
+	fi
+}
+
 mkdir -p "$assets"
 browse set viewport 1280 800
 browse open "$site/"
@@ -88,29 +103,53 @@ path "ssh/sign/teal-hosts" {
 hold 1
 browse find role checkbox check --name "Agent token renewal"
 browse find role button click --name "Graphical paths"
+tab "SSH identities"
 browse find role checkbox click --name "teal-github" --exact
 browse find role checkbox click --name "teal-hosts" --exact
 hold 1.5
 browse find role button click --name "Save and validate"
 browse wait --text "Revision 1"
 hold 2.5
-shot web-policy
+tab "OpenBao policy"
 
 # Bind a reported container to the policy.
-browse find role link click --name "Containers"
+browse find role link click --name "Bindings"
+browse wait --text "No bindings yet"
+hold 1.5
+browse find role link click --name "Add binding"
 browse wait --text "teal-api"
 hold 1.5
-browse find text "teal-api" click
-browse wait --text "Binding settings"
+shot web-add-binding
+browse find role link click --name "Add binding for teal-api"
+browse wait --text "Bind by key"
 browse find role checkbox click --name "teal" --exact
+hold 1.5
+shot web-bind
+tab "Settings"
 # Use the real agent-reported root group for this root workload.
 browse select "#binding-group" "0"
 browse select "#binding-enforcement" "recreate"
 hold 1
 browse click 'input[name=understood]'
 hold 1.5
-shot web-bind
+shot web-bind-settings
+
+# A required field on a hidden tab is revealed, not left to refuse in silence.
+browse focus "#binding-ttl"
+browse press Control+a
+browse press Backspace
+tab "Key and policies"
 browse find role button click --name "Bind policies"
+expect_page 'document.querySelector("[role=tab][aria-selected=true]").textContent' Settings
+expect_page 'document.activeElement.id' binding-ttl
+browse press 1
+
+browse find role button click --name "Preview effective policy"
+browse wait --text "Previewed effective policy"
+hold 1.5
+shot web-bind-effective
+browse find role button click --name "Bind policies"
+browse wait --text "Policy bound"
 for _ in $(seq 1 60); do
 	if agent-browser get text main | grep -q "Conforms"; then
 		break
@@ -118,15 +157,78 @@ for _ in $(seq 1 60); do
 	sleep 1
 	browse reload
 done
-hold 1.5
-browse find text "teal-api" click
 browse wait --text "Conforms"
+tab "Status"
 browse wait --text "Contract check"
 hold 3
-shot web-containers
-browse scrollintoview "#h-setup"
+shot web-binding
+tab "Container setup"
 browse wait --text "Host source"
 shot web-container-setup
+tab "Policies"
+hold 1
+shot web-binding-policies
+tab "Settings"
+hold 1
+shot web-binding-settings
+tab "Effective policy"
+hold 1
+shot web-binding-effective
+
+# Return to the list, which shows the binding and its state.
+browse find role link click --name "Back to bindings"
+browse wait --text "Filter bindings"
+hold 2
+shot web-bindings
+
+# The policy lists the binding it now has.
+browse open "$site/policies/edit?name=teal"
+browse wait --text "1 binding on 1 agent"
+hold 2
+shot web-policy
+tab "SSH identities"
+hold 1
+shot web-policy-identities
+tab "Container contract"
+hold 1
+shot web-policy-contract
+browse find role link click --name "1 binding on 1 agent"
+expect_page 'document.activeElement.getAttribute("role")' tabpanel
+browse wait --text "What a change to this policy affects"
+hold 2
+shot web-policy-bindings
+
+# A bound policy cannot be deleted, and the screen says what blocks it.
+browse find role link click --name "Delete policy"
+browse wait --text "cannot be deleted"
+hold 2
+shot web-policy-delete
+
+# A bound policy can be renamed, and the screen says who gets a fresh credential.
+browse open "$site/policies/edit?name=teal"
+browse wait --text "1 binding on 1 agent"
+browse find role link click --name "Rename"
+browse wait --text "fresh credential"
+hold 2
+shot web-policy-rename
+
+# A policy that no binding selects can be deleted, through its confirm screen.
+browse open "$site/policies/edit"
+browse type "#name" "draft"
+browse find role button click --name "Save and validate"
+browse wait --text "Revision 1"
+browse find role link click --name "Rename"
+browse wait --text "New name"
+browse fill "#new-name" "scratch"
+browse find role button click --name "Rename policy"
+browse wait --text "Policy renamed"
+browse find role link click --name "Delete policy"
+browse wait --text "wyrwood-scratch"
+hold 2
+shot web-policy-delete-confirm
+browse find role button click --name "Delete policy"
+browse wait --text "Policy deleted"
+hold 2
 
 # OpenBao keys and the event history.
 browse find role link click --name "OpenBao keys"

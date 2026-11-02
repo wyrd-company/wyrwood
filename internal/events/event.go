@@ -54,6 +54,8 @@ const (
 	OperationSessionOpened     Operation = "session-opened"
 	OperationSessionClosed     Operation = "session-closed"
 	OperationPolicySaved       Operation = "policy-saved"
+	OperationPolicyDeleted     Operation = "policy-deleted"
+	OperationPolicyRenamed     Operation = "policy-renamed"
 	OperationBindingCreated    Operation = "binding-created"
 	OperationBindingChanged    Operation = "binding-changed"
 	OperationBindingDeleted    Operation = "binding-deleted"
@@ -70,7 +72,7 @@ var Operations = []Operation{
 	OperationLogin, OperationRenew, OperationRevoke, OperationVaultRequest,
 	OperationSSHList, OperationSSHSign, OperationSSHCertificate, OperationSSHSessionBind,
 	OperationAgentApproved, OperationAgentRejected, OperationSessionOpened, OperationSessionClosed,
-	OperationPolicySaved, OperationBindingCreated, OperationBindingChanged, OperationBindingDeleted,
+	OperationPolicySaved, OperationPolicyDeleted, OperationPolicyRenamed, OperationBindingCreated, OperationBindingChanged, OperationBindingDeleted,
 	OperationCredentialIssued, OperationRecreateRequested,
 	OperationOperatorSignedIn, OperationOperatorSignedOut,
 }
@@ -162,6 +164,7 @@ type Event struct {
 	Binding      string
 	ContainerKey string
 	Policy       string
+	NewPolicy    string
 	Operator     string
 	Fingerprint  string
 	Mount        Mount
@@ -221,6 +224,9 @@ func (event Event) Validate() error {
 		return errors.New("container key must not carry a path")
 	}
 	if err := boundedText("policy", event.Policy, maximumPolicyBytes); err != nil {
+		return err
+	}
+	if err := boundedText("new policy", event.NewPolicy, maximumPolicyBytes); err != nil {
 		return err
 	}
 	if err := boundedText("operator", event.Operator, maximumOperatorBytes); err != nil {

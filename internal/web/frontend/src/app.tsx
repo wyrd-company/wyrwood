@@ -6,8 +6,12 @@ import type { Page } from "./types";
 import { Sidebar } from "./components/sidebar";
 import { SignIn } from "./pages/sign-in";
 import { Agents } from "./pages/agents";
-import { Containers } from "./pages/containers";
+import { Bindings } from "./pages/bindings";
+import { AddBinding } from "./pages/add-binding";
+import { Binding } from "./pages/binding";
 import { Confirm } from "./pages/confirm";
+import { PolicyDelete } from "./pages/policy-delete";
+import { PolicyRename } from "./pages/policy-rename";
 import { Policies } from "./pages/policies";
 import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
@@ -20,10 +24,18 @@ function Content({ page }: { page: Page }) {
       return <SignIn data={page.data} />;
     case "agents":
       return <Agents data={page.data} />;
-    case "containers":
-      return <Containers data={page.data} />;
+    case "bindings":
+      return <Bindings data={page.data} />;
+    case "add-binding":
+      return <AddBinding data={page.data} />;
+    case "binding":
+      return <Binding data={page.data} />;
     case "confirm":
       return <Confirm data={page.data} />;
+    case "policy-delete":
+      return <PolicyDelete data={page.data} />;
+    case "policy-rename":
+      return <PolicyRename data={page.data} />;
     case "policies":
       return <Policies data={page.data} />;
     case "policy":

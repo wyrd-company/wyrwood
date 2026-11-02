@@ -11,7 +11,13 @@ description: >-
   for signing and certificate operations, and the OpenBao mount category for
   vault requests. Controller records may carry the agent name, binding
   identifier, policy name, and the OpenID Connect subject of the operator who
-  acted. `operator-signed-in` and `operator-signed-out` carry the operator
+  acted. `policy-deleted` carries the policy name, the operator, and the outcome
+  of a delete, including a refusal; a refusal for a name that is not a valid
+  policy name omits the name. `policy-renamed` carries the old name as `policy`, the
+  new name as `new-policy`, the operator, and the outcome, including a refusal and a
+  rename that committed with its transition pending; a name that is not a valid
+  policy name is omitted. Earlier events keep the name they were recorded with.
+  `operator-signed-in` and `operator-signed-out` carry the operator
   subject. A refused sign-in carries `operator-not-allowed`,
   `identity-provider-unavailable`, or `sign-in-invalid` and no claim values,
   group names, codes, or tokens. A fingerprint is intentionally correlatable

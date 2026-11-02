@@ -15,7 +15,6 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -45,6 +44,10 @@ type layout struct {
 	Notice      string
 	Problem     string
 	ProblemPage bool
+	// Tab is the screen tab the request asks for. The frontend honors only a tab
+	// the screen has. ProblemTab is the tab that owns Problem, when one tab does.
+	Tab        string
+	ProblemTab string
 }
 
 type signInPage struct {
@@ -70,6 +73,7 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 		}
 	}
 	return layout{
+		Tab:   request.URL.Query().Get("tab"),
 		Title: title, Current: current, CSRF: session.session.CSRF, Operator: name, Pending: pending,
 		OpenBaoOK: server.controller.OpenBaoReachable(request.Context()), Controller: server.controllerHost(),
 		OpenBaoURL: server.controller.Configuration().OpenBao.UISecretsURL(),
@@ -80,12 +84,15 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 // notices are fixed messages selected by a redirect's query, so no request
 // data is ever echoed into a page.
 var notices = map[string]string{
-	"approved": "Agent approved. It can connect now.",
-	"rejected": "Agent key rejected.",
-	"bound":    "Policy bound. The agent receives it on its next report.",
-	"changed":  "Binding moved to the new policy. The agent obtains a fresh token.",
-	"recreate": "Recreate requested. The agent reports the result.",
-	"unbound":  "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"approved":       "Agent approved. It can connect now.",
+	"rejected":       "Agent key rejected.",
+	"bound":          "Policy bound. The agent receives it on its next report.",
+	"changed":        "Binding moved to the new policy. The agent obtains a fresh token.",
+	"recreate":       "Recreate requested. The agent reports the result.",
+	"unbound":        "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"policy-deleted": "Policy deleted, and its OpenBao policy removed.",
+	"policy-renamed": "Policy renamed. Each binding that selects it gets a fresh credential.",
+	"rename-pending": "Policy renamed. A binding transition or the removal of the old OpenBao policy is pending, and the controller retries until OpenBao answers.",
 	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
 		"it stays valid until the agent revokes it or it expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",
@@ -99,6 +106,49 @@ var notices = map[string]string{
 func operatorSubject(request *http.Request) string {
 	session, _ := operatorFrom(request.Context())
 	return session.session.Subject
+}
+
+// problemPart is the part of the form an error is about, when one part owns it.
+func problemPart(err error) policy.Part {
+	var operation *controller.OperationError
+	if errors.As(err, &operation) {
+		return operation.Part
+	}
+	return policy.PartOf(err)
+}
+
+// policyProblemTab is the policy screen tab that owns a problem. A problem with
+// no owner keeps the tab the operator submitted from.
+func policyProblemTab(err error) string {
+	switch problemPart(err) {
+	case policy.PartOpenBao:
+		return "openbao-policy"
+	case policy.PartSSH:
+		return "ssh-identities"
+	case policy.PartContract:
+		return "container-contract"
+	}
+	return ""
+}
+
+// bindingProblemTab is the bind or bound screen tab that owns a problem. Anything
+// a policy contributes is corrected through the selection on a binding screen.
+func bindingProblemTab(err error, bound bool) string {
+	selection := "key-and-policies"
+	if bound {
+		selection = "policies"
+	}
+	switch problemPart(err) {
+	case policy.PartKey:
+		if !bound {
+			return selection
+		}
+	case policy.PartSelection, policy.PartOpenBao, policy.PartSSH, policy.PartContract:
+		return selection
+	case policy.PartSettings:
+		return "settings"
+	}
+	return ""
 }
 
 func problemMessage(err error) string {
@@ -219,30 +269,11 @@ func (server *Server) renderProblem(writer http.ResponseWriter, request *http.Re
 	server.render(writer, request, "confirm", confirmPage{layout: base, Heading: "That did not work", Body: base.Problem, Back: back})
 }
 
-// --- Containers
-
-type containersPage struct {
-	layout
-	Agents      []agentChoice
-	Agent       string
-	FilterAgent string
-	Query       string
-	Sort        string
-	Order       string
-	Rows        []containerRow
-	Selected    *containerRow
-	Policies    []policyChoice
-	Recreate    []string
-}
-
-type agentChoice struct {
-	Name       string
-	Containers int
-	Selected   bool
-}
+// --- Container rows
 
 type containerRow struct {
 	AssignableGroups *protocol.AssignableGroups
+	Screen           string
 	Agent            string
 	Connected        bool
 	LastReport       time.Time
@@ -279,7 +310,6 @@ type candidate struct {
 	Value   string
 	Note    string
 	Encoded string
-	First   bool
 }
 
 type policyChoice struct {
@@ -287,133 +317,76 @@ type policyChoice struct {
 	Selected bool
 }
 
-func (server *Server) handleContainers(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	page := containersPage{layout: server.layout(request, "Containers", "containers")}
-	agents, _ := server.controller.Store().Agents(ctx)
-	query := request.URL.Query()
-	page.FilterAgent = query.Get("filter-agent")
-	// Keep agent-only links from the Agents page focused on that host.
-	if !query.Has("filter-agent") && query.Get("container") == "" {
-		page.FilterAgent = query.Get("agent")
-	}
-	page.Query = query.Get("q")
-	page.Sort = query.Get("sort")
-	if !slices.Contains([]string{"name", "agent", "image", "state"}, page.Sort) {
-		page.Sort = "name"
-	}
-	page.Order = query.Get("order")
-	if page.Order != "desc" {
-		page.Order = "asc"
-	}
-	policies, _ := server.controller.Store().Policies(ctx)
-	for _, stored := range policies {
-		page.Policies = append(page.Policies, policyChoice{Name: stored.Policy.Name})
-	}
+// inventoryState holds the controller-wide facts shared by every container row.
+type inventoryState struct {
+	results map[string]store.ContractResult
+	issued  map[string]time.Time
+}
+
+func (server *Server) inventoryView(ctx context.Context) inventoryState {
 	results, _ := server.controller.Store().ContractResults(ctx)
-	issued := lastCredential(server.controller.Events().Recent(10_000))
-	selectedID, selectedAgent := query.Get("container"), query.Get("agent")
-	for _, agent := range agents {
-		if agent.State != store.AgentApproved {
-			continue
+	return inventoryState{results: results, issued: lastCredential(server.controller.Events().Recent(10_000))}
+}
+
+// agentRows builds a row for each container in the agent's last report. A failed
+// read is an error and not an empty result, so that a store failure cannot read
+// as a container being absent or having no binding.
+func (server *Server) agentRows(ctx context.Context, view inventoryState, agent store.Agent) ([]containerRow, error) {
+	containers, _, err := server.controller.Store().Inventory(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
+	bindings, err := server.controller.Store().Bindings(ctx, agent.Name)
+	if err != nil {
+		return nil, err
+	}
+	connected := server.controller.Connected(agent.Name)
+	rows := make([]containerRow, 0, len(containers))
+	for _, container := range containers {
+		row := containerRow{AssignableGroups: server.controller.AssignableGroups(agent.Name), Agent: agent.Name, Connected: connected, LastReport: agent.LastReport, ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
+		if len(container.Keys) > 0 {
+			row.KeyKind = string(container.Keys[0].Kind)
 		}
-		containers, _, _ := server.controller.Store().Inventory(ctx, agent.Name)
-		page.Agents = append(page.Agents, agentChoice{Name: agent.Name, Containers: len(containers), Selected: agent.Name == page.FilterAgent})
-		bindings, _ := server.controller.Store().Bindings(ctx, agent.Name)
-		connected := server.controller.Connected(agent.Name)
-		for _, container := range containers {
-			row := containerRow{AssignableGroups: server.controller.AssignableGroups(agent.Name), Agent: agent.Name, Connected: connected, LastReport: agent.LastReport, ID: container.ID, Name: container.Name, Image: container.Image, State: string(container.State), Badge: "Not bound", BadgeClass: "neutral"}
-			if len(container.Keys) > 0 {
-				row.KeyKind = string(container.Keys[0].Kind)
-			}
-			if binding, ok := controller.ContainerBinding(container, bindings); ok {
-				row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
-				row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
-				// Resolve field-free stored assignments for display without rewriting
-				// their durable identity or the assignment delivered to the agent.
-				renewal := row.Effective.AgentRenewal()
-				row.Effective.OpenBao.Policy = row.Effective.PreviewHCL()
-				row.Effective.OpenBao.AgentTokenRenewal = &renewal
-				row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
-				result := results[binding.ID]
-				row.Badge, row.BadgeClass = stateBadge(result)
-				row.Token = "No credential issued yet"
-				if when, ok := issued[binding.ID]; ok {
-					row.Token = "Credential issued " + ago(when)
+		if binding, ok := controller.ContainerBinding(container, bindings); ok {
+			view.applyBinding(&row, binding)
+			row.Checks = contractChecks(binding.Effective.Contract, container, view.results[binding.ID])
+			row.Setup = bindingSetup(container, binding.Effective.Contract)
+		} else {
+			for index, key := range container.Keys {
+				note := "most stable"
+				if index > 0 {
+					note = "less stable"
 				}
-				row.Checks = contractChecks(binding.Effective.Contract, container, result)
-				row.Setup = bindingSetup(container, binding.Effective.Contract)
-			} else {
-				for index, key := range container.Keys {
-					note := "most stable"
-					if index > 0 {
-						note = "less stable"
+				if key.Kind == protocol.KeyName {
+					note = "breaks on rename"
+					if len(container.Keys) == 1 {
+						note = "only key offered"
 					}
-					if key.Kind == protocol.KeyName {
-						note = "breaks on rename"
-						if len(container.Keys) == 1 {
-							note = "only key offered"
-						}
-					}
-					row.Candidates = append(row.Candidates, candidate{Kind: string(key.Kind), Value: key.Value, Note: note,
-						Encoded: string(key.Kind) + ":" + key.Value, First: index == 0})
 				}
+				row.Candidates = append(row.Candidates, candidate{Kind: string(key.Kind), Value: key.Value, Note: note,
+					Encoded: string(key.Kind) + ":" + key.Value})
 			}
-			if page.FilterAgent != "" && row.Agent != page.FilterAgent {
-				continue
-			}
-			searchable := strings.Join([]string{row.Agent, row.ID, row.Name, row.Image, row.State, row.Badge, row.KeyKind, row.KeyValue, strings.Join(row.Policies, " ")}, " ")
-			for _, candidate := range row.Candidates {
-				searchable += " " + candidate.Kind + " " + candidate.Value
-			}
-			if !strings.Contains(strings.ToLower(searchable), strings.ToLower(strings.TrimSpace(page.Query))) {
-				continue
-			}
-			if row.Agent == selectedAgent && row.ID == selectedID {
-				selected := row
-				page.Selected = &selected
-			}
-			page.Rows = append(page.Rows, row)
 		}
+		rows = append(rows, row)
 	}
-	sort.Slice(page.Rows, func(left, right int) bool {
-		a, b := page.Rows[left], page.Rows[right]
-		value := func(row containerRow) string {
-			switch page.Sort {
-			case "agent":
-				return row.Agent
-			case "image":
-				return row.Image
-			case "state":
-				return row.Badge
-			default:
-				return row.Name
-			}
-		}
-		comparison := strings.Compare(strings.ToLower(value(a)), strings.ToLower(value(b)))
-		if comparison == 0 {
-			comparison = strings.Compare(a.Agent, b.Agent)
-		}
-		if comparison == 0 {
-			comparison = strings.Compare(a.ID, b.ID)
-		}
-		if page.Order == "desc" {
-			return comparison > 0
-		}
-		return comparison < 0
-	})
-	if selectedID == "" && len(page.Rows) > 0 {
-		page.Selected = &page.Rows[0]
+	return rows, nil
+}
+
+// applyBinding copies the durable binding record into a row.
+func (view inventoryState) applyBinding(row *containerRow, binding store.Binding) {
+	row.Bound, row.BindingID, row.Policies = true, binding.ID, binding.Policies
+	row.Revision, row.Settings, row.Effective, row.Applied = binding.Revision, binding.Settings, binding.Effective, binding.Applied
+	// Resolve field-free stored assignments for display without rewriting
+	// their durable identity or the assignment delivered to the agent.
+	renewal := row.Effective.AgentRenewal()
+	row.Effective.OpenBao.Policy = row.Effective.PreviewHCL()
+	row.Effective.OpenBao.AgentTokenRenewal = &renewal
+	row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
+	row.Badge, row.BadgeClass = stateBadge(view.results[binding.ID])
+	row.Token = "No credential issued yet"
+	if when, ok := view.issued[binding.ID]; ok {
+		row.Token = "Credential issued " + ago(when)
 	}
-	if page.Selected != nil {
-		page.Agent = page.Selected.Agent
-	}
-	if page.Selected != nil {
-		for index := range page.Policies {
-			page.Policies[index].Selected = slices.Contains(page.Selected.Policies, page.Policies[index].Name)
-		}
-	}
-	server.render(writer, request, "containers", page)
 }
 
 func stateBadge(result store.ContractResult) (string, string) {
@@ -490,112 +463,6 @@ func lastCredential(recent []events.Event) map[string]time.Time {
 	return issued
 }
 
-func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *http.Request) {
-	ctx := request.Context()
-	agent := request.PostFormValue("agent")
-	back := "/containers?agent=" + url.QueryEscape(agent) + "&container=" + url.QueryEscape(request.PostFormValue("container"))
-	kind, value, _ := strings.Cut(request.PostFormValue("key"), ":")
-	bindingRequest, err := bindingFromForm(request)
-	base := server.layout(request, "Containers", "containers")
-	if err == nil && bindingRequest.Settings.Enforcement == policy.EnforcementRecreate && request.PostFormValue("understood") != "yes" {
-		err = &controller.OperationError{Message: "recreate discards the container writable layer; confirm before binding"}
-	}
-	if err == nil {
-		_, err = server.controller.CreateBinding(ctx, agent, protocol.Key{Kind: protocol.KeyKind(kind), Value: value}, bindingRequest, operatorSubject(request))
-	}
-	if err != nil {
-		base.Problem = problemMessage(err)
-		server.renderProblem(writer, request, base, back)
-		return
-	}
-
-	http.Redirect(writer, request, back+"&notice=bound", http.StatusSeeOther)
-}
-
-func (server *Server) bindingBack(ctx context.Context, id string) (store.Binding, string) {
-	binding, err := server.controller.Store().Binding(ctx, id)
-	if err != nil {
-		return store.Binding{}, "/containers"
-	}
-	return binding, "/containers?agent=" + url.QueryEscape(binding.Agent)
-}
-
-func (server *Server) handleChangeBinding(writer http.ResponseWriter, request *http.Request) {
-	id := request.PathValue("id")
-	_, back := server.bindingBack(request.Context(), id)
-	bindingRequest, err := bindingFromForm(request)
-	if err == nil {
-		err = server.controller.ChangeBinding(request.Context(), id, bindingRequest, operatorSubject(request))
-	}
-	if err != nil {
-		base := server.layout(request, "Containers", "containers")
-		base.Problem = problemMessage(err)
-		server.renderProblem(writer, request, base, back)
-		return
-	}
-
-	http.Redirect(writer, request, back+"&notice=changed", http.StatusSeeOther)
-}
-
-type confirmPage struct {
-	layout
-	Heading string
-	Body    string
-	Action  string
-	Button  string
-	Danger  bool
-	Back    string
-}
-
-func (server *Server) handleConfirmRecreate(writer http.ResponseWriter, request *http.Request) {
-	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
-	server.render(writer, request, "confirm", confirmPage{
-		layout: server.layout(request, "Request recreate", "containers"), Heading: "Recreate this container?",
-		Body:   "The agent stops the container bound by " + string(binding.Key.Kind) + " key, removes it with its volumes kept, and creates it again with the contract's mount and environment applied. Its writable layer is discarded and attached editors reconnect. The host must allow recreate.",
-		Action: "/bindings/" + url.PathEscape(binding.ID) + "/recreate", Button: "Recreate container", Danger: true, Back: back,
-	})
-}
-
-func (server *Server) handleRecreate(writer http.ResponseWriter, request *http.Request) {
-	id := request.PathValue("id")
-	_, back := server.bindingBack(request.Context(), id)
-	if err := server.controller.RequestRecreate(request.Context(), id, operatorSubject(request)); err != nil {
-		base := server.layout(request, "Containers", "containers")
-		base.Problem = problemMessage(err)
-		server.renderProblem(writer, request, base, back)
-		return
-	}
-	http.Redirect(writer, request, back+"&notice=recreate", http.StatusSeeOther)
-}
-
-func (server *Server) handleConfirmUnbind(writer http.ResponseWriter, request *http.Request) {
-	binding, back := server.bindingBack(request.Context(), request.PathValue("id"))
-	server.render(writer, request, "confirm", confirmPage{
-		layout: server.layout(request, "Unbind", "containers"), Heading: "Unbind and revoke?",
-		Body:   "This deletes the binding of policies " + strings.Join(binding.Policies, ", ") + " and its AppRole. The controller revokes the container's token in OpenBao, even when the agent is not connected, and the container's sockets stop answering. The agent removes the sockets and leaves their directory in place.",
-		Action: "/bindings/" + url.PathEscape(binding.ID) + "/unbind", Button: "Unbind and revoke AppRole", Danger: true, Back: back,
-	})
-}
-
-func (server *Server) handleUnbind(writer http.ResponseWriter, request *http.Request) {
-	id := request.PathValue("id")
-	_, back := server.bindingBack(request.Context(), id)
-	err := server.controller.DeleteBinding(request.Context(), id, operatorSubject(request))
-	var operation *controller.OperationError
-	if errors.As(err, &operation) && operation.TokenLive {
-		// The binding is gone; only its token may still be valid.
-		http.Redirect(writer, request, back+"&notice=unbound-token-live", http.StatusSeeOther)
-		return
-	}
-	if err != nil {
-		base := server.layout(request, "Containers", "containers")
-		base.Problem = problemMessage(err)
-		server.renderProblem(writer, request, base, back)
-		return
-	}
-	http.Redirect(writer, request, back+"&notice=unbound", http.StatusSeeOther)
-}
-
 // --- Policies
 
 type policiesPage struct {
@@ -657,6 +524,7 @@ type policyPage struct {
 	New                  bool
 	Name                 string
 	Revision             int
+	BindingRows          []bindingRow
 	Bindings             int
 	Agents               int
 	HCL                  string
@@ -690,8 +558,10 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 			return
 		}
 		document = stored.Policy
-		bindings, _ := server.controller.Store().Bindings(ctx, "")
-		page.Bindings, page.Agents = boundCounts(bindings, name)
+		if err := server.fillPolicyBindings(ctx, &page, name); err != nil {
+			renderBindingsUnreadable(writer, "")
+			return
+		}
 	}
 	server.fillPolicyPage(&page, document)
 	server.fillPolicyChoices(request.Context(), &page)
@@ -784,24 +654,40 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	if parseErr == nil {
 		saved, err := server.controller.SavePolicy(request.Context(), document, operatorSubject(request))
 		if err == nil {
-			http.Redirect(writer, request, "/policies/edit?name="+url.QueryEscape(saved.Name)+"&notice=saved", http.StatusSeeOther)
+			target := "/policies/edit?name=" + url.QueryEscape(saved.Name) + "&notice=saved"
+			if tab := request.URL.Query().Get("tab"); tab != "" {
+				target += "&tab=" + url.QueryEscape(tab)
+			}
+			http.Redirect(writer, request, target, http.StatusSeeOther)
 			return
 		}
 		page.Problem = problemMessage(err)
+		page.ProblemTab = policyProblemTab(err)
 	} else {
 		page.Problem = parseErr.Error()
+		page.ProblemTab = policyProblemTab(parseErr)
 	}
 	server.fillPolicyPage(&page, document)
 	page.NotForwardableTransitKeys = request.PostFormValue("not-forwardable-transit-keys")
 	page.NotForwardableCARoles = request.PostFormValue("not-forwardable-ca-roles")
 	page.TransitKeys, page.CARoles, page.Env = request.PostFormValue("transit-keys"), request.PostFormValue("ca-roles"),
 		request.PostFormValue("env")
-	if stored, err := server.controller.Store().Policy(request.Context(), document.Name); err == nil {
+	stored, err := server.controller.Store().Policy(request.Context(), document.Name)
+	if err == nil {
 		page.Revision = stored.Policy.Revision
+		page.PolicyPath = "sys/policies/acl/" + stored.Policy.OpenBaoPolicyName()
 	}
-	writer.WriteHeader(http.StatusUnprocessableEntity)
+	if !page.New {
+		if err == nil {
+			err = server.fillPolicyBindings(request.Context(), &page, document.Name)
+		}
+		if err != nil && !errors.Is(err, store.ErrNotFound) {
+			renderBindingsUnreadable(writer, page.Problem)
+			return
+		}
+	}
 	server.fillPolicyChoices(request.Context(), &page)
-	server.render(writer, request, "policy", page)
+	server.renderStatus(writer, request, http.StatusUnprocessableEntity, "policy", page)
 }
 
 func policyFromForm(request *http.Request) (policy.Policy, error) {
@@ -809,7 +695,7 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 
 	if value := request.PostFormValue("agent-token-renewal"); value != "" {
 		if value != "true" && value != "false" {
-			return document, fmt.Errorf("agent token renewal must be true or false")
+			return document, &policy.PartError{Part: policy.PartOpenBao, Message: "agent token renewal must be true or false"}
 		}
 		renew := value == "true"
 		document.OpenBao.AgentTokenRenewal = &renew
@@ -828,7 +714,7 @@ func policyFromForm(request *http.Request) (policy.Policy, error) {
 	for _, line := range lines(request.PostFormValue("env")) {
 		name, value, ok := strings.Cut(line, "=")
 		if !ok {
-			return document, fmt.Errorf("each environment line must be NAME=value")
+			return document, &policy.PartError{Part: policy.PartContract, Message: "each environment line must be NAME=value"}
 		}
 		document.Contract.Env[strings.TrimSpace(name)] = strings.TrimSpace(value)
 	}
@@ -983,7 +869,7 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 			continue
 		}
 		var subject []string
-		for _, part := range []string{event.Agent, event.ContainerKey, event.Policy, event.Binding} {
+		for _, part := range []string{event.Agent, event.ContainerKey, event.Policy, event.NewPolicy, event.Binding} {
 			if part != "" {
 				subject = append(subject, part)
 			}
@@ -1055,7 +941,7 @@ func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
 	if group := strings.TrimSpace(request.PostFormValue("access-group")); group != "" {
 		n, err := strconv.ParseUint(group, 10, 32)
 		if err != nil {
-			return result, &controller.OperationError{Message: "access group must be a numeric GID"}
+			return result, &controller.OperationError{Message: "access group must be a numeric GID", Part: policy.PartSettings}
 		}
 		value := uint32(n)
 		result.Settings.AccessGroup = &value
@@ -1068,7 +954,7 @@ func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
 		result.Revision = n
 	}
 	if err := result.Settings.Validate(); err != nil {
-		return result, &controller.OperationError{Message: err.Error()}
+		return result, &controller.OperationError{Message: err.Error(), Part: policy.PartOf(err)}
 	}
 	return result, nil
 }

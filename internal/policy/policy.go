@@ -60,6 +60,9 @@ type Policy struct {
 	OpenBao  OpenBao      `json:"openbao"`
 	SSH      *SSH         `json:"ssh,omitempty"`
 	Contract Requirements `json:"contract"`
+	// Generation selects the OpenBao identity. The store owns it and it is not
+	// part of the document: zero and one both mean the first use of the name.
+	Generation int `json:"-"`
 }
 
 // OpenBao carries the operator-authored HCL document.
@@ -134,17 +137,22 @@ func Decode(data []byte) (Policy, error) {
 	return result, nil
 }
 
+// ValidName reports whether name is a lower-kebab-case slug of at most 64 bytes.
+func ValidName(name string) bool {
+	return len(name) <= maximumNameBytes && namePattern.MatchString(name)
+}
+
 // Validate checks every structural constraint of the policy schema plus the
 // Go-side canonical form of the mount target.
 func (policy Policy) Validate() error {
-	if len(policy.Name) > maximumNameBytes || !namePattern.MatchString(policy.Name) {
-		return errors.New("policy name must be a lower-kebab-case slug of at most 64 bytes")
+	if !ValidName(policy.Name) {
+		return partError(PartName, "policy name must be a lower-kebab-case slug of at most 64 bytes")
 	}
 	if policy.Revision < 0 {
 		return errors.New("policy revision must be positive")
 	}
 	if len(policy.OpenBao.Policy) > maximumHCLBytes {
-		return errors.New("OpenBao policy exceeds 65536 bytes")
+		return partError(PartOpenBao, "OpenBao policy exceeds 65536 bytes")
 	}
 	if policy.SSH != nil {
 		if err := validateIdentities("transit key", policy.SSH.TransitKeys); err != nil {
@@ -162,7 +170,10 @@ func (policy Policy) Validate() error {
 			}
 		}
 	}
-	return (Contract{MountTarget: policy.Contract.MountTarget, Env: policy.Contract.Env, Enforcement: EnforcementReport}).Validate()
+	if err := (Contract{MountTarget: policy.Contract.MountTarget, Env: policy.Contract.Env, Enforcement: EnforcementReport}).Validate(); err != nil {
+		return partError(PartContract, "%s", err)
+	}
+	return nil
 }
 
 // Validate checks the contract fields.
@@ -215,7 +226,28 @@ type EnvEntry struct {
 }
 
 // OpenBaoPolicyName is the name the controller writes the HCL under.
-func (policy Policy) OpenBaoPolicyName() string { return openBaoPolicyPrefix + policy.Name }
+func (policy Policy) OpenBaoPolicyName() string {
+	return openBaoPolicyName(policy.Name, policy.Generation)
+}
+
+// openBaoPolicyName derives every OpenBao policy name, so that a policy created
+// under a name used before never answers to a token of the earlier policy. A
+// name cannot contain "--", so no generation can spell another policy's name.
+func openBaoPolicyName(name string, generation int) string {
+	if generation <= 1 {
+		return openBaoPolicyPrefix + name
+	}
+	return openBaoPolicyPrefix + name + "--" + strconv.Itoa(generation)
+}
+
+// sourceGeneration omits the first generation from an assignment, so that an
+// assignment that names only first uses keeps its identity.
+func (policy Policy) sourceGeneration() int {
+	if policy.Generation <= 1 {
+		return 0
+	}
+	return policy.Generation
+}
 
 func durationOr(value, fallback string) time.Duration {
 	if value == "" {
@@ -286,15 +318,15 @@ func parseTTL(field, value string) (time.Duration, error) {
 
 func validateIdentities(kind string, names []string) error {
 	if len(names) > maximumIdentityNames {
-		return fmt.Errorf("more than 64 %s names", kind)
+		return partError(PartSSH, "more than 64 %s names", kind)
 	}
 	seen := make(map[string]bool, len(names))
 	for _, name := range names {
 		if len(name) > maximumIdentityBytes || !identityPattern.MatchString(name) {
-			return fmt.Errorf("%s name %q is invalid", kind, name)
+			return partError(PartSSH, "%s name %q is invalid", kind, name)
 		}
 		if seen[name] {
-			return fmt.Errorf("%s name %q is repeated", kind, name)
+			return partError(PartSSH, "%s name %q is repeated", kind, name)
 		}
 		seen[name] = true
 	}

@@ -53,7 +53,7 @@ sudo systemctl enable --now wyrwood-agent
 
 Sign in to the controller's web interface through your identity provider.
 Use **Agents** to approve the agent, **Policies** to create a policy, and
-**Containers** to select and bind a container. The web interface is the primary
+**Bindings** to add a binding for a container. The web interface is the primary
 interface; host CLI commands handle enrollment, service control, and diagnostics.
 See the [illustrated guide](docs/user/getting-started.md).
 Inside the container:

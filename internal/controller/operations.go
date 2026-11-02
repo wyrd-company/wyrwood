@@ -30,12 +30,23 @@ type OperationError struct {
 	// TokenLive marks a binding deletion that took effect while the
 	// binding's token may still be valid.
 	TokenLive bool
+	// PolicyMissing marks a policy deletion of a policy that does not exist.
+	PolicyMissing bool
+	// PolicyBound marks a policy deletion refused because a binding selects it.
+	PolicyBound bool
+	// Part is what the operator must change. It is empty when no single part
+	// of the form owns the problem.
+	Part policy.Part
 }
 
 func (err *OperationError) Error() string { return err.Message }
 
 func operationError(code events.ErrorCode, format string, arguments ...any) error {
 	return &OperationError{Message: fmt.Sprintf(format, arguments...), Code: code}
+}
+
+func partOperationError(part policy.Part, code events.ErrorCode, format string, arguments ...any) error {
+	return &OperationError{Message: fmt.Sprintf(format, arguments...), Code: code, Part: part}
 }
 
 var roleNameUnsafe = regexp.MustCompile(`[^a-z0-9-]+`)
@@ -87,13 +98,13 @@ func (controller *Controller) compose(ctx context.Context, names []string, setti
 		}
 		stored, err := controller.store.Policy(ctx, name)
 		if err != nil {
-			return policy.Effective{}, operationError(events.ErrorPolicyDenied, "policy %s does not exist", boundedPolicyName(name))
+			return policy.Effective{}, partOperationError(policy.PartSelection, events.ErrorPolicyDenied, "policy %s does not exist", boundedPolicyName(name))
 		}
 		sources = append(sources, stored.Policy)
 	}
 	effective, err := policy.Compose(sources, settings)
 	if err != nil {
-		return policy.Effective{}, operationError(events.ErrorPolicyDenied, "the policy selection is invalid: %v", err)
+		return policy.Effective{}, partOperationError(policy.PartOf(err), events.ErrorPolicyDenied, "the policy selection is invalid: %v", err)
 	}
 	return effective, nil
 }
@@ -143,22 +154,23 @@ func (controller *Controller) SavePolicy(ctx context.Context, document policy.Po
 }
 func (controller *Controller) savePolicy(ctx context.Context, document policy.Policy, operator string) (policy.Policy, map[string]bool, error) {
 	agents := map[string]bool{}
-	fail := func(message string) (policy.Policy, map[string]bool, error) {
-		return policy.Policy{}, agents, operationError(events.ErrorPolicyDenied, "%s", message)
+	failPart := func(part policy.Part, message string) (policy.Policy, map[string]bool, error) {
+		return policy.Policy{}, agents, partOperationError(part, events.ErrorPolicyDenied, "%s", message)
 	}
+	fail := func(message string) (policy.Policy, map[string]bool, error) { return failPart("", message) }
 	if err := document.Validate(); err != nil {
-		return fail("the policy is invalid: " + err.Error())
+		return failPart(policy.PartOf(err), "the policy is invalid: "+err.Error())
 	}
 	for _, name := range document.TransitKeys() {
 		exists, err := controller.openbao.TransitKeyExists(ctx, name)
 		if err != nil || !exists {
-			return fail("OpenBao could not confirm Transit key " + name)
+			return failPart(policy.PartSSH, "OpenBao could not confirm Transit key "+name)
 		}
 	}
 	for _, name := range document.CARoles() {
 		exists, err := controller.openbao.SSHRoleExists(ctx, name)
 		if err != nil || !exists {
-			return fail("OpenBao could not confirm SSH role " + name)
+			return failPart(policy.PartSSH, "OpenBao could not confirm SSH role "+name)
 		}
 	}
 	old, lookup := controller.store.Policy(ctx, document.Name)
@@ -166,6 +178,7 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		return fail("the stored policy could not be read")
 	}
 	if lookup == nil {
+		document.Generation = old.Policy.Generation
 		previous := old.Policy.Clone()
 		candidate := document.Clone()
 		previous.Revision = 0
@@ -175,6 +188,11 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		}
 		document.Revision = old.Policy.Revision + 1
 	} else {
+		next, err := controller.store.NextPolicyGeneration(ctx, document.Name)
+		if err != nil {
+			return fail("the stored policy could not be read")
+		}
+		document.Generation = next
 		document.Revision = 1
 	}
 	bindings, err := controller.store.Bindings(ctx, "")
@@ -200,16 +218,16 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 	}
 	if err := controller.openbao.WritePolicy(ctx, document.OpenBaoPolicyName(), document.PublishedHCL()); err != nil {
 		if openbao.CategoryOf(err) == openbao.CategoryInvalid {
-			return fail("OpenBao rejected the HCL policy")
+			return failPart(policy.PartOpenBao, "OpenBao rejected the HCL policy")
 		}
-		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
+		if err := controller.restorePolicy(ctx, document, old, lookup == nil); err != nil {
 			return fail("OpenBao policy publication was uncertain; restoration is pending and fresh issuance is blocked")
 		}
 		return fail("OpenBao could not store the HCL policy; its change was rolled back")
 	}
 	saved, err := controller.store.SavePolicyBindings(ctx, document, affected, operator, controller.now())
 	if err != nil {
-		if err := controller.restorePolicy(ctx, document.Name, old, lookup == nil); err != nil {
+		if err := controller.restorePolicy(ctx, document, old, lookup == nil); err != nil {
 			return fail("the policy could not be recorded; OpenBao restoration is pending and fresh issuance is blocked")
 		}
 		return fail("the policy could not be recorded; the OpenBao change was rolled back")
@@ -251,7 +269,7 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 }
 func (controller *Controller) createBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
 	if err := key.Validate(); err != nil {
-		return store.Binding{}, operationError(events.ErrorPolicyDenied, "the container key is invalid")
+		return store.Binding{}, partOperationError(policy.PartKey, events.ErrorPolicyDenied, "the container key is invalid")
 	}
 	if _, err := controller.store.ApprovedAgent(ctx, agent); err != nil {
 		return store.Binding{}, operationError(events.ErrorNotBound, "the agent is not approved")
@@ -518,14 +536,14 @@ func (controller *Controller) recordBinding(b store.Binding, event events.Event)
 
 // An interrupted response can hide a successful remote write. Restore the
 // authoritative source on either a remote or local publication failure.
-func (controller *Controller) restorePolicy(ctx context.Context, name string, previous store.StoredPolicy, existed bool) error {
+func (controller *Controller) restorePolicy(ctx context.Context, attempted policy.Policy, previous store.StoredPolicy, existed bool) error {
 	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operationTimeout)
 	defer cancel()
 	var err error
 	if existed {
 		err = controller.openbao.WritePolicy(rollbackCtx, previous.Policy.OpenBaoPolicyName(), previous.Policy.PublishedHCL())
 	} else {
-		err = controller.openbao.DeletePolicy(rollbackCtx, "wyrwood-"+name)
+		err = controller.openbao.DeletePolicy(rollbackCtx, attempted.OpenBaoPolicyName())
 	}
 	if err != nil {
 		controller.policySyncPending = true

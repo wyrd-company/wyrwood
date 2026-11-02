@@ -8,13 +8,15 @@ import { policyURL } from "@/components/shared";
 export function EffectivePolicy({
   effective,
   warnings,
+  title = "Effective policy",
 }: {
   effective: Effective;
   warnings?: string[] | null;
+  title?: string;
 }) {
   return (
-    <section aria-label="Effective policy" className="flex flex-col gap-3">
-      <h3>Effective policy</h3>
+    <section aria-label={title} className="flex flex-col gap-3">
+      <h3>{title}</h3>
       <p className="hint">
         OpenBao combines these named policies. Deny and path priority rules
         still apply. Combined HCL shows the compiled policy with managed

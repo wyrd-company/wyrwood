@@ -52,6 +52,7 @@ type OpenBao interface {
 	Mounts() openbao.Mounts
 	WritePolicy(ctx context.Context, name, hcl string) error
 	DeletePolicy(ctx context.Context, name string) error
+	PolicyExists(ctx context.Context, name string) (bool, error)
 	WriteRole(ctx context.Context, role string, policyNames []string, tokenTTL, tokenMaxTTL time.Duration) error
 	DeleteRole(ctx context.Context, role string) error
 	RevokeAccessor(ctx context.Context, accessor string) error
@@ -71,6 +72,8 @@ type OpenBao interface {
 type Controller struct {
 	mutationMu        sync.Mutex
 	policySyncPending bool
+	retirementWake    chan struct{}
+	retirementRetry   time.Duration
 	config            config.Controller
 	store             *store.Store
 	openbao           OpenBao
@@ -93,6 +96,8 @@ type Options struct {
 	ReleaseTransport http.RoundTripper
 	OpenBao          OpenBao
 	Log              io.Writer
+	// RetirementRetry substitutes the policy retirement retry interval in tests.
+	RetirementRetry time.Duration
 }
 
 // New opens the controller's durable state.
@@ -155,6 +160,11 @@ func New(configuration config.Controller, options Options) (*Controller, error) 
 		config: configuration, store: database, openbao: manager, events: eventStore,
 		agentOB: agentOpenBao, log: logWriter, now: func() time.Time { return time.Now().UTC() },
 	}
+	controller.retirementWake = make(chan struct{}, 1)
+	controller.retirementRetry = loginRetryInterval
+	if options.RetirementRetry > 0 {
+		controller.retirementRetry = options.RetirementRetry
+	}
 	controller.hub = newHub(controller)
 	controller.updates = updates.New(configuration.UpdateChecks, options.ReleaseTransport, logWriter)
 	return controller, nil
@@ -201,6 +211,10 @@ func (controller *Controller) Run(ctx context.Context, serveHTTP func(context.Co
 		controller.logf("binding recovery pending; affected credentials remain blocked")
 	}
 	recoveryCancel()
+	retirementsDone := make(chan struct{})
+	go func() { defer close(retirementsDone); controller.runPolicyRetirements(ctx) }()
+	defer func() { cancelRun(); <-retirementsDone }()
+	controller.wakePolicyRetirements()
 
 	server, err := controller.newSSHServer(signer)
 	if err != nil {

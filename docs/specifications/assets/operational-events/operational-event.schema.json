@@ -15,7 +15,7 @@
         "login", "renew", "revoke", "vault-request",
         "ssh-list", "ssh-sign", "ssh-certificate", "ssh-session-bind",
         "agent-approved", "agent-rejected", "session-opened", "session-closed",
-        "policy-saved", "binding-created", "binding-changed", "binding-deleted",
+        "policy-saved", "policy-deleted", "policy-renamed", "binding-created", "binding-changed", "binding-deleted",
         "credential-issued", "recreate-requested",
         "operator-signed-in", "operator-signed-out"
       ]
@@ -30,6 +30,7 @@
     "binding": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },
     "container-key": { "type": "string", "maxLength": 512 },
     "policy": { "type": "string", "maxLength": 64 },
+    "new-policy": { "type": "string", "maxLength": 64 },
     "operator": { "type": "string", "minLength": 1, "maxLength": 255 },
     "fingerprint": { "type": "string", "pattern": "^SHA256:[A-Za-z0-9+/]{43}$" },
     "mount": { "type": "string", "enum": ["kv", "transit", "ssh", "sys", "auth", "other"] },

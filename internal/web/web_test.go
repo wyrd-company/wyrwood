@@ -43,6 +43,7 @@ type harness struct {
 	provider   *oidctest.Provider
 	site       *httptest.Server
 	server     *Server
+	bao        *baotest.Server
 }
 
 type swappable struct {
@@ -102,7 +103,7 @@ func startHarnessWithConfig(t *testing.T, sessionTTL time.Duration, settings con
 	swap.mu.Lock()
 	swap.handler = server.Handler()
 	swap.mu.Unlock()
-	return &harness{controller: running, provider: provider, site: site, server: server}
+	return &harness{controller: running, provider: provider, site: site, server: server, bao: bao}
 }
 
 func browser(t *testing.T) *http.Client {
@@ -349,7 +350,7 @@ func TestOperatorWorkflowThroughPages(t *testing.T) {
 	}}, time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	containers := get(t, client, harness.site.URL+"/containers?agent=host-a")
+	containers := get(t, client, harness.site.URL+"/bindings/new?agent=host-a&container="+containerID)
 	if !strings.Contains(containers.body, "Bind by key") || !strings.Contains(containers.body, "shop/web") || !strings.Contains(containers.body, "Recreate discards the writable layer") {
 		t.Fatalf("containers page = %s", containers.body)
 	}
@@ -424,8 +425,35 @@ func TestOpenBaoUILinksFollowConfiguration(t *testing.T) {
 	other := browser(t)
 	absent.signIn(t, other, operator, oidctest.TamperNone)
 	for _, path := range []string{"/agents", "/policies/edit"} {
-		if body := get(t, other, absent.site.URL+path).body; strings.Contains(body, "OpenBao UI") || strings.Contains(body, `target="_blank"`) {
+		body := strings.ReplaceAll(get(t, other, absent.site.URL+path).body, reportIssueAnchor, "")
+		if strings.Contains(body, "OpenBao UI") || strings.Contains(body, `target="_blank"`) {
 			t.Fatalf("%s shows OpenBao UI link without ui-url: %s", path, body)
+		}
+	}
+}
+
+const reportIssueAnchor = `<a href="https://github.com/wyrd-company/wyrwood/issues/new" target="_blank" rel="noopener noreferrer">`
+
+func TestReportIssueLinkOnEveryAuthenticatedPageOnly(t *testing.T) {
+	harness := startHarness(t, time.Hour)
+	anonymous := browser(t)
+	signIn := get(t, anonymous, harness.site.URL+"/sign-in")
+	if !strings.Contains(signIn.body, "Continue with Test ID") {
+		t.Fatalf("sign-in page = %s", signIn.body)
+	}
+	if strings.Contains(signIn.body, "Report an issue") || strings.Contains(signIn.body, "/issues/new") {
+		t.Fatalf("sign-in page shows the report link: %s", signIn.body)
+	}
+
+	client := browser(t)
+	harness.signIn(t, client, operator, oidctest.TamperNone)
+	for _, path := range []string{"/agents", "/bindings", "/bindings/add", "/policies", "/policies/edit", "/keys", "/events", "/settings", "/security"} {
+		result := get(t, client, harness.site.URL+path)
+		if !strings.HasSuffix(result.url, path) {
+			t.Fatalf("%s landed on %s", path, result.url)
+		}
+		if strings.Count(result.body, reportIssueAnchor) != 1 || strings.Count(result.body, "/issues/new") != 1 {
+			t.Fatalf("%s report link is not the one exact anchor: %s", path, result.body)
 		}
 	}
 }

@@ -28,8 +28,10 @@ cleans up the site on success or failure. Do not run it against a live site.
 
 1. Change the UI or a documented flow.
 2. Extend `web.sh` for new pages. Navigate through the real UI, wait for the
-   expected state, and call `shot web-<name>`. Capture useful state, with no
-   real user data. Keep fixtures in `stack.sh` generic.
+   expected state, and call `shot web-<name>`. Select a screen's tab with
+   `tab "<name>"` before a step that uses its content, and use `expect_page` for
+   browser behavior a Go or Vitest test cannot observe. Capture useful state,
+   with no real user data. Keep fixtures in `stack.sh` generic.
 3. Run `task docs:screenshots`. For animation changes, run `task demo` instead.
 4. Open each changed PNG and check legibility, selected state, and agreement
    with the guide. Check the GIF when it changes. Capture authentic UI; do not

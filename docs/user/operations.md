@@ -16,19 +16,20 @@ use host commands; policies and bindings are managed in the web interface.
 ## Web interface
 
 The controller's web interface shows agents with pending approvals,
-all reported containers with binding and conformance state, policies, OpenBao
+bindings with their conformance state, reported containers, policies, OpenBao
 keys under the managed mounts, and events. Bind it to loopback and place it
 behind a reverse proxy that terminates TLS.
 
 | In the web interface | Action |
 | --- | --- |
 | **Agents** | Compare fingerprints, approve pending agents, and check connections and versions. |
-| **Policies** | Create or edit HCL, select SSH identities, and save and validate. |
-| **Containers** | Select a container, bind policies, and inspect its contract check. |
+| **Policies** | Create or edit HCL, select SSH identities, save and validate, see the bindings that select a policy, rename a policy, and delete a policy that no binding selects. |
+| **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
 | **Account → Security** | Inspect sign-in details and end operator sessions. |
+| **Report an issue** | Open the GitHub form for a new Wyrwood issue in a new tab. The link sends no data about your site. |
 
 Follow [Getting started](getting-started.md) for agent approval, policy creation,
 and container binding with screenshots.
@@ -51,6 +52,59 @@ be used, but agents keep serving containers.
 
 ![Security page with operator and identity-provider details](assets/web-security.png)
 
+## Rename a policy
+
+Open a policy and select **Rename**. Enter the new name, which follows the same
+rule as any policy name and must not be in use. You can rename a policy that
+bindings select. The screen states how many bindings are affected and lists
+them. Each one gets a fresh credential, and its token lifetime does not change.
+
+![Rename screen for a policy that one binding selects](assets/web-policy-rename.png)
+
+The policy keeps its document, HCL, and bindings. Its OpenBao policy changes to
+the one for the new name, and the old OpenBao policy is removed after every
+binding has moved. A container's old token is revoked and it reads with the new
+token, as with any binding change. An agent that is not connected takes the new
+assignment and a fresh credential when it reconnects.
+
+If you rename `alpha` to `beta`, and later create a policy named `alpha`, the
+new `alpha` is a different policy with its own OpenBao policy, such as
+`wyrwood-alpha--2`. A token of the renamed policy has no access to it. The same
+is true when you rename a policy back to a name it had before.
+
+If OpenBao is not available after the rename is recorded, the policy page says
+the transition is pending. The old OpenBao policy stays until the controller
+finishes. The controller retries while the work is pending, with no action from
+you and without a restart. If OpenBao refuses the new policy before the rename
+is recorded, the policy keeps its name.
+
+A page opened before a save or an earlier rename cannot rename the policy:
+reload it and try again.
+
+## Delete a policy
+
+Open a policy and select **Delete policy**. The confirm screen names the policy
+and its OpenBao policy, `wyrwood-<name>` on the first use of a name. Delete removes
+both.
+
+![Confirm screen for deleting a policy that no binding selects](assets/web-policy-delete-confirm.png)
+
+You cannot delete a policy while a binding selects it. The screen lists each
+binding that blocks the delete, with a link to it. This includes a binding marked
+`Not reported`, whose container no longer exists, and a binding on an agent that
+is not approved. Change or unbind each one, then delete the policy. There is no
+forced delete, and a delete never unbinds a container.
+
+![A policy that cannot be deleted, with the binding that blocks it](assets/web-policy-delete.png)
+
+If OpenBao or the controller's database fails during a delete, the page shows the
+error and the policy stays, so you can try again.
+
+You can create a new policy with the name of a deleted policy. It starts at
+revision 1 and is a different policy: its OpenBao policy is
+`wyrwood-<name>--<number>`, so a token that outlived the earlier policy has no
+access to it. The page of a policy shows its OpenBao policy.
+
 ## Controller settings
 
 Open **Settings** in the sidebar to inspect the controller version, listen
@@ -68,13 +122,28 @@ credential-file paths are omitted. Endpoint origins show only scheme and host.
 
 ## Container setup
 
-**Containers** shows all approved agents’ last reported containers. Filter by
-agent or text, sort by container, agent, image or binding state, and choose
-ascending or descending order. Disconnected rows retain the last report and
-show its age. Selecting a container keeps the current filters and order.
-Filtering out the selected container closes its detail panel.
+**Bindings** lists every binding of the approved agents, with the containers
+each one governs. Filter by agent or text, sort by container, agent, image, key,
+policies or state, and choose ascending or descending order. Disconnected rows
+retain the last report and show its age. A binding whose container the agent no
+longer reports stays in the list, marked **Not reported**, with its agent and
+key. This is not an error, and the binding applies again when a container with
+its key returns. **Edit** on a row, or a container's name, opens the binding's
+screen. **Back to bindings**
+returns to the list with the same filters and order.
 
-In **Containers**, select a bound container and scroll to **Container setup**. Copy
+**Add binding** lists the reported containers that have no binding, with the
+same filters. Every container an agent reports is on one of these two pages.
+**Add binding** on a row, or a container's name, opens its bind screen. Links
+to the former `/containers` address go to **Bindings** and keep their agent
+filter, text filter, and sort. A container selected by a former link is not kept.
+
+The policy and binding screens keep their actions at the top and split their
+content into tabs. A tab that holds something you should read says **Needs
+attention**. A problem from a refused save appears above the tabs, and the screen
+selects the tab that holds it.
+
+In **Bindings**, open a binding and select the **Container setup** tab. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
 example. The examples use the saved effective contract, including its
 environment values and custom mount target. Run them on the selected agent
@@ -86,7 +155,7 @@ it before starting the container; the Compose fragment disables automatic
 host-path creation. The examples do not include application commands, ports,
 networks, or unrelated mounts. They do not change an existing container.
 
-![Container setup examples in the binding panel](assets/web-container-setup.png)
+![Container setup examples on the binding screen](assets/web-container-setup.png)
 
 If the report lacks the consumer directory or image, setup examples are
 unavailable. An agent that omits the directory must be updated. Follow the
@@ -100,10 +169,10 @@ The agent and the controller each retain a bounded event history. Agent
 events cover container observation, bindings, contract checks and recreates,
 token login and renewal, vault requests by mount category, and SSH identity
 listing, signing, and certificate issuance. Controller events cover operator
-sign-in and sign-out, agent approval, sessions, policy saves, bindings, and
-credential issuance, and name the operator who acted. Events contain no
-tokens, secret values, request bodies, paths, signatures, or raw upstream
-errors.
+sign-in and sign-out, agent approval, sessions, policy saves, deletes, and renames,
+bindings, and credential issuance, and name the operator who acted. Events
+contain no tokens, secret values, request bodies, paths, signatures, or raw
+upstream errors.
 
 ![Controller events, newest first](assets/web-events.png)
 

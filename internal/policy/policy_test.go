@@ -176,3 +176,19 @@ func TestInvalidNotForwardableSelectors(t *testing.T) {
 		}
 	}
 }
+
+func TestValidNameMatchesTheSaveRule(t *testing.T) {
+	long := strings.Repeat("a", 64)
+	for name, want := range map[string]bool{
+		"sample": true, "sample-two": true, "s1": true, long: true,
+		"": false, long + "a": false, "Sample": false, "-sample": false, "sample-": false, "sample--two": false,
+		"../controller": false, "sample/": false, "sample\n": false, "wyrwood-sample/../controller": false,
+	} {
+		if got := ValidName(name); got != want {
+			t.Errorf("ValidName(%q) = %v, want %v", name, got, want)
+		}
+		if got := New(name, StarterHCL).Validate() == nil; got != want {
+			t.Errorf("Validate(%q) = %v, want %v", name, got, want)
+		}
+	}
+}

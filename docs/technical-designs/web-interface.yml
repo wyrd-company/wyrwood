@@ -49,13 +49,18 @@ proposed-design:
     anti-forgery token. The sidebar, account area, and policy editor have
     separate components. Bundled scripts load from the controller origin; no
     inline executable script or third-party asset host is needed. The fixed
-    primary navigation is: Agents, Containers, Policies, OpenBao keys,
+    primary navigation is: Agents, Bindings, Policies, OpenBao keys,
     Events, and Settings. The account menu at the bottom of the sidebar names the
     signed-in operator and opens with the shadcn/ui Radix DropdownMenu
     primitives. Its items are Security and Sign out. Security links to
     `/security`; Sign out submits a native POST form to `/sign-out` with
     the per-session anti-forgery token. The menu supports keyboard navigation,
-    screen-reader semantics, and focus restoration on dismissal. Beside the
+    screen-reader semantics, and focus restoration on dismissal. The sidebar
+    foot shows a Report an issue link to
+    `https://github.com/wyrd-company/wyrwood/issues/new`. It opens a new tab
+    with noopener noreferrer, its accessible name says that it opens GitHub,
+    and its URL carries no query data, so that no site value leaves through
+    it. The sign-in page has no sidebar and does not show the link. Beside the
     page, the sidebar stays in the viewport and scrolls independently when
     its controls exceed the viewport height. Above the page, the sidebar
     uses its content height. The controller binds to a configurable address
@@ -121,39 +126,172 @@ proposed-design:
     disabled, checking, unavailable, up to date, or have found an update.
     A failed check retains the last successful release and its observation age.
     Development versions are displayed without a release comparison.
-  containers-page: >-
-    Lists all approved agents' reported containers by default with name, image,
-    agent, connection state, last report time, key kind, bound policies, and
-    one binding state: conforms, non-conforming, degraded, or not bound.
-    Disconnected agents retain their last reported containers and are labelled
-    disconnected. A GET form filters by agent and case-insensitive text across
-    agent, container ID, name, image, runtime state, binding state, key and
-    policies. Operators can sort by container name, agent, image or binding
-    state in either direction and clear filters. Container identity includes
-    both agent and container ID. Selection links retain filters and sorting;
-    the selected detail and binding forms always use the container's agent.
-    A filter that excludes the selected container closes its detail panel.
-    Selecting a container opens a panel. For an unbound container the panel
-    offers every candidate key in precedence order with the most stable one
-    preselected and labelled, policy checkboxes, and binding settings for TTL,
-    maximum TTL, access group, and enforcement. Recreate enforcement requires
-    explicit first-bind acknowledgement of writable-layer loss. Preview uses
-    controller composition and shows source names/revisions, combined HCL,
-    identities, forwarding restrictions, contract, and settings. A conflicting
-    selection shows an actionable error. A bound container shows the saved
-    effective assignment, pending transition state, contract report, and
-    actions to edit the selection/settings, request recreate, or unbind.
-    The bound panel shows the agent-reported consumer directory and effective
-    mount target with copyable Docker Compose and docker run examples. Examples
-    use the observed container name and image and expand effective contract
-    environment values. Compose escapes interpolation and disables automatic
-    host-path creation; the agent owns the directory. Missing directory or image
-    observations leave examples unavailable rather than guessing a source.
+  bindings-page: >-
+    GET /bindings lists one row per stored binding across approved agents, with
+    the observed name and image of each container that its agent reports for
+    the binding, agent, connection state, last report time, key kind and value,
+    policies, and one state: conforms, non-conforming, degraded, or not
+    reported. A binding key can select several containers, and the row shows
+    each one, so that no reported container is hidden by the row count. A
+    binding with no matching reported container keeps its row, marked Not
+    reported, with its agent and key and a link to its screen. This state is
+    not an error, and it does not remove the binding, which survives a rebuild
+    that preserves its key. Disconnected agents' rows use their last report and
+    are labelled disconnected. A failed store read answers an error page and
+    never reads as bindings being absent or not reported. The rows come from one
+    read projection, shared by every page that lists bindings. A GET form
+    filters by agent and case-insensitive text across agent, key, policies,
+    state, and each container's ID, name, image and runtime state. Operators can
+    sort by container name, agent, image, key, policies or state in either
+    direction. A filter that matches nothing says so and clears with one link.
+    The table has no detail panel and uses the full width of the page. Each
+    row's Actions column has an Edit link with an icon and visible text, whose
+    accessible name names the row's target: its container and agent, or its
+    binding key and agent when the row has several containers or none. The
+    container links stay, one per container. Both open the binding's screen and
+    retain the list's filters and sorting, and each screen links back to that
+    list. A row has no click handler of its own. Add binding opens the
+    add-binding screen with the same filters.
+  add-binding-screen: >-
+    GET /bindings/add lists the containers that approved agents report and that
+    have no binding, with name, image, agent, connection state, last report
+    time, offered key kinds, and runtime state. Together with the bindings list
+    this shows every container an agent reports: a container is on exactly one
+    of them. The screen has the same agent filter, a text filter across agent,
+    container ID, name, image, runtime state and offered keys, and sort by
+    container name, agent, image or runtime state. Each row's Actions column has
+    an Add binding link with an icon, visible text, and an accessible name that
+    names the container and agent. The action and the container link open the
+    bind screen and retain the filters, and the bind screen links back here. A failed
+    read of an inventory or of the bindings answers an error page and never reads
+    as containers being absent or having no binding.
+  screen-tabs: >-
+    The policy and binding screens split their content into tabs that follow the
+    WAI-ARIA tabs pattern, through Radix Tabs. Every panel stays mounted, and an
+    inactive panel is hidden from sight and from the accessibility tree, so that
+    one form submits all of its fields and values survive changing tabs. The
+    actions and any problem are above the tabs. The selected tab travels in the
+    address of the form action and the screen's links as the tab query value, not
+    in a form field, and survives a refused submission and a successful save. A
+    value the screen does not have selects the first tab. A tab whose hidden
+    content needs attention says so in text in its accessible name.
+  containers-address: >-
+    GET /containers redirects permanently to GET /bindings, so that a saved link
+    keeps working. It retains filter-agent, q, sort and order. The agent query
+    value becomes filter-agent when filter-agent is absent. Other values are
+    dropped, including the container value of a former selection link. The
+    Agents page links directly to /bindings.
+  bind-screen: >-
+    GET /bindings/new?agent=<agent>&container=<id> shows one unbound reported
+    container, taking the agent from the approved agent's report. The screen
+    shows the container, Bind policies and Preview effective policy, and a live
+    summary of the selected key, policies, TTL, maximum TTL, access group, and
+    enforcement above its tabs. Key and policies offers every candidate key in
+    precedence order with the most stable one preselected and labelled, and
+    policy checkboxes. Settings has TTL, maximum TTL, access group, and
+    enforcement. Effective policy shows the preview. The screen forms one column
+    on a phone. The summary keeps what an unopened tab holds in view, and no tab
+    must be visited before binding. Recreate enforcement requires explicit
+    first-bind acknowledgement of writable-layer loss. Preview selects Effective
+    policy, uses controller composition, and shows source names/revisions,
+    combined HCL, identities, forwarding restrictions, contract, and settings. A
+    conflicting selection
+    shows an actionable error. A container that no approved agent reports gives
+    a 404 page that says so and links back to the add-binding screen. A container
+    that is already bound goes to its binding screen. A failed read of the agent,
+    its inventory or its bindings answers an error page, and never reads as the
+    container being unbound or not reported. A failed submission keeps its reason
+    on that page.
+  binding-screen: >-
+    GET /bindings/{id} shows one bound container, taking the agent from the
+    binding record. A binding key can select several reported containers; the
+    container query value chooses among those only. Above its tabs the screen
+    shows the container, its state, Save binding, Preview effective policy, a
+    Request recreate and an Unbind action set apart from them, and the live
+    summary without the key. Status has the assignment, token, key, contract
+    report, and pending transition state. Policies and Settings edit the
+    selection and settings. Effective policy has the saved composition and the
+    preview. Container setup shows the
+    agent-reported consumer directory and effective mount target with copyable
+    Docker Compose and docker run examples. Examples use the observed container
+    name and image and expand effective contract environment values. Compose
+    escapes interpolation and disables automatic host-path creation; the agent
+    owns the directory. Missing directory or image observations leave examples
+    unavailable rather than guessing a source. A binding whose container is not
+    reported shows the binding record with the state Not reported and says so,
+    with no Container setup tab and no contract report. A
+    failed read of the agent, its inventory or its bindings answers an error page,
+    keeps the reason of a failed submission, and never reads as the container
+    not being reported. A binding that does not exist gives a 404 page. Cancelling a recreate or unbind confirmation returns to
+    this screen.
+  binding-failures: >-
+    A failed create or change answers 422 with the same screen, its message, and
+    the values the operator entered, including text that does not validate and
+    the submitted revision, so that a retry cannot overwrite a concurrent edit.
+    The message is above the tabs. The answer carries the tab that owns the
+    problem as structured data, from the part of the form the validation names:
+    the key, a policy selection or composition belong to Key and policies or
+    Policies, and TTL, maximum TTL, access group, enforcement, and recreate
+    acknowledgement belong to Settings. That tab is selected. A problem with no
+    single owner, such as a revision conflict or a pending transition, keeps the
+    tab it was submitted from. The frontend does not read the message to choose
+    a tab. The bound screen links to its saved values. A failed preview keeps the
+    form and shows the message on Effective policy. A failed recreate or unbind
+    answers 422 with the binding screen and its message. A browser's refusal of
+    a required field selects the tab that holds the field, so that the browser
+    can focus it and show its own message. A store read that fails while answering
+    gives the error page with that message, in place of the screen. Session and
+    anti-forgery checks apply to every route.
   policies-page: >-
     Edits reusable HCL, Transit keys and SSH-engine roles, forwarding
     selectors, mount target, and environment requirements. Token lifetime,
     access group, and enforcement are edited on bindings. The editor is
     separate from the binding settings and effective preview components.
+    The notice, problem, heading, and actions are above the tabs, with the name
+    on a new policy. Its tabs are OpenBao policy (token lifecycle, HCL, warnings),
+    SSH identities (Transit keys, SSH-engine roles, listing problems, unpermitted
+    cautions), and Container contract (mount target, environment). A saved
+    policy's page adds a Bindings tab, and its name stays read-only in the
+    heading. The actions are above the tabs, so that a list's length cannot move
+    them. A problem from a refused save selects the tab that owns it, as
+    binding-failures describes. The Bindings tab lists every stored binding that
+    selects the policy, through the same projection as the Bindings page:
+    container name and image when reported, agent, key kind and value, state,
+    and a link to the binding screen. A binding with no reported container stays
+    listed and marked Not reported. A disconnected agent's row is labelled with
+    its last report. A binding on an agent that is not approved is listed with
+    that label; its agent's reports are not read. The header counts come from
+    the same rows, as bindings and agents, and link to the tab, which selects it
+    and moves focus to its panel, as does opening the page with that fragment. Each
+    row has the Edit action of the bindings page. A policy
+    with no bindings says so,
+    and a new policy has no such tab. Refused saves keep the tab. A failed
+    read answers 500 and not an empty list, and a refused save keeps its reason
+    on that answer. Only the agents that hold a listed binding are read.
+    A saved policy's page has a Delete policy action. GET `/policies/delete`
+    with the name in its query opens a confirm screen that names the policy and
+    its OpenBao policy; POST to the same address deletes. The name comes only
+    from the query. While any stored binding selects the policy, including one
+    with no reported container or on an agent that is not approved, the server
+    refuses whatever the page sent, the screen offers no delete, and it lists
+    the blocking bindings with links, through the Bindings tab's projection.
+    A failed read answers 500 and not an empty list. A policy that does not
+    exist answers 404 with a way back, and a failed delete keeps its reason and
+    offers the delete again. A successful delete returns to the Policies page
+    with a notice. Both routes require the operator session, and POST requires
+    the anti-forgery token.
+    A saved policy's page has a Rename action. GET `/policies/rename` with the
+    name in its query opens a screen that takes the new name, names the current
+    OpenBao policy, and states the count of affected bindings, that each gets a
+    fresh credential, and that token lifetime is unchanged. It lists those bindings
+    through the Bindings tab's projection. POST to the same address renames, and
+    the name comes only from the query. A refusal keeps the reason and what the
+    operator typed. A policy that does not exist answers 404 with a way back, which
+    also answers a replay. A successful rename opens the policy under its new name
+    with a notice. A rename that committed with its transition pending opens the same
+    page with a notice that the controller is finishing it. A rename to the same name
+    returns to the policy. Both routes require the operator session, and POST requires
+    the anti-forgery token.
     Simple path/capability HCL has graphical path rows and capability checkboxes.
     Graphical edits replace only the chosen source span. Unsupported constructs
     fall back to the complete raw HCL text; switching views alone does not

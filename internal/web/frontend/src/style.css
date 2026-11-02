@@ -70,11 +70,13 @@ body {
   font-size: 15px;
   line-height: 1.5;
 }
-a {
-  color: var(--accent);
-}
-a:hover {
-  color: var(--accent-ink);
+@layer base {
+  a {
+    color: var(--accent);
+  }
+  a:hover {
+    color: var(--accent-ink);
+  }
 }
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -187,6 +189,17 @@ p {
   font-size: 12px;
   color: var(--nav-quiet);
 }
+.nav-foot a {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  color: var(--nav-ink);
+  text-decoration: underline;
+}
+.nav-foot a:hover {
+  color: #ffffff;
+}
 .dot {
   display: inline-block;
   width: 8px;
@@ -278,21 +291,8 @@ main {
   width: 100%;
   max-width: 1240px;
 }
-.split {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: 24px;
+main.wide {
   max-width: none;
-  flex-direction: row;
-}
-.split > .main-column {
-  flex: 999 1 560px;
-  min-width: 0;
-}
-.split > aside {
-  flex: 1 1 340px;
-  min-width: 0;
 }
 
 .card {
@@ -390,10 +390,6 @@ tbody tr:last-child td {
 tbody th {
   text-align: left;
   font-weight: 500;
-}
-tr.selected {
-  background: #eef5f0;
-  box-shadow: inset 3px 0 0 var(--accent);
 }
 .row-link {
   display: flex;
@@ -502,6 +498,13 @@ button.small {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+.actions-separate {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--line);
 }
 form.inline {
   display: inline;
@@ -627,18 +630,25 @@ ul.plain li {
   align-items: center;
   gap: 8px;
 }
-.container-filters {
+.list-filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   gap: 12px;
   align-items: end;
 }
-.container-filter-actions {
+.list-filters input {
+  height: 44px;
+}
+.list-filter-actions {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+.list-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 .filters a {
   min-height: 44px;
@@ -655,6 +665,113 @@ ul.plain li {
   background: var(--nav);
   border-color: var(--nav);
   color: #ffffff;
+}
+
+.screen-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.screen-heading-end {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.decision-summary {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.screen-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.screen-tab {
+  min-height: 44px;
+  padding: 0 14px;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.screen-tab:hover {
+  color: var(--ink);
+}
+.screen-tab[data-state="active"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+  font-weight: 600;
+}
+.screen-tab:focus-visible,
+.screen-panel:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.tab-attention {
+  color: var(--ink);
+  font-weight: 600;
+}
+.screen-panel {
+  padding-top: 16px;
+}
+.screen-panel[hidden] {
+  display: none;
+}
+.row-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.screen-heading h2 {
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.screen-heading .hint {
+  overflow-wrap: anywhere;
+}
+.binding-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 24px;
+}
+.binding-summary > *,
+.binding-choices > * {
+  min-width: 0;
+}
+.binding-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.binding-choices .mono,
+.binding-summary .mono {
+  overflow-wrap: anywhere;
+}
+.binding-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.binding-settings > p,
+.binding-settings > .choice,
+.binding-settings > .field:has(#binding-enforcement) {
+  grid-column: 1 / -1;
+}
+#binding-enforcement {
+  max-width: 480px;
 }
 
 .signin {

@@ -11,7 +11,8 @@ description: >-
   is defined by `assets/policy/policy.schema.json`.
 
   `name` is a lower-kebab-case slug unique in the controller and is the suffix
-  of the OpenBao policy name `wyrwood-<name>`. `openbao.policy` is the authored workload
+  of the OpenBao policy name `wyrwood-<name>`, with a `--<generation>` suffix when
+  the name was used before. `openbao.policy` is the authored workload
   HCL policy document; the controller validates it through OpenBao before
   saving. `ssh.transit-keys`
   lists Transit key names under the controller's Transit mount that the
@@ -58,7 +59,7 @@ description: >-
   expanded environment values. Sources, source revisions, effective content,
   settings, and binding revision identify a durable assignment.
 
-  Binding tokens contain exactly the selected `wyrwood-<name>` policies,
+  Binding tokens contain exactly the OpenBao policies of the selected policies,
   without implicit `default`. Each named policy compiles fixed lookup-self
   read and revoke-self update grants. `openbao.agent-token-renewal` controls
   actual agent renewal and adds renew-self update when enabled. New policies
@@ -92,6 +93,21 @@ description: >-
   or OpenBao side effects. Initial page warnings use the same computation.
   The editor calls this endpoint when the HCL field loses focus and discards
   responses for HCL that changed while the check was pending.
+
+  A policy that no binding selects can be deleted. Delete removes the stored
+  document and the policy's exact OpenBao policy. It is refused while any
+  stored binding selects the policy, whether or not its container is reported.
+  A later policy with the same name starts at revision 1 and is a different
+  policy: its OpenBao policy is `wyrwood-<name>--<generation>`, and a token of an
+  earlier policy with that name has no access to it. A document holds no
+  generation; the controller's store owns it. An edit keeps the OpenBao policy, so
+  a live token observes accepted HCL.
+
+  A rename keeps the document, HCL, and binding selection of a policy, changes its
+  name, and records a revision. Its OpenBao policy becomes the next generation of the
+  new name, the old OpenBao policy is removed, and a later policy with the old name is
+  a different policy. A rename onto a name in use is refused, and a rename to the same
+  name changes nothing.
 
   A policy document contains no secret. The controller stores it in SQLite
   and in OpenBao as compiled HCL with the managed lifecycle grants.

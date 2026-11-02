@@ -72,11 +72,90 @@ proposed-design:
     key, references bindings with delete cascade, and references policies
     without delete cascade. It supports reverse lookup for policy edits and
     usage counts. A referenced policy cannot be deleted without an explicit
-    binding update or unbind. Binding settings, revision, and desired/applied
+    binding update or unbind: the controller refuses it under the mutation lock,
+    the lock also held by binding create and change, and the foreign key refuses
+    it in the store. There is no forced delete and no cascade unbind. A delete
+    removes the exact OpenBao policy first, then the row, so that an OpenBao
+    policy never outlives its row. On a failed OpenBao delete, whose answer may
+    hide a success, the controller publishes the stored HCL again. On a failed
+    store delete it reads the row back: a row that is gone is a completed delete,
+    a row that stays is published again, and an unreadable store publishes
+    nothing. A publication that cannot finish marks policy synchronization
+    pending, which blocks fresh issuance until the next credential request or
+    startup publishes every stored row. A restart between the two deletes takes
+    the same synchronization, so the policy stays and the delete can be retried.
+    A later policy with the same name starts at revision 1 and is a different
+    policy with its own OpenBao identity, described in policy-identity. Binding
+    settings, revision, and desired/applied
     assignment state are durable binding data. Membership and settings update
     in one SQLite transaction; reads resolve a consistent source snapshot.
     AppRole names retain the existing agent-and-binding identity. No token,
     SecretID, wrapping token, or container environment observation is stored.
+  policy-identity: >-
+    OpenBao resolves a token's policies by name on each request, so a token that
+    outlives its binding holds whatever a later policy publishes under that name.
+    An accessor that no agent reported cannot be revoked, and listing accessors
+    needs sudo, so identity carries the separation. Every OpenBao policy name is
+    derived in one place from the policy name and a durable generation: generation
+    1 is wyrwood-<name> and a later generation is wyrwood-<name>--<generation>,
+    which no policy name can spell. The store allocates a generation in the
+    transaction that inserts the row, from the policy_generations record for that
+    name. A delete keeps that record, so no generation is used twice. A new row
+    takes the next generation; a saved edit keeps its generation, so live tokens
+    still observe accepted HCL. A store commit refuses a generation that disagrees
+    with the store, because the OpenBao policy is published first. Restoration and
+    removal use the exact identity of the attempted or stored row. A crash between
+    publication and commit leaves an OpenBao policy that no token names, and the
+    next save of that name overwrites it. Restoring an older backup returns the
+    generation record to that time, so it can issue a generation again.
+    Effective sources carry a generation only above 1. An assignment that names
+    only first uses keeps its bytes and its identity across the move to schema 3,
+    and that move issues no credential. There is no name-reuse ban and no timer.
+  policy-rename: >-
+    A rename keeps the logical policy: its document, ACL text, revision history,
+    and binding membership. It changes the one name, records a revision, and moves
+    the row to the next generation of the new name, so that a later policy of the
+    old name is a different policy that tokens of this one cannot reach. Renaming
+    to the same name changes nothing and records no revision or event. The request
+    carries the revision and generation the operator saw, so a page opened before a
+    save, or a page of an earlier policy of that name, is refused. A replay finds
+    no such policy. A name in use is refused. The order is: record the new identity
+    for retirement, publish it, commit, apply each binding, remove the old identity.
+    The commit is one transaction that inserts the new row and its generation
+    record, moves every binding_policies row, writes each affected binding's next
+    assignment with a revision increment and applied 0, deletes the old row, ends
+    the new identity's retirement record, and records the old identity's. A rename
+    computed from a stale membership or binding revision is refused by that
+    transaction. Bindings that do not select the policy keep their assignment.
+    Applying a binding writes its role with the new identity, then revokes its old
+    token by the reported accessor, as an ordinary change does. A connected agent
+    then requires a fresh credential, because its membership check is exact. A
+    disconnected agent's role and revocation proceed through OpenBao, and it takes
+    the new assignment and a fresh credential on reconnect.
+    A failed or uncertain publication removes what it wrote, and nothing else
+    changes. A failed commit reads the store back: a committed rename goes on, a
+    rename that did not commit removes its identity, and an unreadable store removes
+    nothing now.
+  policy-retirement: >-
+    A retirement record in the policy_retirements table names one exact OpenBao
+    identity to remove. Only a derived identity is recorded, and only a recorded
+    identity is removed; the controller never lists OpenBao policies to find one. A
+    record written before publication covers a failure or restart before the commit,
+    and the commit ends it. A record written by the commit covers the old identity.
+    The consumer runs in the controller, needs no client, and sleeps until a rename
+    or startup wakes it. While a record remains, it retries on the controller's
+    OpenBao retry interval. Each pass finishes any pending policy synchronization and
+    applies every binding that is not applied, because the role of such a binding can
+    still name a retired identity. Until every binding is applied, it removes nothing,
+    so the old ACL stays while a transition is pending. It then handles each record.
+    A record whose identity a stored row holds ends without a delete, because that
+    policy took the identity after the record was written. Any other record is
+    deleted from OpenBao and ends only after a read-back confirms that the policy is
+    gone. A pending ordinary save, with no record present, keeps its existing recovery
+    at the next credential request or startup. All of this runs under the mutation
+    lock, so a save or rename that races a removal waits, and then finds its own new
+    identity. A rename of a policy held by a token whose accessor no agent reported
+    leaves that token until the old identity goes; it then has no access.
   hcl-composition: >-
     The effective HCL is the union of the selected named source documents,
     sorted by policy name and annotated with source name and revision. The
@@ -135,8 +214,8 @@ proposed-design:
     contract conflicts. A request that exceeds existing transport bounds
     returns a size diagnostic rather than saving an undeliverable assignment.
   approle-policy-mapping: >-
-    For binding b, let S(b) be exactly the sorted names wyrwood-<policy-name>
-    derived from its stored selected policies. Its AppRole token_policies is
+    For binding b, let S(b) be exactly the OpenBao identities, by policy-identity,
+    of its stored selected policies, in policy name order. Its AppRole token_policies is
     exactly S(b); for policies alpha and beta, it is [wyrwood-alpha,
     wyrwood-beta]. The controller derives this list from resolved records and
     accepts no raw OpenBao policy names from a form, API client, or agent.
@@ -146,7 +225,7 @@ proposed-design:
     missing names, default, root, the
     controller policy, and arbitrary names are refused as explicit policies.
     This preserves the rule that the controller refuses any token policy
-    outside the binding's own. Per-policy HCL stays at wyrwood-<policy-name>;
+    outside the binding's own. Per-policy HCL stays at the policy's identity;
     the role name stays binding-specific. Role token_ttl and token_max_ttl
     come only from binding settings. One-use SecretIDs, response wrapping,
     service tokens, and existing wrapping TTLs retain their contracts. The
@@ -231,12 +310,12 @@ proposed-design:
     Existing unbind and recreate routes remain. An authenticated, CSRF-checked
     POST /bindings/preview composes an unsaved selection without storing data,
     writing OpenBao, or issuing credentials, and returns the typed result or
-    field diagnostics. The container page data embeds the same result for a
-    stored binding. Unknown names and malformed fields are validation errors;
+    field diagnostics. The binding screen's page data embeds the same result for
+    a stored binding. Unknown names and malformed fields are validation errors;
     structural composition or revision conflicts return conflict diagnostics.
   web-and-policy-editor: >-
-    Container selection exposes a multi-select policy control and a separate
-    binding-settings section for both TTL values, access group, and enforcement.
+    The bind and binding screens expose a multi-select policy control and a separate
+    Settings tab for both TTL values, access group, and enforcement.
     The read-only effective panel shows source revisions, combined HCL, offered
     identities, forwarding restrictions, expanded contract, and runtime
     settings with provenance and apply state. Preview never modifies a policy.
@@ -296,7 +375,7 @@ proposed-design:
     or a new timeout mechanic.
   default-policy-choice: >-
     Binding AppRoles set token_no_default_policy=true. Their exact
-    token_policies list is the selected wyrwood-<policy-name> set; there is
+    token_policies list is the selected policy identity set; there is
     no separate lifecycle baseline and no implicit default exception. The
     controller publishes fixed lookup/read and agent retirement/update grants
     inside each selected policy, with renew-self/update when that policy

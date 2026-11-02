@@ -14,6 +14,8 @@ export interface Layout {
   Controller: string;
   Notice: string;
   Problem: string;
+  Tab?: string;
+  ProblemTab?: string;
 }
 export interface SignInData extends Layout {
   Provider: string;
@@ -59,6 +61,7 @@ export interface AssignableGroups {
 }
 export interface ContainerRow {
   AssignableGroups?: AssignableGroups | null;
+  Screen: string;
   Agent: string;
   Connected: boolean;
   LastReport: string;
@@ -92,21 +95,62 @@ export interface ContainerRow {
         Value: string;
         Note: string;
         Encoded: string;
-        First: boolean;
       }[]
     | null;
 }
-export interface ContainersData extends Layout {
-  Agents: { Name: string; Containers: number; Selected: boolean }[] | null;
+export interface BindingRow {
+  ID: string;
   Agent: string;
+  AgentNotApproved: boolean;
+  Connected: boolean;
+  LastReport: string;
+  KeyKind: string;
+  KeyValue: string;
+  Policies: string[] | null;
+  Containers:
+    | {
+        ID: string;
+        Name: string;
+        Image: string;
+        State: string;
+        Screen: string;
+      }[]
+    | null;
+  Badge: string;
+  BadgeClass: string;
+  Screen: string;
+}
+export interface ListData extends Layout {
+  Agents: { Name: string; Count: number; Selected: boolean }[] | null;
   FilterAgent: string;
   Query: string;
   Sort: string;
   Order: string;
+}
+export interface BindingsData extends ListData {
+  Rows: BindingRow[] | null;
+  Add: string;
+}
+export interface AddBindingData extends ListData {
   Rows: ContainerRow[] | null;
-  Selected: ContainerRow | null;
+  Back: string;
+}
+export interface BindingForm {
+  Key: string;
+  Revision: number;
+  Settings: EnteredBindingSettings;
+  Understood: boolean;
+}
+export interface BindingData extends Layout {
+  Row: ContainerRow;
+  Reported: boolean;
   Policies: PolicyChoice[] | null;
-  Recreate: string[] | null;
+  Form: BindingForm;
+  Screen: string;
+  Action: string;
+  Recreate: string;
+  Unbind: string;
+  Back: string;
 }
 export interface ConfirmData extends Layout {
   Heading: string;
@@ -115,6 +159,20 @@ export interface ConfirmData extends Layout {
   Button: string;
   Danger: boolean;
   Back: string;
+}
+export interface PolicyDeleteData extends ConfirmData {
+  Blockers: BindingRow[] | null;
+}
+export interface PolicyRenameData extends Layout {
+  Name: string;
+  NewName: string;
+  Revision: number;
+  Generation: number;
+  Identity: string;
+  Consequence: string;
+  Action: string;
+  Back: string;
+  Bindings: BindingRow[] | null;
 }
 export interface PoliciesData extends Layout {
   Policies:
@@ -138,6 +196,7 @@ export interface PolicyData extends Layout {
   New: boolean;
   Name: string;
   Revision: number;
+  BindingRows: BindingRow[] | null;
   Bindings: number;
   Agents: number;
   HCL: string;
@@ -207,8 +266,12 @@ export type Page = {
 interface PageModels {
   "sign-in": SignInData;
   agents: AgentsData;
-  containers: ContainersData;
+  bindings: BindingsData;
+  "add-binding": AddBindingData;
+  binding: BindingData;
   confirm: ConfirmData;
+  "policy-delete": PolicyDeleteData;
+  "policy-rename": PolicyRenameData;
   policies: PoliciesData;
   policy: PolicyData;
   keys: KeysData;
@@ -222,6 +285,12 @@ export interface BindingSettings {
   "token-max-ttl": string;
   "access-group"?: number;
   enforcement: "report" | "recreate";
+}
+export interface EnteredBindingSettings {
+  "token-ttl"?: string;
+  "token-max-ttl"?: string;
+  "access-group"?: number | string;
+  enforcement?: string;
 }
 export interface EffectivePolicy {
   sources: { name: string; revision: number; hcl: string }[];

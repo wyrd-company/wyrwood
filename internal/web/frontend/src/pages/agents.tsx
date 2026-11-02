@@ -9,7 +9,7 @@ import {
   Panel,
   Status,
   Table,
-  containerURL,
+  agentBindingsURL,
 } from "@/components/shared";
 import { ago, stamp } from "@/lib/time";
 import type { AgentsData } from "@/types";
@@ -147,7 +147,7 @@ export function Agents({ data: d }: { data: AgentsData }) {
             {d.Approved.map((agent) => (
               <tr key={agent.Name}>
                 <th scope="row">
-                  <a href={containerURL(agent.Name)}>{agent.Name}</a>
+                  <a href={agentBindingsURL(agent.Name)}>{agent.Name}</a>
                 </th>
                 <td>
                   <code>{agent.Version || "unknown"}</code>

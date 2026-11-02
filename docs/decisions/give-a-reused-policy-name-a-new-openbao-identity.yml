@@ -1,0 +1,38 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - composable-policy-bindings
+    - controller
+description: >-
+  Delete and rename can empty a policy name, and a later policy can use it again.
+  OpenBao resolves a token's policies by name on each request. A token whose
+  accessor no agent reported cannot be revoked, and listing accessors needs sudo,
+  so it can outlive its binding. Measured against OpenBao 2.7.2, such a token reads
+  through a later policy published under the same name, until it expires.
+considered-options:
+  "1": >-
+    Keep stable names, document the exposure, and finish pending transitions before
+    a reused name is published. The token stays authorized by the later policy.
+  "2": >-
+    Give the policy a new OpenBao identity when its name is reused. The first use of
+    a name stays wyrwood-<name>, and a later use is wyrwood-<name>--<generation>.
+  "3": >-
+    Refuse an emptied name until every old token must have expired. This narrows
+    reuse, and adds a timer on the operator.
+decision-outcome:
+  chosen-option: 2
+  justification: >-
+    A policy created under a name used before is intentionally a different policy,
+    so a token of the earlier one is refused and creating the name stays supported.
+    Option 1 leaves the token authorized. Option 3 restricts the operator and gives
+    no better separation. Identity needs a durable per-name record and a source field
+    in the agent protocol.
+expected-outcomes:
+  positive:
+    - A surviving token has no access to a later policy of the same name.
+    - State and assignments from before the record keep their identity and tokens.
+    - An ordinary edit keeps the identity and still reaches a live token.
+  negative:
+    - A reused name has an OpenBao policy name that differs from wyrwood-<name>.
+    - An agent older than the source field rejects an assignment that names a reused policy.
+    - Restoring an older backup returns the record to that time.

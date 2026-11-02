@@ -86,6 +86,55 @@ func TestEveryMessageRoundTripsAndValidatesAgainstSchema(t *testing.T) {
 	}
 }
 
+// A reused policy name reaches the agent as a generation. A first use carries
+// none, so that its assignment identity and its bytes do not change.
+func TestPolicySetCarriesAGenerationOnlyAboveTheFirstUse(t *testing.T) {
+	schema := schematest.Compile(t, schematest.AgentControllerMessage)
+	reused := policy.New("teal", `path "kv/*" {}`)
+	reused.Generation = 2
+	effective := reused.Runtime(policy.DefaultSettings())
+	set := PolicySet{OpenBao: OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []Binding{{Binding: "b-1", Key: Key{Kind: KeyName, Value: "web"}, Policy: effective, Assignment: effective.Identity()}}}
+	line, err := Encode(set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := schematest.Validate(schema, line); err != nil {
+		t.Fatal(err)
+	}
+	decoded, err := Decode(bytes.TrimSuffix(line, []byte("\n")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := decoded.(PolicySet).Bindings[0].Policy.OpenBaoPolicies()
+	if len(got) != 1 || got[0] != "wyrwood-teal--2" {
+		t.Fatalf("OpenBaoPolicies() = %v", got)
+	}
+	first := policy.New("teal", `path "kv/*" {}`)
+	first.Generation = 1
+	if bytes.Contains(mustEncode(t, first.Runtime(policy.DefaultSettings())), []byte("generation")) {
+		t.Fatal("a first use names a generation")
+	}
+	invalid := bytes.Replace(line, []byte(`"generation":2`), []byte(`"generation":1`), 1)
+	if bytes.Equal(invalid, line) {
+		t.Fatal("the fixture has no generation")
+	}
+	if _, err := Decode(bytes.TrimSuffix(invalid, []byte("\n"))); err == nil {
+		t.Fatal("generation 1 was accepted")
+	}
+	if err := schematest.Validate(schema, invalid); err == nil {
+		t.Fatal("the schema accepted generation 1")
+	}
+}
+
+func mustEncode(t *testing.T, effective policy.Effective) []byte {
+	t.Helper()
+	line, err := Encode(PolicySet{OpenBao: OpenBao{Address: "http://127.0.0.1:8200"}, Bindings: []Binding{{Binding: "b-1", Key: Key{Kind: KeyName, Value: "web"}, Policy: effective, Assignment: effective.Identity()}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return line
+}
+
 func TestDecodeRejectsInvalidLines(t *testing.T) {
 	for name, line := range map[string]string{
 		"unknown-field":   `{"version":2,"type":"unbind","binding":"b-1","token":"x"}`,

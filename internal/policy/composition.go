@@ -56,16 +56,19 @@ func (s Settings) Validate() error {
 	s = s.Defaults()
 	ttl, err := parseTTL("token time-to-live", s.TokenTTL)
 	if err != nil {
-		return err
+		return partError(PartSettings, "%s", err)
 	}
 	max, err := parseTTL("token maximum lifetime", s.TokenMaxTTL)
 	if err != nil {
-		return err
+		return partError(PartSettings, "%s", err)
 	}
 	if max < ttl {
-		return errors.New("token maximum lifetime must be at least the token time-to-live")
+		return partError(PartSettings, "token maximum lifetime must be at least the token time-to-live")
 	}
-	return (Contract{MountTarget: defaultMountTarget, AccessGroup: s.AccessGroup, Enforcement: s.Enforcement}).Validate()
+	if err := (Contract{MountTarget: defaultMountTarget, AccessGroup: s.AccessGroup, Enforcement: s.Enforcement}).Validate(); err != nil {
+		return partError(PartSettings, "%s", err)
+	}
+	return nil
 }
 
 func (s Settings) TTL() time.Duration    { return durationOr(s.TokenTTL, defaultTokenTTL) }
@@ -75,6 +78,8 @@ type Source struct {
 	Name     string `json:"name"`
 	Revision int    `json:"revision"`
 	HCL      string `json:"hcl"`
+	// Generation is present only above the first use of the name.
+	Generation int `json:"generation,omitempty"`
 }
 
 // Effective is a resolved binding assignment, with its source provenance.
@@ -94,9 +99,9 @@ func (e Effective) Names() []string {
 	return names
 }
 func (e Effective) OpenBaoPolicies() []string {
-	names := e.Names()
-	for i := range names {
-		names[i] = openBaoPolicyPrefix + names[i]
+	names := make([]string, 0, len(e.Sources))
+	for _, s := range e.Sources {
+		names = append(names, openBaoPolicyName(s.Name, s.Generation))
 	}
 	return names
 }
@@ -141,6 +146,9 @@ func (e Effective) Validate() error {
 			return errors.New("policy selection is repeated")
 		}
 		seen[s.Name] = true
+		if s.Generation == 1 || s.Generation < 0 {
+			return errors.New("policy source generation is invalid")
+		}
 		p := New(s.Name, s.HCL)
 		p.Revision = s.Revision
 		if err := p.Validate(); err != nil {
@@ -155,14 +163,14 @@ func (e Effective) Validate() error {
 func (p Policy) Runtime(settings Settings) Effective {
 	settings = settings.Defaults()
 	renew := p.AgentRenewal()
-	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy}}, OpenBao: OpenBao{Policy: p.PublishedHCL(), AgentTokenRenewal: &renew}, SSH: p.Clone().SSH,
+	return Effective{Sources: []Source{{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy, Generation: p.sourceGeneration()}}, OpenBao: OpenBao{Policy: p.PublishedHCL(), AgentTokenRenewal: &renew}, SSH: p.Clone().SSH,
 		Contract: Contract{MountTarget: p.Contract.MountTarget, Env: p.Clone().Contract.Env, AccessGroup: settings.AccessGroup, Enforcement: settings.Enforcement}, Settings: settings}
 }
 
 // Compose unions sources in stable name order. A conflict never chooses a winner.
 func Compose(policies []Policy, settings Settings) (Effective, error) {
 	if len(policies) == 0 {
-		return Effective{}, errors.New("select at least one policy")
+		return Effective{}, partError(PartSelection, "select at least one policy")
 	}
 	policies = append([]Policy(nil), policies...)
 	sort.Slice(policies, func(i, j int) bool { return policies[i].Name < policies[j].Name })
@@ -180,21 +188,21 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 			return Effective{}, err
 		}
 		if seen[p.Name] {
-			return Effective{}, fmt.Errorf("policy %s is selected more than once", p.Name)
+			return Effective{}, partError(PartSelection, "policy %s is selected more than once", p.Name)
 		}
 		seen[p.Name] = true
 		if p.Contract.MountTarget != result.Contract.MountTarget {
-			return Effective{}, fmt.Errorf("mount-target conflicts between %s and %s", policies[0].Name, p.Name)
+			return Effective{}, partError(PartContract, "mount-target conflicts between %s and %s", policies[0].Name, p.Name)
 		}
 		for name, value := range p.Contract.Env {
 			value = strings.ReplaceAll(value, mountTargetToken, p.Contract.MountTarget)
 			if old, ok := result.Contract.Env[name]; ok && old != value {
-				return Effective{}, fmt.Errorf("environment %s conflicts between %s and %s", name, envSource[name], p.Name)
+				return Effective{}, partError(PartContract, "environment %s conflicts between %s and %s", name, envSource[name], p.Name)
 			}
 			result.Contract.Env[name] = value
 			envSource[name] = p.Name
 		}
-		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy})
+		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy, Generation: p.sourceGeneration()})
 		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, p.PublishedHCL())
 		renew = renew || p.AgentRenewal()
 		for _, k := range p.TransitKeys() {
@@ -229,7 +237,7 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 	result.SSH.NotForwardable.TransitKeys = namesOf(restrictedKeys)
 	result.SSH.NotForwardable.CARoles = namesOf(restrictedRoles)
 	if len(keys) > maximumIdentityNames || len(roles) > maximumIdentityNames {
-		return Effective{}, errors.New("effective policy has more than 64 identities of one source type")
+		return Effective{}, partError(PartSSH, "effective policy has more than 64 identities of one source type")
 	}
 	if err := result.Validate(); err != nil {
 		return Effective{}, err

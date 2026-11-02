@@ -8,6 +8,7 @@ package controller
 
 import (
 	"context"
+	"errors"
 	gossh "golang.org/x/crypto/ssh"
 	"reflect"
 	"strings"
@@ -73,6 +74,11 @@ func TestBindingMutationsRejectKnownUnassignableGroupsBeforeWrites(t *testing.T)
 	req := BindingRequest{Policies: []string{"sample"}, Settings: policy.Settings{AccessGroup: &zero}, Revision: b.Revision}
 	if _, err := c.createBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "other"}, req, "operator-1"); err == nil || !strings.Contains(err.Error(), "cannot assign group 0") {
 		t.Fatalf("create: %v", err)
+	}
+	_, assignErr := c.changeBinding(ctx, b.ID, req, "operator-1")
+	var refused *OperationError
+	if !errors.As(assignErr, &refused) || refused.Part != policy.PartSettings {
+		t.Fatalf("part of %v", assignErr)
 	}
 	if _, err := c.changeBinding(ctx, b.ID, req, "operator-1"); err == nil || !strings.Contains(err.Error(), "cannot assign group 0") {
 		t.Fatalf("change: %v", err)
