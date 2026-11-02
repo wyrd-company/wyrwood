@@ -583,3 +583,19 @@ func TestRenamePreflightsEveryAffectedAgent(t *testing.T) {
 	assertKept(t, h, saved)
 	wantRetirements(t, c)
 }
+
+// A row that a crafted name selects is not read: only name validation stands
+// between such a row and the rename.
+func TestRenameOfACraftedStoredNameReachesNothing(t *testing.T) {
+	h, bao := startRenameHarness(t)
+	runSQL(t, stateDB(t, h.controller), `INSERT INTO policies (name, revision, document, saved_at, saved_by) VALUES ('../controller', 1, '{}', 0, '')`)
+	calls := len(bao.recorded())
+	_, err := h.controller.RenamePolicy(context.Background(), PolicyRename{Name: "../controller", NewName: "beta", Revision: 1, Generation: 1}, deleteOperator)
+	var operation *OperationError
+	if !errors.As(err, &operation) || !operation.PolicyMissing {
+		t.Fatalf("rename = %#v", err)
+	}
+	if len(bao.recorded()) != calls {
+		t.Fatalf("calls = %v", bao.recorded()[calls:])
+	}
+}
