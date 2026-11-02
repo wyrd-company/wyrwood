@@ -10,6 +10,7 @@ import {
   Notice,
   Panel,
   policyDeleteURL,
+  policyRenameURL,
 } from "@/components/shared";
 import { OpenBaoLink } from "@/components/openbao-link";
 import { HCLEditor } from "@/components/hcl-editor";
@@ -49,6 +50,11 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             )}
           </div>
           <div className="actions">
+            {!d.New && (
+              <Button asChild variant="outline">
+                <a href={policyRenameURL(d.Name)}>Rename</a>
+              </Button>
+            )}
             {!d.New && (
               <Button asChild variant="outline" className="danger">
                 <a href={policyDeleteURL(d.Name)}>Delete policy</a>

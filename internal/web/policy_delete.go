@@ -51,7 +51,7 @@ func (server *Server) policyDeleteRefusal(request *http.Request, name string, ro
 func (server *Server) renderPolicyMissing(writer http.ResponseWriter, request *http.Request) {
 	server.renderStatus(writer, request, http.StatusNotFound, "confirm", confirmPage{
 		layout: server.layout(request, "Policy not found", "policies"), Heading: "Policy not found",
-		Body: "This policy does not exist. Another operator may have deleted it.", Back: "/policies",
+		Body: "This policy does not exist. Another operator may have deleted or renamed it.", Back: "/policies",
 	})
 }
 

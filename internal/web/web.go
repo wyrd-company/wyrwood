@@ -106,6 +106,8 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("POST /policies", server.handleSavePolicy)
 	authenticated.HandleFunc("GET /policies/delete", server.handleConfirmPolicyDelete)
 	authenticated.HandleFunc("POST /policies/delete", server.handleDeletePolicy)
+	authenticated.HandleFunc("GET /policies/rename", server.handleConfirmPolicyRename)
+	authenticated.HandleFunc("POST /policies/rename", server.handleRenamePolicy)
 	authenticated.HandleFunc("POST /policies/warnings", server.handlePolicyWarnings)
 	authenticated.HandleFunc("GET /keys", server.handleKeys)
 	authenticated.HandleFunc("POST /keys/transit", server.handleCreateTransitKey)

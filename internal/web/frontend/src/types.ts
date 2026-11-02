@@ -161,6 +161,17 @@ export interface ConfirmData extends Layout {
 export interface PolicyDeleteData extends ConfirmData {
   Blockers: BindingRow[] | null;
 }
+export interface PolicyRenameData extends Layout {
+  Name: string;
+  NewName: string;
+  Revision: number;
+  Generation: number;
+  Identity: string;
+  Consequence: string;
+  Action: string;
+  Back: string;
+  Bindings: BindingRow[] | null;
+}
 export interface PoliciesData extends Layout {
   Policies:
     | {
@@ -258,6 +269,7 @@ interface PageModels {
   binding: BindingData;
   confirm: ConfirmData;
   "policy-delete": PolicyDeleteData;
+  "policy-rename": PolicyRenameData;
   policies: PoliciesData;
   policy: PolicyData;
   keys: KeysData;

@@ -103,6 +103,9 @@ export function policyURL(name: string) {
 export function policyDeleteURL(name: string) {
   return `/policies/delete?name=${encodeURIComponent(name)}`;
 }
+export function policyRenameURL(name: string) {
+  return `/policies/rename?name=${encodeURIComponent(name)}`;
+}
 export function agentBindingsURL(agent: string) {
   return `/bindings?${new URLSearchParams({ "filter-agent": agent })}`;
 }

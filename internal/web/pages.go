@@ -86,6 +86,8 @@ var notices = map[string]string{
 	"recreate":       "Recreate requested. The agent reports the result.",
 	"unbound":        "Binding removed, its AppRole deleted, and the container's token revoked.",
 	"policy-deleted": "Policy deleted, and its OpenBao policy removed.",
+	"policy-renamed": "Policy renamed. Each binding that selects it gets a fresh credential.",
+	"rename-pending": "Policy renamed. A binding transition or the removal of the old OpenBao policy is pending, and the controller retries until OpenBao answers.",
 	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
 		"it stays valid until the agent revokes it or it expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",
@@ -813,7 +815,7 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 			continue
 		}
 		var subject []string
-		for _, part := range []string{event.Agent, event.ContainerKey, event.Policy, event.Binding} {
+		for _, part := range []string{event.Agent, event.ContainerKey, event.Policy, event.NewPolicy, event.Binding} {
 			if part != "" {
 				subject = append(subject, part)
 			}

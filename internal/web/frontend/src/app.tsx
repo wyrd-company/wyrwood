@@ -11,6 +11,7 @@ import { AddBinding } from "./pages/add-binding";
 import { Binding } from "./pages/binding";
 import { Confirm } from "./pages/confirm";
 import { PolicyDelete } from "./pages/policy-delete";
+import { PolicyRename } from "./pages/policy-rename";
 import { Policies } from "./pages/policies";
 import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
@@ -33,6 +34,8 @@ function Content({ page }: { page: Page }) {
       return <Confirm data={page.data} />;
     case "policy-delete":
       return <PolicyDelete data={page.data} />;
+    case "policy-rename":
+      return <PolicyRename data={page.data} />;
     case "policies":
       return <Policies data={page.data} />;
     case "policy":

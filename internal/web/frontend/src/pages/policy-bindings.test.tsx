@@ -187,6 +187,19 @@ it("keeps Save in the header, ahead of a list of 50 bindings", () => {
   expect(within(list).getAllByRole("row")).toHaveLength(51);
 });
 
+it("links a saved policy to its rename screen, with the name encoded", () => {
+  render(<PolicyEditor data={{ ...saved, Name: "a&b" }} />);
+  expect(screen.getByRole("link", { name: "Rename" })).toHaveAttribute(
+    "href",
+    "/policies/rename?name=a%26b",
+  );
+});
+
+it("offers no rename on a new policy", () => {
+  render(<PolicyEditor data={{ ...saved, New: true }} />);
+  expect(screen.queryByRole("link", { name: "Rename" })).toBeNull();
+});
+
 it("links a saved policy to its delete screen, with the name encoded", () => {
   render(<PolicyEditor data={{ ...saved, Name: "a&b" }} />);
   expect(screen.getByRole("link", { name: "Delete policy" })).toHaveAttribute(
