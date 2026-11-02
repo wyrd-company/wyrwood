@@ -320,6 +320,9 @@ It also refuses an event log that holds a `policy-deleted` event. To go back,
 stop the controller and agents, restore the state directory from the backup, and
 install the earlier controller and agent versions.
 
+Do not delete the event log to get past a refusal. The log is the audit record,
+and the database refusal stays.
+
 A backup does not restore OpenBao, and work done after the backup is lost:
 
 - OpenBao policies and AppRoles created after the backup stay in OpenBao. Remove
