@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+### Fixes
+
+- The wyrd.foo documentation for this release line now publishes. The product page held more highlights than the publisher accepts, so the 0.6.0 documentation did not publish.
+- The controller image now builds. 0.6.0 has no controller image, because the image build did not copy the public `operator` package. Its archives, DEB and RPM packages, and Go module are not affected. To run the controller from the image, use this version.
+
 ## 0.1.3
 
 ### Fixes
