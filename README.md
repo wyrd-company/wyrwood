@@ -123,14 +123,25 @@ docs:screenshots`, the real demo stack, and the freshness check run by
 
 Intentional is the only version and release mechanism. Record a change with
 `intentional add`, and release with `intentional plan`, `apply`, and `tag`.
-Tags are bare SemVer values. A pushed stable tag runs the package publisher
-compatibility preflight, publishes the GitHub release, submits the package
-manifest to `repo.wyrd.foo`, and publishes the controller image to
+Release tags are bare SemVer values. A pushed stable tag runs the package
+publisher compatibility preflight, publishes the GitHub release, submits the
+package manifest to `repo.wyrd.foo`, and publishes the controller image to
 `ghcr.io/wyrd-company/wyrwood` with the workflow's own token. Package
 submission uses these product-repository secrets:
 
 - `REPO_WYRD_FOO_PUBLISHER_APP_ID`
 - `REPO_WYRD_FOO_PUBLISHER_PRIVATE_KEY`
+
+Go requires a `v` prefix on a module version, and Intentional templates refuse
+one. After `intentional tag`, create the Go alias on the same commit and push
+it with the release tags:
+
+```bash
+git tag -a "v$VERSION" -m "Go module alias for wyrwood $VERSION" "$VERSION^{commit}"
+```
+
+The alias starts no workflow: the Release and image workflows match only bare
+SemVer tags.
 
 The docs unit can tag the same commit (`wyrwood-docs@<version>`), so the
 Release workflow builds the release tag by name. To rebuild a release, run

@@ -302,7 +302,8 @@ request is outside the key's grant. Status 9 means the policy or binding does
 not exist. No command prints a token or secret identifier.
 
 A Go program uses the package `github.com/wyrd-company/wyrwood/operator`
-directly. The commands are a thin layer over it.
+directly. The commands are a thin layer over it. Add it to a module with
+`go get github.com/wyrd-company/wyrwood/operator@latest`.
 
 ```go
 signer, err := operator.SelectAgentKey(agent, "SHA256:sample-fingerprint")
