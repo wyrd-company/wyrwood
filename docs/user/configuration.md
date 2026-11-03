@@ -193,6 +193,51 @@ policy** shows source names and revisions, combined HCL, offered identities,
 forwarding restrictions, contract, and settings before saving. Binding edits
 submit the current revision; a stale edit must be reloaded.
 
+### Values for each binding
+
+To give many containers the same rule over different paths, write
+`{{binding.name}}` in a path stanza of one policy:
+
+```hcl
+path "kv/data/sample/keys/{{binding.slug}}" {
+  capabilities = ["read"]
+}
+```
+
+The binding screen then asks for `slug`, under the selected policies. Each
+binding holds its own value:
+
+```json
+{
+  "policies": ["sample-key"],
+  "settings": { "values": { "slug": "alpha" } }
+}
+```
+
+![A required value for each placeholder of the policies](assets/web-bind-values.png)
+
+A token of this binding reads `kv/data/sample/keys/alpha` and no other key under
+that path, and **Preview effective policy** shows the path with the value in it.
+No policy is written for each container.
+
+![The effective policy shows the path with the value](assets/web-bind-values-effective.png)
+
+A name holds lower-case letters, digits, and underscores, and starts with a
+letter. A value holds up to 128 letters, digits, underscores, and hyphens, so it
+cannot add a wildcard or a path segment. Values are not secret: OpenBao holds
+them in identity metadata, and a token can read its own. Placeholders work only
+in path stanza names, and saving a policy that has one elsewhere is refused.
+
+Saving a binding with no value for a placeholder is refused. Editing a policy to
+add a placeholder is refused while a binding that selects the policy has no
+value, and the message names that binding. To move bindings to a placeholder,
+create a new policy that has it, select that policy on each binding with its
+value, and then delete the old policy. Changing a value is a new assignment, so
+the agent gets a new token and the old token is revoked. No OpenBao policy or
+controller permission changes are needed.
+
+### How OpenBao combines policies
+
 HCL remains in separate OpenBao policies. OpenBao evaluates their union with
 its normal path priority and deny rules; the displayed HCL includes each
 source in stable name order. Transit keys and SSH roles are deduplicated

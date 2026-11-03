@@ -290,7 +290,7 @@ func (session *agentSession) prepareCredential(ctx context.Context, binding stor
 	roleID, err := controller.openbao.RoleID(issueCtx, binding.Role)
 	var wrapped string
 	if err == nil {
-		wrapped, err = controller.openbao.WrappedSecretID(issueCtx, binding.Role, credentialWrapTTL)
+		wrapped, err = controller.openbao.WrappedSecretID(issueCtx, binding.Role, credentialWrapTTL, binding.Settings.IdentityMetadata())
 	}
 	code := events.ErrorNone
 	if err != nil {

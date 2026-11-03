@@ -249,3 +249,37 @@ func TestHelloRejectsInvalidGroupReports(t *testing.T) {
 		}
 	}
 }
+
+func TestBindingValuesRoundTripAndValidateAgainstSchema(t *testing.T) {
+	schema := schematest.Compile(t, schematest.AgentControllerMessage)
+	for _, message := range sampleMessages() {
+		set, ok := message.(PolicySet)
+		if !ok || len(set.Bindings) == 0 {
+			continue
+		}
+		set.Bindings[0].Policy.Settings.Values = map[string]string{"slug": "Alpha_1-2"}
+		line, err := Encode(set)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := schematest.Validate(schema, line); err != nil {
+			t.Fatalf("%s does not validate: %v", line, err)
+		}
+		decoded, err := Decode(bytes.TrimSuffix(line, []byte("\n")))
+		if err != nil {
+			t.Fatalf("Decode() = %v", err)
+		}
+		if !reflect.DeepEqual(decoded, Message(set)) {
+			t.Fatalf("round trip = %#v", decoded)
+		}
+		set.Bindings[0].Policy.Settings.Values = map[string]string{"slug": "a/b"}
+		line, err = Encode(set)
+		if err == nil {
+			if err := schematest.Validate(schema, line); err == nil {
+				t.Fatal("the schema accepted a value with a path separator")
+			}
+		}
+		return
+	}
+	t.Fatal("no sample policy set has a binding")
+}

@@ -81,7 +81,7 @@ path "auth/token/revoke-self" { capabilities = ["update"] }`); err != nil {
 	if err != nil {
 		t.Fatalf("RoleID() = %v", err)
 	}
-	wrapped, err := manager.WrappedSecretID(ctx, "wyrwood-host-b-1", time.Minute)
+	wrapped, err := manager.WrappedSecretID(ctx, "wyrwood-host-b-1", time.Minute, nil)
 	if err != nil {
 		t.Fatalf("WrappedSecretID() = %v", err)
 	}

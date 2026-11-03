@@ -53,11 +53,13 @@ type enteredSettings struct {
 	TokenMaxTTL string `json:"token-max-ttl"`
 	AccessGroup string `json:"access-group"`
 	Enforcement string `json:"enforcement"`
+	// Values holds the entered text of each binding value, valid or not.
+	Values map[string]string `json:"values,omitempty"`
 }
 
 func savedForm(row containerRow) bindingForm {
 	form := bindingForm{Revision: row.Revision, Policies: row.Policies, Settings: enteredSettings{
-		TokenTTL: row.Settings.TokenTTL, TokenMaxTTL: row.Settings.TokenMaxTTL, Enforcement: string(row.Settings.Enforcement)}}
+		TokenTTL: row.Settings.TokenTTL, TokenMaxTTL: row.Settings.TokenMaxTTL, Enforcement: string(row.Settings.Enforcement), Values: row.Settings.Values}}
 	if row.Settings.AccessGroup != nil {
 		form.Settings.AccessGroup = strconv.FormatUint(uint64(*row.Settings.AccessGroup), 10)
 	}
@@ -72,8 +74,28 @@ func enteredForm(request *http.Request) bindingForm {
 		Key: request.PostFormValue("key"), Revision: revision, Policies: request.PostForm["policies"],
 		Understood: request.PostFormValue("understood") == "yes",
 		Settings: enteredSettings{TokenTTL: request.PostFormValue("token-ttl"), TokenMaxTTL: request.PostFormValue("token-max-ttl"),
-			AccessGroup: request.PostFormValue("access-group"), Enforcement: request.PostFormValue("enforcement")},
+			AccessGroup: request.PostFormValue("access-group"), Enforcement: request.PostFormValue("enforcement"), Values: enteredValues(request)},
 	}
+}
+
+// bindingValueField prefixes the form field of each binding value.
+const bindingValueField = "value."
+
+// enteredValues reads the binding values a form holds. An empty field is no
+// value, so that the controller reports the policy that needs it.
+func enteredValues(request *http.Request) map[string]string {
+	var values map[string]string
+	for field, entered := range request.PostForm {
+		name, isValue := strings.CutPrefix(field, bindingValueField)
+		if !isValue || len(entered) == 0 || strings.TrimSpace(entered[0]) == "" {
+			continue
+		}
+		if values == nil {
+			values = map[string]string{}
+		}
+		values[name] = strings.TrimSpace(entered[0])
+	}
+	return values
 }
 
 // listContext keeps only the list's filter and sort values, so that a screen
@@ -190,7 +212,7 @@ func (server *Server) policyChoices(ctx context.Context, selected []string) []po
 	policies, _ := server.controller.Store().Policies(ctx)
 	choices := make([]policyChoice, 0, len(policies))
 	for _, stored := range policies {
-		choices = append(choices, policyChoice{Name: stored.Policy.Name, Selected: slices.Contains(selected, stored.Policy.Name)})
+		choices = append(choices, policyChoice{Name: stored.Policy.Name, Selected: slices.Contains(selected, stored.Policy.Name), Values: stored.Policy.ValueNames()})
 	}
 	return choices
 }

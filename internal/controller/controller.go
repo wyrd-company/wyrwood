@@ -57,7 +57,7 @@ type OpenBao interface {
 	DeleteRole(ctx context.Context, role string) error
 	RevokeAccessor(ctx context.Context, accessor string) error
 	RoleID(ctx context.Context, role string) (string, error)
-	WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration) (string, error)
+	WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration, metadata map[string]string) (string, error)
 	TransitKeyExists(ctx context.Context, name string) (bool, error)
 	SSHRoleExists(ctx context.Context, name string) (bool, error)
 	ListKVPaths(ctx context.Context, mount, prefix string) ([]string, error)

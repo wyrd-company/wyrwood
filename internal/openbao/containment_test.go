@@ -40,7 +40,7 @@ func TestADedicatedNamespaceContainsAnEscalatedBinding(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	wrapped, err := manager.WrappedSecretID(ctx, "wyrwood-escape", time.Minute)
+	wrapped, err := manager.WrappedSecretID(ctx, "wyrwood-escape", time.Minute, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

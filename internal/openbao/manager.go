@@ -22,6 +22,7 @@ import (
 	"github.com/openbao/openbao/api/v2"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
@@ -151,7 +152,8 @@ func managed(name string) error {
 func (manager *Manager) Health(ctx context.Context) error { return Health(ctx, manager.client) }
 
 // WritePolicy writes an ACL policy. OpenBao parses the HCL and rejects it
-// when invalid, which is the controller's policy validation.
+// when invalid, which is the controller's policy validation. Binding value
+// placeholders are compiled here, so that no other layer needs the accessor.
 func (manager *Manager) WritePolicy(ctx context.Context, name, hcl string) error {
 	if err := managed(name); err != nil {
 		return err
@@ -160,8 +162,29 @@ func (manager *Manager) WritePolicy(ctx context.Context, name, hcl string) error
 	if err != nil {
 		return err
 	}
+	if policy.HasBindingValues(hcl) {
+		accessor, err := manager.appRoleAccessor(ctx, client)
+		if err != nil {
+			return err
+		}
+		hcl = policy.IdentityTemplates(hcl, accessor)
+	}
 	_, err = client.Logical().WriteWithContext(ctx, "sys/policies/acl/"+name, map[string]any{"policy": hcl})
 	return categorize(err)
+}
+
+// appRoleAccessor reads the accessor of the binding AppRole mount. The
+// controller's token can read this for a mount it holds grants on, and it has
+// no grant on sys/auth.
+func (manager *Manager) appRoleAccessor(ctx context.Context, client *api.Client) (string, error) {
+	secret, err := client.Logical().ReadWithContext(ctx, "sys/internal/ui/mounts/auth/"+manager.mounts.AppRole)
+	if err != nil {
+		return "", categorize(err)
+	}
+	if secret == nil {
+		return "", &Error{Category: CategoryNotFound}
+	}
+	return requireString(secret.Data, "accessor")
 }
 
 // DeletePolicy removes an ACL policy.
@@ -287,8 +310,9 @@ func (manager *Manager) RoleID(ctx context.Context, role string) (string, error)
 }
 
 // WrappedSecretID issues one secret identifier for a binding AppRole wrapped
-// in a response-wrapping token with the given time-to-live.
-func (manager *Manager) WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration) (string, error) {
+// in a response-wrapping token with the given time-to-live. OpenBao copies
+// metadata to the entity alias of the role when the identifier logs in.
+func (manager *Manager) WrappedSecretID(ctx context.Context, role string, wrapTTL time.Duration, metadata map[string]string) (string, error) {
 	if err := managed(role); err != nil {
 		return "", err
 	}
@@ -299,8 +323,16 @@ func (manager *Manager) WrappedSecretID(ctx context.Context, role string, wrapTT
 	if err != nil {
 		return "", err
 	}
+	var request map[string]any
+	if len(metadata) > 0 {
+		encoded, err := json.Marshal(metadata)
+		if err != nil {
+			return "", &Error{Category: CategoryInvalid}
+		}
+		request = map[string]any{"metadata": string(encoded)}
+	}
 	client.SetWrappingLookupFunc(func(string, string) string { return wrapTTL.String() })
-	secret, err := client.Logical().WriteWithContext(ctx, "auth/"+manager.mounts.AppRole+"/role/"+role+"/secret-id", nil)
+	secret, err := client.Logical().WriteWithContext(ctx, "auth/"+manager.mounts.AppRole+"/role/"+role+"/secret-id", request)
 	if err != nil {
 		return "", categorize(err)
 	}

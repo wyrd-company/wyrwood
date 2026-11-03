@@ -124,6 +124,14 @@ func (controller *Controller) applyBinding(ctx context.Context, b store.Binding)
 	if b.Applied {
 		return nil
 	}
+	// A login copies its SecretID's values to the role's alias and a renewal does
+	// not, so an older identifier used after this transition would put old values
+	// under the new token. Deleting the role voids every outstanding identifier.
+	if len(b.Settings.Values) > 0 {
+		if err := controller.openbao.DeleteRole(ctx, b.Role); err != nil {
+			return err
+		}
+	}
 	if err := controller.openbao.WriteRole(ctx, b.Role, b.Effective.OpenBaoPolicies(), b.Settings.TTL(), b.Settings.MaxTTL()); err != nil {
 		return err
 	}
@@ -206,6 +214,10 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 		}
 		effective, err := controller.compose(ctx, b.Policies, b.Settings, &document)
 		if err != nil {
+			var operation *OperationError
+			if errors.As(err, &operation) {
+				operation.Message += fmt.Sprintf(" The binding of %s %s on agent %s selects this policy.", b.Key.Kind, b.Key.Value, b.Agent)
+			}
 			return policy.Policy{}, agents, err
 		}
 		b.Effective = effective

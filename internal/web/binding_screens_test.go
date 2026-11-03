@@ -19,6 +19,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
+	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 	"github.com/wyrd-company/wyrwood/internal/web/oidctest"
 )
@@ -571,5 +572,98 @@ func TestBindingScreensRequireASessionAndAntiForgeryToken(t *testing.T) {
 	}
 	if created := fixture.post(t, mutations[0].path, mutations[0].form); created.status != http.StatusOK || created.data.Row.Agent != "host-b" {
 		t.Fatalf("admitted create = %d %#v", created.status, created.data.Row)
+	}
+}
+
+const templatedPolicyHCL = `path "kv/data/sample/{{binding.slug}}" { capabilities = ["read"] }`
+
+func (fixture screenFixture) saveTemplatedPolicy(t *testing.T) {
+	t.Helper()
+	saved := post(t, fixture.client, fixture.harness.site.URL+"/policies", url.Values{"csrf": {fixture.token}, "new": {"yes"}, "name": {"templated"},
+		"hcl": {templatedPolicyHCL}, "mount-target": {"/run/wyrwood"}})
+	if !strings.Contains(saved.body, "Policy saved") {
+		t.Fatalf("save policy = %s", saved.body)
+	}
+}
+
+func TestBindScreenAsksForEachValueAPolicyNeeds(t *testing.T) {
+	fixture := newScreenFixture(t)
+	fixture.saveTemplatedPolicy(t)
+	screen := fixture.get(t, "/bindings/new?agent=host-a&container=shared-id")
+	found := false
+	for _, choice := range screen.data.Policies {
+		if choice.Name == "templated" {
+			found = reflect.DeepEqual(choice.Values, []string{"slug"})
+		} else if len(choice.Values) != 0 {
+			t.Fatalf("choice %s = %v", choice.Name, choice.Values)
+		}
+	}
+	if !found {
+		t.Fatalf("choices = %#v", screen.data.Policies)
+	}
+
+	form := func(extra url.Values) url.Values {
+		values := url.Values{"agent": {"host-a"}, "container": {"shared-id"}, "key": {"compose:sample/worker"},
+			"policies": {"templated"}, "token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}}
+		for name, entered := range extra {
+			values[name] = entered
+		}
+		return values
+	}
+	unset := fixture.post(t, "/bindings", form(url.Values{"value.slug": {"  "}}))
+	if unset.status != http.StatusUnprocessableEntity || !strings.Contains(unset.data.Problem, "{{binding.slug}}") || unset.data.ProblemTab != "key-and-policies" {
+		t.Fatalf("unset value = %d %q tab %q", unset.status, unset.data.Problem, unset.data.ProblemTab)
+	}
+	hostile := fixture.post(t, "/bindings", form(url.Values{"value.slug": {"a/b"}}))
+	if hostile.status != http.StatusUnprocessableEntity || !strings.Contains(hostile.data.Problem, "letters, digits") || hostile.data.Form.Settings.Values["slug"] != "a/b" {
+		t.Fatalf("hostile value = %d %q %#v", hostile.status, hostile.data.Problem, hostile.data.Form.Settings)
+	}
+	if bindings, err := fixture.harness.controller.Store().Bindings(context.Background(), "host-a"); err != nil || len(bindings) != 0 {
+		t.Fatalf("a refused form saved: %#v, %v", bindings, err)
+	}
+
+	bound := fixture.post(t, "/bindings", form(url.Values{"value.slug": {"alpha"}}))
+	if bound.status != http.StatusOK || bound.page != "binding" {
+		t.Fatalf("bind = %d %s", bound.status, bound.raw)
+	}
+	if bound.data.Form.Settings.Values["slug"] != "alpha" {
+		t.Fatalf("saved form = %#v", bound.data.Form.Settings)
+	}
+	if !strings.Contains(bound.data.Row.Effective.OpenBao.Policy, `"kv/data/sample/alpha"`) {
+		t.Fatalf("effective policy = %s", bound.data.Row.Effective.OpenBao.Policy)
+	}
+}
+
+func TestPreviewShowsTheValueInThePath(t *testing.T) {
+	fixture := newScreenFixture(t)
+	fixture.saveTemplatedPolicy(t)
+	preview := func(value string) (int, string) {
+		form := url.Values{"csrf": {fixture.token}, "policies": {"templated"}, "token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}, "value.slug": {value}}
+		response, err := fixture.client.PostForm(fixture.harness.site.URL+"/bindings/preview", form)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer response.Body.Close()
+		body, err := io.ReadAll(response.Body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return response.StatusCode, string(body)
+	}
+	status, body := preview("alpha")
+	var result struct {
+		Effective policy.Effective `json:"effective"`
+	}
+	if err := json.Unmarshal([]byte(body), &result); err != nil || status != http.StatusOK {
+		t.Fatalf("preview = %d %s, %v", status, body, err)
+	}
+	if !strings.Contains(result.Effective.OpenBao.Policy, `"kv/data/sample/alpha"`) || strings.Contains(result.Effective.OpenBao.Policy, "{{binding.") {
+		t.Fatalf("combined HCL = %s", result.Effective.OpenBao.Policy)
+	}
+	if result.Effective.Sources[0].HCL != templatedPolicyHCL {
+		t.Fatalf("source = %s", result.Effective.Sources[0].HCL)
+	}
+	if status, body := preview(""); status != http.StatusUnprocessableEntity || !strings.Contains(body, "binding.slug") {
+		t.Fatalf("preview without a value = %d %s", status, body)
 	}
 }

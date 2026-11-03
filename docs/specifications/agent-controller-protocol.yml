@@ -64,7 +64,8 @@ description: >-
   carries the binding identifier, the key, the
   effective policy (source names, revisions and HCL, a source generation of at
   least 2 when the name was used before, combined HCL, SSH identity
-  unions and forwarding restrictions, resolved contract and binding settings),
+  unions and forwarding restrictions, resolved contract and binding settings,
+  including any per-binding values),
   assignment identity, the OpenBao address, CA,
   namespace, and the Transit and SSH-engine mount names the controller
   manages. `credential` carries a binding identifier, assignment identity, the AppRole mount and

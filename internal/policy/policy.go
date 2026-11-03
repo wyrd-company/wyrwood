@@ -154,6 +154,9 @@ func (policy Policy) Validate() error {
 	if len(policy.OpenBao.Policy) > maximumHCLBytes {
 		return partError(PartOpenBao, "OpenBao policy exceeds 65536 bytes")
 	}
+	if err := validateBindingPlaceholders(policy.OpenBao.Policy); err != nil {
+		return err
+	}
 	if policy.SSH != nil {
 		if err := validateIdentities("transit key", policy.SSH.TransitKeys); err != nil {
 			return err

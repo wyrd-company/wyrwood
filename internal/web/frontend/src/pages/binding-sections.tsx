@@ -2,9 +2,9 @@
 // relationships:
 //   implements: web-interface
 // ---
-import { Status } from "@/components/shared";
+import { Field, Input, Status } from "@/components/shared";
 import type { BindingData } from "@/types";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 export function BindingHeading({
   data: d,
@@ -60,6 +60,16 @@ export function KeyChoice({ data: d }: { data: BindingData }) {
 }
 
 export function PolicyChoices({ data: d }: { data: BindingData }) {
+  const [selected, setSelected] = useState(
+    () => new Set(d.Policies?.filter((p) => p.Selected).map((p) => p.Name)),
+  );
+  const valueNames = [
+    ...new Set(
+      d.Policies?.filter((p) => selected.has(p.Name)).flatMap(
+        (p) => p.Values ?? [],
+      ),
+    ),
+  ].sort();
   return (
     <>
       <fieldset>
@@ -71,6 +81,12 @@ export function PolicyChoices({ data: d }: { data: BindingData }) {
               name="policies"
               value={p.Name}
               defaultChecked={p.Selected}
+              onChange={(event) => {
+                const next = new Set(selected);
+                if (event.target.checked) next.add(p.Name);
+                else next.delete(p.Name);
+                setSelected(next);
+              }}
             />
             <span>{p.Name}</span>
           </label>
@@ -81,6 +97,27 @@ export function PolicyChoices({ data: d }: { data: BindingData }) {
         requirements are rejected. Agent token renewal is enabled when any
         selected policy enables it. Binding tokens have no default policy.
       </p>
+      {valueNames.length > 0 && (
+        <fieldset>
+          <legend>Values for this binding</legend>
+          {valueNames.map((name) => (
+            <Field label={name} id={`binding-value-${name}`} key={name}>
+              <Input
+                id={`binding-value-${name}`}
+                name={`value.${name}`}
+                required
+                maxLength={128}
+                pattern="[A-Za-z0-9_\-]+"
+                defaultValue={d.Form.Settings?.values?.[name] ?? ""}
+              />
+            </Field>
+          ))}
+          <p className="hint">
+            The selected policies use these values in their paths. Use letters,
+            digits, underscores, and hyphens. Values are not secret.
+          </p>
+        </fieldset>
+      )}
     </>
   );
 }

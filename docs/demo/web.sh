@@ -252,6 +252,33 @@ browse wait --text "Effective controller settings loaded at startup"
 browse wait --text "Update checks"
 shot web-settings
 
+# One policy gives each binding its own path. This comes last and saves no
+# binding, so that the earlier screens show the one binding of the walk-through.
+browse open "$site/policies/edit"
+browse type "#name" "shared-key"
+browse find role button click --name "Raw HCL"
+browse fill "#hcl" 'path "kv/data/teams/{{binding.team}}/*" {
+  capabilities = ["read"]
+}'
+browse find role button click --name "Save and validate"
+browse wait --text "Revision 1"
+browse open "$site/bindings"
+browse find role link click --name "Add binding"
+browse wait --text "teal-web"
+browse find role link click --name "Add binding for teal-web"
+browse wait --text "Bind by key"
+browse find role checkbox click --name "shared-key" --exact
+browse wait --text "Values for this binding"
+browse fill "#binding-value-team" "teal"
+hold 1
+browse eval "window.scrollTo(0, 0)"
+shot web-bind-values
+browse find role button click --name "Preview effective policy"
+browse wait --text "Previewed effective policy"
+expect_page 'document.querySelector("[aria-label=\"Previewed effective policy\"] code").textContent.includes("kv/data/teams/teal/*").toString()' true
+hold 1.5
+shot web-bind-values-effective
+
 if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
 	browse record stop
 fi

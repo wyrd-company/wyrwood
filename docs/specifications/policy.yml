@@ -52,12 +52,28 @@ description: >-
   A binding selects a nonempty set of policy names. Its settings hold
   `token-ttl` (default `1h`), `token-max-ttl` (default `8h`, at least TTL),
   optional numeric `access-group`, and `enforcement` (`report` by default or
-  `recreate`). These fields are rejected in reusable policy documents.
+  `recreate`), and `values`, a map of per-binding values. These fields are
+  rejected in reusable policy documents.
   Effective composition follows `composable-policy-bindings`: HCL source
   union with OpenBao deny and path priority, separate identity unions, any
   not-forwardable restriction, identical mount targets, and equal overlapping
   expanded environment values. Sources, source revisions, effective content,
   settings, and binding revision identify a durable assignment.
+
+  A path stanza name can hold the placeholder `{{binding.<name>}}`, so that one
+  policy applies to many bindings. A name holds lower-case letters, digits, and
+  underscores, starts with a letter, and has at most 64 bytes. A policy uses at
+  most 16 names. A placeholder that is malformed or outside a path stanza name
+  is refused when the policy is saved; comments are not read. A value holds 1 to
+  128 letters, digits, underscores, or hyphens, so it cannot add a wildcard or a
+  path segment. Values are not secret. A binding must hold a value for every
+  placeholder of its selected policies. A value that they do not use has no
+  effect. A policy edit that adds a placeholder is refused while a binding that selects
+  the policy has no value for it. An edit that removes one leaves the binding's
+  value in place. The effective HCL shows each path with this binding's value.
+  OpenBao holds each placeholder as the identity template
+  `{{identity.entity.aliases.<AppRole accessor>.metadata.binding_<name>}}`. A
+  template that the author writes directly stays intact.
 
   Binding tokens contain exactly the OpenBao policies of the selected policies,
   without implicit `default`. Each named policy compiles fixed lookup-self

@@ -85,7 +85,9 @@ proposed-design:
     Composition, assignment identity, and revoke-before-issue follow
     composable-policy-bindings. Saving a policy compiles fixed token lifecycle
     grants and its agent-renewal
-    choice into the workload HCL, then writes that HCL to OpenBao under
+    choice into the workload HCL, compiles any binding value placeholder to an
+    identity template as composable-policy-bindings specifies, then writes that
+    HCL to OpenBao under
     the policy's OpenBao identity (`wyrwood-<policy>` on the first use of the
     name), validates it through OpenBao's own
     parser, and records the policy revision. The web interface edits the HCL
@@ -123,7 +125,8 @@ proposed-design:
     container against bindings by key precedence, returns the policy revision,
     contract, OpenBao address and CA, and for each bound container its
     AppRole role identifier and a response-wrapped secret identifier with a
-    short wrapping time-to-live. The controller pushes a policy update message
+    short wrapping time-to-live, which carries the binding's values as metadata
+    when it has any. The controller pushes a policy update message
     whenever a policy or binding that affects that agent changes. Each agent
     has at most one active session; a new connection replaces the old one.
   bindings-and-approles: >-

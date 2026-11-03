@@ -54,6 +54,7 @@ export interface AgentsData extends Layout {
 export interface PolicyChoice {
   Name: string;
   Selected: boolean;
+  Values?: string[] | null;
 }
 export interface AssignableGroups {
   groups: { gid: number; name?: string }[];
@@ -287,6 +288,7 @@ export interface BindingSettings {
   enforcement: "report" | "recreate";
 }
 export interface EnteredBindingSettings {
+  values?: Record<string, string>;
   "token-ttl"?: string;
   "token-max-ttl"?: string;
   "access-group"?: number | string;

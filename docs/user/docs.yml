@@ -17,6 +17,8 @@ assets:
   - assets/web-bind.png
   - assets/web-bind-settings.png
   - assets/web-bind-effective.png
+  - assets/web-bind-values.png
+  - assets/web-bind-values-effective.png
   - assets/web-container-setup.png
   - assets/web-binding.png
   - assets/web-binding-policies.png
@@ -98,6 +100,12 @@ products:
       - src: assets/web-bind-effective.png
         caption: A preview on the Effective policy tab of the bind screen.
         alt: The bind screen with the Effective policy tab selected, showing the previewed composition.
+      - src: assets/web-bind-values.png
+        caption: A required value for each placeholder of the selected policies.
+        alt: The bind screen with a policy selected and a field for the value that its path uses.
+      - src: assets/web-bind-values-effective.png
+        caption: The preview shows the path with the value of this binding.
+        alt: The bind screen with the Effective policy tab selected, showing the path with the value in it.
       - src: assets/web-container-setup.png
         caption: Container setup examples on the binding screen.
         alt: Container setup examples shown on the binding screen.

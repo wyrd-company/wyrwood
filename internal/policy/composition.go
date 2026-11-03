@@ -26,6 +26,9 @@ type Settings struct {
 	TokenMaxTTL string      `json:"token-max-ttl"`
 	AccessGroup *uint32     `json:"access-group,omitempty"`
 	Enforcement Enforcement `json:"enforcement"`
+	// Values holds this binding's value for each {{binding.name}} placeholder of
+	// its policies. They are not secret.
+	Values map[string]string `json:"values,omitempty"`
 }
 
 // Selection is a complete binding edit, with an optimistic binding revision.
@@ -54,6 +57,9 @@ func (s Settings) Defaults() Settings {
 
 func (s Settings) Validate() error {
 	s = s.Defaults()
+	if err := validateBindingValues(s.Values); err != nil {
+		return err
+	}
 	ttl, err := parseTTL("token time-to-live", s.TokenTTL)
 	if err != nil {
 		return partError(PartSettings, "%s", err)
@@ -203,7 +209,12 @@ func Compose(policies []Policy, settings Settings) (Effective, error) {
 			envSource[name] = p.Name
 		}
 		result.Sources = append(result.Sources, Source{Name: p.Name, Revision: p.Revision, HCL: p.OpenBao.Policy, Generation: p.sourceGeneration()})
-		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, p.PublishedHCL())
+		for _, name := range p.ValueNames() {
+			if _, ok := settings.Values[name]; !ok {
+				return Effective{}, partError(PartSelection, "policy %s uses {{binding.%s}}, and this binding has no value for it", p.Name, name)
+			}
+		}
+		fmt.Fprintf(&hcl, "# Policy %s (revision %d)\n%s\n", p.Name, p.Revision, expandBindingValues(p.PublishedHCL(), settings.Values))
 		renew = renew || p.AgentRenewal()
 		for _, k := range p.TransitKeys() {
 			keys[k] = true

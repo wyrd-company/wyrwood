@@ -255,6 +255,12 @@ function OpenBaoPolicy({
         }}
         onCheck={checkHCL}
       />
+      <p className="hint">
+        To share one policy across containers, write{" "}
+        <code>{"{{binding.name}}"}</code> in a path. Each binding that selects
+        the policy sets its own value, which holds only letters, digits,
+        underscores, and hyphens.
+      </p>
       {warnings.map((warning) => (
         <p className="caution" role="status" key={warning}>
           {warning}

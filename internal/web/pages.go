@@ -315,6 +315,8 @@ type candidate struct {
 type policyChoice struct {
 	Name     string
 	Selected bool
+	// Values names the binding values the policy needs from a binding that selects it.
+	Values []string
 }
 
 // inventoryState holds the controller-wide facts shared by every container row.
@@ -936,7 +938,7 @@ func bindingFromForm(request *http.Request) (controller.BindingRequest, error) {
 	if err := request.ParseForm(); err != nil {
 		return controller.BindingRequest{}, fmt.Errorf("the binding form is invalid")
 	}
-	result := controller.BindingRequest{Policies: request.PostForm["policies"], Settings: policy.Settings{TokenTTL: strings.TrimSpace(request.PostFormValue("token-ttl")), TokenMaxTTL: strings.TrimSpace(request.PostFormValue("token-max-ttl")), Enforcement: policy.Enforcement(request.PostFormValue("enforcement"))}}
+	result := controller.BindingRequest{Policies: request.PostForm["policies"], Settings: policy.Settings{TokenTTL: strings.TrimSpace(request.PostFormValue("token-ttl")), TokenMaxTTL: strings.TrimSpace(request.PostFormValue("token-max-ttl")), Enforcement: policy.Enforcement(request.PostFormValue("enforcement")), Values: enteredValues(request)}}
 	result.Settings = result.Settings.Defaults()
 	if group := strings.TrimSpace(request.PostFormValue("access-group")); group != "" {
 		n, err := strconv.ParseUint(group, 10, 32)

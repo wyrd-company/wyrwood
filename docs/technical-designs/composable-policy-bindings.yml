@@ -60,7 +60,7 @@ proposed-design:
     unknown names, an empty selection, and repeated names are errors.
     Canonical storage and display sort policy names; selection order has no
     precedence in composition. The settings object contains
-    token-ttl, token-max-ttl, access-group, and enforcement. Both lifetime
+    token-ttl, token-max-ttl, access-group, enforcement, and values. Both lifetime
     fields move together: token-ttl defaults to 1h, token-max-ttl to 8h, and
     maximum lifetime must be at least TTL. These retain the existing duration
     syntax, validation, renewal schedule, and finite lifetime behavior.
@@ -171,6 +171,45 @@ proposed-design:
     claiming to calculate permissions for every possible request. OpenBao
     remains the HCL parser and authorization authority; Wyrwood adds no HCL
     merge parser.
+  binding-values: >-
+    A policy can use one value per binding, so that a rule such as "each container
+    reads only its own key" needs one policy and not one for each container. The
+    author writes {{binding.name}} in a path stanza name. OpenBao remains the
+    authorization authority and evaluates the policy through identity templating;
+    Wyrwood publishes one policy, not one for each expanded form, and token_policies
+    keeps its exact mapping. Values are part of binding settings, so they are part
+    of the effective assignment: a changed value is a new assignment with the
+    ordinary revoke-before-issue transition. A binding without values keeps its
+    bytes and its assignment identity. The controller carries the values without a
+    new permission. At publication the manager reads the AppRole mount accessor from
+    sys/internal/ui/mounts and compiles each placeholder to
+    {{identity.entity.aliases.<accessor>.metadata.binding_<name>}}; a policy with no
+    placeholder reads nothing. At credential issue it sets the values as metadata of
+    the one-use SecretID, under the binding_ prefix that cannot meet AppRole's own
+    role_name key. OpenBao copies SecretID metadata to the alias of the role's
+    role_id at login, and a template reads the alias on each request. The agent never
+    sees a value as a credential input and cannot change one. A login replaces the
+    alias values and a renewal does not, so an older SecretID used after a transition
+    would put old values under the new token. Each transition of a binding that has
+    values therefore deletes and recreates its AppRole before it revokes the old
+    token. That voids every outstanding SecretID and gives the role a new alias.
+    The delete repeats safely while the transition is pending, so a failure or restart
+    between the store commit and the role write converges on the next attempt.
+    A value that is unset, or a template that OpenBao cannot resolve, drops only that
+    stanza: the path answers 403. A value holding *, + or / fails the whole token's
+    ACL in OpenBao; the controller refuses these first, with . and space as well.
+    Composition refuses an unset value, so a bind, a preview, and a policy edit report
+    it before any write, and an edit's refusal names the binding. A misspelled name
+    is refused as the unset value of the right name. A value that no selected policy
+    uses changes nothing in OpenBao, so it is kept, and an edit that removes a
+    placeholder leaves its bindings valid.
+    The effective HCL holds the expanded path, so that the preview shows the real
+    result, while each source keeps its authored text. The mount check reads authored
+    paths: a complete literal mount root before a placeholder is contained, and a
+    placeholder in or before the root gets the ordinary warning.
+    The bind screen asks for a value for each name that the selected policies use and
+    does not derive one from the container name, because a wrong default grants
+    another container's path.
   ssh-composition: >-
     Transit key names form a sorted set union under the configured Transit
     mount. SSH CA role names form a separate sorted set union under the SSH
@@ -402,11 +441,18 @@ proposed-design:
     not trigger first-bind recreation. Browser workflows cover multi-selection,
     preview, conflicts, saved settings, effective HCL, lifecycle settings, and
     recreate acknowledgement.
+    Binding values have real-OpenBao tests with the bounded controller policy: each
+    role reads exactly its own path, an unset value reads nothing, a renewal keeps the
+    value, a recreated role carries none, and a stale identifier cannot log in after a
+    change. Refusal tests cover an unset, hostile, and misspelled value at bind and preview
+    with nothing saved, and a policy edit that needs an unset value with the published
+    policy unchanged.
     Repository gates are task check, task test, and task ci with WYRWOOD_BAO
     set; hosted CI is required at the implementation PR handoff.
   authoritative-references: >-
     OpenBao ACL combination and path priority:
     https://openbao.org/docs/concepts/policies/ . AppRole token_policies,
     token_no_default_policy, and lifetime parameters:
-    https://openbao.org/api-docs/auth/approle/ . These define engine semantics;
+    https://openbao.org/api-docs/auth/approle/ . Identity templating:
+    https://openbao.org/docs/concepts/policies/#templated-policies . These define engine semantics;
     Wyrwood composition does not replace them.

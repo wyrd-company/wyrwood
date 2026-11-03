@@ -210,7 +210,9 @@ proposed-design:
     Request recreate and an Unbind action set apart from them, and the live
     summary without the key. Status has the assignment, token, key, contract
     report, and pending transition state. Policies and Settings edit the
-    selection and settings. Effective policy has the saved composition and the
+    selection and settings. The selection also asks for one required value for each
+    {{binding.name}} placeholder of the selected policies, and the summary shows the
+    values. Effective policy has the saved composition and the
     preview. Container setup shows the
     agent-reported consumer directory and effective mount target with copyable
     Docker Compose and docker run examples. Examples use the observed container
