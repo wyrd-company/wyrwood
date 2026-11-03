@@ -12,9 +12,11 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"io"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -984,6 +986,70 @@ func TestUnbindChecksTheGrantOnTheBindingItRemoves(t *testing.T) {
 	for {
 		if set, ok := connection.receive(t).(protocol.PolicySet); ok && !holds(set, second.ID) {
 			break
+		}
+	}
+}
+
+// A removal that could not be recorded tells the agent nothing, and a repeat finishes it.
+func TestAFailedUnbindLeavesTheAgentAloneAndARepeatFinishes(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	agentKey := harness.approveAgent(t, "sample-host")
+	harness.savePolicy(t, "sample")
+	client, _ := harness.approvedOperator(t, "sample-operator", fullGrant)
+	bound, err := client.Bind(ctx, operator.BindRequest{Agent: "sample-host", Key: operator.Key{Kind: operator.KeyName, Value: "app"}, Policies: []string{"sample"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := harness.dial("sample-host", agentKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	for !harness.controller.Connected("sample-host") {
+		time.Sleep(10 * time.Millisecond)
+	}
+	database, err := sql.Open("sqlite", "file:"+filepath.Join(harness.state, "controller.db")+"?_pragma=busy_timeout(5000)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	if _, err := database.Exec(`CREATE TRIGGER injected_fault BEFORE DELETE ON bindings BEGIN SELECT RAISE(ABORT, 'injected fault'); END`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Unbind(ctx, operator.UnbindRequest{ID: bound.ID}); !errors.Is(err, operator.ErrFailed) {
+		t.Fatalf("Unbind() under the fault = %v", err)
+	}
+	if _, err := harness.controller.Store().Binding(ctx, bound.ID); err != nil {
+		t.Fatalf("Binding() = %v", err)
+	}
+	if _, err := database.Exec(`DROP TRIGGER injected_fault`); err != nil {
+		t.Fatal(err)
+	}
+	result, err := client.Unbind(ctx, operator.UnbindRequest{ID: bound.ID})
+	if err != nil || !result.Removed {
+		t.Fatalf("Unbind() after recovery = %+v, %v", result, err)
+	}
+	// The agent hears of one unbind, from the removal. A send on the failed attempt
+	// would be a second one ahead of the empty policy set.
+	unbinds := 0
+	for {
+		switch message := connection.receive(t).(type) {
+		case protocol.Unbind:
+			unbinds++
+		case protocol.PolicySet:
+			if unbinds == 1 && len(message.Bindings) == 0 {
+				return
+			}
+			if unbinds > 1 {
+				t.Fatalf("the agent heard %d unbinds", unbinds)
+			}
+		}
+		if unbinds > 1 {
+			t.Fatalf("the agent heard %d unbinds", unbinds)
 		}
 	}
 }
