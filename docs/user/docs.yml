@@ -60,10 +60,8 @@ products:
         every signature.
       - A policy pairs an OpenBao policy with a container contract, and changes apply on the next
         request.
-      - Agents enroll over SSH with host-generated keys that an operator approves in the web
-        interface.
-      - A script or a program can manage policies and bindings over SSH with a key that an
-        operator approved and scoped.
+      - Agents and scripts connect over SSH with keys that an operator approves in the web
+        interface, and a script's key acts only inside its grant.
       - Operational events are bounded and categorical, with no tokens, secret values, or raw
         upstream errors.
     media:
