@@ -36,6 +36,25 @@ Agent:
   agent service install|remove|start|stop|status
                                         Manage the system unit (requires root)
 
+Operator (policies and bindings over SSH):
+  operator login <ssh://host:port> [--key-file PATH | --agent-key SELECTION]
+                 [--label NAME] [--accept-fingerprint SHA256:...]
+                                        Present a key and request approval
+  operator whoami                       Print this key's label and grant
+  policy put <name> --file PATH [--transit-key NAME]... [--ca-role NAME]...
+                                        Create or change a policy from an HCL file
+  policy get <name>                     Print one policy
+  policy list                           List policies inside the grant
+  bind --agent NAME --key KIND:VALUE --policy NAME [--policy NAME]...
+       [--access-group GID] [--value NAME=VALUE]... [--token-ttl T]
+       [--token-max-ttl T] [--enforcement report|recreate]
+                                        Bind a container key; safe to repeat
+  binding list [--agent NAME]           List bindings with their readiness
+  binding get <id>                      Print one binding with its readiness
+  unbind <id> | --agent NAME --key KIND:VALUE
+                                        Remove a binding; safe to repeat
+  These commands accept --config PATH to select the saved login.
+
 Other:
   version                               Print the executable version
   help                                  Show this help
@@ -81,6 +100,8 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer, deps dependen
 		return runController(args[1:], stdin, stdout, stderr, deps)
 	case "agent":
 		return runAgent(args[1:], stdin, stdout, stderr, deps)
+	case "operator", "policy", "binding", "bind", "unbind":
+		return runOperatorCommand(args, stdin, stdout, stderr)
 	default:
 		_, _ = fmt.Fprintln(stderr, "unknown command")
 		_, _ = fmt.Fprintln(stderr, "Run 'wyrwood help' for usage.")
@@ -95,7 +116,34 @@ const (
 	optionConfig
 	optionAcceptFingerprint
 	optionLimit
+	optionKeyFile
+	optionAgentKey
+	optionLabel
+	optionFile
+	optionAgent
+	optionKey
+	optionPolicy
+	optionAccessGroup
+	optionValue
+	optionTokenTTL
+	optionTokenMaxTTL
+	optionEnforcement
+	optionTransitKey
+	optionCARole
 )
+
+// stringOptions are the options that hold text, by flag, for the operator
+// commands. Repeatable ones may occur more than once.
+var stringOptions = map[string]struct {
+	set        optionSet
+	repeatable bool
+}{
+	"--key-file": {optionKeyFile, false}, "--agent-key": {optionAgentKey, false}, "--label": {optionLabel, false},
+	"--file": {optionFile, false}, "--agent": {optionAgent, false}, "--key": {optionKey, false},
+	"--policy": {optionPolicy, true}, "--access-group": {optionAccessGroup, false}, "--value": {optionValue, true},
+	"--token-ttl": {optionTokenTTL, false}, "--token-max-ttl": {optionTokenMaxTTL, false}, "--enforcement": {optionEnforcement, false},
+	"--transit-key": {optionTransitKey, true}, "--ca-role": {optionCARole, true},
+}
 
 type options struct {
 	output            outputFormat
@@ -103,13 +151,22 @@ type options struct {
 	acceptFingerprint string
 	limit             int
 	help              bool
+	strings           map[string][]string
+}
+
+// text returns a single-value string option, or the empty string.
+func (result options) text(name string) string {
+	if values := result.strings[name]; len(values) > 0 {
+		return values[0]
+	}
+	return ""
 }
 
 // parseOptions parses the allowed options and returns positional arguments.
 // The output format is resolved first so usage failures use the requested
 // projection whenever it can be determined.
 func parseOptions(args []string, allowed optionSet) (options, []string, *failure) {
-	result := options{output: outputHuman, limit: 100}
+	result := options{output: outputHuman, limit: 100, strings: map[string][]string{}}
 	for index := 0; index < len(args); index++ {
 		if args[index] == "--output" && index+1 < len(args) && args[index+1] == "json" {
 			result.output = outputJSON
@@ -138,11 +195,14 @@ func parseOptions(args []string, allowed optionSet) (options, []string, *failure
 			index++
 			value = args[index]
 		}
-		if seen[name] {
+		text, isText := stringOptions[name]
+		if seen[name] && !(isText && text.repeatable) {
 			return result, nil, &failureUsage
 		}
 		seen[name] = true
 		switch {
+		case isText && allowed&text.set != 0:
+			result.strings[name] = append(result.strings[name], value)
 		case name == "--output" && allowed&optionOutput != 0:
 			switch value {
 			case "human":

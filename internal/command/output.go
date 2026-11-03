@@ -21,6 +21,9 @@ const (
 	exitNotApproved   = 5
 	exitUnreachable   = 6
 	exitHostKeyChange = 7
+	exitOutsideGrant  = 8
+	exitNotFound      = 9
+	exitDiffers       = 10
 )
 
 // outputVersion is the version of every JSON projection the executable emits.
@@ -55,12 +58,17 @@ var (
 	failureServiceManager = failure{"service-manager", "system service manager operation failed", exitOperational}
 	failureStateDirectory = failure{"state-unavailable", "controller state unavailable", exitOperational}
 	failureNotInstalled   = failure{"not-installed", "wyrwood-agent.service is not installed", exitOperational}
+	failureOperatorState  = failure{"login-state", "operator key or saved login unavailable; run 'wyrwood operator login'", exitLoginState}
+	failureKeySelection   = failure{"key-selection", "no single SSH agent key matches the selection", exitLoginState}
+	failureKeyNotApproved = failure{"not-approved", "the controller has not approved this operator key", exitNotApproved}
 )
 
 type failureProjection struct {
 	Version int    `json:"version"`
 	Command string `json:"command"`
 	Error   string `json:"error"`
+	// Message is the controller's fixed text, on a failure the controller reports.
+	Message string `json:"message,omitempty"`
 }
 
 func writeFailure(stderr io.Writer, format outputFormat, command string, problem failure) int {

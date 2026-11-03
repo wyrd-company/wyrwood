@@ -55,6 +55,33 @@ description: >-
   `wyrwood agent service install|remove|start|stop|status` manages the system
   service pair through the Linux service adapter and requires root.
 
+  `wyrwood operator login <controller-url>` selects a key, connects with it,
+  prints the controller's host-key fingerprint, and asks for acceptance unless
+  `--accept-fingerprint <fingerprint>` supplies the exact expected value. The key
+  is a file, by default `operator_key` beside the saved login and generated when
+  absent, or with `--key-file PATH` another file, or with `--agent-key SELECTION`
+  one key of the SSH agent at `SSH_AUTH_SOCK`, selected by its SHA256 fingerprint,
+  its public key, or its comment. A connection offers only that key. `--label NAME`
+  proposes the name for a pending key, and defaults to the hostname. Login saves
+  the controller URL, host-key fingerprint, label, and key source with owner-only
+  mode at `--config PATH`, by default `wyrwood/operator.json` in the user
+  configuration directory, and reports whether the key is `approved` or `pending`.
+  Each operator command accepts `--config PATH` and uses that saved login.
+  `wyrwood operator whoami` prints the key's label and grant.
+  `wyrwood policy put <name> --file PATH` creates or changes a policy from an HCL
+  file, or standard input with `-`. Repeatable `--transit-key` and `--ca-role`
+  replace its SSH identities. `wyrwood policy get <name>` and `wyrwood policy list`
+  read policies inside the grant.
+  `wyrwood bind --agent NAME --key KIND:VALUE --policy NAME` binds a container key,
+  with a repeatable `--policy`, `--access-group GID`, repeatable `--value
+  NAME=VALUE`, `--token-ttl`, `--token-max-ttl`, and `--enforcement`. A repeat with
+  the same selection returns the binding. `wyrwood binding list [--agent NAME]` and
+  `wyrwood binding get <id>` read bindings inside the grant with their readiness.
+  `wyrwood unbind <id>` or `wyrwood unbind --agent NAME --key KIND:VALUE` removes a
+  binding, and succeeds when it is not there. These commands are a thin layer over
+  the operator Go package. A failure the controller reports adds its fixed text as
+  `message` in JSON.
+
   `wyrwood version` prints the executable version. Human-readable output is
   the default. `--output json` emits exactly one versioned, closed JSON object
   whose fields match the human projection. Daemon control and its projections
@@ -68,13 +95,19 @@ description: >-
   Exit status 0 is success. Status 1 is a local operational failure. Status 2
   is usage. Status 3 means the agent key or login state could not be created
   or read. Status 4 means the daemon control socket was unavailable. Status 5
-  means the controller refused or did not approve the agent. Status 6 means
-  the controller was unreachable. Status 7 means the host-key fingerprint did
-  not match the accepted value.
+  means the controller refused or did not approve the agent or operator key.
+  Status 6 means the controller was unreachable. Status 7 means the host-key
+  fingerprint did not match the accepted value. Status 3 also means the operator
+  key or saved login could not be read, or no single SSH agent key matches the
+  selection. Status 8 means the request is outside the key's grant. Status 9 means
+  the policy or binding does not exist. Status 10 means the container key is bound
+  to another selection. Status 2 also means the controller refused the request's
+  content.
 validation-criteria: >-
   Command tests verify exact human and JSON projections for every command,
   categorical exit statuses, that runtime commands use only the control
   socket, that login never prints private-key material, and that no output
   contains a token, secret identifier, or environment value. The Linux
   management gate builds the executable, runs login against a test
-  controller, and drives status, containers, and events against a real agent.
+  controller, and drives status, containers, and events against a real agent. A
+  command test drives each operator command against a real controller.
