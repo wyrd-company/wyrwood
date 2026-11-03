@@ -6,6 +6,7 @@
 !go.sum
 !cmd
 !internal
+!operator
 internal/**/testdata
 
 internal/web/frontend/node_modules
