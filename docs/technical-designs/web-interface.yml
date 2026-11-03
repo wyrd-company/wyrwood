@@ -208,8 +208,10 @@ proposed-design:
     container query value chooses among those only. Above its tabs the screen
     shows the container, its state, Save binding, Preview effective policy, a
     Request recreate and an Unbind action set apart from them, and the live
-    summary without the key. Status has the assignment, token, key, contract
-    report, and pending transition state. Policies and Settings edit the
+    summary without the key. Status has readiness with its reasons, each consumer
+    directory, its access group and listening sockets, and the last login or
+    renewal error, then the assignment, token, key, contract report, and pending
+    transition state. Policies and Settings edit the
     selection and settings. The selection also asks for one required value for each
     {{binding.name}} placeholder of the selected policies, and the summary shows the
     values. A saved value that no selected policy uses stays as an optional field,

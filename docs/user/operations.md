@@ -171,6 +171,23 @@ unavailable. An agent that omits the directory must be updated. Follow the
 peers. If clipboard access is unavailable, select and copy the displayed
 text.
 
+## Binding readiness
+
+The **Status** tab of a binding's screen shows whether its containers can use
+their sockets now:
+
+| Readiness | Meaning |
+| --- | --- |
+| **Ready** | Each container has both sockets and a valid token, and conforms. This holds for a container that has not started. |
+| **Waiting** | A step is still to come. The reasons name it, for example no container matches yet, or the token has not arrived. |
+| **Failed** | The setup needs a change. The reasons name the consumer directory, the access group, or the contract. |
+| **Unknown** | The agent is not connected, so nothing current can be said. |
+
+The tab also shows each consumer directory with the access group applied to it
+and the sockets that listen, and the last login or renewal error. A `name`
+binding with no container shows **Waiting** with its prepared directory and
+sockets, so a wrong access group shows here before the container exists.
+
 ## After a host reboot
 
 `/run` is empty at boot and Docker starts before the agent. Docker's start of a

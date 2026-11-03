@@ -392,6 +392,52 @@ describe("tab structure", () => {
     ]);
     expect(screen.queryByText("Contract check")).toBeNull();
   });
+  it("shows what keeps a binding from being ready", () => {
+    render(
+      <Binding
+        data={binding(true, {
+          Readiness: {
+            readiness: "failed",
+            reasons: ["access-group"],
+            consumers: [
+              {
+                directory: "/run/sample/consumer",
+                "access-group": 4242,
+                sockets: ["vault.sock"],
+              },
+              { directory: "/run/sample/other" },
+            ],
+            "last-error": "openbao-denied",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Failed")).toBeTruthy();
+    expect(
+      screen.getByText("The agent cannot apply the access group."),
+    ).toBeTruthy();
+    expect(screen.getByText("/run/sample/consumer")).toBeTruthy();
+    expect(screen.getByText(/group 4242/)).toBeTruthy();
+    expect(screen.getByText("vault.sock")).toBeTruthy();
+    expect(screen.getByText("no sockets")).toBeTruthy();
+    expect(screen.getByText(/owner-only/)).toBeTruthy();
+    expect(screen.getByText("openbao-denied")).toBeTruthy();
+  });
+  it("names a reason the page has no text for", () => {
+    render(
+      <Binding
+        data={binding(true, {
+          Readiness: {
+            readiness: "waiting",
+            reasons: ["new-reason"],
+            consumers: [],
+          },
+        })}
+      />,
+    );
+    expect(screen.getByText("Waiting")).toBeTruthy();
+    expect(screen.getByText("new-reason")).toBeTruthy();
+  });
 
   it("has no tabs when no policy exists to bind", () => {
     render(<Binding data={binding(false, { Policies: [] })} />);

@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
@@ -241,6 +242,26 @@ func TestBoundScreenWithoutAReportedContainerStillOffersTheBinding(t *testing.T)
 	body := renderedPage(t, screen.raw)
 	if !strings.Contains(body, "does not report a container") || !strings.Contains(body, "Unbind and revoke AppRole") {
 		t.Fatalf("unreported binding = %s", body)
+	}
+}
+
+// The harness has no agent session, so readiness says so; no stored result fills in.
+func TestBoundScreenShowsReadinessFromTheAgentSession(t *testing.T) {
+	fixture := newScreenFixture(t)
+	binding := fixture.bind(t, "host-a")
+	ctx := context.Background()
+	if err := fixture.harness.controller.Store().SaveContractResult(ctx, protocol.ContractResult{Binding: binding.ID, Outcome: protocol.OutcomeConforming}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	screen := fixture.get(t, "/bindings/"+binding.ID)
+	if screen.data.Readiness == nil || screen.data.Readiness.Readiness != controller.ReadinessUnknown || screen.data.Readiness.Outcome != "" {
+		t.Fatalf("readiness = %#v", screen.data.Readiness)
+	}
+	if body := renderedPage(t, screen.raw); !strings.Contains(body, "Readiness") || !strings.Contains(body, "The agent is not connected.") {
+		t.Fatalf("screen = %s", body)
+	}
+	if bindScreen := fixture.get(t, "/bindings/new?agent=host-b&container=shared-id"); bindScreen.data.Readiness != nil {
+		t.Fatalf("bind screen readiness = %#v", bindScreen.data.Readiness)
 	}
 }
 

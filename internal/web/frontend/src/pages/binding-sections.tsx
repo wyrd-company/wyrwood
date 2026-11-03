@@ -3,7 +3,7 @@
 //   implements: web-interface
 // ---
 import { Field, Input, Status } from "@/components/shared";
-import type { BindingData } from "@/types";
+import type { BindingData, BindingReadiness } from "@/types";
 import { useState, type ReactNode } from "react";
 
 export function BindingHeading({
@@ -158,10 +158,68 @@ export function PolicyChoices({ data: d }: { data: BindingData }) {
   );
 }
 
+const readinessBadges: Record<
+  BindingReadiness["readiness"],
+  { text: string; kind: string }
+> = {
+  ready: { text: "Ready", kind: "good" },
+  waiting: { text: "Waiting", kind: "neutral" },
+  failed: { text: "Failed", kind: "bad" },
+  unknown: { text: "Unknown", kind: "neutral" },
+};
+
+const readinessReasons: Record<string, string> = {
+  "agent-disconnected": "The agent is not connected.",
+  "agent-report": "The agent has not reported the current state.",
+  container: "No container matches this binding yet.",
+  "consumer-directory":
+    "The agent cannot use the consumer directory or its sockets.",
+  "access-group": "The agent cannot apply the access group.",
+  sockets: "The sockets are not all listening.",
+  token: "The agent does not hold a valid token.",
+  conformance: "The container does not conform to the contract yet.",
+};
+
+function Readiness({ status }: { status: BindingReadiness }) {
+  const badge = readinessBadges[status.readiness];
+  return (
+    <div className="mb-4">
+      <h3 className="flex items-center gap-2">
+        Readiness <Status kind={badge.kind}>{badge.text}</Status>
+      </h3>
+      <ul className="plain">
+        {status.reasons?.map((reason) => (
+          <li key={reason}>{readinessReasons[reason] ?? reason}</li>
+        ))}
+        {status.consumers.map((consumer) => (
+          <li key={consumer.directory ?? consumer["container-id"]}>
+            <span className="mono">{consumer.directory}</span>
+            {" · "}
+            {consumer["access-group"] === undefined
+              ? "owner-only"
+              : `group ${consumer["access-group"]}`}
+            {" · "}
+            <span className="mono">
+              {consumer.sockets?.join(", ") || "no sockets"}
+            </span>
+          </li>
+        ))}
+        {status["last-error"] && (
+          <li>
+            Last login or renewal error:{" "}
+            <span className="mono">{status["last-error"]}</span>
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
 export function BindingStatus({ data: d }: { data: BindingData }) {
   const r = d.Row;
   return (
     <>
+      {d.Readiness && <Readiness status={d.Readiness} />}
       <div className="binding-summary">
         <dl className="facts">
           <div>

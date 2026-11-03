@@ -142,9 +142,23 @@ export interface BindingForm {
   Settings: EnteredBindingSettings;
   Understood: boolean;
 }
+export interface ConsumerStatus {
+  directory?: string;
+  "container-id"?: string;
+  "access-group"?: number;
+  sockets?: string[];
+  failed?: string;
+}
+export interface BindingReadiness {
+  readiness: "ready" | "waiting" | "failed" | "unknown";
+  reasons?: string[];
+  consumers: ConsumerStatus[];
+  "last-error"?: string;
+}
 export interface BindingData extends Layout {
   Row: ContainerRow;
   Reported: boolean;
+  Readiness?: BindingReadiness | null;
   Policies: PolicyChoice[] | null;
   Form: BindingForm;
   Screen: string;

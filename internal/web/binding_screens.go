@@ -29,13 +29,16 @@ type bindingScreen struct {
 	layout
 	Row      containerRow
 	Reported bool
-	Policies []policyChoice
-	Form     bindingForm
-	Screen   string
-	Action   string
-	Recreate string
-	Unbind   string
-	Back     string
+	// Readiness is a stored binding's answer to whether its consumers can use
+	// their sockets now. The bind screen has no binding yet.
+	Readiness *controller.BindingStatus
+	Policies  []policyChoice
+	Form      bindingForm
+	Screen    string
+	Action    string
+	Recreate  string
+	Unbind    string
+	Back      string
 }
 
 // bindingForm is what the form shows: saved values, or the operator's entered
@@ -239,6 +242,11 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 		server.renderContainersUnreadable(writer, problem)
 		return
 	}
+	readiness, err := server.controller.BindingStatus(request.Context(), binding.ID)
+	if err != nil {
+		server.renderContainersUnreadable(writer, problem)
+		return
+	}
 	shown := savedForm(row)
 	if form != nil {
 		shown = *form
@@ -252,7 +260,7 @@ func (server *Server) renderBoundScreen(writer http.ResponseWriter, request *htt
 	}
 	path := bindingPath(binding.ID)
 	server.renderStatus(writer, request, status, "binding", bindingScreen{
-		layout: base, Row: row, Reported: reported, Policies: server.policyChoices(request.Context(), shown.Policies), Form: shown,
+		layout: base, Row: row, Reported: reported, Readiness: &readiness, Policies: server.policyChoices(request.Context(), shown.Policies), Form: shown,
 		Screen: withQuery(path, values), Action: withQuery(path+"/policy", values), Recreate: withQuery(path+"/recreate", values),
 		Unbind: withQuery(path+"/unbind", values), Back: listURL(list),
 	})
