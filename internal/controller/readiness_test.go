@@ -170,6 +170,46 @@ func TestStoredResultNeverMakesARemovedContainerReady(t *testing.T) {
 	}
 }
 
+// A failed recreate ends the agent's attempts, so a tool must not wait on it.
+func TestFailedRecreateWithNoContainerIsFailed(t *testing.T) {
+	fixture := newReadinessFixture(t)
+	failure := protocol.ContractResult{Binding: fixture.binding.ID, Outcome: protocol.OutcomeRecreateFailed, Reason: protocol.ReasonCreateFailed}
+	prepared := fixture.ready()
+	prepared.Consumers[0].ContainerID, prepared.Outcome, prepared.Token = "", "", protocol.TokenNone
+	status := fixture.report(t, nil, failure, prepared)
+	assertReadiness(t, status, ReadinessFailed, ReasonConformance, ReasonNoContainer)
+	if status.Outcome != protocol.OutcomeRecreateFailed || status.Reason != protocol.ReasonCreateFailed || status.Consumers[0].Directory == "" {
+		t.Fatalf("status = %#v", status)
+	}
+	listed, err := fixture.h.controller.BindingStatuses(context.Background(), "host-a")
+	if err != nil || len(listed) != 1 || listed[0].Readiness != ReadinessFailed {
+		t.Fatalf("listed = %#v, %v", listed, err)
+	}
+	// A container that returns has its result from the live report.
+	assertReadiness(t, fixture.report(t, fixture.container(protocol.StateRunning), fixture.ready()), ReadinessReady)
+}
+
+// A withdrawn binding's last status describes what the agent has since retired.
+func TestWithdrawnBindingKeepsNoFieldsOfItsLastStatus(t *testing.T) {
+	fixture := newReadinessFixture(t)
+	key := protocol.Key{Kind: protocol.KeyCompose, Value: "sample/worker"}
+	binding, err := fixture.h.controller.CreateBinding(context.Background(), "host-a", key, valueSelection(map[string]string{"slug": "beta"}), "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fixture.binding = binding
+	containers := []protocol.Container{{ID: statusContainer, Name: "worker-1", State: protocol.StateRunning, Keys: []protocol.Key{key}}}
+	report := fixture.ready()
+	report.Binding, report.Assignment = binding.ID, binding.Assignment()
+	assertReadiness(t, fixture.report(t, containers, report), ReadinessReady)
+
+	status := fixture.report(t, nil)
+	assertReadiness(t, status, ReadinessWaiting, ReasonNoContainer)
+	if status.Token != "" || status.Outcome != "" || len(status.Consumers) != 0 || status.LastError != "" {
+		t.Fatalf("withdrawn status = %#v", status)
+	}
+}
+
 func TestPreparedDirectoryFailureIsFailedWithNoContainer(t *testing.T) {
 	fixture := newReadinessFixture(t)
 	report := protocol.BindingStatus{Binding: fixture.binding.ID, Assignment: fixture.binding.Assignment(), Token: protocol.TokenNone,

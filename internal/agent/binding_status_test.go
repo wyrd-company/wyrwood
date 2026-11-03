@@ -215,6 +215,16 @@ func TestEveryCredentialCodeEncodes(t *testing.T) {
 	}
 }
 
+func stopReporter(t *testing.T, session *controllerSession, finished <-chan struct{}) {
+	t.Helper()
+	close(session.done)
+	select {
+	case <-finished:
+	case <-time.After(5 * time.Second):
+		t.Error("reporter outlived its session")
+	}
+}
+
 func receiveStatus(t *testing.T, session *controllerSession) protocol.BindingStatus {
 	t.Helper()
 	select {
@@ -255,12 +265,7 @@ func TestReporterSendsAtSessionStartAndOnlyOnChange(t *testing.T) {
 		t.Fatalf("repeated status = %#v", message)
 	case <-time.After(100 * time.Millisecond):
 	}
-	close(session.done)
-	select {
-	case <-finished:
-	case <-time.After(5 * time.Second):
-		t.Fatal("reporter outlived its session")
-	}
+	stopReporter(t, session, finished)
 }
 
 // Each step here changes the status by a path other than an explicit wake.
@@ -275,7 +280,7 @@ func TestReporterFollowsContainerAndToken(t *testing.T) {
 	session := newControllerSession(nil, nil)
 	finished := make(chan struct{})
 	go func() { defer close(finished); instance.reportBindingStatuses(session) }()
-	defer func() { close(session.done); <-finished }()
+	defer stopReporter(t, session, finished)
 	// The reporter has nothing to send until a set arrives, and then applying it
 	// is the only wake.
 	time.Sleep(50 * time.Millisecond)
@@ -348,7 +353,7 @@ func TestReporterSendsANewContainerOfABinding(t *testing.T) {
 	session := newControllerSession(nil, nil)
 	finished := make(chan struct{})
 	go func() { defer close(finished); instance.reportBindingStatuses(session) }()
-	defer func() { close(session.done); <-finished }()
+	defer stopReporter(t, session, finished)
 	if first := receiveStatus(t, session); len(first.Consumers) != 1 {
 		t.Fatalf("first status = %#v", first)
 	}
@@ -360,6 +365,39 @@ func TestReporterSendsANewContainerOfABinding(t *testing.T) {
 	status := receiveStatus(t, session)
 	if len(status.Consumers) != 2 || !slices.ContainsFunc(status.Consumers, func(consumer protocol.ConsumerStatus) bool { return consumer.ContainerID == second.ID }) {
 		t.Fatalf("status = %#v", status)
+	}
+}
+
+// The reporter must not pair a token read before a policy set with the
+// assignment that set installs: this holds the lock across that change.
+func TestStatusNeverPairsAnOldTokenWithANewAssignment(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	openBao := newFakeOpenBao(t)
+	engineFake := enginetest.New()
+	instance := newRecreateAgent(t, engineFake)
+	instance.creds.retryDelay = time.Hour
+	bound := preparedBinding(appKey(), policy.DefaultSettings())
+	instance.applyPolicySet(ctx, preparedSet(openBao.server.URL, bound))
+	runningApp(engineFake)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deliverToken(ctx, t, instance, bound, "role-a")
+
+	settings := policy.DefaultSettings()
+	settings.TokenTTL = "2h"
+	changed := preparedBinding(appKey(), settings)
+	instance.mu.Lock()
+	result := make(chan protocol.BindingStatus, 1)
+	go func() { result <- instance.bindingStatuses()[0] }()
+	time.Sleep(50 * time.Millisecond)
+	instance.set = preparedSet(openBao.server.URL, changed)
+	instance.creds.invalidate(changed.Binding)
+	instance.mu.Unlock()
+	status := <-result
+	if status.Assignment != changed.Assignment || status.Token != protocol.TokenNone {
+		t.Fatalf("status = %q %q, want the new assignment with no token", status.Assignment, status.Token)
 	}
 }
 
@@ -449,7 +487,6 @@ func TestReporterResendsInANewSession(t *testing.T) {
 		finished := make(chan struct{})
 		go func() { defer close(finished); instance.reportBindingStatuses(session) }()
 		receiveStatus(t, session)
-		close(session.done)
-		<-finished
+		stopReporter(t, session, finished)
 	}
 }

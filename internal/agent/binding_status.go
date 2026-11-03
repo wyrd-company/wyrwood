@@ -54,10 +54,12 @@ func (agent *Agent) reportBindingStatuses(session *controllerSession) {
 // bindingStatuses reports every binding in the policy set from current state:
 // the containers it governs now, and no result for a binding that governs none.
 func (agent *Agent) bindingStatuses() []protocol.BindingStatus {
-	holding := agent.creds.holding()
-	failures := agent.creds.lastFailures()
+	// A policy set replaces an assignment and invalidates its token under this
+	// lock, so these reads cannot pair an old token with a new assignment.
 	agent.mu.Lock()
 	defer agent.mu.Unlock()
+	holding := agent.creds.holding()
+	failures := agent.creds.lastFailures()
 	governed := map[string][]engine.Container{}
 	for _, container := range agent.containers {
 		if bound, ok := agent.governingLocked(container); ok {

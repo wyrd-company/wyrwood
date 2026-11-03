@@ -137,7 +137,11 @@ proposed-design:
     the live session's `binding-status`. Directory, access group, socket, token,
     conformance, and last-error fields come only from that session, held in
     memory, so that a disconnected agent answers `unknown` and a removed container
-    cannot read as conforming from its stored contract result. `ready` means that
+    cannot read as conforming from its stored contract result. The one stored
+    result it reads is a `recreate-failed` for a binding with no container, since
+    that recreate is over and leaves no container to report on. It reads `failed`
+    until a container returns. A binding on another key with no container shows
+    no session fields, since the controller has withdrawn it. `ready` means that
     every governed container has a consumer that names its identifier, with both
     sockets, a valid token, and a `conforming` or `recreated` outcome, in any
     container state, so that a created container can be started. `waiting` means

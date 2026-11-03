@@ -186,7 +186,9 @@ their sockets now:
 The tab also shows each consumer directory with the access group applied to it
 and the sockets that listen, and the last login or renewal error. A `name`
 binding with no container shows **Waiting** with its prepared directory and
-sockets, so a wrong access group shows here before the container exists.
+sockets, so a wrong access group shows here before the container exists. A
+recreate that removed the container and could not create it again shows
+**Failed** until a container with the key returns.
 
 ## After a host reboot
 

@@ -51,7 +51,8 @@ const (
 // BindingStatus is the machine-readable answer to whether a binding is ready.
 // It holds no token or secret. Only a live agent session supplies its
 // directory, socket, token, and conformance fields, so that a removed
-// container cannot read as conforming.
+// container cannot read as conforming. The one stored fact it reads is a failed
+// recreate that left no container, which no session has anything to report on.
 type BindingStatus struct {
 	Binding        string                    `json:"binding"`
 	Agent          string                    `json:"agent"`
@@ -110,7 +111,11 @@ func (controller *Controller) BindingStatus(ctx context.Context, id string) (Bin
 	if err != nil {
 		return BindingStatus{}, err
 	}
-	return controller.bindingStatus(binding, governedBy(containers, bindings)[binding.ID], reported), nil
+	results, err := controller.store.ContractResults(ctx)
+	if err != nil {
+		return BindingStatus{}, err
+	}
+	return controller.bindingStatus(binding, governedBy(containers, bindings)[binding.ID], reported, results[binding.ID]), nil
 }
 
 // BindingStatuses returns the readiness of every binding of one agent.
@@ -123,10 +128,14 @@ func (controller *Controller) BindingStatuses(ctx context.Context, agent string)
 	if err != nil {
 		return nil, err
 	}
+	results, err := controller.store.ContractResults(ctx)
+	if err != nil {
+		return nil, err
+	}
 	governed := governedBy(containers, bindings)
 	statuses := make([]BindingStatus, 0, len(bindings))
 	for _, binding := range bindings {
-		statuses = append(statuses, controller.bindingStatus(binding, governed[binding.ID], reported))
+		statuses = append(statuses, controller.bindingStatus(binding, governed[binding.ID], reported, results[binding.ID]))
 	}
 	return statuses, nil
 }
@@ -141,7 +150,7 @@ func governedBy(containers []protocol.Container, bindings []store.Binding) map[s
 	return governed
 }
 
-func (controller *Controller) bindingStatus(binding store.Binding, containers []BindingContainer, reported time.Time) BindingStatus {
+func (controller *Controller) bindingStatus(binding store.Binding, containers []BindingContainer, reported time.Time, stored store.ContractResult) BindingStatus {
 	sort.Slice(containers, func(left, right int) bool { return containers[left].ID < containers[right].ID })
 	result := BindingStatus{Binding: binding.ID, Agent: binding.Agent, Key: binding.Key, LastReport: reported,
 		Containers: containers, Consumers: []protocol.ConsumerStatus{}}
@@ -154,21 +163,27 @@ func (controller *Controller) bindingStatus(binding store.Binding, containers []
 		return result
 	}
 	result.AgentConnected = true
+	var waiting, failed []NotReadyReason
 	report, ok := session.status(binding.ID)
-	if !ok || report.Assignment != binding.Assignment() {
-		// The agent carries only a name binding before its container exists.
-		result.Readiness = ReadinessWaiting
-		if len(containers) == 0 && binding.Key.Kind != protocol.KeyName {
-			result.Reasons = []NotReadyReason{ReasonNoContainer}
-		} else {
-			result.Reasons = []NotReadyReason{ReasonAgentReport}
-		}
-		return result
+	switch {
+	case len(containers) == 0 && binding.Key.Kind != protocol.KeyName:
+		// The controller has withdrawn this binding, so the agent has retired
+		// what its last status describes.
+		waiting = []NotReadyReason{ReasonNoContainer}
+	case !ok || report.Assignment != binding.Assignment():
+		waiting = []NotReadyReason{ReasonAgentReport}
+	default:
+		result.Token, result.LastError = report.Token, report.LastError
+		result.Outcome, result.FailedItems, result.Reason = report.Outcome, report.FailedItems, report.Reason
+		result.Consumers = append(result.Consumers, report.Consumers...)
+		waiting, failed = judge(containers, report)
 	}
-	result.Token, result.LastError = report.Token, report.LastError
-	result.Outcome, result.FailedItems, result.Reason = report.Outcome, report.FailedItems, report.Reason
-	result.Consumers = append(result.Consumers, report.Consumers...)
-	waiting, failed := judge(containers, report)
+	// A recreate that removed the container and could not create it again is
+	// over, and nothing will replace this result until a container returns.
+	if len(containers) == 0 && stored.Outcome == protocol.OutcomeRecreateFailed {
+		result.Outcome, result.Reason = stored.Outcome, stored.Reason
+		failed = append(failed, ReasonConformance)
+	}
 	result.Reasons = append(failed, waiting...)
 	switch {
 	case len(failed) > 0:
