@@ -11,6 +11,8 @@ import (
 
 	"github.com/hashicorp/hcl"
 	"github.com/hashicorp/hcl/hcl/ast"
+	hclstrconv "github.com/hashicorp/hcl/hcl/strconv"
+	"github.com/hashicorp/hcl/hcl/token"
 )
 
 const (
@@ -29,11 +31,27 @@ var (
 	bindingValuePattern     = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 )
 
+// decodedToken is the string OpenBao reads from a token, with escapes applied.
+func decodedToken(item token.Token) string {
+	if item.Type == token.STRING {
+		if decoded, err := hclstrconv.Unquote(item.Text); err == nil {
+			return decoded
+		}
+	}
+	return item.Text
+}
+
+// mentionsBinding reads a token both as written and as decoded, so that an
+// escape cannot hide a placeholder.
+func mentionsBinding(item token.Token) bool {
+	return bindingMention.MatchString(item.Text) || bindingMention.MatchString(decodedToken(item))
+}
+
 // bindingValueUse reads the placeholders of an HCL document. Comments are not
 // read. Names are those in path stanza names. Stray reports a placeholder that
-// is malformed or outside a path stanza name, which OpenBao would accept and
-// never resolve. A document that does not parse reports nothing, because
-// OpenBao remains the validity authority.
+// is malformed, escaped, or outside a path stanza name, which OpenBao would
+// accept and never resolve. A document that does not parse reports nothing,
+// because OpenBao remains the validity authority.
 func bindingValueUse(source string) (names []string, stray bool) {
 	parsed, err := hcl.Parse(source)
 	if err != nil {
@@ -47,21 +65,28 @@ func bindingValueUse(source string) (names []string, stray bool) {
 	for _, item := range list.Items {
 		isPath := len(item.Keys) >= 2 && item.Keys[0].Token.Value() == "path"
 		for index, key := range item.Keys {
-			text := key.Token.Text
-			if isPath && index == 1 {
-				for _, match := range bindingPlaceholder.FindAllStringSubmatch(text, -1) {
-					found[match[1]] = true
-				}
-				text = bindingPlaceholder.ReplaceAllString(text, "")
+			if !isPath || index != 1 {
+				stray = stray || mentionsBinding(key.Token)
+				continue
 			}
-			stray = stray || bindingMention.MatchString(text)
+			// Publication compiles the text as written, so a placeholder counts
+			// only when it is the same as written and as decoded.
+			decoded := decodedToken(key.Token)
+			written := bindingPlaceholder.FindAllStringSubmatch(key.Token.Text, -1)
+			if len(written) != len(bindingPlaceholder.FindAllString(decoded, -1)) {
+				stray = true
+			}
+			for _, match := range written {
+				found[match[1]] = true
+			}
+			stray = stray || bindingMention.MatchString(bindingPlaceholder.ReplaceAllString(decoded, ""))
 		}
 		ast.Walk(item.Val, func(node ast.Node) (ast.Node, bool) {
 			switch inner := node.(type) {
 			case *ast.ObjectKey:
-				stray = stray || bindingMention.MatchString(inner.Token.Text)
+				stray = stray || mentionsBinding(inner.Token)
 			case *ast.LiteralType:
-				stray = stray || bindingMention.MatchString(inner.Token.Text)
+				stray = stray || mentionsBinding(inner.Token)
 			}
 			return node, true
 		})
@@ -72,7 +97,7 @@ func bindingValueUse(source string) (names []string, stray bool) {
 func validateBindingPlaceholders(source string) error {
 	names, stray := bindingValueUse(source)
 	if stray {
-		return partError(PartOpenBao, "a binding value is written {{binding.name}} with a lower-case name, and only in a path stanza name")
+		return partError(PartOpenBao, "a binding value is written {{binding.name}} with a lower-case name and no escapes, and only in a path stanza name")
 	}
 	if len(names) > maximumBindingValues {
 		return partError(PartOpenBao, "a policy can use at most %d binding values", maximumBindingValues)

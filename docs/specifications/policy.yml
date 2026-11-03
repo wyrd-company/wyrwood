@@ -63,8 +63,9 @@ description: >-
   A path stanza name can hold the placeholder `{{binding.<name>}}`, so that one
   policy applies to many bindings. A name holds lower-case letters, digits, and
   underscores, starts with a letter, and has at most 64 bytes. A policy uses at
-  most 16 names. A placeholder that is malformed or outside a path stanza name
-  is refused when the policy is saved; comments are not read. A value holds 1 to
+  most 16 names. A placeholder that is malformed, written with an escape, or
+  outside a path stanza name is refused when the policy is saved; comments are
+  not read. A value holds 1 to
   128 letters, digits, underscores, or hyphens, so it cannot add a wildcard or a
   path segment. Values are not secret. A binding must hold a value for every
   placeholder of its selected policies. A value that they do not use has no

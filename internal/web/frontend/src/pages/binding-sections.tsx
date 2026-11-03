@@ -59,6 +59,32 @@ export function KeyChoice({ data: d }: { data: BindingData }) {
   );
 }
 
+function ValueField({
+  name,
+  saved,
+  hint,
+  required = false,
+}: {
+  name: string;
+  saved?: string;
+  hint?: string;
+  required?: boolean;
+}) {
+  const id = `binding-value-${name}`;
+  return (
+    <Field label={name} id={id} hint={hint}>
+      <Input
+        id={id}
+        name={`value.${name}`}
+        required={required}
+        maxLength={128}
+        pattern="[A-Za-z0-9_\-]+"
+        defaultValue={saved ?? ""}
+      />
+    </Field>
+  );
+}
+
 export function PolicyChoices({ data: d }: { data: BindingData }) {
   const [selected, setSelected] = useState(
     () => new Set(d.Policies?.filter((p) => p.Selected).map((p) => p.Name)),
@@ -70,6 +96,12 @@ export function PolicyChoices({ data: d }: { data: BindingData }) {
       ),
     ),
   ].sort();
+  // A saved value that no selected policy uses stays visible, so that saving the
+  // form keeps it and the operator can clear it.
+  const savedValues = d.Form.Settings?.values ?? {};
+  const unusedNames = Object.keys(savedValues)
+    .filter((name) => !valueNames.includes(name))
+    .sort();
   return (
     <>
       <fieldset>
@@ -97,20 +129,24 @@ export function PolicyChoices({ data: d }: { data: BindingData }) {
         requirements are rejected. Agent token renewal is enabled when any
         selected policy enables it. Binding tokens have no default policy.
       </p>
-      {valueNames.length > 0 && (
+      {valueNames.length + unusedNames.length > 0 && (
         <fieldset>
           <legend>Values for this binding</legend>
           {valueNames.map((name) => (
-            <Field label={name} id={`binding-value-${name}`} key={name}>
-              <Input
-                id={`binding-value-${name}`}
-                name={`value.${name}`}
-                required
-                maxLength={128}
-                pattern="[A-Za-z0-9_\-]+"
-                defaultValue={d.Form.Settings?.values?.[name] ?? ""}
-              />
-            </Field>
+            <ValueField
+              name={name}
+              saved={savedValues[name]}
+              key={name}
+              required
+            />
+          ))}
+          {unusedNames.map((name) => (
+            <ValueField
+              name={name}
+              saved={savedValues[name]}
+              key={name}
+              hint="No selected policy uses this value now. Clear it to remove it."
+            />
           ))}
           <p className="hint">
             The selected policies use these values in their paths. Use letters,

@@ -202,7 +202,8 @@ proposed-design:
     it before any write, and an edit's refusal names the binding. A misspelled name
     is refused as the unset value of the right name. A value that no selected policy
     uses changes nothing in OpenBao, so it is kept, and an edit that removes a
-    placeholder leaves its bindings valid.
+    placeholder leaves its bindings valid. A placeholder written with an escape is
+    refused when the policy is saved, because publication compiles the text as written.
     The effective HCL holds the expanded path, so that the preview shows the real
     result, while each source keeps its authored text. The mount check reads authored
     paths: a complete literal mount root before a placeholder is contained, and a

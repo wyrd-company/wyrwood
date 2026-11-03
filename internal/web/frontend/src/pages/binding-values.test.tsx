@@ -80,6 +80,32 @@ it("shows a saved value and refuses text a value cannot hold", () => {
   expect(input.checkValidity()).toBe(true);
 });
 
+it("keeps a saved value that no selected policy uses, and lets it be cleared", async () => {
+  const user = userEvent.setup();
+  const { container } = render(
+    <form>
+      <PolicyChoices
+        data={data({
+          Policies: [{ Name: "plain", Selected: true, Values: null }],
+          Form: {
+            Key: "",
+            Revision: 1,
+            Understood: false,
+            Settings: { values: { slug: "alpha" } },
+          },
+        })}
+      />
+    </form>,
+  );
+  const form = container.querySelector("form")!;
+  const input = screen.getByLabelText("slug");
+  expect(input).not.toBeRequired();
+  expect(screen.getByText(/No selected policy uses this value/)).toBeTruthy();
+  expect(new FormData(form).get("value.slug")).toBe("alpha");
+  await user.clear(input);
+  expect(new FormData(form).get("value.slug")).toBe("");
+});
+
 it("summarizes saved and entered values", () => {
   const saved = data({
     Form: {

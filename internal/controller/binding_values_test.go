@@ -323,6 +323,25 @@ func TestPolicyEditThatNeedsAnUnsetValueIsRefused(t *testing.T) {
 	}
 }
 
+func TestEscapedPlaceholderIsRefusedBeforeOpenBao(t *testing.T) {
+	ctx := context.Background()
+	fixture := newValueFixture(t)
+	for name, hcl := range map[string]string{
+		"hcl":  `path "kv/data/sample/\u007b\u007bbinding.slug\u007d\u007d" { capabilities = ["read"] }`,
+		"json": `{"path": {"kv/data/sample/\u007b\u007bbinding.slug\u007d\u007d": {"capabilities": ["read"]}}}`,
+	} {
+		document := policy.New("escaped-"+name, hcl)
+		_, err := fixture.h.controller.SavePolicy(ctx, document, "operator-1")
+		var operation *OperationError
+		if !errors.As(err, &operation) || operation.Part != policy.PartOpenBao {
+			t.Fatalf("%s: SavePolicy() = %v", name, err)
+		}
+		if published, err := fixture.h.bao.Root.Sys().GetPolicy(document.OpenBaoPolicyName()); err != nil || published != "" {
+			t.Fatalf("%s: published = %q, %v", name, published, err)
+		}
+	}
+}
+
 func TestBindingValuesSurviveStorage(t *testing.T) {
 	ctx := context.Background()
 	fixture := newValueFixture(t)

@@ -228,7 +228,9 @@ cannot add a wildcard or a path segment. Values are not secret: OpenBao holds
 them in identity metadata, and a token can read its own. Placeholders work only
 in path stanza names, and saving a policy that has one elsewhere is refused.
 
-Saving a binding with no value for a placeholder is refused. Editing a policy to
+A saved value that no selected policy uses stays on the binding screen as an
+optional field. It has no effect, and clearing it removes it. Saving a binding
+with no value for a placeholder is refused. Editing a policy to
 add a placeholder is refused while a binding that selects the policy has no
 value, and the message names that binding. To move bindings to a placeholder,
 create a new policy that has it, select that policy on each binding with its

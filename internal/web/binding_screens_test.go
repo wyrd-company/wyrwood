@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -631,6 +632,49 @@ func TestBindScreenAsksForEachValueAPolicyNeeds(t *testing.T) {
 	}
 	if !strings.Contains(bound.data.Row.Effective.OpenBao.Policy, `"kv/data/sample/alpha"`) {
 		t.Fatalf("effective policy = %s", bound.data.Row.Effective.OpenBao.Policy)
+	}
+}
+
+func TestSavingABindingKeepsAValueTheFormStillHolds(t *testing.T) {
+	fixture := newScreenFixture(t)
+	fixture.saveTemplatedPolicy(t)
+	bound := fixture.post(t, "/bindings", url.Values{"agent": {"host-a"}, "container": {"shared-id"}, "key": {"compose:sample/worker"},
+		"policies": {"templated"}, "token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}, "value.slug": {"alpha"}})
+	if bound.status != http.StatusOK || bound.data.Row.BindingID == "" {
+		t.Fatalf("bind = %d %s", bound.status, bound.raw)
+	}
+	change := func(policies string, values url.Values) store.Binding {
+		t.Helper()
+		ctx := context.Background()
+		current, err := fixture.harness.controller.Store().Binding(ctx, bound.data.Row.BindingID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		form := url.Values{"revision": {strconv.Itoa(current.Revision)}, "policies": {policies}, "token-ttl": {"2h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}}
+		for name, entered := range values {
+			form[name] = entered
+		}
+		changed := fixture.post(t, bindingPath(current.ID)+"/policy", form)
+		if changed.status != http.StatusOK {
+			t.Fatalf("change = %d %s", changed.status, changed.raw)
+		}
+		saved, err := fixture.harness.controller.Store().Binding(ctx, current.ID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return saved
+	}
+	if saved := change("first", url.Values{"value.slug": {"alpha"}}); saved.Settings.Values["slug"] != "alpha" {
+		t.Fatalf("settings with an unused value = %#v", saved.Settings)
+	}
+	if shown := fixture.get(t, bindingPath(bound.data.Row.BindingID)); shown.data.Form.Settings.Values["slug"] != "alpha" {
+		t.Fatalf("form = %#v", shown.data.Form.Settings)
+	}
+	if saved := change("templated", url.Values{"value.slug": {"alpha"}}); !strings.Contains(saved.Effective.OpenBao.Policy, `"kv/data/sample/alpha"`) {
+		t.Fatalf("restored policy = %s", saved.Effective.OpenBao.Policy)
+	}
+	if saved := change("first", url.Values{"value.slug": {""}}); saved.Settings.Values != nil && len(saved.Settings.Values) != 0 {
+		t.Fatalf("a cleared value stayed: %#v", saved.Settings)
 	}
 }
 

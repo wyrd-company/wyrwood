@@ -32,13 +32,20 @@ func TestValueNamesReadsOnlyPathStanzaNames(t *testing.T) {
 
 func TestPolicyRefusesAPlaceholderOpenBaoWouldNeverResolve(t *testing.T) {
 	for name, hcl := range map[string]string{
-		"spaces":     `path "kv/{{ binding.slug }}" { capabilities = ["read"] }`,
-		"upper case": `path "kv/{{binding.Slug}}" { capabilities = ["read"] }`,
-		"hyphen":     `path "kv/{{binding.a-b}}" { capabilities = ["read"] }`,
-		"no name":    `path "kv/{{binding}}" { capabilities = ["read"] }`,
-		"parameter":  `path "kv/x" { capabilities = ["update"] allowed_parameters = { "key" = ["{{binding.slug}}"] } }`,
-		"key":        `path "kv/x" { capabilities = ["update"] allowed_parameters = { "{{binding.slug}}" = [] } }`,
-		"other":      `other "{{binding.slug}}" { capabilities = ["read"] }`,
+		"spaces":           `path "kv/{{ binding.slug }}" { capabilities = ["read"] }`,
+		"upper case":       `path "kv/{{binding.Slug}}" { capabilities = ["read"] }`,
+		"hyphen":           `path "kv/{{binding.a-b}}" { capabilities = ["read"] }`,
+		"no name":          `path "kv/{{binding}}" { capabilities = ["read"] }`,
+		"parameter":        `path "kv/x" { capabilities = ["update"] allowed_parameters = { "key" = ["{{binding.slug}}"] } }`,
+		"key":              `path "kv/x" { capabilities = ["update"] allowed_parameters = { "{{binding.slug}}" = [] } }`,
+		"other":            `other "{{binding.slug}}" { capabilities = ["read"] }`,
+		"unicode escape":   `path "kv/\u007b\u007bbinding.slug\u007d\u007d" { capabilities = ["read"] }`,
+		"hex escape":       `path "kv/\x7b{binding.slug}}" { capabilities = ["read"] }`,
+		"partial escape":   `path "kv/{{binding.a}}/\u007b{binding.b}}" { capabilities = ["read"] }`,
+		"malformed escape": `path "kv/{{bind\u0069ng.Slug}}" { capabilities = ["read"] }`,
+		"name escape":      `path "kv/{{bind\u0069ng.slug}}" { capabilities = ["read"] }`,
+		"json escape":      `{"path": {"kv/\u007b\u007bbinding.slug\u007d\u007d": {"capabilities": ["read"]}}}`,
+		"escaped value":    `path "kv/x" { capabilities = ["update"] allowed_parameters = { "key" = ["\u007b\u007bbinding.slug}}"] } }`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			err := New("sample", hcl).Validate()
@@ -48,9 +55,10 @@ func TestPolicyRefusesAPlaceholderOpenBaoWouldNeverResolve(t *testing.T) {
 		})
 	}
 	for name, hcl := range map[string]string{
-		"comment":     "# {{ binding.note }}\npath \"kv/x\" { capabilities = [\"read\"] }",
-		"unparseable": `path "kv/{{binding.slug}}`,
-		"identity":    `path "kv/{{identity.entity.id}}" { capabilities = ["read"] }`,
+		"comment":      "# {{ binding.note }}\npath \"kv/x\" { capabilities = [\"read\"] }",
+		"unparseable":  `path "kv/{{binding.slug}}`,
+		"identity":     `path "kv/{{identity.entity.id}}" { capabilities = ["read"] }`,
+		"other escape": `path "kv/\u0061/{{binding.slug}}" { capabilities = ["read"] }`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if err := New("sample", hcl).Validate(); err != nil {
