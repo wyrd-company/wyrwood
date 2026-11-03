@@ -37,7 +37,7 @@ func TestExactAllowListAndHostPermission(t *testing.T) {
 					}
 					_, status := authorize(req, allowed)
 					want := 0
-					if route.method != "GET" && !allowed {
+					if route.method != "GET" && !strings.HasSuffix(route.path, "/start") && !allowed {
 						want = http.StatusForbidden
 					}
 					if status != want {
@@ -89,6 +89,32 @@ func TestRejectsEveryOtherSurface(t *testing.T) {
 	req = httptest.NewRequest("GET", "/containers/json?all=1", strings.NewReader("payload"))
 	if _, status := authorize(req, true); status == 0 {
 		t.Error("accepted read body")
+	}
+}
+
+func TestStartNeedsNoRecreatePermissionAndAcceptsNothingElse(t *testing.T) {
+	req := httptest.NewRequest("POST", "/containers/sample/start", nil)
+	if operation, status := authorize(req, false); status != 0 || operation != "start" {
+		t.Fatalf("start = %q, %d", operation, status)
+	}
+	for _, path := range []string{"/containers/sample/start?detachKeys=x", "/containers/sample/start/", "/containers/%2e%2e/start"} {
+		req := httptest.NewRequest("POST", path, nil)
+		if _, status := authorize(req, false); status == 0 {
+			t.Errorf("accepted %s", path)
+		}
+	}
+	req = httptest.NewRequest("POST", "/containers/sample/start", strings.NewReader(`{"HostConfig":{"Privileged":true}}`))
+	if _, status := authorize(req, false); status == 0 {
+		t.Error("accepted a start body")
+	}
+	for _, route := range []struct{ method, path string }{
+		{"POST", "/containers/sample/stop?t=1"}, {"DELETE", "/containers/sample?v=0&force=0"}, {"POST", "/containers/create?name=sample"},
+	} {
+		req := httptest.NewRequest(route.method, route.path, strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		if _, status := authorize(req, false); status != http.StatusForbidden {
+			t.Errorf("%s %s = %d, want 403", route.method, route.path, status)
+		}
 	}
 }
 

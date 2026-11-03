@@ -180,7 +180,7 @@ func TestKeepAlivePermissionAndHTTPFraming(t *testing.T) {
 		status  int
 	}{
 		{"GET /containers/json?all=1 HTTP/1.1\r\nHost: local\r\n\r\n", 200},
-		{"POST /containers/sample/start HTTP/1.1\r\nHost: local\r\nContent-Length: 0\r\n\r\n", 403},
+		{"POST /containers/sample/stop?t=1 HTTP/1.1\r\nHost: local\r\nContent-Length: 0\r\n\r\n", 403},
 		{"GET /containers/json?all=1 HTTP/1.1\r\nHost: local\r\nContent-Length: 0\r\nContent-Length: 2\r\n\r\n", 400},
 	} {
 		_, _ = io.WriteString(conn, sample.request)
@@ -294,8 +294,11 @@ func TestEngineClientOperationsCrossOnlyApprovedRoutes(t *testing.T) {
 			check(client.Remove(ctx, "sample"))
 			_, err = client.Create(ctx, "sample", []byte(`{"Image":"sample"}`))
 			check(err)
-			check(client.Start(ctx, "new-sample"))
-			want := int32(0)
+			// Start is outside the recreate permission.
+			if err := client.Start(ctx, "new-sample"); err != nil {
+				t.Fatal(err)
+			}
+			want := int32(1)
 			if permission {
 				want = 4
 			}

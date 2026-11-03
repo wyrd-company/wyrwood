@@ -5,7 +5,7 @@
 // ---
 
 // Package engine is the agent's Docker Engine boundary: read operations for
-// observation and the one write path recreate needs. Errors are categorical.
+// observation, the one write path recreate needs, and container start. Errors are categorical.
 package engine
 
 import (
@@ -51,6 +51,7 @@ type Container struct {
 	Image string `json:"Image"`
 	State struct {
 		Status string `json:"Status"`
+		Error  string `json:"Error"`
 	} `json:"State"`
 	Config struct {
 		Image       string            `json:"Image"`
@@ -60,7 +61,10 @@ type Container struct {
 		StopTimeout *int              `json:"StopTimeout"`
 	} `json:"Config"`
 	HostConfig struct {
-		GroupAdd []string `json:"GroupAdd"`
+		GroupAdd      []string `json:"GroupAdd"`
+		RestartPolicy struct {
+			Name string `json:"Name"`
+		} `json:"RestartPolicy"`
 	} `json:"HostConfig"`
 	Mounts []Mount `json:"Mounts"`
 

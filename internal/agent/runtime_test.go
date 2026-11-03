@@ -195,7 +195,7 @@ func TestCancelledRecreateDoesNotAdmitStateWriter(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	instance.startRecreate(ctx, recreateBinding(), container)
-	instance.recreateWorkers.Wait()
+	instance.engineWorkers.Wait()
 	if calls := fake.CallLog(); len(calls) != 0 {
 		t.Fatalf("cancelled recreate reached Engine: %v", calls)
 	}

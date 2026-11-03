@@ -42,7 +42,11 @@ func TestReadOnlyProxyAgainstRealEngine(t *testing.T) {
 	}
 	// A synthetic identifier makes a leaked write distinguishable: Docker would
 	// return not-found, whereas the disabled proxy returns unavailable (403).
-	if err := client.Start(ctx, "missing-sample"); err != engine.ErrUnavailable {
+	if err := client.Stop(ctx, "missing-sample", time.Second); err != engine.ErrUnavailable {
 		t.Fatalf("write escaped proxy: %v", err)
+	}
+	// Start is outside the recreate permission, so Docker answers it.
+	if err := client.Start(ctx, "missing-sample"); err != engine.ErrNotFound {
+		t.Fatalf("start did not reach the engine: %v", err)
 	}
 }

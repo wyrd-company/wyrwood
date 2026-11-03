@@ -41,6 +41,7 @@ const (
 	OperationContractChecked   Operation = "contract-checked"
 	OperationRecreateBegun     Operation = "recreate-begun"
 	OperationRecreateFinished  Operation = "recreate-finished"
+	OperationContainerStarted  Operation = "container-started"
 	OperationLogin             Operation = "login"
 	OperationRenew             Operation = "renew"
 	OperationRevoke            Operation = "revoke"
@@ -68,7 +69,7 @@ const (
 // Operations lists the complete operation vocabulary in schema order.
 var Operations = []Operation{
 	OperationContainerObserved, OperationContainerGone, OperationBindingReceived, OperationBindingRetired,
-	OperationContractChecked, OperationRecreateBegun, OperationRecreateFinished,
+	OperationContractChecked, OperationRecreateBegun, OperationRecreateFinished, OperationContainerStarted,
 	OperationLogin, OperationRenew, OperationRevoke, OperationVaultRequest,
 	OperationSSHList, OperationSSHSign, OperationSSHCertificate, OperationSSHSessionBind,
 	OperationAgentApproved, OperationAgentRejected, OperationSessionOpened, OperationSessionClosed,

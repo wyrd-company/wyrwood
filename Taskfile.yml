@@ -119,6 +119,16 @@ tasks:
     cmds:
       - go test -count=1 -tags=integration ./internal/integration
 
+  test:integration:boot:
+    desc: >-
+      Run the boot gate as root on a disposable host: it restarts Docker Engine
+      with systemctl and stops every container on the host
+    deps: [ frontend:build ]
+    env:
+      WYRWOOD_GATE_RESTART_ENGINE: "1"
+    cmds:
+      - go test -count=1 -tags=integration -run TestBootStartsBoundContainers ./internal/integration
+
   vet:
     desc: Run Go static analysis
     deps: [ frontend:build ]

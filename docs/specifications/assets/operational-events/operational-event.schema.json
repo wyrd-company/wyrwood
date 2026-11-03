@@ -11,7 +11,7 @@
       "type": "string",
       "enum": [
         "container-observed", "container-gone", "binding-received", "binding-retired",
-        "contract-checked", "recreate-begun", "recreate-finished",
+        "contract-checked", "recreate-begun", "recreate-finished", "container-started",
         "login", "renew", "revoke", "vault-request",
         "ssh-list", "ssh-sign", "ssh-certificate", "ssh-session-bind",
         "agent-approved", "agent-rejected", "session-opened", "session-closed",

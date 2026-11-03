@@ -68,20 +68,21 @@ type Agent struct {
 	creds     *credentials
 	reconcile chan string
 
-	recreateWorkers sync.WaitGroup
-	stopping        bool // guarded by mu; closes recreate admission before joining
-	mu              sync.Mutex
-	containers      map[string]engine.Container
-	set             protocol.PolicySet
-	setLoaded       bool
-	known           map[string]bool
-	consumers       map[string]*consumerState
-	results         map[string]protocol.ContractResult
-	recreating      map[string]bool
-	pending         map[string]contract.CreateRequest
-	session         *controllerSession
-	connected       bool
-	lastReport      time.Time
+	engineWorkers sync.WaitGroup
+	stopping      bool // guarded by mu; closes recreate admission before joining
+	mu            sync.Mutex
+	containers    map[string]engine.Container
+	set           protocol.PolicySet
+	setLoaded     bool
+	known         map[string]bool
+	consumers     map[string]*consumerState
+	results       map[string]protocol.ContractResult
+	recreating    map[string]bool
+	pending       map[string]contract.CreateRequest
+	startAttempts map[string]time.Time // container ID to last start after a failed mount
+	session       *controllerSession
+	connected     bool
+	lastReport    time.Time
 }
 
 type consumerState struct {
@@ -127,6 +128,7 @@ func New(options Options) (*Agent, error) {
 		reconcile:  make(chan string, 256),
 		containers: map[string]engine.Container{}, known: map[string]bool{}, consumers: map[string]*consumerState{},
 		results: map[string]protocol.ContractResult{}, recreating: map[string]bool{}, pending: map[string]contract.CreateRequest{},
+		startAttempts: map[string]time.Time{},
 	}
 	agent.creds = newCredentials(options.Config.OpenBaoTimeout, agent.requestCredential, agent.record, agent.bindingKey)
 	agent.creds.report = agent.reportAccessor
@@ -141,7 +143,7 @@ func (agent *Agent) Run(ctx context.Context) error {
 		agent.mu.Lock()
 		agent.stopping = true
 		agent.mu.Unlock()
-		agent.recreateWorkers.Wait()
+		agent.engineWorkers.Wait()
 		agent.shutdown()
 	}()
 	var workers sync.WaitGroup
@@ -421,6 +423,7 @@ func (agent *Agent) applyLocked(ctx context.Context) {
 		bound, _ := agent.bindingLocked(id)
 		agent.checkLocked(ctx, bound, containers)
 	}
+	agent.startFailedMountsLocked(ctx)
 }
 
 func (agent *Agent) ensureConsumerLocked(name string, bound protocol.Binding) {

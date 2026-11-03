@@ -71,9 +71,9 @@ func (agent *Agent) startRecreate(ctx context.Context, bound protocol.Binding, c
 		agent.mu.Unlock()
 		return
 	}
-	agent.recreateWorkers.Add(1)
+	agent.engineWorkers.Add(1)
 	agent.mu.Unlock()
-	defer agent.recreateWorkers.Done()
+	defer agent.engineWorkers.Done()
 	key := events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)
 	if !agent.config.AllowRecreate {
 		agent.mu.Lock()
@@ -95,9 +95,9 @@ func (agent *Agent) startRecreate(ctx context.Context, bound protocol.Binding, c
 	agent.reportLocked(protocol.ContractResult{Binding: bound.Binding, Outcome: protocol.OutcomeRecreating})
 	agent.mu.Unlock()
 	agent.record(events.Event{Operation: events.OperationRecreateBegun, Outcome: events.OutcomeOK, Binding: bound.Binding, ContainerKey: key})
-	agent.recreateWorkers.Add(1)
+	agent.engineWorkers.Add(1)
 	go func() {
-		defer agent.recreateWorkers.Done()
+		defer agent.engineWorkers.Done()
 		agent.recreate(ctx, bound, container)
 	}()
 }

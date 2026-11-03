@@ -378,7 +378,7 @@ func TestRootRunActivatesHostPermissionOnlyOnRestart(t *testing.T) {
 	defer cancel()
 	write(true)
 	// The file cannot change the permission on an existing process/connection.
-	if err := client.Start(context.Background(), "sample"); err != engine.ErrUnavailable {
+	if err := client.Stop(context.Background(), "sample", time.Second); err != engine.ErrUnavailable {
 		t.Fatal("host permission was not independently loaded and held", err)
 	}
 	cancel()
@@ -387,7 +387,7 @@ func TestRootRunActivatesHostPermissionOnlyOnRestart(t *testing.T) {
 	}
 	cancel, done, client = start()
 	defer cancel()
-	if err := client.Start(context.Background(), "sample"); err != nil {
+	if err := client.Stop(context.Background(), "sample", time.Second); err != nil {
 		t.Fatal("restart did not activate host permission", err)
 	}
 	cancel()

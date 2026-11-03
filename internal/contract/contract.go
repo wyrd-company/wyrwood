@@ -25,6 +25,50 @@ import (
 
 var anonymousVolumeName = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
+// StartFailedOnMount reports whether Docker tried to start an exited container
+// that its restart policy keeps running, and the start failed because the bind
+// source consumerDirectory was absent. Docker records that failure only when
+// it starts the container itself, as it does at boot. A container stopped on
+// purpose has no recorded error, and a restart policy of no never matches.
+func StartFailedOnMount(container engine.Container, consumerDirectory string) bool {
+	if container.State.Status != "exited" {
+		return false
+	}
+	switch container.HostConfig.RestartPolicy.Name {
+	case "always", "unless-stopped", "on-failure":
+	default:
+		return false
+	}
+	directory := filepath.Clean(consumerDirectory)
+	mounted := false
+	for _, mount := range container.Mounts {
+		mounted = mounted || (mount.Type == "bind" && filepath.Clean(mount.Source) == directory)
+	}
+	if !mounted {
+		return false
+	}
+	message := strings.ToLower(container.State.Error)
+	if !strings.Contains(message, "no such file or directory") && !strings.Contains(message, "bind source path does not exist") {
+		return false
+	}
+	return namesPath(container.State.Error, directory)
+}
+
+// namesPath reports whether message holds path as a whole path, not as the
+// start of a longer one: directory app must not match app2 or app/vault.sock.
+func namesPath(message, path string) bool {
+	for rest := message; ; {
+		index := strings.Index(rest, path)
+		if index < 0 {
+			return false
+		}
+		rest = rest[index+len(path):]
+		if rest == "" || !strings.ContainsRune("/-_.abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789", rune(rest[0])) {
+			return true
+		}
+	}
+}
+
 // Check returns the failed contract items for a container whose consumer
 // directory is consumerDirectory. canAssign reports whether the agent user
 // can assign a group. Validation reads inspect output only.

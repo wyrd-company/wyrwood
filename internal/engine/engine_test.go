@@ -99,3 +99,13 @@ func TestAwaitEventSkipsUnrelatedEvents(t *testing.T) {
 		t.Fatalf("awaitEvent(cancelled) = %v", err)
 	}
 }
+
+func TestParseInspectReadsStartFailureAndRestartPolicy(t *testing.T) {
+	container, err := ParseInspect([]byte(`{"State":{"Status":"exited","Error":"open /run/sample: no such file or directory"},"HostConfig":{"RestartPolicy":{"Name":"unless-stopped","MaximumRetryCount":0}}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if container.State.Error != "open /run/sample: no such file or directory" || container.HostConfig.RestartPolicy.Name != "unless-stopped" {
+		t.Fatalf("container = %#v", container)
+	}
+}

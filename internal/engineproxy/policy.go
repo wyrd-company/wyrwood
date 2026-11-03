@@ -66,9 +66,10 @@ func authorize(r *http.Request, recreate bool) (string, int) {
 		operation = "remove"
 		write = true
 	case r.Method == http.MethodPost && len(parts) == 4 && parts[1] == "containers" && containerName.MatchString(parts[2]):
+		// Start is outside the recreate permission: the agent restarts a bound
+		// container whose start failed on its consumer directory.
 		if parts[3] == "start" && len(query) == 0 {
 			operation = "start"
-			write = true
 		}
 		if parts[3] == "stop" && len(query) == 1 && len(query["t"]) == 1 {
 			if t, err := strconv.ParseInt(query.Get("t"), 10, 64); err == nil && t >= -1 {

@@ -137,12 +137,17 @@ func (running *runningAgent) stop() {
 
 func startAgent(t *testing.T, paths agent.Paths, root string) *runningAgent {
 	t.Helper()
+	return startAgentWith(t, paths, root, true)
+}
+
+func startAgentWith(t *testing.T, paths agent.Paths, root string, allowRecreate bool) *runningAgent {
+	t.Helper()
 	configuration, err := config.LoadAgent(paths.Config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	configuration.ConsumerRoot = root
-	configuration.AllowRecreate = true
+	configuration.AllowRecreate = allowRecreate
 	configuration.ControllerTimeout = 3 * time.Second
 	ctx, cancel := context.WithCancel(context.Background())
 	filtered, err := net.Listen("unix", filepath.Join(paths.State, "engine-proxy.sock"))
