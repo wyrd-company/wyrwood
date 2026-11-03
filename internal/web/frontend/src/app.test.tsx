@@ -1347,3 +1347,85 @@ it.each([
   });
   expect(screen.getByText(message)).toBeVisible();
 });
+
+it("sets a grant at operator key approval and asks before revocation", () => {
+  draw({
+    page: "operator-keys",
+    data: {
+      ...layout,
+      PendingOperatorKeys: 1,
+      Current: "operator-keys",
+      HostKey: "controller-fingerprint",
+      PendingKeys: [
+        {
+          Label: "sample-label",
+          Fingerprint: "SHA256:sample",
+          FirstSeen: "2026-01-01T00:00:00Z",
+        },
+      ],
+      Approved: [
+        {
+          Label: "approved-label",
+          Fingerprint: "SHA256:approved",
+          State: "approved",
+          Agents: ["sample-host"],
+          Policies: ["*"],
+          Actions: ["read", "bind"],
+          DecidedAt: "2026-01-01T00:00:00Z",
+          DecidedBy: "sample-operator",
+          RevokedAt: "0001-01-01T00:00:00Z",
+          RevokedBy: "",
+          LastUsed: "0001-01-01T00:00:00Z",
+        },
+      ],
+      Ended: [
+        {
+          Label: "ended-label",
+          Fingerprint: "SHA256:ended",
+          State: "revoked",
+          Agents: [],
+          Policies: null,
+          Actions: ["read"],
+          DecidedAt: "2026-01-01T00:00:00Z",
+          DecidedBy: "sample-operator",
+          RevokedAt: "2026-01-02T00:00:00Z",
+          RevokedBy: "other-operator",
+          LastUsed: "0001-01-01T00:00:00Z",
+        },
+      ],
+    },
+  });
+  const form = expectPost("Approve key", "/operator-keys/approve", {
+    fingerprint: "SHA256:sample",
+  });
+  expect(within(form).getByLabelText("Label")).toHaveValue("sample-label");
+  expect(within(form).getByLabelText("Agents")).toHaveValue("");
+  expect(within(form).getByLabelText("Policies")).toHaveValue("");
+  expect(
+    within(form).getByRole("checkbox", { name: "Read policies and bindings" }),
+  ).toBeChecked();
+  expect(
+    within(form).getByRole("checkbox", { name: "Create and remove bindings" }),
+  ).not.toBeChecked();
+  expect(
+    within(form).getByRole("checkbox", { name: "Create and change policies" }),
+  ).not.toBeChecked();
+  expect(within(form).getByRole("button", { name: "Reject" })).toHaveAttribute(
+    "formaction",
+    "/operator-keys/reject",
+  );
+  expect(
+    screen.getByRole("link", { name: "Revoke approved-label" }),
+  ).toHaveAttribute(
+    "href",
+    "/operator-keys/revoke?fingerprint=SHA256%3Aapproved",
+  );
+  expect(screen.getByText("all")).toBeInTheDocument();
+  expect(screen.getByText("never")).toBeInTheDocument();
+  expect(screen.getByText("other-operator")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /Operator keys/ })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
+  expect(screen.getByLabelText("1 pending")).toBeInTheDocument();
+});

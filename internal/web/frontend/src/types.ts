@@ -9,6 +9,7 @@ export interface Layout {
   CSRF: string;
   Operator: string;
   Pending: number;
+  PendingOperatorKeys?: number;
   OpenBaoOK: boolean;
   OpenBaoURL: string;
   Controller: string;
@@ -50,6 +51,26 @@ export interface AgentsData extends Layout {
         LastReport: string;
       }[]
     | null;
+}
+export interface OperatorKeyRow {
+  Label: string;
+  Fingerprint: string;
+  State: string;
+  Agents: string[] | null;
+  Policies: string[] | null;
+  Actions: string[] | null;
+  DecidedAt: string;
+  DecidedBy: string;
+  RevokedAt: string;
+  RevokedBy: string;
+  LastUsed: string;
+}
+export interface OperatorKeysData extends Layout {
+  HostKey: string;
+  PendingKeys:
+    { Label: string; Fingerprint: string; FirstSeen: string }[] | null;
+  Approved: OperatorKeyRow[] | null;
+  Ended: OperatorKeyRow[] | null;
 }
 export interface PolicyChoice {
   Name: string;
@@ -290,6 +311,7 @@ interface PageModels {
   policies: PoliciesData;
   policy: PolicyData;
   keys: KeysData;
+  "operator-keys": OperatorKeysData;
   events: EventsData;
   security: SecurityData;
   settings: SettingsData;

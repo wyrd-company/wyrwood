@@ -33,17 +33,20 @@ import (
 
 // layout is the data every authenticated page shares.
 type layout struct {
-	Title       string
-	Current     string
-	CSRF        string
-	Operator    string
-	Pending     int
-	OpenBaoOK   bool
-	OpenBaoURL  string
-	Controller  string
-	Notice      string
-	Problem     string
-	ProblemPage bool
+	Title    string
+	Current  string
+	CSRF     string
+	Operator string
+	Pending  int
+	// PendingOperatorKeys counts keys on the operator list, which has its own
+	// screen and its own approval.
+	PendingOperatorKeys int
+	OpenBaoOK           bool
+	OpenBaoURL          string
+	Controller          string
+	Notice              string
+	Problem             string
+	ProblemPage         bool
 	// Tab is the screen tab the request asks for. The frontend honors only a tab
 	// the screen has. ProblemTab is the tab that owns Problem, when one tab does.
 	Tab        string
@@ -72,9 +75,11 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 			}
 		}
 	}
+	pendingOperatorKeys, _ := server.controller.Store().PendingOperatorKeyCount(request.Context())
 	return layout{
-		Tab:   request.URL.Query().Get("tab"),
-		Title: title, Current: current, CSRF: session.session.CSRF, Operator: name, Pending: pending,
+		PendingOperatorKeys: pendingOperatorKeys,
+		Tab:                 request.URL.Query().Get("tab"),
+		Title:               title, Current: current, CSRF: session.session.CSRF, Operator: name, Pending: pending,
 		OpenBaoOK: server.controller.OpenBaoReachable(request.Context()), Controller: server.controllerHost(),
 		OpenBaoURL: server.controller.Configuration().OpenBao.UISecretsURL(),
 		Notice:     notices[request.URL.Query().Get("notice")],
@@ -84,15 +89,18 @@ func (server *Server) layout(request *http.Request, title, current string) layou
 // notices are fixed messages selected by a redirect's query, so no request
 // data is ever echoed into a page.
 var notices = map[string]string{
-	"approved":       "Agent approved. It can connect now.",
-	"rejected":       "Agent key rejected.",
-	"bound":          "Policy bound. The agent receives it on its next report.",
-	"changed":        "Binding moved to the new policy. The agent obtains a fresh token.",
-	"recreate":       "Recreate requested. The agent reports the result.",
-	"unbound":        "Binding removed, its AppRole deleted, and the container's token revoked.",
-	"policy-deleted": "Policy deleted, and its OpenBao policy removed.",
-	"policy-renamed": "Policy renamed. Each binding that selects it gets a fresh credential.",
-	"rename-pending": "Policy renamed. A binding transition or the removal of the old OpenBao policy is pending, and the controller retries until OpenBao answers.",
+	"approved":          "Agent approved. It can connect now.",
+	"rejected":          "Agent key rejected.",
+	"operator-approved": "Operator key approved. It can connect now, inside its grant.",
+	"operator-rejected": "Operator key rejected.",
+	"operator-revoked":  "Operator key revoked. Its next request fails.",
+	"bound":             "Policy bound. The agent receives it on its next report.",
+	"changed":           "Binding moved to the new policy. The agent obtains a fresh token.",
+	"recreate":          "Recreate requested. The agent reports the result.",
+	"unbound":           "Binding removed, its AppRole deleted, and the container's token revoked.",
+	"policy-deleted":    "Policy deleted, and its OpenBao policy removed.",
+	"policy-renamed":    "Policy renamed. Each binding that selects it gets a fresh credential.",
+	"rename-pending":    "Policy renamed. A binding transition or the removal of the old OpenBao policy is pending, and the controller retries until OpenBao answers.",
 	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
 		"it stays valid until the agent revokes it or it expires.",
 	"saved":      "Policy saved and accepted by OpenBao.",

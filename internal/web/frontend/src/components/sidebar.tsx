@@ -33,6 +33,7 @@ export function Sidebar({ data }: { data: Layout }) {
           ["bindings", "Bindings"],
           ["policies", "Policies"],
           ["keys", "OpenBao keys"],
+          ["operator-keys", "Operator keys"],
           ["events", "Events"],
           ["settings", "Settings"],
         ].map(([path, label]) => (
@@ -45,6 +46,14 @@ export function Sidebar({ data }: { data: Layout }) {
               {path === "agents" && data.Pending > 0 && (
                 <span className="count" aria-label={`${data.Pending} pending`}>
                   {data.Pending}
+                </span>
+              )}
+              {path === "operator-keys" && !!data.PendingOperatorKeys && (
+                <span
+                  className="count"
+                  aria-label={`${data.PendingOperatorKeys} pending`}
+                >
+                  {data.PendingOperatorKeys}
                 </span>
               )}
             </a>

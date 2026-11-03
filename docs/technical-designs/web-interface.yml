@@ -49,7 +49,7 @@ proposed-design:
     anti-forgery token. The sidebar, account area, and policy editor have
     separate components. Bundled scripts load from the controller origin; no
     inline executable script or third-party asset host is needed. The fixed
-    primary navigation is: Agents, Bindings, Policies, OpenBao keys,
+    primary navigation is: Agents, Bindings, Policies, OpenBao keys, Operator keys,
     Events, and Settings. The account menu at the bottom of the sidebar names the
     signed-in operator and opens with the shadcn/ui Radix DropdownMenu
     primitives. Its items are Security and Sign out. Security links to

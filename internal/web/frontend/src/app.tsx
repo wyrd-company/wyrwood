@@ -15,6 +15,7 @@ import { PolicyRename } from "./pages/policy-rename";
 import { Policies } from "./pages/policies";
 import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
+import { OperatorKeys } from "./pages/operator-keys";
 import { Events } from "./pages/events";
 import { Security } from "./pages/security";
 import { Settings } from "./pages/settings";
@@ -42,6 +43,8 @@ function Content({ page }: { page: Page }) {
       return <PolicyEditor data={page.data} />;
     case "keys":
       return <Keys data={page.data} />;
+    case "operator-keys":
+      return <OperatorKeys data={page.data} />;
     case "events":
       return <Events data={page.data} />;
     case "settings":
