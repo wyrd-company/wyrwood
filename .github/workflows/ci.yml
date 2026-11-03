@@ -76,3 +76,19 @@ jobs:
 
       - name: Validate repository
         run: task ci
+
+  image:
+    name: Controller image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Build the image and run its executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker buildx build --platform linux/amd64 --build-arg VERSION=ci --tag wyrwood-ci:image --load .
+          docker run --rm --entrypoint /usr/bin/wyrwood wyrwood-ci:image version
