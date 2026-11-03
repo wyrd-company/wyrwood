@@ -531,31 +531,25 @@ func (controller *Controller) operatorUnbind(ctx context.Context, key store.Oper
 		controller.recordDenied(events.OperationBindingDeleted, request.Agent, subject)
 		return operator.UnbindResult{}, outsideGrant
 	}
-	var b store.Binding
-	if byID {
-		found, err := controller.store.Binding(ctx, request.ID)
-		if errors.Is(err, store.ErrNotFound) {
-			return operator.UnbindResult{}, nil
-		}
-		if err != nil {
-			return operator.UnbindResult{}, operationError(events.ErrorInternal, "the binding could not be read")
-		}
-		b = found
-	} else {
-		found, exists, err := controller.findBinding(ctx, request.Agent, protocolKey(*request.Key))
-		if err != nil {
-			return operator.UnbindResult{}, err
-		}
-		if !exists {
-			return operator.UnbindResult{}, nil
-		}
-		b = found
+	// The lock holds from the grant check through the removal, so that a change to
+	// the binding cannot fall between them, and the agent hears only of a removal.
+	controller.mutationMu.Lock()
+	b, exists, err := controller.resolveUnbind(ctx, request, byID)
+	if err != nil || !exists {
+		controller.mutationMu.Unlock()
+		return operator.UnbindResult{}, err
 	}
 	if !key.Grant.Covers(b.Agent, b.Policies) {
+		controller.mutationMu.Unlock()
 		controller.recordDenied(events.OperationBindingDeleted, b.Agent, subject)
 		return operator.UnbindResult{}, outsideGrant
 	}
-	err := controller.DeleteBinding(ctx, b.ID, subject)
+	err = controller.deleteBinding(ctx, b.ID, subject, controller.Connected(b.Agent))
+	controller.mutationMu.Unlock()
+	if !bindingStays(err) {
+		_ = controller.hub.send(b.Agent, protocol.Unbind{Binding: b.ID})
+	}
+	controller.hub.pushAgent(ctx, b.Agent)
 	if err == nil {
 		return operator.UnbindResult{Removed: true}, nil
 	}
@@ -566,11 +560,29 @@ func (controller *Controller) operatorUnbind(ctx context.Context, key store.Oper
 	switch {
 	case operation.TokenLive:
 		return operator.UnbindResult{Removed: true, TokenLive: true, Warning: operation.Message}, nil
-	case operation.Code == events.ErrorNotBound:
-		return operator.UnbindResult{}, nil
 	case operation.Code == events.ErrorInternal:
 		return operator.UnbindResult{}, err
 	default:
 		return operator.UnbindResult{Removed: true, Warning: operation.Message}, nil
 	}
+}
+
+func (controller *Controller) resolveUnbind(ctx context.Context, request operator.UnbindRequest, byID bool) (store.Binding, bool, error) {
+	if !byID {
+		return controller.findBinding(ctx, request.Agent, protocolKey(*request.Key))
+	}
+	found, err := controller.store.Binding(ctx, request.ID)
+	if errors.Is(err, store.ErrNotFound) {
+		return store.Binding{}, false, nil
+	}
+	if err != nil {
+		return store.Binding{}, false, operationError(events.ErrorInternal, "the binding could not be read")
+	}
+	return found, true, nil
+}
+
+// bindingStays reports whether a failed deletion left the binding in place.
+func bindingStays(err error) bool {
+	var operation *OperationError
+	return errors.As(err, &operation) && operation.Code == events.ErrorInternal
 }

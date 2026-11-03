@@ -884,3 +884,106 @@ func TestOversizedResponseIsAnError(t *testing.T) {
 		t.Fatalf("response = %.200s", encoded)
 	}
 }
+
+// The test holds the mutation lock while an unbind waits on it, changes the
+// binding to hold a policy outside the key's grant, and releases the lock. The
+// unbind must see the change: the binding stays, and the agent hears nothing. A
+// check made before the lock would pass in the wait, and this would then fail.
+func TestUnbindChecksTheGrantOnTheBindingItRemoves(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	agentKey := harness.approveAgent(t, "sample-host")
+	harness.savePolicy(t, "allowed")
+	harness.savePolicy(t, "forbidden")
+	wide, _ := harness.approvedOperator(t, "wide-key", fullGrant)
+	grant := operator.Grant{Agents: []string{"sample-host"}, Policies: []string{"allowed"}, Actions: []operator.Action{operator.ActionBind}}
+	client, _ := harness.approvedOperator(t, "scoped-key", grant)
+	key := operator.Key{Kind: operator.KeyName, Value: "app"}
+	bound, err := wide.Bind(ctx, operator.BindRequest{Agent: "sample-host", Key: key, Policies: []string{"allowed"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	connection, err := harness.dial("sample-host", agentKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "1.0.0"}); err != nil {
+		t.Fatal(err)
+	}
+	for !harness.controller.Connected("sample-host") {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	harness.controller.mutationMu.Lock()
+	refused := make(chan error, 1)
+	go func() {
+		_, err := client.Unbind(ctx, operator.UnbindRequest{ID: bound.ID})
+		refused <- err
+	}()
+	// Long enough for a check made before the lock to pass. It cannot fail a correct unbind.
+	time.Sleep(300 * time.Millisecond)
+	if _, err := harness.controller.changeBinding(ctx, bound.ID, BindingRequest{Policies: []string{"allowed", "forbidden"}, Revision: 1}, "sample-approver"); err != nil {
+		harness.controller.mutationMu.Unlock()
+		t.Fatal(err)
+	}
+	harness.controller.mutationMu.Unlock()
+	if err := <-refused; !errors.Is(err, operator.ErrOutsideGrant) {
+		t.Fatalf("Unbind() = %v; want outside the grant", err)
+	}
+	stored, err := harness.controller.Store().Binding(ctx, bound.ID)
+	if err != nil || len(stored.Policies) != 2 {
+		t.Fatalf("Binding() = %+v, %v", stored, err)
+	}
+
+	// A later bind pushes a policy set that holds it. Nothing before that may be an unbind.
+	later := operator.Key{Kind: operator.KeyName, Value: "later"}
+	second, err := wide.Bind(ctx, operator.BindRequest{Agent: "sample-host", Key: later, Policies: []string{"allowed"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor := func(reached func(protocol.Message) bool) {
+		t.Helper()
+		for {
+			message := connection.receive(t)
+			if reached(message) {
+				return
+			}
+			if unbind, ok := message.(protocol.Unbind); ok {
+				t.Fatalf("the agent received %+v", unbind)
+			}
+		}
+	}
+	holds := func(message protocol.Message, id string) bool {
+		set, ok := message.(protocol.PolicySet)
+		if !ok {
+			return false
+		}
+		for _, b := range set.Bindings {
+			if b.Binding == id {
+				return true
+			}
+		}
+		return false
+	}
+	waitFor(func(message protocol.Message) bool { return holds(message, second.ID) })
+
+	// A removal does tell the agent, and then the policy set no longer holds it.
+	if result, err := wide.Unbind(ctx, operator.UnbindRequest{ID: second.ID}); err != nil || !result.Removed {
+		t.Fatalf("Unbind() = %+v, %v", result, err)
+	}
+	for {
+		message := connection.receive(t)
+		if unbind, ok := message.(protocol.Unbind); ok {
+			if unbind.Binding != second.ID {
+				t.Fatalf("the agent received %+v", unbind)
+			}
+			break
+		}
+	}
+	for {
+		if set, ok := connection.receive(t).(protocol.PolicySet); ok && !holds(set, second.ID) {
+			break
+		}
+	}
+}
