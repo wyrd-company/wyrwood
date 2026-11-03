@@ -31,6 +31,7 @@ const (
 	maximumImageBytes    = 512
 	maximumContainers    = 1024
 	maximumKeys          = 3
+	maximumPathBytes     = 4096
 )
 
 var (
@@ -54,13 +55,14 @@ const (
 	TypeResultRecorded    Type = "result-recorded"
 	TypeTokenAccessor     Type = "token-accessor"
 	TypeAccessorRecorded  Type = "accessor-recorded"
+	TypeBindingStatus     Type = "binding-status"
 )
 
 // Types lists every message type in schema order.
 var Types = []Type{
 	TypeHello, TypeInventory, TypeContractResult, TypeCredentialRequest,
 	TypePolicySet, TypeCredential, TypeRecreateRequest, TypeUnbind,
-	TypeResultRecorded, TypeTokenAccessor, TypeAccessorRecorded,
+	TypeResultRecorded, TypeTokenAccessor, TypeAccessorRecorded, TypeBindingStatus,
 }
 
 // Message is one protocol message.
@@ -335,6 +337,68 @@ type ResultRecorded struct {
 	Reason  Reason  `json:"reason,omitempty"`
 }
 
+// Socket is the name of one socket in a consumer directory.
+type Socket string
+
+const (
+	SocketVault    Socket = "vault.sock"
+	SocketSSHAgent Socket = "ssh-agent.sock"
+)
+
+// Sockets lists every consumer socket in schema order.
+var Sockets = []Socket{SocketVault, SocketSSHAgent}
+
+// TokenState says whether the agent holds a token for a binding. It never
+// carries the token.
+type TokenState string
+
+const (
+	TokenValid   TokenState = "valid"
+	TokenExpired TokenState = "expired"
+	TokenNone    TokenState = "none"
+)
+
+// TokenStates lists every token state in schema order.
+var TokenStates = []TokenState{TokenValid, TokenExpired, TokenNone}
+
+// CredentialError is the category of an agent's last failed login or renewal.
+type CredentialError string
+
+const (
+	CredentialDenied      CredentialError = "openbao-denied"
+	CredentialTimeout     CredentialError = "openbao-timeout"
+	CredentialUnavailable CredentialError = "openbao-unavailable"
+)
+
+// CredentialErrors lists every credential error in schema order.
+var CredentialErrors = []CredentialError{CredentialDenied, CredentialTimeout, CredentialUnavailable}
+
+// ConsumerStatus is the state of one consumer directory of a binding. A
+// missing container identifier means the directory waits for its container.
+type ConsumerStatus struct {
+	Directory   string `json:"directory,omitempty"`
+	ContainerID string `json:"container-id,omitempty"`
+	// AccessGroup is the group applied to the directory. Absent means owner-only
+	// access, or nothing applied when Failed is set.
+	AccessGroup *uint32    `json:"access-group,omitempty"`
+	Sockets     []Socket   `json:"sockets,omitempty"`
+	Failed      FailedItem `json:"failed,omitempty"`
+}
+
+// BindingStatus reports what the agent alone knows about one binding, so the
+// controller can answer whether it is ready. It replaces the binding's earlier
+// status in this session.
+type BindingStatus struct {
+	Binding     string           `json:"binding"`
+	Assignment  string           `json:"assignment"`
+	Token       TokenState       `json:"token"`
+	Consumers   []ConsumerStatus `json:"consumers"`
+	Outcome     Outcome          `json:"outcome,omitempty"`
+	FailedItems []FailedItem     `json:"failed-items,omitempty"`
+	Reason      Reason           `json:"reason,omitempty"`
+	LastError   CredentialError  `json:"last-error,omitempty"`
+}
+
 // Acknowledge returns the acknowledgement of result.
 func (result ContractResult) Acknowledge() ResultRecorded {
 	return ResultRecorded{Binding: result.Binding, Outcome: result.Outcome, Reason: result.Reason}
@@ -351,6 +415,7 @@ func (Unbind) MessageType() Type            { return TypeUnbind }
 func (ResultRecorded) MessageType() Type    { return TypeResultRecorded }
 func (TokenAccessor) MessageType() Type     { return TypeTokenAccessor }
 func (AccessorRecorded) MessageType() Type  { return TypeAccessorRecorded }
+func (BindingStatus) MessageType() Type     { return TypeBindingStatus }
 
 // Validate checks the hello message.
 func (message Hello) Validate() error {
@@ -468,6 +533,63 @@ func (message AccessorRecorded) Validate() error { return TokenAccessor(message)
 // ValidAccessor reports whether value has the form of an OpenBao token
 // accessor, including a namespace suffix.
 func ValidAccessor(value string) bool { return accessorPattern.MatchString(value) }
+
+// Validate checks the status's identifiers, bounds, and closed vocabularies.
+func (message BindingStatus) Validate() error {
+	if err := validateID(message.Binding); err != nil {
+		return err
+	}
+	if !ValidID(message.Assignment) {
+		return errors.New("status assignment is invalid")
+	}
+	if !contains(TokenStates, message.Token) {
+		return fmt.Errorf("token state %q is not supported", message.Token)
+	}
+	if len(message.Consumers) > maximumContainers {
+		return errors.New("binding status exceeds 1024 consumers")
+	}
+	for _, consumer := range message.Consumers {
+		if err := consumer.validate(); err != nil {
+			return err
+		}
+	}
+	if message.Outcome != "" && !contains(Outcomes, message.Outcome) {
+		return fmt.Errorf("contract outcome %q is not supported", message.Outcome)
+	}
+	for _, item := range message.FailedItems {
+		if !contains(FailedItems, item) {
+			return fmt.Errorf("failed item %q is not supported", item)
+		}
+	}
+	if message.Reason != "" && !contains(Reasons, message.Reason) {
+		return fmt.Errorf("reason %q is not supported", message.Reason)
+	}
+	if message.LastError != "" && !contains(CredentialErrors, message.LastError) {
+		return fmt.Errorf("credential error %q is not supported", message.LastError)
+	}
+	return nil
+}
+
+func (consumer ConsumerStatus) validate() error {
+	if len(consumer.Directory) > maximumPathBytes {
+		return errors.New("consumer directory exceeds 4096 bytes")
+	}
+	if consumer.ContainerID != "" && !containerIDPattern.MatchString(consumer.ContainerID) {
+		return errors.New("container identifier must be 64 lowercase hexadecimal characters")
+	}
+	if consumer.AccessGroup != nil && *consumer.AccessGroup == 4294967295 {
+		return errors.New("group GID is not assignable")
+	}
+	for _, socket := range consumer.Sockets {
+		if !contains(Sockets, socket) {
+			return fmt.Errorf("socket %q is not supported", socket)
+		}
+	}
+	if consumer.Failed != "" && !contains(FailedItems, consumer.Failed) {
+		return fmt.Errorf("failed item %q is not supported", consumer.Failed)
+	}
+	return nil
+}
 
 // Validate checks the acknowledged result's closed vocabularies.
 func (message ResultRecorded) Validate() error {

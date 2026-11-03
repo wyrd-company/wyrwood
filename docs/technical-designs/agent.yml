@@ -90,7 +90,13 @@ proposed-design:
     set is written to `/var/lib/wyrwood/policy-cache.json` with owner-only
     mode. Only the version 2 effective-assignment cache is accepted; there is
     no v1 adapter. A restart without the controller can enforce contracts and
-    publish sockets for containers whose tokens are still valid.
+    publish sockets for containers whose tokens are still valid. One reporter per
+    session sends `binding-status` for each binding in the policy set at session
+    start and when it changes, from current state: the containers the binding
+    governs now, each consumer's directory, applied group and listening sockets,
+    the token state, and the last failed login or renewal. A state change only
+    wakes the reporter, so that it needs no lock the agent or the credentials
+    manager holds.
   credential-lifecycle: >-
     For each bound container the controller supplies an AppRole role
     identifier, assignment identity, and a response-wrapped secret identifier.
@@ -202,4 +208,7 @@ proposed-design:
     controller, binds a policy, and verifies the sockets appear in a running
     container, that a policy change is observed on an open connection, that
     the agent restarts without the controller and keeps serving, and that
-    destroying the container revokes its token.
+    destroying the container revokes its token. The gate for a name binding
+    before its container reads readiness at each step with no host path: waiting
+    with a prepared directory, ready for the created container by identifier,
+    waiting after removal, and ready for the replacement.

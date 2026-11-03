@@ -8,6 +8,7 @@ package agent
 
 import (
 	"context"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -34,6 +35,8 @@ type credentials struct {
 	keyOf      func(binding string) string
 	// report sends a binding's token accessor to the controller.
 	report func(binding, assignment, accessor string)
+	// changed tells the agent that a binding's token state may differ now.
+	changed func()
 
 	// reportMu orders reports so the last one sent for a binding carries
 	// its current token's accessor.
@@ -47,6 +50,8 @@ type credentials struct {
 	generation map[string]uint64
 	// recorded is the accessor the controller acknowledged per binding.
 	recorded map[string]string
+	// failures is each binding's last failed login or renewal.
+	failures map[string]protocol.CredentialError
 }
 
 type heldToken struct {
@@ -65,6 +70,7 @@ func newCredentials(timeout time.Duration, request func(string), record func(eve
 		timeout: timeout, retryDelay: time.Second, now: time.Now, request: request, record: record, keyOf: keyOf,
 		report: func(string, string, string) {},
 		held:   map[string]*heldToken{}, generation: map[string]uint64{}, recorded: map[string]string{},
+		failures: map[string]protocol.CredentialError{},
 	}
 }
 
@@ -120,6 +126,7 @@ func (manager *credentials) invalidate(binding string) uint64 {
 	delete(manager.held, binding)
 	delete(manager.recorded, binding)
 	manager.mu.Unlock()
+	manager.notify()
 	if held != nil {
 		held.cancel()
 		go manager.revoke(binding, held.token)
@@ -172,6 +179,7 @@ func (manager *credentials) deliver(ctx context.Context, credential protocol.Cre
 	previous := manager.held[credential.Binding]
 	manager.held[credential.Binding] = &heldToken{assignment: credential.Assignment, renew: renew, token: token, period: token.TTL, cancel: renewCancel}
 	manager.mu.Unlock()
+	manager.notify()
 	if previous != nil {
 		previous.cancel()
 		go manager.revoke(credential.Binding, previous.token)
@@ -294,6 +302,7 @@ func (manager *credentials) maintain(ctx context.Context, binding string) {
 				}
 				generation := manager.generation[binding]
 				manager.mu.Unlock()
+				manager.notify()
 				if expired {
 					go manager.retry(ctx, binding, generation)
 				}
@@ -330,6 +339,7 @@ func (manager *credentials) awaitExpiry(ctx context.Context, binding string, hel
 	delete(manager.held, binding)
 	generation := manager.generation[binding]
 	manager.mu.Unlock()
+	manager.notify()
 	manager.request(binding)
 	manager.retry(ctx, binding, generation)
 }
@@ -342,7 +352,9 @@ func (manager *credentials) retire(binding string) {
 	delete(manager.held, binding)
 	delete(manager.generation, binding)
 	delete(manager.recorded, binding)
+	delete(manager.failures, binding)
 	manager.mu.Unlock()
+	manager.notify()
 	if !ok {
 		return
 	}
@@ -372,6 +384,48 @@ func (manager *credentials) holding() map[string]bool {
 	return result
 }
 
+// lastFailures returns each binding's last failed login or renewal that no
+// later success replaced.
+func (manager *credentials) lastFailures() map[string]protocol.CredentialError {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return maps.Clone(manager.failures)
+}
+
+// notify tells the agent that token state changed. It takes no lock, so a
+// caller may hold the agent's.
+func (manager *credentials) notify() {
+	if manager.changed != nil {
+		manager.changed()
+	}
+}
+
+// noteOutcome keeps a login's or renewal's failure until one succeeds.
+func (manager *credentials) noteOutcome(operation events.Operation, binding string, code events.ErrorCode) {
+	if operation != events.OperationLogin && operation != events.OperationRenew {
+		return
+	}
+	manager.mu.Lock()
+	if code == events.ErrorNone {
+		delete(manager.failures, binding)
+	} else {
+		manager.failures[binding] = credentialError(code)
+	}
+	manager.mu.Unlock()
+	manager.notify()
+}
+
+func credentialError(code events.ErrorCode) protocol.CredentialError {
+	switch code {
+	case events.ErrorOpenBaoDenied:
+		return protocol.CredentialDenied
+	case events.ErrorOpenBaoTimeout:
+		return protocol.CredentialTimeout
+	default:
+		return protocol.CredentialUnavailable
+	}
+}
+
 // stopAll stops renewal and revokes every held token, for shutdown. Tokens
 // live only in memory, so a restarted agent could never use them again;
 // revoking them leaves no live credential behind.
@@ -399,6 +453,7 @@ func (manager *credentials) recordOutcome(operation events.Operation, binding st
 	if err != nil {
 		code = openBaoCode(err)
 	}
+	manager.noteOutcome(operation, binding, code)
 	manager.record(events.Event{
 		Operation: operation, Outcome: outcomeOf(code), ErrorCode: code, Binding: binding,
 		ContainerKey: manager.keyOf(binding), Latency: manager.now().Sub(started),

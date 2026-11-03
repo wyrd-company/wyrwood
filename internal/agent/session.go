@@ -174,6 +174,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 		session.send(result)
 	}
 	agent.creds.reportUnrecorded()
+	go agent.reportBindingStatuses(session)
 	for {
 		message, err := session.conn.Receive()
 		if err != nil {

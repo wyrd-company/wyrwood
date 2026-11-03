@@ -38,6 +38,11 @@ func Encode(message Message) ([]byte, error) {
 			typed.Bindings = []Binding{}
 		}
 		message = typed
+	case BindingStatus:
+		if typed.Consumers == nil {
+			typed.Consumers = []ConsumerStatus{}
+		}
+		message = typed
 	}
 	body, err := json.Marshal(message)
 	if err != nil {
@@ -101,6 +106,8 @@ func Decode(line []byte) (Message, error) {
 		message = &TokenAccessor{}
 	case TypeAccessorRecorded:
 		message = &AccessorRecorded{}
+	case TypeBindingStatus:
+		message = &BindingStatus{}
 	default:
 		return nil, fmt.Errorf("%w: unknown type", ErrInvalid)
 	}
@@ -135,6 +142,7 @@ var requiredFields = map[Type][]string{
 	TypeResultRecorded:    {"binding", "outcome"},
 	TypeTokenAccessor:     {"binding", "assignment", "accessor"},
 	TypeAccessorRecorded:  {"binding", "assignment", "accessor"},
+	TypeBindingStatus:     {"binding", "assignment", "token", "consumers"},
 }
 
 func requireFields(messageType Type, fields map[string]json.RawMessage) error {
@@ -175,6 +183,11 @@ func dereference(message Message) Message {
 	case *TokenAccessor:
 		return *typed
 	case *AccessorRecorded:
+		return *typed
+	case *BindingStatus:
+		if typed.Consumers == nil {
+			typed.Consumers = []ConsumerStatus{}
+		}
 		return *typed
 	}
 	return message

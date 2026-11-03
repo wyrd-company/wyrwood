@@ -22,12 +22,14 @@ import (
 	"syscall"
 
 	"golang.org/x/sys/unix"
+
+	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
 
 // Socket names inside a consumer directory.
 const (
-	VaultSocket    = "vault.sock"
-	SSHAgentSocket = "ssh-agent.sock"
+	VaultSocket    = string(protocol.SocketVault)
+	SSHAgentSocket = string(protocol.SocketSSHAgent)
 )
 
 var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$`)

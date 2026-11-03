@@ -17,7 +17,10 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/schematest"
 )
 
-var containerID = strings.Repeat("ab", 32)
+var (
+	containerID = strings.Repeat("ab", 32)
+	sampleGroup = uint32(4242)
+)
 
 func sampleMessages() []Message {
 	return []Message{
@@ -46,6 +49,11 @@ func sampleMessages() []Message {
 		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF", Assignment: "assignment"},
 		TokenAccessor{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF.ns1", Assignment: "assignment"},
 		AccessorRecorded{Binding: "b-1", Accessor: "oc22UEpiKGOntlXyrRKn7RBF", Assignment: "assignment"},
+		BindingStatus{Binding: "b-1", Assignment: "assignment", Token: TokenNone, Consumers: []ConsumerStatus{}},
+		BindingStatus{Binding: "b-1", Assignment: "assignment", Token: TokenExpired, Consumers: []ConsumerStatus{{Directory: "/run/wyrwood/containers/web", Failed: FailedConsumerDirectory}}, LastError: CredentialDenied},
+		BindingStatus{Binding: "b-1", Assignment: "assignment", Token: TokenValid, Consumers: []ConsumerStatus{{
+			Directory: "/run/wyrwood/containers/web", ContainerID: containerID, AccessGroup: &sampleGroup, Sockets: append([]Socket(nil), Sockets...),
+		}}, Outcome: OutcomeRecreateFailed, FailedItems: append([]FailedItem(nil), FailedItems...), Reason: ReasonStartFailed},
 	}
 }
 

@@ -15,12 +15,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"syscall"
 	"testing"
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/agent"
+	wyrwoodcontroller "github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/controller/controllertest"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/policy"
@@ -82,7 +84,8 @@ func TestNameBindingBeforeContainer(t *testing.T) {
 	const name = "prepared-consumer"
 	t.Cleanup(func() { _ = exec.Command("docker", "rm", "--force", name).Run() })
 	selection := policy.Selection{Policies: []string{"teal"}, Settings: policy.Settings{Enforcement: policy.EnforcementReport, AccessGroup: &group}}
-	if _, err := controller.CreateBinding(ctx, "gate-host", protocol.Key{Kind: protocol.KeyName, Value: name}, selection, "gate-operator"); err != nil {
+	bound, err := controller.CreateBinding(ctx, "gate-host", protocol.Key{Kind: protocol.KeyName, Value: name}, selection, "gate-operator")
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -112,6 +115,22 @@ func TestNameBindingBeforeContainer(t *testing.T) {
 		return info
 	}
 	before := assertDirectory()
+	// readiness waits for the state the agent reports, and reads no host path.
+	readiness := func(what string, want wyrwoodcontroller.Readiness, reason wyrwoodcontroller.NotReadyReason) wyrwoodcontroller.BindingStatus {
+		t.Helper()
+		var current wyrwoodcontroller.BindingStatus
+		eventually(t, what, time.Minute, func() bool {
+			got, err := controller.BindingStatus(ctx, bound.ID)
+			current = got
+			return err == nil && got.Readiness == want && (reason == "" || slices.Contains(got.Reasons, reason))
+		})
+		return current
+	}
+	prepared := readiness("a prepared directory in the status", wyrwoodcontroller.ReadinessWaiting, wyrwoodcontroller.ReasonNoContainer)
+	if len(prepared.Consumers) != 1 || prepared.Consumers[0].Directory != directory || prepared.Consumers[0].AccessGroup == nil || *prepared.Consumers[0].AccessGroup != group ||
+		!slices.Equal(prepared.Consumers[0].Sockets, protocol.Sockets) || prepared.Token != protocol.TokenNone || prepared.Outcome != "" {
+		t.Fatalf("prepared status = %#v", prepared)
+	}
 	if current := status(); current.Tokens != 0 || bindingTokens(t, bao, "wyrwood-teal") != 0 {
 		t.Fatalf("tokens with no container: agent %d, OpenBao %d", current.Tokens, bindingTokens(t, bao, "wyrwood-teal"))
 	}
@@ -144,6 +163,12 @@ func TestNameBindingBeforeContainer(t *testing.T) {
 		t.Fatalf("container state = %q", got)
 	}
 	assertDirectory()
+	// Readiness names this container while it has not started.
+	identifier := strings.TrimSpace(run(t, "docker", "inspect", "--format", "{{.Id}}", name))
+	created := readiness("a ready status for the created container", wyrwoodcontroller.ReadinessReady, "")
+	if len(created.Containers) != 1 || created.Containers[0].ID != identifier || created.Containers[0].State != protocol.StateCreated || created.Consumers[0].ContainerID != identifier || created.Token != protocol.TokenValid || created.Outcome != protocol.OutcomeConforming {
+		t.Fatalf("created status = %#v", created)
+	}
 
 	// The first start finds working sockets: this exec is its first process.
 	run(t, "docker", "start", name)
@@ -169,10 +194,19 @@ func TestNameBindingBeforeContainer(t *testing.T) {
 	if after := assertDirectory(); !os.SameFile(before, after) {
 		t.Fatal("consumer directory replaced at removal")
 	}
+	// The stored contract result says conforming; readiness does not read it.
+	removed := readiness("no ready status after removal", wyrwoodcontroller.ReadinessWaiting, wyrwoodcontroller.ReasonNoContainer)
+	if len(removed.Containers) != 0 || removed.Outcome != "" || removed.Token != protocol.TokenNone || removed.Consumers[0].ContainerID != "" {
+		t.Fatalf("removed status = %#v", removed)
+	}
 
 	// A replacement with the name has working sockets on its first start.
 	create()
 	eventually(t, "a token for the replacement", time.Minute, func() bool { return status().Tokens == 1 })
+	replacement := strings.TrimSpace(run(t, "docker", "inspect", "--format", "{{.Id}}", name))
+	if rebuilt := readiness("a ready status for the replacement", wyrwoodcontroller.ReadinessReady, ""); rebuilt.Containers[0].ID != replacement || replacement == identifier {
+		t.Fatalf("replacement status = %#v, id %s", rebuilt, replacement)
+	}
 	run(t, "docker", "start", name)
 	if secret := strings.TrimSpace(run(t, "docker", "exec", name, "bao", "kv", "get", "-field=value", "kv/teams/teal/example")); secret != gateSecret {
 		t.Fatal("bao kv get through vault.sock in the replacement returned another value")

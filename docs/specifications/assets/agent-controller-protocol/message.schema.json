@@ -24,7 +24,8 @@
         "unbind",
         "result-recorded",
         "token-accessor",
-        "accessor-recorded"
+        "accessor-recorded",
+        "binding-status"
       ]
     }
   },
@@ -61,6 +62,9 @@
     },
     {
       "$ref": "#/$defs/accessor-recorded"
+    },
+    {
+      "$ref": "#/$defs/binding-status"
     }
   ],
   "$defs": {
@@ -544,6 +548,90 @@
         },
         "assignment": {
           "$ref": "#/$defs/id"
+        }
+      }
+    },
+    "binding-status": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "type",
+        "binding",
+        "assignment",
+        "token",
+        "consumers"
+      ],
+      "properties": {
+        "version": {
+          "const": 2
+        },
+        "type": {
+          "const": "binding-status"
+        },
+        "binding": {
+          "$ref": "#/$defs/id"
+        },
+        "assignment": {
+          "$ref": "#/$defs/id"
+        },
+        "token": {
+          "enum": [
+            "valid",
+            "expired",
+            "none"
+          ]
+        },
+        "consumers": {
+          "type": "array",
+          "maxItems": 1024,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "directory": {
+                "type": "string",
+                "maxLength": 4096
+              },
+              "container-id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "access-group": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4294967294
+              },
+              "sockets": {
+                "type": "array",
+                "items": {
+                  "enum": [
+                    "vault.sock",
+                    "ssh-agent.sock"
+                  ]
+                }
+              },
+              "failed": {
+                "$ref": "#/$defs/contract-result/properties/failed-items/items"
+              }
+            }
+          }
+        },
+        "outcome": {
+          "$ref": "#/$defs/contract-result/properties/outcome"
+        },
+        "failed-items": {
+          "$ref": "#/$defs/contract-result/properties/failed-items"
+        },
+        "reason": {
+          "$ref": "#/$defs/contract-result/properties/reason"
+        },
+        "last-error": {
+          "enum": [
+            "openbao-denied",
+            "openbao-timeout",
+            "openbao-unavailable"
+          ]
         }
       }
     },

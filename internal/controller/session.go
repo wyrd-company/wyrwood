@@ -52,6 +52,9 @@ type agentSession struct {
 	// this session to the policy that credential carried.
 	credentialed map[string]string
 	matched      map[string]bool
+	// statuses is the agent's latest status per binding in this session. It
+	// ends with the session, so a read cannot show a state no agent stands by.
+	statuses map[string]protocol.BindingStatus
 }
 
 // serve runs one agent session until the stream ends or a newer session
@@ -62,6 +65,7 @@ func (hub *hub) serve(parent context.Context, identity authenticatedAgent, strea
 	session := &agentSession{
 		controller: hub.controller, agent: identity.name, conn: protocol.NewConn(stream),
 		closer: stream, cancel: cancel, credentialed: map[string]string{}, matched: map[string]bool{},
+		statuses: map[string]protocol.BindingStatus{},
 	}
 	controller := hub.controller
 	started := controller.now()
@@ -183,6 +187,9 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 		return session.conn.Send(typed.Acknowledge())
 	case protocol.TokenAccessor:
 		return session.recordAccessor(ctx, typed)
+	case protocol.BindingStatus:
+		session.recordStatus(ctx, typed)
+		return nil
 	case protocol.CredentialRequest:
 		binding, err := controller.store.Binding(ctx, typed.Binding)
 		if err != nil || binding.Agent != session.agent {

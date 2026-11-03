@@ -129,6 +129,22 @@ proposed-design:
     when it has any. The controller pushes a policy update message
     whenever a policy or binding that affects that agent changes. Each agent
     has at most one active session; a new connection replaces the old one.
+  binding-readiness: >-
+    `BindingStatus` and `BindingStatuses` answer whether a binding's consumers
+    can use their sockets now, in a JSON form with no token or secret, for the
+    operator interface and the binding screen. The answer joins three inputs: the
+    stored binding, the containers it governs in the agent's last inventory, and
+    the live session's `binding-status`. Directory, access group, socket, token,
+    conformance, and last-error fields come only from that session, held in
+    memory, so that a disconnected agent answers `unknown` and a removed container
+    cannot read as conforming from its stored contract result. `ready` means that
+    every governed container has a consumer that names its identifier, with both
+    sockets, a valid token, and a `conforming` or `recreated` outcome, in any
+    container state, so that a created container can be started. `waiting` means
+    that a step is still to come: `agent-report`, `container`, `sockets`, `token`,
+    or `conformance`. `failed` means that the setup needs a change:
+    `consumer-directory`, `access-group`, or `conformance`. A status for another
+    assignment, or for another container identifier, does not count.
   bindings-and-approles: >-
     A binding pairs several policies with a container key on one agent. Creating
     a binding creates the AppRole `wyrwood-<agent>-<binding>` with the selected

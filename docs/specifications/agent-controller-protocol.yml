@@ -55,6 +55,22 @@ description: >-
   controller keeps the latest one per binding and uses it only to revoke that
   token when the binding changes or is deleted. An old-assignment or deleted
   binding accessor is revoked on arrival and cannot replace the current one.
+  `binding-status` reports what the agent alone knows about one binding in its
+  policy set: assignment identity, `token` as `valid`, `expired`, or `none`,
+  `consumers`, the binding's current contract `outcome`, `failed-items`, and
+  `reason`, and `last-error`, the category of the last failed login or renewal
+  that no later success replaced: `openbao-denied`, `openbao-timeout`, or
+  `openbao-unavailable`. Each consumer has its `directory`, the `container-id` it
+  serves, absent while a `name` binding waits for its container, the
+  `access-group` applied, absent for owner-only access, the `sockets` that
+  listen, and `failed` as `consumer-directory` or `access-group`. A binding that
+  governs no container has no outcome, unless a recreate is in progress. The agent
+  sends a status for each binding at the start of a session and when it changes.
+  The latest status replaces the earlier one, needs no acknowledgement, and ends
+  with the session. The controller drops a status for a binding that is absent or
+  belongs to another agent. An older controller rejects this type; use the
+  stopped controller-first upgrade order. An agent that sends none leaves its
+  bindings waiting on `agent-report`.
 
   Controller to agent: `policy-set` carries every binding that matches a
   container in the latest inventory, and every `name` binding that matches
@@ -94,6 +110,8 @@ description: >-
 validation-criteria: >-
   Round-trip tests validate every message against the schema asset and the
   Go types. Session tests cover that a contract result is acknowledged only
-  after the controller stores it. Session tests cover unknown-key rejection, host-key mismatch,
+  after the controller stores it. Session tests cover that readiness comes only
+  from the live session's `binding-status`, never from a stored contract result,
+  and ends with the session. Session tests cover unknown-key rejection, host-key mismatch,
   session replacement, oversize lines, and that no message serialization
   contains a token or secret identifier.

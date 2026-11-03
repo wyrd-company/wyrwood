@@ -67,6 +67,8 @@ type Agent struct {
 	root      *consumer.Root
 	creds     *credentials
 	reconcile chan string
+	// statusWake asks the session's status reporter to compare binding statuses.
+	statusWake chan struct{}
 
 	engineWorkers sync.WaitGroup
 	stopping      bool // guarded by mu; closes recreate admission before joining
@@ -91,6 +93,7 @@ type consumerState struct {
 	binding   string
 	group     *uint32
 	listeners []net.Listener
+	sockets   []protocol.Socket
 }
 
 type policyCache struct {
@@ -126,13 +129,14 @@ func New(options Options) (*Agent, error) {
 	agent := &Agent{
 		config: options.Config, paths: options.Paths, engine: options.Engine, endpoints: options.Endpoints,
 		log: options.Log, canAssign: options.CanAssign, hostname: options.Hostname, events: eventStore, root: root,
-		reconcile:  make(chan string, 256),
+		reconcile: make(chan string, 256), statusWake: make(chan struct{}, 1),
 		containers: map[string]engine.Container{}, known: map[string]bool{}, observed: map[string]string{}, consumers: map[string]*consumerState{},
 		results: map[string]protocol.ContractResult{}, recreating: map[string]bool{}, pending: map[string]contract.CreateRequest{},
 		startAttempts: map[string]time.Time{},
 	}
 	agent.creds = newCredentials(options.Config.OpenBaoTimeout, agent.requestCredential, agent.record, agent.bindingKey)
 	agent.creds.report = agent.reportAccessor
+	agent.creds.changed = agent.wakeStatus
 	return agent, nil
 }
 
@@ -435,6 +439,7 @@ func (agent *Agent) applyLocked(ctx context.Context) {
 		agent.checkLocked(ctx, bound, containers)
 	}
 	agent.startFailedMountsLocked(ctx)
+	agent.wakeStatus()
 }
 
 // observeBindingsLocked ties tokens to observed containers. A binding that
@@ -552,10 +557,12 @@ func (agent *Agent) ensureConsumerLocked(name string, bound protocol.Binding) {
 	lookup := agent.lookupFor(name)
 	if listener, err := directory.Listen(consumer.VaultSocket); err == nil {
 		state.listeners = append(state.listeners, listener)
+		state.sockets = append(state.sockets, protocol.SocketVault)
 		go agent.endpoints.ServeVault(listener, lookup, agent.record)
 	}
 	if listener, err := directory.Listen(consumer.SSHAgentSocket); err == nil {
 		state.listeners = append(state.listeners, listener)
+		state.sockets = append(state.sockets, protocol.SocketSSHAgent)
 		go agent.endpoints.ServeSSHAgent(listener, lookup, agent.record)
 	}
 }
@@ -664,6 +671,7 @@ func (agent *Agent) reportLocked(result protocol.ContractResult) {
 		return
 	}
 	agent.results[result.Binding] = result
+	agent.wakeStatus()
 	code := events.ErrorNone
 	if result.Outcome == protocol.OutcomeNonConforming || result.Outcome == protocol.OutcomeRecreateFailed {
 		code = events.ErrorPolicyDenied
