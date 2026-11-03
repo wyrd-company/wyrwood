@@ -219,9 +219,10 @@ paru -S wyrwood-bin
 
 ### Release archive
 
-Each [GitHub release](https://github.com/wyrd-company/wyrwood/releases)
-provides Linux `tar.gz`, DEB, and RPM artifacts for `amd64` and `arm64`, plus
-`checksums.txt`. After extracting the executable, install the service pair and accounts:
+Each [GitHub release](https://github.com/wyrd-company/wyrwood/releases) provides
+Linux `tar.gz`, DEB, and RPM artifacts for `amd64` and `arm64`, plus
+`checksums.txt`. After extracting the executable, install the service pair and
+accounts:
 
 ```bash
 sudo install -m 0755 wyrwood /usr/local/bin/wyrwood
@@ -272,9 +273,9 @@ boot, run `sudo systemctl disable wyrwood-agent`.
 ## Upgrade order
 
 Use a stopped rollout. Finish active recreations before stopping agents. Resolve
-an interrupted recreation with the [recovery procedure](configuration.md#contract-enforcement)
-before continuing. Secret and signing socket access is unavailable while an
-agent is stopped.
+an interrupted recreation with the [recovery
+procedure](configuration.md#contract-enforcement) before continuing. Secret and
+signing socket access is unavailable while an agent is stopped.
 
 1. Stop every agent:
 
@@ -306,6 +307,9 @@ accept cached assignments without the renewal field and infer their existing
 choice. Setup examples remain unavailable until the agent reports both the
 consumer directory and image.
 
+This version moves the database to schema 4 when it starts, in one transaction,
+and keeps every row. The new table holds operator keys and starts empty.
+
 ## Back up before an upgrade
 
 Stop the controller and copy its whole state directory, `/var/lib/wyrwood` in
@@ -314,7 +318,7 @@ back.
 
 ## Go back to an earlier version
 
-Controller 0.4.x refuses a schema 3 database at startup with
+An earlier controller refuses a newer database at startup with
 `database schema is newer than this controller`, and leaves the file unchanged.
 It also refuses an event log that holds a `policy-deleted` or `policy-renamed`
 event. To go back, stop the controller and agents, restore the state directory
@@ -410,14 +414,14 @@ is `0750`, owned by `wyrwood-engine:wyrwood`; the socket is `0660`. The agent
 can connect but cannot replace the listener. The upstream Engine socket keeps
 its host permissions. Configuration under `/etc/wyrwood` is controlled by root.
 
-The proxy allows only the Engine reads the agent needs and container start.
-The agent starts a bound container after a
-[host reboot](operations.md#after-a-host-reboot). A compromised agent can
-start any stopped container, but start cannot change a container's
-configuration. Setting `engine.allow-recreate: true` also permits stop, remove,
-and create. This opt-in still permits host takeover if the agent is compromised.
-Container inspect also exposes environment values and other host container metadata.
-Keep recreate disabled unless that host authority is acceptable.
+The proxy allows only the Engine reads the agent needs and container start. The
+agent starts a bound container after a [host
+reboot](operations.md#after-a-host-reboot). A compromised agent can start any
+stopped container, but start cannot change a container's configuration. Setting
+`engine.allow-recreate: true` also permits stop, remove, and create. This opt-in
+still permits host takeover if the agent is compromised. Container inspect also
+exposes environment values and other host container metadata. Keep recreate
+disabled unless that host authority is acceptable.
 
 After a permission or configuration change, activate both processes together:
 

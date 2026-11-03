@@ -27,6 +27,7 @@ assets:
   - assets/web-add-binding.png
   - assets/web-bindings.png
   - assets/web-keys.png
+  - assets/web-operator-keys.png
   - assets/web-events.png
   - assets/web-settings.png
   - assets/web-security.png
@@ -61,6 +62,8 @@ products:
         request.
       - Agents enroll over SSH with host-generated keys that an operator approves in the web
         interface.
+      - A script or a program can manage policies and bindings over SSH with a key that an
+        operator approved and scoped.
       - Operational events are bounded and categorical, with no tokens, secret values, or raw
         upstream errors.
     media:
@@ -130,6 +133,9 @@ products:
       - src: assets/web-keys.png
         caption: OpenBao keys page with Transit keys and SSH-engine roles.
         alt: The keys page listing OpenBao Transit keys and SSH-engine roles.
+      - src: assets/web-operator-keys.png
+        caption: Operator keys, one approved with its grant and one pending.
+        alt: The Operator keys screen listing an approved key with its agents, policies, and actions, above a pending key with a form to set its grant.
       - src: assets/web-events.png
         caption: Controller events, newest first.
         alt: The events page listing controller events with the newest first.

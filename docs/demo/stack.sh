@@ -198,6 +198,15 @@ agent() {
 	sudo -b sh -c "exec '$root/bin/wyrwood' agent daemon >'$root/agent.log' 2>&1" </dev/null >/dev/null 2>&1
 }
 
+# Present an operator key as a script would. The login exits 5 while the key is
+# pending, which is the state the screenshot shows.
+operator_login() {
+	"$root/bin/wyrwood" operator login "ssh://127.0.0.1:$ssh_port" --label "$1" \
+		--config "$root/operator-$1/operator.json" \
+		--accept-fingerprint "$("$root/bin/wyrwood" controller host-key --config "$root/controller/controller.yml")" \
+		>>"$root/operator-login.log" 2>&1 || true
+}
+
 down() {
  sudo pkill -f "^$root/bin/wyrwood agent engine-proxy" 2>/dev/null || true
 	sudo pkill -f "^$root/bin/wyrwood agent daemon" 2>/dev/null || true
@@ -228,9 +237,10 @@ down() {
 case "${1:-}" in
 up) up ;;
 agent) agent ;;
+operator-login) operator_login "$2" ;;
 down) down ;;
 *)
-	echo "usage: $0 up|agent|down" >&2
+	echo "usage: $0 up|agent|operator-login LABEL|down" >&2
 	exit 2
 	;;
 esac

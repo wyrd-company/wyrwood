@@ -26,13 +26,14 @@ behind a reverse proxy that terminates TLS.
 | **Policies** | Create or edit HCL, select SSH identities, save and validate, see the bindings that select a policy, rename a policy, and delete a policy that no binding selects. |
 | **Bindings** | Find a binding, inspect its state and contract check, or use **Add binding** to bind a reported container. |
 | **OpenBao keys** | Inspect the available Transit keys and SSH-engine roles. |
+| **Operator keys** | Approve a key for scripts with its grant, reject one, and revoke one. |
 | **Settings** | Inspect effective controller configuration loaded at startup. |
 | **Events** | Read the controller's operational history. |
 | **Account → Security** | Inspect sign-in details and end operator sessions. |
 | **Report an issue** | Open the GitHub form for a new Wyrwood issue in a new tab. The link sends no data about your site. |
 
-Follow [Getting started](getting-started.md) for agent approval, policy creation,
-and container binding with screenshots.
+Follow [Getting started](getting-started.md) for agent approval, policy
+creation, and container binding with screenshots.
 
 ![OpenBao keys page with Transit keys and SSH-engine roles](assets/web-keys.png)
 
@@ -84,21 +85,21 @@ reload it and try again.
 ## Delete a policy
 
 Open a policy and select **Delete policy**. The confirm screen names the policy
-and its OpenBao policy, `wyrwood-<name>` on the first use of a name. Delete removes
-both.
+and its OpenBao policy, `wyrwood-<name>` on the first use of a name. Delete
+removes both.
 
 ![Confirm screen for deleting a policy that no binding selects](assets/web-policy-delete-confirm.png)
 
 You cannot delete a policy while a binding selects it. The screen lists each
-binding that blocks the delete, with a link to it. This includes a binding marked
-`Not reported`, whose container no longer exists, and a binding on an agent that
-is not approved. Change or unbind each one, then delete the policy. There is no
-forced delete, and a delete never unbinds a container.
+binding that blocks the delete, with a link to it. This includes a binding
+marked `Not reported`, whose container no longer exists, and a binding on an
+agent that is not approved. Change or unbind each one, then delete the policy.
+There is no forced delete, and a delete never unbinds a container.
 
 ![A policy that cannot be deleted, with the binding that blocks it](assets/web-policy-delete.png)
 
-If OpenBao or the controller's database fails during a delete, the page shows the
-error and the policy stays, so you can try again.
+If OpenBao or the controller's database fails during a delete, the page shows
+the error and the policy stays, so you can try again.
 
 You can create a new policy with the name of a deleted policy. It starts at
 revision 1 and is a different policy: its OpenBao policy is
@@ -142,14 +143,14 @@ A binding on another key keeps its directory but not its sockets.
 
 **Add binding** lists the reported containers that have no binding, with the
 same filters. Every container an agent reports is on one of these two pages.
-**Add binding** on a row, or a container's name, opens its bind screen. Links
-to the former `/containers` address go to **Bindings** and keep their agent
-filter, text filter, and sort. A container selected by a former link is not kept.
+**Add binding** on a row, or a container's name, opens its bind screen. Links to
+the former `/containers` address go to **Bindings** and keep their agent filter,
+text filter, and sort. A container selected by a former link is not kept.
 
 The policy and binding screens keep their actions at the top and split their
 content into tabs. A tab that holds something you should read says **Needs
-attention**. A problem from a refused save appears above the tabs, and the screen
-selects the tab that holds it.
+attention**. A problem from a refused save appears above the tabs, and the
+screen selects the tab that holds it.
 
 In **Bindings**, open a binding and select the **Container setup** tab. Copy
 the host source, container target, Docker Compose fragment, or `docker run`
@@ -224,12 +225,100 @@ events cover container observation, bindings, contract checks and recreates,
 container starts after a reboot,
 token login and renewal, vault requests by mount category, and SSH identity
 listing, signing, and certificate issuance. Controller events cover operator
-sign-in and sign-out, agent approval, sessions, policy saves, deletes, and renames,
-bindings, and credential issuance, and name the operator who acted. Events
+sign-in and sign-out, agent approval, operator key approval and revocation,
+sessions, policy saves, deletes, and renames, bindings, and credential issuance,
+and name the operator who acted. A change made by an operator key names it as
+`key:<label>`. Events
 contain no tokens, secret values, request bodies, paths, signatures, or raw
 upstream errors.
 
 ![Controller events, newest first](assets/web-events.png)
+
+## Manage policies and bindings from a script
+
+An operator key lets a script or a program do what the web interface does for
+policies and bindings, inside a grant that you set when you approve the key. The
+private key stays on the machine that holds it, and it can stay behind an SSH
+agent. An operator key is not an agent key: it has its own list, and neither
+kind can act as the other.
+
+On the machine that runs the script, present a key:
+
+```bash
+wyrwood operator login ssh://controller.example:2222 --label sample-script
+```
+
+This generates a key in your user configuration directory, shows the
+controller's host key for you to accept, and records the key as pending. To use
+a key in an SSH agent, select it with `--agent-key` by its SHA256 fingerprint,
+its public key, or its comment. Only that key is offered, so no other key in the
+agent is recorded. An OpenBao Transit key behind a container's `ssh-agent.sock`
+can be the identity.
+
+Open **Operator keys** in the web interface, compare the fingerprint, and set
+the grant:
+
+![Operator keys screen with one approved key and one pending key](assets/web-operator-keys.png)
+
+| Grant | What it means |
+| --- | --- |
+| **Agents** | The agents this key can read and bind on. Use `*` for all. |
+| **Policies** | The policies this key can read, bind, and write. Use `*` for all. |
+| **Read** | List and read policies and bindings inside the grant. |
+| **Bind** | Create and remove bindings inside the grant. |
+| **Policy write** | Create and change policies inside the grant. |
+
+A binding that holds any policy outside the list is outside the grant, and the
+key cannot read, repeat, or remove it. A key with **Policy write** cannot change
+a policy that a binding outside its grant holds, since the change reaches that
+binding. Together, **Bind** and **Policy write** can reach whatever the
+controller's OpenBao namespace can grant, so give both only to a key you would
+trust with that.
+
+```bash
+wyrwood policy put sample-policy --file policy.hcl
+wyrwood bind --agent sample-host \
+  --key 'devcontainer:/workspaces/sample|.devcontainer/devcontainer.json' \
+  --policy sample-policy --access-group 1000
+wyrwood binding list --output json
+wyrwood unbind --agent sample-host \
+  --key 'devcontainer:/workspaces/sample|.devcontainer/devcontainer.json'
+```
+
+Each command is safe to run again. A `bind` with the selection the key already
+has returns that binding. A `bind` with another selection fails with exit status
+10 and changes nothing, so unbind first to change it. An `unbind` of a binding
+that is not there succeeds. A binding reports the same readiness as its
+**Status** tab, so a script can wait for `ready` before it starts the container.
+
+A key has no expiry. To end one, use **Revoke** on the **Operator keys** screen.
+Its next request fails, also on a connection that is open. A revoked key cannot
+be approved again, and its label stays with it in the event history, so present
+a new key with a new label to replace it. A grant cannot be edited: replace the
+key to change it.
+
+Exit status 5 means the key is pending, rejected, or revoked. Status 8 means the
+request is outside the key's grant. Status 9 means the policy or binding does
+not exist. No command prints a token or secret identifier.
+
+A Go program uses the package `github.com/wyrd-company/wyrwood/operator`
+directly. The commands are a thin layer over it.
+
+```go
+signer, err := operator.SelectAgentKey(agent, "SHA256:sample-fingerprint")
+if err != nil {
+    return err
+}
+client, err := operator.Dial(ctx, operator.Config{
+    URL:     "ssh://controller.example:2222",
+    Signer:  signer,
+    HostKey: "SHA256:sample-host-key",
+    Label:   "sample-tool",
+})
+if errors.Is(err, operator.ErrNotApproved) {
+    // The key is recorded as pending. An operator approves it in the web interface.
+}
+```
 
 ## Commands
 
@@ -244,7 +333,7 @@ sudo wyrwood agent status --output json
 ```
 
 Successful output goes to standard output. Categorical errors go to standard
-error. Automation can distinguish usage, login, daemon, controller, and
+error. Automation can distinguish usage, login, daemon, controller, grant, and
 fingerprint failures by exit status without parsing error text.
 
 | Command | Purpose |
@@ -258,6 +347,11 @@ fingerprint failures by exit status without parsing error text.
 | `wyrwood agent containers` | List observed containers with binding, conformance, and token state. |
 | `wyrwood agent events` | Read the newest bounded operational events. |
 | `wyrwood agent service install\|remove\|start\|stop\|status` | Manage the system service pair. |
+| `wyrwood operator login <url>` | Present an operator key and request approval. |
+| `wyrwood operator whoami` | Print the key's label and grant. |
+| `wyrwood policy put\|get\|list` | Manage policies inside the key's grant. |
+| `wyrwood bind`, `wyrwood unbind` | Create and remove a binding. Both are safe to repeat. |
+| `wyrwood binding list\|get` | Read bindings with their readiness. |
 | `wyrwood version` | Print the executable version. |
 
 Run `wyrwood help` for the top-level grammar or append `--help` to a command
@@ -284,9 +378,10 @@ recreate-enabled host still grants possible
 host-root authority to a compromised agent.
 
 A proxy failure leaves Engine operations unavailable while existing consumer
-sockets continue serving. Reconnect uses the filtered socket and full reconciliation;
-it does not switch to the raw Engine socket. A restart during recreation
-follows the [existing recovery procedure](configuration.md#contract-enforcement).
+sockets continue serving. Reconnect uses the filtered socket and full
+reconciliation; it does not switch to the raw Engine socket. A restart during
+recreation follows the [existing recovery
+procedure](configuration.md#contract-enforcement).
 
 ## OpenBao namespace secret access
 
@@ -315,7 +410,8 @@ query. Request the `profile`, `email`, and `groups` scopes and release a groups
 claim that includes the exact string `wyrwood_admins` for admitted accounts.
 
 Have an OpenBao site administrator supply a provisioning token issued in the
-target namespace. Its [exact provisioning ACL](https://github.com/wyrd-company/wyrwood/blob/main/docs/technical-designs/openbao-admin-access.yml)
+target namespace. Its [exact provisioning
+ACL](https://github.com/wyrd-company/wyrwood/blob/main/docs/technical-designs/openbao-admin-access.yml)
 can write the `namespace-admin` policy and configure `auth/admin-oidc`. Treat
 that policy writer as namespace administration authority. Keep its input file
 under the administrator's control; do not give it to the controller or secret

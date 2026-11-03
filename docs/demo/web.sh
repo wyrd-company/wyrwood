@@ -279,6 +279,23 @@ expect_page 'document.querySelector("[aria-label=\"Previewed effective policy\"]
 hold 1.5
 shot web-bind-values-effective
 
+# Approve an operator key with a grant, and leave a second key pending. This comes
+# last, so that no earlier screen shows its pending count.
+"$repository/docs/demo/stack.sh" operator-login sample-script
+browse open "$site/operator-keys"
+browse wait --text "Pending operator keys"
+browse find role textbox fill --name "Agents" "$(hostname)"
+browse find role textbox fill --name "Policies" "shared-key"
+browse find role checkbox click --name "Create and remove bindings"
+browse find role button click --name "Approve key"
+browse wait --text "Operator key approved"
+"$repository/docs/demo/stack.sh" operator-login workspace-tool
+browse reload
+browse wait --text "Pending operator keys"
+hold 1
+browse eval "window.scrollTo(0, 0)"
+shot web-operator-keys
+
 if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
 	browse record stop
 fi
