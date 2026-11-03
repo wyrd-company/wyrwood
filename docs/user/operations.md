@@ -163,10 +163,38 @@ unavailable. An agent that omits the directory must be updated. Follow the
 peers. If clipboard access is unavailable, select and copy the displayed
 text.
 
+## After a host reboot
+
+`/run` is empty at boot and Docker starts before the agent. Docker's start of a
+bound container fails on its missing consumer directory, and Docker does not
+retry. The agent restores the directory and both sockets from its cached
+policy, then starts the container. This does not need `allow-recreate` or the
+controller.
+
+The agent starts a container only when all of these hold:
+
+- A binding governs it.
+- Its restart policy is `always`, `unless-stopped`, or `on-failure`.
+- It is exited, and Docker's recorded error names its consumer directory as
+  missing.
+
+A container you stopped on purpose stays stopped. Each start records a
+`container-started` event. A failed start is tried again at most once every
+five minutes. To read the error Docker recorded:
+
+```bash
+docker inspect -f '{{.State.Error}}' app
+```
+
+Mount the directory with `--mount type=bind`. With `-v`, Docker creates a
+missing source as root at boot and starts the container without sockets. The
+agent then rejects that directory and reports `consumer-directory`.
+
 ## Operational events
 
 The agent and the controller each retain a bounded event history. Agent
 events cover container observation, bindings, contract checks and recreates,
+container starts after a reboot,
 token login and renewal, vault requests by mount category, and SSH identity
 listing, signing, and certificate issuance. Controller events cover operator
 sign-in and sign-out, agent approval, sessions, policy saves, deletes, and renames,
@@ -221,9 +249,11 @@ sudo systemctl status wyrwood-agent.service wyrwood-engine-proxy.service
 ```
 
 The proxy permits four reads: container list, container inspect, filtered
-container events, and image inspect. Stop, remove without volumes or force,
-create, and start are allowed only with host recreate enabled. All other
-Engine routes are denied. A recreate-enabled host still grants possible
+container events, and image inspect. It also permits container start, with no
+query or body. Stop, remove without volumes or force, and create are allowed
+only with host recreate enabled. All other Engine routes are denied. A
+compromised agent can start any stopped container, on any host. A
+recreate-enabled host still grants possible
 host-root authority to a compromised agent.
 
 A proxy failure leaves Engine operations unavailable while existing consumer

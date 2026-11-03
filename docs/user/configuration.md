@@ -250,7 +250,7 @@ engine:
 
 `engine.socket` is the proxy's upstream; the agent uses `engine.proxy-socket`.
 The proxy reads the root-controlled file itself. Set `allow-recreate: true`
-only when arbitrary create/start authority on this host is acceptable: a
+only when arbitrary create authority on this host is acceptable: a
 compromised agent can still take over a recreate-enabled host. Activate any
 change with `sudo systemctl restart wyrwood-agent.service`, which restarts
 the proxy too. Both configuration paths and custom proxy socket directories

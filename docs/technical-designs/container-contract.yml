@@ -74,8 +74,8 @@ proposed-design:
   recreate: >-
     Recreate requires enforcement `recreate` on the binding and recreate
     allowed in the host's root-controlled configuration. The separate Engine
-    proxy enforces that host permission on stop, remove, create, and start;
-    otherwise the binding is
+    proxy enforces that host permission on stop, remove, and create; otherwise
+    the binding is
     reported as non-conforming with the reason that recreate is not permitted
     on this host. The agent inspects the container, builds a create request
     that preserves every field the challenge lists, merges the contract's

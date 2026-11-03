@@ -410,10 +410,13 @@ is `0750`, owned by `wyrwood-engine:wyrwood`; the socket is `0660`. The agent
 can connect but cannot replace the listener. The upstream Engine socket keeps
 its host permissions. Configuration under `/etc/wyrwood` is controlled by root.
 
-The proxy allows only the Engine reads the agent needs. Setting
-`engine.allow-recreate: true` permits stop, remove, create, and start. This
-opt-in still permits host takeover if the agent is compromised. Container
-inspect also exposes environment values and other host container metadata.
+The proxy allows only the Engine reads the agent needs and container start.
+The agent starts a bound container after a
+[host reboot](operations.md#after-a-host-reboot). A compromised agent can
+start any stopped container, but start cannot change a container's
+configuration. Setting `engine.allow-recreate: true` also permits stop, remove,
+and create. This opt-in still permits host takeover if the agent is compromised.
+Container inspect also exposes environment values and other host container metadata.
 Keep recreate disabled unless that host authority is acceptable.
 
 After a permission or configuration change, activate both processes together:

@@ -17,6 +17,10 @@ description: >-
   new name as `new-policy`, the operator, and the outcome, including a refusal and a
   rename that committed with its transition pending; a name that is not a valid
   policy name is omitted. Earlier events keep the name they were recorded with.
+  `container-started` records the agent's start of a bound container whose
+  boot start failed on its consumer directory. It carries the binding, the
+  container key, and the outcome, and a failed start carries
+  `engine-unavailable`.
   `operator-signed-in` and `operator-signed-out` carry the operator
   subject. A refused sign-in carries `operator-not-allowed`,
   `identity-provider-unavailable`, or `sign-in-invalid` and no claim values,

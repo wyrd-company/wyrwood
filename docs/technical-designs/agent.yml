@@ -48,7 +48,7 @@ design-challenges:
   engine-write-boundary: >-
     The agent reaches Docker through the separate engine-proxy service. The
     proxy reads the host allow-recreate permission from root-controlled
-    configuration and denies mutation when it is false. Enabling recreate
+    configuration and denies stop, remove, and create when it is false. Enabling recreate
     grants arbitrary create authority, including possible host takeover if
     the agent is compromised. The engine-proxy design defines the exact
     method/path allow-list and process permissions.
@@ -128,6 +128,26 @@ proposed-design:
     cleanup. A container that is bound but non-conforming receives a
     directory and sockets anyway; conformance is reported, and the sockets
     are simply unreachable until the mount exists.
+  boot-recovery: >-
+    /run is empty at boot and Docker starts before the agent, so Docker's start
+    of a bound container with a bind mount fails on the missing consumer
+    directory, and Docker does not retry. After each reconcile the agent starts
+    such a container once its directory and both sockets are ready. It acts
+    only when the container is exited, is governed by a binding, has an always,
+    unless-stopped, or on-failure restart policy, mounts its consumer directory
+    as a bind source, and its inspected State.Error names that directory as
+    missing. Docker records that error only for a start the daemon makes
+    itself. A container stopped on purpose has no such error, and a failed
+    manual start records none. The agent inspects again immediately before the
+    start, and then checks the binding, the sockets, and any recreate again. It
+    leaves a container that is being recreated to the recreate.
+    A failed start records a failed container-started event and is tried
+    again at most once per reconcile interval. This works with a cached policy
+    while the controller is unavailable, and it does not need the host's
+    recreate permission. A container that uses a -v bind has no failed start,
+    because Docker creates the missing source as root. The agent rejects
+    that directory as having a foreign owner and reports the container as
+    non-conforming.
   contract-enforcement: >-
     Contract validation and recreate follow the container-contract design. The
     agent exposes the outcome to the controller as conforming,

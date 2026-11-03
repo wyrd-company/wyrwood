@@ -1,0 +1,46 @@
+$schema: https://refinery.systems/ontology/decision-record
+status: accepted
+relationships:
+  contextualizes:
+    - engine-proxy
+    - agent
+    - agent-can-start-stopped-containers
+description: >-
+  A bound container with a restart policy stays exited after every host reboot.
+  /run is empty at boot and Docker starts before the agent, so Docker's start
+  fails on the missing consumer directory and Docker does not retry. Something
+  must start the container after its sockets are ready. The agent is the only
+  component that knows when they are, and on most hosts allow-recreate is false,
+  so the proxy denies the agent every Engine write.
+considered-options:
+  "1": >-
+    Permit a narrow POST /containers/<id>/start through the proxy on every
+    host. The agent starts the container when its sockets are ready.
+  "2": >-
+    Have the proxy check the target. The proxy holds no binding, so it would
+    read agent state or apply the error, restart policy, and mount checks
+    itself.
+  "3": >-
+    Create consumer directories in an early unit ordered before docker.service.
+    The container then starts before its sockets exist, and anything that uses
+    them at startup fails.
+  "4": >-
+    Document a host oneshot unit that runs docker start after the agent. This
+    leaves the failure in place on every host that has not added the unit.
+decision-outcome:
+  chosen-option: 1
+  justification: >-
+    Option 1 gives the container working sockets on its first start and adds no
+    unit or operator step. A start has no query or body, so it cannot change a
+    container's configuration, and it is a much smaller authority than create.
+    Option 2 adds little: a compromised agent can already satisfy any check that
+    reads agent state, and the inspect-based checks only repeat the agent's rule
+    in the trusted proxy. Option 3 removes the failed start but leaves the socket
+    race. Option 4 keeps the defect as the default.
+expected-outcomes:
+  positive:
+    - Bound containers with a restart policy return after a host reboot with sockets present.
+    - Hosts keep allow-recreate false; stop, remove, and create stay denied.
+  negative:
+    - A compromised agent can start any stopped container on the host.
+    - The match reads Docker's error text, and another runtime's text leaves it stopped.

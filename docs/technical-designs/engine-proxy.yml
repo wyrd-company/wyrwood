@@ -2,6 +2,7 @@ $schema: https://refinery.systems/ontology/technical-design
 relationships:
   mitigates:
     - agent-compromise-exposes-host-container-secrets
+    - agent-can-start-stopped-containers
   assumes:
     - docker-engine-is-the-only-runtime
   related-to:
@@ -100,6 +101,12 @@ proposed-design:
     GET or HEAD route, including container logs, archive, export, stats,
     filesystem changes, image export, /info, /version, and /_ping, is denied.
     The agent performs no API discovery or ping call.
+  start-allow-list: >-
+    POST /containers/<id>/start accepts no query or body and is enabled
+    regardless of allow-recreate, so that the agent can start a bound container
+    whose boot start failed on its consumer directory. The proxy does not check
+    which container the agent names. A start uses the container's existing
+    configuration, and it cannot change that configuration.
   recreate-allow-list: >-
     With engine.allow-recreate=true, POST /containers/<id>/stop accepts
     exactly one t parameter containing a signed decimal integer of at least
@@ -108,9 +115,8 @@ proposed-design:
     so removal preserves volumes and does not force a running container's
     removal. POST /containers/create accepts exactly one nonempty name
     parameter containing a Docker container name and an application/json
-    create body. POST /containers/<id>/start accepts no query or body.
-    With allow-recreate=false, all four routes are denied before forwarding
-    or reading a create body. Each request is authorized, including requests
+    create body. With allow-recreate=false, these three routes are denied
+    before forwarding or reading a create body. Each request is authorized, including requests
     on an existing keep-alive connection. Other POST, DELETE, PUT, PATCH,
     OPTIONS, and HEAD requests are denied. In particular, exec, attach,
     restart, kill, pause, rename, update, archive writes, image pull/build,
@@ -201,8 +207,9 @@ proposed-design:
     privileged container, including one mounting the host filesystem or raw
     Engine socket. A route allow-list does not remove host-root capability
     from that opt-in. With false, an agent compromise retains container
-    inspect metadata, in-memory OpenBao tokens, and SSH signing authority
-    but cannot mutate Docker through the proxy. The host must separately
+    inspect metadata, in-memory OpenBao tokens, SSH signing authority, and
+    the ability to start any stopped container, but it cannot stop, remove,
+    or create a container through the proxy. The host must separately
     prevent wyrwood from reaching another unprotected Engine listener.
   upgrade-contract: >-
     Package and archive service installation implement the same root-run,
@@ -301,15 +308,19 @@ proposed-design:
     version prefixes, registry-qualified escaped images, malformed paths,
     duplicate queries, body/framing attacks, upgrades, and method overrides;
     stream delivery before EOF and request cancellation; fixed transport
-    errors and log redaction; every mutation gate, including start/stop,
-    create before body read, and volume-preserving removal. Mutation checks
+    errors and log redaction; every mutation gate, including stop, create
+    before body read, and volume-preserving removal; start with recreate
+    disabled, and refusal of a start query or body. Mutation checks
     remove each authorization guard and require a named test failure.
     Root Linux tests run the two UIDs against a protected fake Engine socket
     and prove the agent cannot open the raw socket, replace the proxy socket,
     alter its configuration, or impersonate the proxy. A third UID sharing
     wyrwood's group is denied by peer credentials. A real Docker test observes
     and recreates a generic container through the proxy, and verifies write
-    denial with recreate disabled. DEB/RPM hooks and archive management tests
+    denial with recreate disabled. A boot gate restarts a real Engine with
+    consumer directories absent and recreate disabled, and proves that the
+    bound container starts with its sockets present and that containers with
+    no restart policy or stopped on purpose stay stopped. DEB/RPM hooks and archive management tests
     exercise fresh install, repeated install, active upgrade, inactive
     upgrade, missing docker membership, consumer group preservation, old
     generated /etc unit precedence, unsafe custom overrides, and failures

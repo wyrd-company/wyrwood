@@ -1,0 +1,24 @@
+$schema: https://refinery.systems/ontology/risk
+relationships:
+  mitigated-by:
+    - engine-proxy
+slug: agent-can-start-stopped-containers
+title: A compromised agent can start any stopped container on its host
+description: >-
+  The agent starts a bound container whose boot start failed on its consumer
+  directory, so the Engine proxy permits container start on every host,
+  regardless of allow-recreate. The proxy does not check which container the
+  agent names. A compromised agent can therefore start any stopped container on
+  the host, including one stopped on purpose or one that a person has never
+  started, and that container runs with its existing mounts and privileges.
+  Mitigation: the route accepts no query or body, so a start cannot change a
+  container's configuration; the agent still cannot stop, remove, or create a
+  container with allow-recreate false, and it has no exec, attach, or logs
+  access; the agent's own decision needs a binding, a restart policy, and
+  Docker's recorded error naming the consumer directory.
+categories:
+  - security
+likelihood: 2
+impact: 3
+response-strategy: accept
+status: open
