@@ -10,7 +10,7 @@
     "internal/web/binding_screens.go": "ad75f4008cfc31ba2004c872473112da48e46ad3d3a29c010ccbb1a633e1b8cf",
     "internal/web/container_setup.go": "0ea25b9d75f041ac7eb4892784ca0a98b819ba955b896bde02b209e7851c403f",
     "internal/web/frontend/index.html": "f24bf6fc5ef21804c2beb10707128165ba28c80f2726b232bb78ffe19fe1fa8e",
-    "internal/web/frontend/pnpm-lock.yaml": "5a3dbe195addd4925d6a91a0f58ad7b042e4f5df4dda5970e5f5f8983923cadc",
+    "internal/web/frontend/pnpm-lock.yaml": "57c3544ffeb281576e9069f56c9e20737215ae7089bd3e25305020879b620d13",
     "internal/web/frontend/public/apple-touch-icon.png": "b5be2fea7ac2150a609fd94438d17c925f045651913a0b7431fecbbd45886213",
     "internal/web/frontend/public/emblem-dark.svg": "205da1d3de620aeaeae8ef01db750e5a1464cc60cd9468fbfe2e11bba7f1f9b4",
     "internal/web/frontend/public/emblem-light.svg": "e6089d63f10c188e0ce515bcc4813fd2c965bb8382e5a05622840c25b0e7f748",
@@ -74,9 +74,9 @@
     "internal/web/web.go": "2546fa0bae032676daa28ecbe432cb54b29a6b35d6e86e96fa828d398a14d673"
   },
   "screenshots": {
-    "docs/user/assets/web-account-menu.png": "806cce77e0ae3631fc85872ac2817be7c29b74c0a60dcac19ce402421bfe7b25",
+    "docs/user/assets/web-account-menu.png": "50a78b34746968d6c376ded587b44bccbafe1c3ca432eb17d14ed8361916eed2",
     "docs/user/assets/web-add-binding.png": "d1ad8fafac046bdbf4408b898bffea9bf3f3ce43ccabecb62bdc892cc065d692",
-    "docs/user/assets/web-agents.png": "868a688060b1a2bcf593558909306ef8450a3c6a3d7943c0c0f2be0b557c73e7",
+    "docs/user/assets/web-agents.png": "239a16f0740d3cee542c6faa84f09bf4c1fe5ee0e1f3eccafaaf6b7acae98195",
     "docs/user/assets/web-bind-effective.png": "f13b633eec4bbe329984e976fd700061b9f307955143e48ec20310656360eeb8",
     "docs/user/assets/web-bind-settings.png": "21e52623748af579595db3b974f2f338b35f9f9646fed4a12f2f381faecf626f",
     "docs/user/assets/web-bind.png": "a4f9678c66ca07e72d0f5359f603f654ddc9df6c99191ce8ff5ee63442f54bfe",
@@ -86,8 +86,8 @@
     "docs/user/assets/web-binding.png": "de02eeab94550bce9788f725f64b5015942114fcd3c57cc98fe4a9677469df24",
     "docs/user/assets/web-bindings.png": "5e773314ad9a7f235b11099f2ab7bf6479d7c876f1a3c51efbea76fc8829aa63",
     "docs/user/assets/web-container-setup.png": "3b94339b5d29e879fde5e5180f659dc49315f65644529e4b7151464bb297b55b",
-    "docs/user/assets/web-events.png": "bc9863867fbb9ef6fc80342b0c37bc818c2e0fb37c5605b2a5330d29451f8c84",
-    "docs/user/assets/web-keys.png": "cec232273395570abccfda9dd33fa4095f76a4eab755dc0e1f224a76ddff0e52",
+    "docs/user/assets/web-events.png": "825a74d290e5f37d11c0ad0766d3c78d85cf0a59febfe335def84045e1361e0d",
+    "docs/user/assets/web-keys.png": "1988f07f57ea6e50948b7e62a527575aa5bd512fceae71d1e49768bb2cfcaa8f",
     "docs/user/assets/web-policy-bindings.png": "4d306ccaefa131bfea869f063a5a88f25b7a111e4b5e5e0b486ac22bed13ffd5",
     "docs/user/assets/web-policy-contract.png": "75f86a385f03b14a91cefd6151e1122c7e9ff3e3a115eed0dbfc868a4d0e20ca",
     "docs/user/assets/web-policy-delete-confirm.png": "80e1b209725c69cfab78c012958c087e18c3a6bfe1d49372ada25fdfdafa0677",
@@ -97,6 +97,6 @@
     "docs/user/assets/web-policy.png": "9c32ddc155d8be009eeb6d3c9f2c2d4520444fcd2e08fcaf2d1fa878cc782208",
     "docs/user/assets/web-security.png": "cc5447b6f2f17ec1ce852936b1bd72618728c28838d17697d579cfcf167c91b3",
     "docs/user/assets/web-settings.png": "82e3ab08d767e5bf12aedaafe31842c8878a4cb90d009d1748eee07872009741",
-    "docs/user/assets/web-versions.png": "47992a9e95a2b65696410dd1f247f942fd960955c29deb0c982a7ff64b1ea819"
+    "docs/user/assets/web-versions.png": "c750a602a552212941c87786ae79504324cc10aa2d45a7dcf27aa310ebf3d964"
   }
 }
