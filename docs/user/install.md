@@ -296,8 +296,9 @@ signing socket access is unavailable while an agent is stopped.
 Do not reconnect agents until both peers are upgraded. Agents report the host
 consumer directory as `consumer-directory`; the controller sends the resolved
 `agent-token-renewal` setting. Older peers reject these unknown fields and
-close the session. Neither an agent-first nor a controller-first rolling
-upgrade keeps mixed versions connected.
+close the session. Agents also send `binding-status`, and a 0.5.x controller
+closes the session when it receives one. Neither an agent-first nor a
+controller-first rolling upgrade keeps mixed versions connected.
 
 Keep agent keys, policy caches, bindings and consumer directories. The
 controller moves its database to schema 3 when it starts, in one transaction,
@@ -308,7 +309,9 @@ choice. Setup examples remain unavailable until the agent reports both the
 consumer directory and image.
 
 This version moves the database to schema 4 when it starts, in one transaction,
-and keeps every row. The new table holds operator keys and starts empty.
+and keeps every row. The new table holds operator keys and starts empty. A 0.5.x
+controller refuses a schema 4 database at startup, so going back needs the
+backup from step 2.
 
 ## Back up before an upgrade
 
