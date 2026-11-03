@@ -319,11 +319,12 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	fields := strings.Fields(probe(t, socket))
 	token = fields[2]
 
-	// Destroying the container revokes its token and removes the sockets.
+	// Destroying the container revokes its token. The name binding keeps its
+	// sockets, which serve no token until a container has that name again.
 	fake.Destroy(func() string { container, _ := fake.ByName("web"); return container.ID }())
-	eventually(t, "consumer socket removal", func() bool {
-		_, err := os.Stat(socket)
-		return os.IsNotExist(err)
+	eventually(t, "a socket with no token", func() bool {
+		fields := strings.Fields(probe(t, socket))
+		return len(fields) == 2 && fields[0] == "teal,zinc" && fields[1] == "false"
 	})
 	reader.SetToken(token)
 	eventually(t, "token revocation", func() bool {
@@ -350,6 +351,14 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 	if err != nil || !os.SameFile(before, after) {
 		t.Fatalf("manual recreate replaced mount source: %v", err)
 	}
+	// Deleting the binding retires it and removes the sockets.
+	if err := controller.DeleteBinding(ctx, bound.ID, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "consumer socket removal", func() bool {
+		_, err := os.Stat(socket)
+		return os.IsNotExist(err)
+	})
 	var history Events
 	if err := Query(ctx, paths, ControlRequest{Operation: "events", Limit: 1000}, &history); err != nil {
 		t.Fatal(err)

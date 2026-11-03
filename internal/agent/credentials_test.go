@@ -474,7 +474,12 @@ func TestAssignmentChangeRetriesWhenControllerDoesNotDeliver(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	fake := newFakeOpenBao(t)
-	instance := newRecreateAgent(t, enginetest.New())
+	engineFake := enginetest.New()
+	runningApp(engineFake)
+	instance := newRecreateAgent(t, engineFake)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
 	var requests atomic.Int32
 	instance.creds.request = func(string) { requests.Add(1) }
 	instance.creds.retryDelay = 5 * time.Millisecond

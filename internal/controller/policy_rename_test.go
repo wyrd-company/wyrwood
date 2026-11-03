@@ -588,6 +588,22 @@ func TestRenamePreflightsEveryAffectedAgent(t *testing.T) {
 	wantRetirements(t, c)
 }
 
+// An unmatched name binding is on the wire, so it counts against the limit.
+func TestPreflightCountsAnUnmatchedNameBinding(t *testing.T) {
+	ctx := context.Background()
+	h, _ := startRenameHarness(t)
+	c := h.controller
+	saveAlpha(t, h, policy.StarterHCL)
+	approveAgent(t, h, "host-a")
+	if err := c.store.CreateBinding(ctx, store.Binding{ID: "b-bad", Agent: "host-a", Key: exampleKey("bad"), Policies: []string{"alpha"}, Revision: 1, Role: "wyrwood-host-a-b-bad"}); err != nil {
+		t.Fatal(err)
+	}
+	_, err := c.CreateBinding(ctx, "host-a", exampleKey("web"), bindRequest("alpha"), deleteOperator)
+	if err == nil || !strings.Contains(err.Error(), "exceeds the agent protocol limits") {
+		t.Fatalf("CreateBinding() = %v", err)
+	}
+}
+
 // A row that a crafted name selects is not read: only name validation stands
 // between such a row and the rename.
 func TestRenameOfACraftedStoredNameReachesNothing(t *testing.T) {

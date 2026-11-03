@@ -113,8 +113,8 @@ func TestInterruptedRecreateWaitsForAnUninspectedContainer(t *testing.T) {
 	}
 }
 
-// The policy set contains only matched bindings, so a manual replacement
-// spans a withdrawal and redelivery even though the stored binding survives.
+// A withdrawal in the middle of a manual replacement closes the sockets and
+// keeps the directory, so redelivery serves on the inode the replacement mounts.
 func TestManualRecreateKeepsConsumerDirectoryAcrossBindingWithdrawal(t *testing.T) {
 	ctx := context.Background()
 	fake, instance := newBoundApp(t)

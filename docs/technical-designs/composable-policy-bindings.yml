@@ -206,7 +206,7 @@ proposed-design:
     or credential issue. Apply the existing effective identity, environment,
     and encoded protocol size limits to the combined result; never truncate
     lists or omit a selected policy. The 1 MiB line bound also applies to a
-    complete policy-set, including all matched assignments. On policy edit,
+    complete policy-set, including all carried assignments. On policy edit,
     substitute the candidate revision in every referencing binding and
     preflight all compositions before publishing its HCL. A structural
     conflict rejects the edit and lists affected bindings; it does not silently

@@ -109,16 +109,22 @@ proposed-design:
     backoff until delivery or retirement. Without a controller, access stops
     at expiry. Replacement stops the earlier retries; retirement cancels the
     expiry wait and retries. Container renew-self does not extend the token.
-    When a bound container is
-    destroyed or unbound, the agent revokes the token and removes the consumer
-    sockets. Tokens are never logged, never written, and never exposed
-    through the control socket.
+    A token exists only while its binding governs an observed container: the
+    agent asks for a credential at first observation and drops a credential
+    that arrives for a binding with no container. When a bound container is
+    destroyed, the agent revokes the token, and it keeps the sockets of a
+    name binding, which the controller still holds. Unbinding revokes the token and
+    removes the consumer sockets. Tokens are never logged, never written, and
+    never exposed through the control socket.
   consumer-directories: >-
     A consumer directory is `/run/wyrwood/containers/<container-name>/`, owned
     by the agent user, with mode 0750 and the binding's access group, or
     0700 without one. The sockets inside have mode 0660 or 0600 to match.
     The directory is created when a bound container is first observed, or
-    when a name binding identifies its mount source before observation. Empty
+    when a name binding reaches the agent, which can be before its container
+    exists. This holds after an agent restart, from the policy cache, and when
+    the engine is unavailable at that restart. The sockets of a name binding with
+    no container answer that the agent holds no token. Empty
     agent-owned directories remain after retirement so a manual replacement
     can mount the same directory without Docker creating a root-owned source.
     Listeners close and sockets are removed when the binding is withdrawn.

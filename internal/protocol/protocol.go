@@ -269,7 +269,8 @@ type Binding struct {
 	Assignment string           `json:"assignment"`
 }
 
-// PolicySet carries every binding matching the latest inventory.
+// PolicySet carries every binding matching the latest inventory and every
+// name binding with no match.
 type PolicySet struct {
 	OpenBao  OpenBao   `json:"openbao"`
 	Bindings []Binding `json:"bindings"`

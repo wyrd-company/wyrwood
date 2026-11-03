@@ -772,6 +772,106 @@ func TestMatchBindingsUsesKeyPrecedence(t *testing.T) {
 	}
 }
 
+func TestCarriedBindingsAddOnlyUnmatchedNameBindings(t *testing.T) {
+	containers := []protocol.Container{{Keys: []protocol.Key{
+		{Kind: protocol.KeyDevcontainer, Value: "/src/app"}, {Kind: protocol.KeyName, Value: "app"},
+	}}}
+	bindings := []store.Binding{
+		{ID: "b-shadowed", Key: protocol.Key{Kind: protocol.KeyName, Value: "app"}},
+		{ID: "b-dev", Key: protocol.Key{Kind: protocol.KeyDevcontainer, Value: "/src/app"}},
+		{ID: "b-waiting", Key: protocol.Key{Kind: protocol.KeyName, Value: "later"}},
+		{ID: "b-compose", Key: protocol.Key{Kind: protocol.KeyCompose, Value: "shop/later"}},
+	}
+	var carried []string
+	for _, binding := range CarriedBindings(containers, bindings) {
+		carried = append(carried, binding.ID)
+	}
+	if strings.Join(carried, ",") != "b-dev,b-shadowed,b-waiting" {
+		t.Fatalf("CarriedBindings() = %v", carried)
+	}
+}
+
+// An unmatched name binding reaches the agent, and a credential waits for the
+// inventory that reports its container.
+func TestUnmatchedNameBindingIsCarriedWithNoCredential(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	key := newAgentKey(t)
+	_, _ = harness.dial("host-a", key)
+	if err := harness.controller.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	connection, err := harness.dial("host-a", key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connection.client.Close()
+	if err := connection.conn.Send(protocol.Hello{AgentVersion: "test", AllowRecreate: true}); err != nil {
+		t.Fatal(err)
+	}
+	send := func(message protocol.Message) {
+		t.Helper()
+		if err := connection.conn.Send(message); err != nil {
+			t.Fatal(err)
+		}
+	}
+	nextSet := func(want ...string) {
+		t.Helper()
+		set, ok := connection.receive(t).(protocol.PolicySet)
+		if !ok {
+			t.Fatalf("message is not a policy set: %#v", set)
+		}
+		var got []string
+		for _, binding := range set.Bindings {
+			got = append(got, binding.Binding)
+		}
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("policy set = %v, want %v", got, want)
+		}
+	}
+	send(protocol.Inventory{Containers: []protocol.Container{}})
+	nextSet()
+	if _, err := harness.controller.SavePolicy(ctx, policy.New("teal", policy.StarterHCL), "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	selection := policy.Selection{Policies: []string{"teal"}}
+	other, err := harness.controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyCompose, Value: "shop/web"}, selection, "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextSet()
+	bound, err := harness.controller.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "web"}, selection, "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	nextSet(bound.ID)
+
+	// The controller answers a request for it with nothing: the next message
+	// is the set for the following inventory.
+	send(protocol.CredentialRequest{Binding: bound.ID})
+	report := protocol.Inventory{Containers: []protocol.Container{{
+		ID: strings.Repeat("c", 64), Name: "web", State: protocol.StateCreated, Keys: []protocol.Key{{Kind: protocol.KeyName, Value: "web"}},
+	}}}
+	send(report)
+	nextSet(bound.ID)
+	if credential, ok := connection.receive(t).(protocol.Credential); !ok || credential.Binding != bound.ID {
+		t.Fatalf("credential at first observation = %#v", credential)
+	}
+
+	// Removal keeps the binding in the set. A later observation issues again.
+	send(protocol.Inventory{Containers: []protocol.Container{}})
+	nextSet(bound.ID)
+	send(protocol.CredentialRequest{Binding: bound.ID})
+	send(report)
+	nextSet(bound.ID)
+	if credential, ok := connection.receive(t).(protocol.Credential); !ok || credential.Binding != bound.ID {
+		t.Fatalf("credential at the next observation = %#v", credential)
+	}
+	if other.ID == bound.ID {
+		t.Fatal("bindings share an identifier")
+	}
+}
+
 func TestRoleNameIsBoundedToTheManagedPrefix(t *testing.T) {
 	if got := RoleName("Host.Example.COM", "b-1"); got != "wyrwood-host-example-com-b-1" {
 		t.Fatalf("RoleName() = %q", got)

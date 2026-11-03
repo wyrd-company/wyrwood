@@ -186,13 +186,7 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 		case protocol.PolicySet:
 			agent.applyPolicySet(ctx, typed)
 		case protocol.Credential:
-			agent.mu.Lock()
-			bound, ok := agent.bindingLocked(typed.Binding)
-			if ok && bound.Assignment == typed.Assignment {
-				generation := agent.creds.begin(typed.Binding)
-				go agent.creds.deliver(ctx, typed, generation, bound.Policy.OpenBaoPolicies(), bound.Policy.AgentRenewal())
-			}
-			agent.mu.Unlock()
+			agent.receiveCredential(ctx, typed)
 		case protocol.RecreateRequest:
 			agent.requestRecreate(ctx, typed.Binding)
 		case protocol.Unbind:
@@ -205,6 +199,21 @@ func (agent *Agent) connectOnce(ctx context.Context) (bool, error) {
 			return true, protocol.ErrInvalid
 		}
 	}
+}
+
+// receiveCredential starts a delivery and reports whether it did. The
+// controller can send a credential before it reads an inventory without the
+// container; the token would have no consumer, so the agent drops it.
+func (agent *Agent) receiveCredential(ctx context.Context, credential protocol.Credential) bool {
+	agent.mu.Lock()
+	defer agent.mu.Unlock()
+	bound, ok := agent.bindingLocked(credential.Binding)
+	if !ok || bound.Assignment != credential.Assignment || !agent.observed[credential.Binding] {
+		return false
+	}
+	generation := agent.creds.begin(credential.Binding)
+	go agent.creds.deliver(ctx, credential, generation, bound.Policy.OpenBaoPolicies(), bound.Policy.AgentRenewal())
+	return true
 }
 
 type readWriter struct {

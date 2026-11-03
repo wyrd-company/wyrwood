@@ -57,7 +57,11 @@ description: >-
   binding accessor is revoked on arrival and cannot replace the current one.
 
   Controller to agent: `policy-set` carries every binding that matches a
-  container in the latest inventory: binding identifier, the matched key, the
+  container in the latest inventory, and every `name` binding that matches
+  none, so the agent can prepare its consumer directory before the container
+  exists. The controller issues no credential for a binding that matches no
+  container and ignores a `credential-request` for it. For each binding the set
+  carries the binding identifier, the key, the
   effective policy (source names, revisions and HCL, a source generation of at
   least 2 when the name was used before, combined HCL, SSH identity
   unions and forwarding restrictions, resolved contract and binding settings),

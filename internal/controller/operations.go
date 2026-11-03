@@ -442,14 +442,11 @@ func (controller *Controller) RequestRecreate(ctx context.Context, id, operator 
 func (controller *Controller) OpenBao() OpenBao { return controller.openbao }
 
 // preflight applies the existing wire bound to each assignment and the complete
-// matched policy set before a mutation becomes durable.
+// carried policy set before a mutation becomes durable.
 func (controller *Controller) preflight(ctx context.Context, candidates []store.Binding) error {
 	agents := map[string][]store.Binding{}
-	wire := func(b store.Binding) protocol.Binding {
-		return protocol.Binding{Binding: b.ID, Key: b.Key, Assignment: b.Assignment(), Policy: b.Effective}
-	}
 	for _, b := range candidates {
-		if _, err := protocol.Encode(protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{wire(b)}}); err != nil {
+		if _, err := protocol.Encode(protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{wireBinding(b)}}); err != nil {
 			return operationError(events.ErrorPolicyDenied, "effective policy exceeds the agent protocol limits")
 		}
 		agents[b.Agent] = append(agents[b.Agent], b)
@@ -476,8 +473,8 @@ func (controller *Controller) preflight(ctx context.Context, candidates []store.
 			continue
 		}
 		set := protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{}}
-		for _, b := range MatchBindings(containers, bindings) {
-			set.Bindings = append(set.Bindings, wire(b))
+		for _, b := range CarriedBindings(containers, bindings) {
+			set.Bindings = append(set.Bindings, wireBinding(b))
 		}
 		if _, err := protocol.Encode(set); err != nil {
 			return operationError(events.ErrorPolicyDenied, "the complete effective policy set exceeds the agent protocol limits")

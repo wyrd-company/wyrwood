@@ -202,7 +202,8 @@ func (session *agentSession) handle(ctx context.Context, identity authenticatedA
 }
 
 // push sends the policy set for the latest inventory and a credential for
-// every matched binding the agent does not yet hold one for.
+// every matched binding the agent does not yet hold one for. An unmatched
+// name binding gets no credential until its container is observed.
 func (session *agentSession) push(ctx context.Context) error {
 	session.pushMu.Lock()
 	defer session.pushMu.Unlock()
@@ -219,11 +220,13 @@ func (session *agentSession) push(ctx context.Context) error {
 	}
 	matched := MatchBindings(containers, bindings)
 	set := protocol.PolicySet{OpenBao: controller.agentOB, Bindings: []protocol.Binding{}}
+	for _, binding := range CarriedBindings(containers, bindings) {
+		set.Bindings = append(set.Bindings, wireBinding(binding))
+	}
 	var issue []store.Binding
 	session.mu.Lock()
 	session.matched = map[string]bool{}
 	for _, binding := range matched {
-		set.Bindings = append(set.Bindings, protocol.Binding{Binding: binding.ID, Key: binding.Key, Policy: binding.Effective, Assignment: binding.Assignment()})
 		session.matched[binding.ID] = true
 		if session.credentialed[binding.ID] != binding.Assignment() {
 			issue = append(issue, binding)
@@ -369,6 +372,28 @@ func MatchBindings(containers []protocol.Container, bindings []store.Binding) []
 		}
 	}
 	return matched
+}
+
+// CarriedBindings returns the bindings a policy set carries: every matched
+// binding, then every name binding with no match. A name binding gives the
+// agent its consumer directory's name, so the agent can prepare the directory
+// before the container exists.
+func CarriedBindings(containers []protocol.Container, bindings []store.Binding) []store.Binding {
+	carried := MatchBindings(containers, bindings)
+	seen := make(map[string]bool, len(carried))
+	for _, binding := range carried {
+		seen[binding.ID] = true
+	}
+	for _, binding := range bindings {
+		if binding.Key.Kind == protocol.KeyName && !seen[binding.ID] {
+			carried = append(carried, binding)
+		}
+	}
+	return carried
+}
+
+func wireBinding(binding store.Binding) protocol.Binding {
+	return protocol.Binding{Binding: binding.ID, Key: binding.Key, Policy: binding.Effective, Assignment: binding.Assignment()}
 }
 
 // ContainerBinding returns the binding that governs one container, if any.

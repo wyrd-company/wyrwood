@@ -132,6 +132,14 @@ its key returns. **Edit** on a row, or a container's name, opens the binding's
 screen. **Back to bindings**
 returns to the list with the same filters and order.
 
+A `name` binding keeps its consumer directory and sockets while it has no
+container, also across an agent restart, so a replacement with that name can
+mount the directory on its first start. The agent revokes the token when the
+container goes. It gets a new token from the controller when a container with
+that name appears, usually within seconds of `docker create`. Until then,
+requests fail: `vault.sock` answers with status 503 and the error `no-token`.
+A binding on another key keeps its directory but not its sockets.
+
 **Add binding** lists the reported containers that have no binding, with the
 same filters. Every container an agent reports is on one of these two pages.
 **Add binding** on a row, or a container's name, opens its bind screen. Links
