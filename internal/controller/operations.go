@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
@@ -262,6 +263,12 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 	controller.mutationMu.Lock()
 	b, err := controller.createBinding(ctx, agent, key, request, operator)
 	controller.mutationMu.Unlock()
+	controller.finishCreateBinding(ctx, agent, key, b, err, operator, started)
+	return b, err
+}
+
+// finishCreateBinding records a create attempt and tells the agent about its result.
+func (controller *Controller) finishCreateBinding(ctx context.Context, agent string, key protocol.Key, b store.Binding, err error, operator string, started time.Time) {
 	eventBinding := b
 	if eventBinding.ID == "" {
 		eventBinding.Agent = agent
@@ -277,7 +284,6 @@ func (controller *Controller) CreateBinding(ctx context.Context, agent string, k
 	if b.ID != "" {
 		controller.hub.pushAgent(ctx, agent)
 	}
-	return b, err
 }
 func (controller *Controller) createBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
 	if err := key.Validate(); err != nil {

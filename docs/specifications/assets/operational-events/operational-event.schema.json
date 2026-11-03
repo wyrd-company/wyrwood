@@ -17,14 +17,15 @@
         "agent-approved", "agent-rejected", "session-opened", "session-closed",
         "policy-saved", "policy-deleted", "policy-renamed", "binding-created", "binding-changed", "binding-deleted",
         "credential-issued", "recreate-requested",
-        "operator-signed-in", "operator-signed-out"
+        "operator-signed-in", "operator-signed-out",
+        "operator-key-approved", "operator-key-rejected", "operator-key-revoked"
       ]
     },
     "outcome": { "type": "string", "enum": ["ok", "denied", "failed", "timeout"] },
     "latency-ns": { "type": "integer", "minimum": 0 },
     "error": {
       "type": "string",
-      "enum": ["engine-unavailable", "controller-unavailable", "openbao-unavailable", "openbao-denied", "openbao-timeout", "no-token", "not-bound", "policy-denied", "recreate-not-allowed", "identity-provider-unavailable", "operator-not-allowed", "sign-in-invalid", "protocol", "internal"]
+      "enum": ["engine-unavailable", "controller-unavailable", "openbao-unavailable", "openbao-denied", "openbao-timeout", "no-token", "not-bound", "policy-denied", "recreate-not-allowed", "identity-provider-unavailable", "operator-not-allowed", "sign-in-invalid", "outside-grant", "protocol", "internal"]
     },
     "agent": { "type": "string", "maxLength": 253 },
     "binding": { "type": "string", "pattern": "^[a-z0-9-]{1,64}$" },

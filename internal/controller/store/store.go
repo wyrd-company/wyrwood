@@ -128,10 +128,24 @@ var migrations = []string{
 		identity TEXT PRIMARY KEY,
 		recorded_at INTEGER NOT NULL
 	);`,
+	`CREATE TABLE operator_keys (
+		fingerprint TEXT PRIMARY KEY,
+		label TEXT NOT NULL,
+		public_key TEXT NOT NULL,
+		state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'rejected', 'revoked')),
+		grants TEXT NOT NULL DEFAULT '{}',
+		first_seen INTEGER NOT NULL,
+		decided_at INTEGER,
+		decided_by TEXT NOT NULL DEFAULT '',
+		revoked_at INTEGER,
+		revoked_by TEXT NOT NULL DEFAULT '',
+		last_used INTEGER
+	);
+	CREATE UNIQUE INDEX operator_keys_label ON operator_keys(label) WHERE state IN ('approved', 'revoked');`,
 }
 
 // schemaVersion is the controller state version that this controller reads and writes.
-const schemaVersion = 3
+const schemaVersion = 4
 
 // Open opens or creates the database at path, applying migrations.
 func Open(path string) (*Store, error) {
@@ -185,9 +199,13 @@ func (store *Store) migrate() error {
 		if _, err = tx.Exec(migrations[0]); err != nil {
 			return fmt.Errorf("create schema: %w", err)
 		}
+		version = 2
 	}
-	if _, err = tx.Exec(migrations[1]); err != nil {
-		return fmt.Errorf("migrate schema to version %d: %w", schemaVersion, err)
+	// Schema 2 is migrations[0], and each later version is one more entry.
+	for ; version < schemaVersion; version++ {
+		if _, err = tx.Exec(migrations[version-1]); err != nil {
+			return fmt.Errorf("migrate schema to version %d: %w", version+1, err)
+		}
 	}
 	if _, err = tx.Exec(fmt.Sprintf("PRAGMA user_version = %d", schemaVersion)); err != nil {
 		return err
@@ -262,11 +280,13 @@ func scanAgent(row interface{ Scan(...any) error }) (Agent, error) {
 // RecordKey returns the agent record for a presented key, recording it as
 // pending with the presented name when the key is unknown. A pending key
 // takes the most recently presented name, because SSH reports a key before
-// proving possession of it and the operator decides by fingerprint.
+// proving possession of it and the operator decides by fingerprint. A key on the
+// operator list is not recorded, and the result is ErrNotFound.
 func (store *Store) RecordKey(ctx context.Context, fingerprint, name, publicKey string, now time.Time) (Agent, error) {
 	_, err := store.db.ExecContext(ctx, `INSERT INTO agents (fingerprint, name, public_key, state, first_seen)
-		VALUES (?, ?, ?, 'pending', ?) ON CONFLICT(fingerprint) DO UPDATE SET name = excluded.name WHERE state = 'pending'`,
-		fingerprint, name, publicKey, unix(now))
+		SELECT ?, ?, ?, 'pending', ? WHERE NOT EXISTS (SELECT 1 FROM operator_keys WHERE fingerprint = ?)
+		ON CONFLICT(fingerprint) DO UPDATE SET name = excluded.name WHERE state = 'pending'`,
+		fingerprint, name, publicKey, unix(now), fingerprint)
 	if err != nil {
 		return Agent{}, err
 	}

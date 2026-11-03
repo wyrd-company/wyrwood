@@ -38,6 +38,7 @@ const (
 	credentialWrapTTL   = 2 * time.Minute
 	helloTimeout        = 10 * time.Second
 	maximumPendingKeys  = 256
+	subjectPrefix       = "key:"
 	loginRetryInterval  = 15 * time.Second
 	operationTimeout    = 15 * time.Second
 	sessionOpenBaoGrace = 5 * time.Second
@@ -313,7 +314,7 @@ func outcomeFor(code events.ErrorCode) events.Outcome {
 	switch code {
 	case events.ErrorNone:
 		return events.OutcomeOK
-	case events.ErrorOpenBaoDenied, events.ErrorPolicyDenied, events.ErrorOperatorNotAllowed, events.ErrorRecreateNotAllowed:
+	case events.ErrorOpenBaoDenied, events.ErrorPolicyDenied, events.ErrorOperatorNotAllowed, events.ErrorRecreateNotAllowed, events.ErrorOutsideGrant:
 		return events.OutcomeDenied
 	case events.ErrorOpenBaoTimeout:
 		return events.OutcomeTimeout

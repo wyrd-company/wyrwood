@@ -51,7 +51,8 @@ proposed-design:
     one SQLite database on a mounted volume: approved and pending agents,
     policies, the generation record of each policy name, the retirement record of
     each OpenBao identity still to remove, bindings, and the latest
-    container report per agent. The database is schema 3. Startup migrates schema 2
+    container report per agent, and the operator keys with their grants. The
+    database is schema 4. Startup migrates schema 2 and schema 3
     forward in one transaction and refuses a newer schema without changing the file,
     so an older controller stops before it reads state it cannot use. OpenBao
     holds the policy documents, AppRoles, and Transit keys the controller
@@ -117,6 +118,10 @@ proposed-design:
     Startup repairs an owned real SSH key directory with mode 0600 to mode
     0700 through a pinned directory handle. Other directory modes, symlinks,
     and foreign-owned paths are not permission-repair targets.
+  operator-sessions: >-
+    An approved operator key opens the `wyrwood-operator` SSH subsystem on the same
+    listener, as the operator interface design defines. Its username selects its own
+    list, so that an agent key cannot operate and an operator key cannot act as an agent.
   agent-sessions: >-
     An approved agent opens the `wyrwood` SSH subsystem and exchanges
     newline-delimited JSON messages as defined by the agent-controller

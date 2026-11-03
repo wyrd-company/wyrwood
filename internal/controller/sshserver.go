@@ -20,6 +20,7 @@ import (
 
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
+	"github.com/wyrd-company/wyrwood/operator"
 )
 
 var hostnamePattern = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}))*$`)
@@ -42,6 +43,7 @@ func (controller *Controller) newSSHServer(signer gossh.Signer) (*ssh.Server, er
 		wish.WithVersion("SSH-2.0-Wyrwood"),
 		wish.WithPublicKeyAuth(controller.authenticate),
 		wish.WithSubsystem(protocol.SubsystemName, controller.serveSubsystem),
+		wish.WithSubsystem(operator.SubsystemName, controller.serveOperatorSubsystem),
 		wish.WithIdleTimeout(10*time.Minute),
 		func(server *ssh.Server) error {
 			server.AddHostKey(signer)
@@ -58,9 +60,17 @@ func (controller *Controller) newSSHServer(signer gossh.Signer) (*ssh.Server, er
 
 // authenticate accepts only approved keys presented with the approved name.
 // An unknown key is recorded as pending; pending, rejected, and unknown keys
-// all receive the same authentication failure.
+// all receive the same authentication failure. An operator username goes to the
+// operator list only, so that a key is checked against the one list its role
+// names. SSH calls this for each key a client offers, and the identity of the
+// last call is the one that authenticates, so each call clears the earlier one.
 func (controller *Controller) authenticate(ctx ssh.Context, key ssh.PublicKey) bool {
+	ctx.SetValue(agentContextKey{}, nil)
+	ctx.SetValue(operatorContextKey{}, nil)
 	name := ctx.User()
+	if label, ok := operator.ParseUser(name); ok {
+		return controller.authenticateOperator(ctx, key, label)
+	}
 	if !ValidAgentName(name) {
 		return false
 	}
@@ -74,7 +84,7 @@ func (controller *Controller) authenticate(ctx ssh.Context, key ssh.PublicKey) b
 			return false
 		}
 		authorized := strings.TrimSpace(string(gossh.MarshalAuthorizedKey(key)))
-		if _, err := controller.store.RecordKey(lookup, fingerprint, name, authorized, controller.now()); err != nil {
+		if _, err := controller.store.RecordKey(lookup, fingerprint, name, authorized, controller.now()); err != nil && err != store.ErrNotFound {
 			controller.logf("pending key not recorded")
 		}
 		return false

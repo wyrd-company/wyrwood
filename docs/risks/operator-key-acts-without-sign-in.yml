@@ -1,0 +1,24 @@
+$schema: https://refinery.systems/ontology/risk
+relationships:
+  mitigated-by:
+    - operator-interface
+slug: operator-key-acts-without-sign-in
+title: A stolen operator key acts inside its grant until someone revokes it
+description: >-
+  An approved operator key manages policies and bindings with no sign-in and no
+  default expiry. Whoever holds it, or can sign with it through an SSH agent, can
+  do everything its grant permits. A key with `bind` can attach any policy in its
+  list to any container key on its agents, which gives that container the
+  policy's secrets. A key with `policy-write` can write HCL for any policy name in
+  its list, so with `bind` it can reach whatever the controller's OpenBao
+  namespace can grant. Mitigation: an operator signed in through OIDC approves
+  each key and sets its grant; a key has its own list and cannot act as an agent;
+  a binding that holds a policy outside the grant is out of reach; each change and
+  each refused change records the key's label; and revocation from the web
+  interface takes effect at the key's next request.
+categories:
+  - security
+likelihood: 2
+impact: 4
+response-strategy: mitigate
+status: open

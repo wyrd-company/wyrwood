@@ -1,0 +1,107 @@
+$schema: https://refinery.systems/ontology/technical-design
+relationships:
+  exposes:
+    - operator-key-acts-without-sign-in
+  related-to:
+    - controller
+    - web-interface
+    - command-line-interface
+objective: >-
+  Let a script or a program manage policies and bindings on the controller over
+  SSH, with a key that an operator approved and scoped, so that a workspace can be
+  stood up from end to end with no step in the web interface.
+background:
+  current-design: >-
+    Policies and bindings are managed in the web interface, by an operator who
+    signed in through OIDC. Agents hold SSH keys that an operator approved, and
+    those keys are limited to the agent protocol.
+  problems:
+    - A workspace needs a policy and a binding by hand in the middle of a scripted sequence.
+    - A tool that creates workspaces cannot do those steps at all, and it must not spawn a command-line tool to do them.
+design-challenges:
+  separate-roles: >-
+    An operator key must not act as an agent, and an agent key must not act as an
+    operator, whichever list a key reached first.
+  bounded-authority: >-
+    The web interface holds the controller's full authority. A key needs less, so
+    that a tool that only binds workspaces cannot change what a workspace may read.
+  repeatable: >-
+    A script runs again after a failure, so each command must be safe to repeat.
+proposed-design:
+  high-level-overview: >-
+    An operator key is a second kind of SSH client on the controller's listener, with
+    its own username form, its own list, and its own subsystem. An operator signed in
+    through OIDC approves each key and sets its grant. A public Go package is the
+    client, and the command line is a thin layer over it.
+  identity: >-
+    A connection presents the SSH username `operator:<label>` and one key. The
+    label holds 1 to 64 letters, digits, dots, underscores, and hyphens, and starts
+    with a letter or digit. A colon cannot occur in a hostname, so the username
+    cannot be an agent's. The username selects the list: the controller looks an
+    operator username up in the operator keys and any other username in the agents.
+    Each offered key clears the identity of the key offered before it, so that the
+    identity is always that of the key that signed.
+  approval: >-
+    An unknown key that presents an operator username is recorded as pending, with
+    the same authentication failure as any other refused key. A key on the agent
+    list is not recorded on the operator list, and a key on the operator list is
+    not recorded on the agent list. The list holds at most 256 pending keys. The
+    Operator keys screen approves a pending key with its final label and its grant,
+    or rejects it. A key's state is pending, approved, rejected, or revoked. A label
+    of an approved or revoked key cannot be used again.
+  grant: >-
+    A grant lists allowed agents, allowed policy names, and actions. Each list holds
+    exact names, or the single entry `*` for all names, and an empty list permits
+    nothing. The actions are `read`, `bind`, and `policy-write`, and approval needs at
+    least one. Every request reads the key and its grant again, so that a revocation
+    holds for a session that is already open. A grant covers a binding when it allows
+    the binding's agent and every policy it holds. `read` lists and returns only
+    policies and bindings the grant covers. `bind` creates and removes bindings the
+    grant covers. `policy-write` writes a policy the grant allows, when the grant
+    covers every binding that holds it. A refused change records its operation with
+    the outcome `denied` and the error `outside-grant`.
+  transport: >-
+    A connection opens the `wyrwood-operator` SSH subsystem and sends one JSON object
+    per line, and the controller answers each with one line. A request has `version`,
+    `operation`, and `body`, and a response has `version` and either `body` or `error`.
+    A request is less than 1 MiB and a response less than 16 MiB. A result that does not
+    fit is an error that asks for one agent. An unknown field, operation, or version is
+    refused. The operations are `whoami`, `policy-list`, `policy-get`, `policy-put`,
+    `binding-list`, `binding-get`, `bind`, and `unbind`. An error has a closed `code`,
+    fixed `message` text, and the `part` of the request it is about when one part owns
+    it. No response holds a token, a secret identifier, or an AppRole name.
+  repeating-a-command: >-
+    Putting the same policy source again changes nothing. A bind with the selection the
+    key is bound to returns the binding, and also finishes an assignment that OpenBao
+    could not apply before. A bind with another selection fails with `binding-differs`
+    and changes nothing. An unbind of a binding that is not there succeeds. An unbind
+    whose token could stay valid succeeds with a warning.
+  policy-put: >-
+    A put sets a policy's HCL. A new policy takes the default contract and token
+    renewal. A policy that exists keeps its contract, and it keeps its SSH identities
+    unless the request names them. It goes through the same preflight and publication
+    as a save in the web interface.
+  go-package: >-
+    The package `github.com/wyrd-company/wyrwood/operator` is public. `Login` records a
+    key and reports whether it is approved. `Dial` needs a pinned host key. A signer is
+    a file from `LoadOrCreateKey`, or one key of an SSH agent from `SelectAgentKey`, by
+    its SHA256 fingerprint, its public key, or its comment. A connection offers only that
+    key, so that no other key in the agent is recorded as pending. Errors match
+    `ErrNotApproved`, `ErrOutsideGrant`, `ErrHostKeyMismatch`, and the others of the
+    package with `errors.Is`. `Profile` saves a login for the command line, with
+    owner-only mode and no private key. The command line holds only its arguments and
+    projections.
+  audit: >-
+    Mutations carry the subject `key:<label>` in events and in the saved-by and
+    created-by fields. Approving, rejecting, and revoking a key record their own events,
+    which name the key's fingerprint and the operator who decided.
+  verification: >-
+    Controller tests run real SSH against a real OpenBao and cover pending, approved,
+    rejected, and revoked keys, a pinned host key, keys that try the other role in both
+    orders, an agent connection on the operator subsystem and the reverse, an offered key
+    followed by a key that fails, each action and each list of a grant, a binding that
+    holds a policy outside the grant, a policy that a binding outside the grant holds,
+    repeated commands, a repeated bind after an OpenBao failure, and a revocation with a
+    session open. A test keeps the public status type equal to the controller's. A command
+    test drives each command against a real controller. Web tests approve, reject, and
+    revoke through the pages.

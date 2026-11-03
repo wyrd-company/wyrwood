@@ -1,0 +1,75 @@
+$schema: https://refinery.systems/ontology/decision-record
+relationships:
+  contextualizes:
+    - controller
+    - operator-interface
+    - command-line-interface
+    - web-interface
+  related-to:
+    - authenticate-operators-with-oidc
+    - enroll-agents-with-host-generated-keys
+description: >-
+  Standing up a workspace needs a policy and a binding, and a tool that creates
+  workspaces cannot sign in to a web interface. It needs a second way to operate
+  the controller. The web interface holds the controller's full authority, and
+  an agent key does not expire, so the shape of this path decides how much a
+  stolen key can do and whether an agent's key can ever operate.
+considered-options:
+  "1": >-
+    An HTTP API on the web listener with bearer tokens that an operator creates
+    in the web interface. The controller stores a credential, and a token
+    crosses a browser and a clipboard.
+  "2": >-
+    Operator keys on the existing SSH server, recorded in the agent list with a
+    role flag. Agent approval, the pending list, and the subsystem are reused,
+    and one mistaken flag turns an agent key into an operator.
+  "3": >-
+    Operator keys on the existing SSH server with their own subsystem, their
+    own approval list, and their own pending screen. An operator signed in
+    through OIDC approves each key and sets its grant: allowed agents, allowed
+    policy names, and actions. A program uses a public Go package, and the
+    command line is a thin layer over it.
+decision-outcome:
+  chosen-option: 3
+  justification: >-
+    The private key never leaves its machine, and it can stay behind an SSH
+    agent, so that an OpenBao Transit key can be the identity. Approval through
+    OIDC keeps the identity provider as the root of who may operate. Separate
+    lists mean that no key can hold both roles, and the store refuses to record a
+    key on one list that is on the other. Option 1 adds a stored credential and a
+    second network surface. Option 2 gives the two roles one failure.
+  decisions:
+    username: >-
+      An operator connection uses the SSH username `operator:<label>`. A colon
+      cannot occur in a hostname, so no agent name reads as an operator. The
+      username selects the list the key is checked against, and the subsystem
+      then requires an identity from that same list.
+    grant-scope: >-
+      A binding that holds any policy outside the grant is outside the grant, so
+      a key cannot reach a binding that gives more than the key may give. A policy
+      that a binding outside the grant holds cannot be changed, since the change
+      reaches that binding.
+    no-default-expiry: >-
+      A key has no default expiry. A tool that runs unattended has nobody to renew
+      a key, and a lapse fails a workspace in the middle of its setup. Revocation
+      from the web interface takes effect at the key's next request.
+    terminal-revocation: >-
+      A revoked key cannot be approved again, and its label stays with it, so that
+      one audit subject names one key for all time.
+    audit-subject: >-
+      Events name the key as `key:<label>`, so that a key's subject cannot be
+      mistaken for the subject of someone who signed in through OIDC.
+    repeat-with-another-selection: >-
+      A bind on a key that is bound to the same selection returns the binding. A
+      bind with another selection fails and changes nothing, so that a script
+      cannot read a binding as what it asked for when it is not. Changing a
+      selection is an explicit unbind and bind.
+expected-outcomes:
+  positive:
+    - A script or a program can make a policy and a binding from end to end.
+    - No operator private key is transmitted or stored by the controller.
+    - Each key can do only what its approval says, and each event names the key.
+  negative:
+    - A stolen key with a wide grant acts until someone revokes it. The risk record covers this.
+    - A key's grant cannot be edited. A new grant needs a new key.
+    - Agent protocol clients and operator clients share one SSH listener.

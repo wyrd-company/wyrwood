@@ -26,6 +26,11 @@ description: >-
   `identity-provider-unavailable`, or `sign-in-invalid` and no claim values,
   group names, codes, or tokens. A fingerprint is intentionally correlatable
   across events.
+  `operator-key-approved`, `operator-key-rejected`, and `operator-key-revoked`
+  carry the key's fingerprint and the subject of the operator who decided. A
+  change made by an operator key carries the subject `key:<label>`. A change that
+  the key's grant does not cover carries its operation, the outcome `denied`, and
+  `outside-grant`.
 
   Records contain no token, secret identifier, wrapping token, HCL, request
   path beyond the mount category, request or response body, signature,

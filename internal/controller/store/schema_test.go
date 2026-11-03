@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/wyrd-company/wyrwood/internal/policy"
+	"github.com/wyrd-company/wyrwood/operator"
 )
 
 // schemaTables lists every table of schema 2 with its columns, so that a dump
@@ -362,5 +363,113 @@ func TestGenerationRecordCommitsWithTheRow(t *testing.T) {
 	exec(t, opened.db, `DROP TRIGGER fail_generation`)
 	if next, err := opened.NextPolicyGeneration(ctx, "sample"); err != nil || next != 1 {
 		t.Fatalf("next = %d, %v", next, err)
+	}
+}
+
+// A schema 3 database gains the operator list and keeps every row.
+func TestSchemaThreeStateMigratesWithEveryRowIntact(t *testing.T) {
+	path, _ := populatedSchemaTwo(t)
+	first, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before := dump(t, first.db)
+	exec(t, first.db, `DROP TABLE operator_keys`)
+	exec(t, first.db, `PRAGMA user_version = 3`)
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
+	opened, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer opened.Close()
+	if got := userVersion(t, opened.db); got != schemaVersion {
+		t.Fatalf("user_version = %d, want %d", got, schemaVersion)
+	}
+	if got := dump(t, opened.db); !reflect.DeepEqual(got, before) {
+		t.Fatalf("rows changed: %v", got)
+	}
+	if keys, err := opened.OperatorKeys(context.Background()); err != nil || len(keys) != 0 {
+		t.Fatalf("OperatorKeys() = %v, %v", keys, err)
+	}
+}
+
+// No key is on both lists, whichever list it reaches first.
+func TestAKeyIsRecordedOnOneListOnly(t *testing.T) {
+	ctx := context.Background()
+	opened, _ := openTest(t)
+	now := time.Now()
+	if _, err := opened.RecordKey(ctx, "SHA256:agent", "sample-host", "key", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := opened.RecordOperatorKey(ctx, "SHA256:agent", "sample-label", "key", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("RecordOperatorKey() = %v", err)
+	}
+	if _, err := opened.RecordOperatorKey(ctx, "SHA256:operator", "sample-label", "key", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := opened.RecordKey(ctx, "SHA256:operator", "sample-host", "key", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("RecordKey() = %v", err)
+	}
+	if _, err := opened.Agent(ctx, "SHA256:operator"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Agent() = %v", err)
+	}
+}
+
+// A decided key keeps its label, and only a pending key takes a newly presented one.
+func TestOperatorKeyStates(t *testing.T) {
+	ctx := context.Background()
+	opened, _ := openTest(t)
+	now := time.Now()
+	if _, err := opened.RecordOperatorKey(ctx, "SHA256:a", "first", "key", now); err != nil {
+		t.Fatal(err)
+	}
+	pending, err := opened.RecordOperatorKey(ctx, "SHA256:a", "second", "key", now)
+	if err != nil || pending.Label != "second" || pending.State != OperatorKeyPending {
+		t.Fatalf("RecordOperatorKey() = %+v, %v", pending, err)
+	}
+	if count, err := opened.PendingOperatorKeyCount(ctx); err != nil || count != 1 {
+		t.Fatalf("PendingOperatorKeyCount() = %d, %v", count, err)
+	}
+	if _, err := opened.RevokeOperatorKey(ctx, "SHA256:a", "by", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("revoking a pending key = %v", err)
+	}
+	grant := operator.Grant{Agents: []string{"sample-host"}, Actions: []operator.Action{operator.ActionRead}}
+	approved, err := opened.ApproveOperatorKey(ctx, "SHA256:a", "final", grant, "by", now)
+	if err != nil || approved.Label != "final" || !reflect.DeepEqual(approved.Grant, grant) || approved.DecidedBy != "by" {
+		t.Fatalf("ApproveOperatorKey() = %+v, %v", approved, err)
+	}
+	if kept, err := opened.RecordOperatorKey(ctx, "SHA256:a", "attacker", "key", now); err != nil || kept.Label != "final" || kept.State != OperatorKeyApproved {
+		t.Fatalf("a presented label changed an approved key: %+v, %v", kept, err)
+	}
+	if _, err := opened.RejectOperatorKey(ctx, "SHA256:a", "by", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("rejecting an approved key = %v", err)
+	}
+	if _, err := opened.ApproveOperatorKey(ctx, "SHA256:a", "final", grant, "by", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("approving an approved key = %v", err)
+	}
+	if err := opened.RecordOperatorKeyUse(ctx, "SHA256:a", now); err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := opened.RevokeOperatorKey(ctx, "SHA256:a", "other", now)
+	if err != nil || revoked.State != OperatorKeyRevoked || revoked.RevokedBy != "other" || revoked.LastUsed.IsZero() {
+		t.Fatalf("RevokeOperatorKey() = %+v, %v", revoked, err)
+	}
+	if _, err := opened.RevokeOperatorKey(ctx, "SHA256:a", "other", now); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("revoking twice = %v", err)
+	}
+	if _, err := opened.RecordOperatorKey(ctx, "SHA256:b", "final", "key", now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := opened.ApproveOperatorKey(ctx, "SHA256:b", "final", grant, "by", now); !errors.Is(err, ErrConflict) {
+		t.Fatalf("approving with a revoked key's label = %v", err)
+	}
+	if rejected, err := opened.RejectOperatorKey(ctx, "SHA256:b", "by", now); err != nil || rejected.State != OperatorKeyRejected {
+		t.Fatalf("RejectOperatorKey() = %+v, %v", rejected, err)
+	}
+	keys, err := opened.OperatorKeys(ctx)
+	if err != nil || len(keys) != 2 || keys[0].State != OperatorKeyRevoked {
+		t.Fatalf("OperatorKeys() = %+v, %v", keys, err)
 	}
 }

@@ -34,36 +34,39 @@ var (
 type Operation string
 
 const (
-	OperationContainerObserved Operation = "container-observed"
-	OperationContainerGone     Operation = "container-gone"
-	OperationBindingReceived   Operation = "binding-received"
-	OperationBindingRetired    Operation = "binding-retired"
-	OperationContractChecked   Operation = "contract-checked"
-	OperationRecreateBegun     Operation = "recreate-begun"
-	OperationRecreateFinished  Operation = "recreate-finished"
-	OperationContainerStarted  Operation = "container-started"
-	OperationLogin             Operation = "login"
-	OperationRenew             Operation = "renew"
-	OperationRevoke            Operation = "revoke"
-	OperationVaultRequest      Operation = "vault-request"
-	OperationSSHList           Operation = "ssh-list"
-	OperationSSHSign           Operation = "ssh-sign"
-	OperationSSHCertificate    Operation = "ssh-certificate"
-	OperationSSHSessionBind    Operation = "ssh-session-bind"
-	OperationAgentApproved     Operation = "agent-approved"
-	OperationAgentRejected     Operation = "agent-rejected"
-	OperationSessionOpened     Operation = "session-opened"
-	OperationSessionClosed     Operation = "session-closed"
-	OperationPolicySaved       Operation = "policy-saved"
-	OperationPolicyDeleted     Operation = "policy-deleted"
-	OperationPolicyRenamed     Operation = "policy-renamed"
-	OperationBindingCreated    Operation = "binding-created"
-	OperationBindingChanged    Operation = "binding-changed"
-	OperationBindingDeleted    Operation = "binding-deleted"
-	OperationCredentialIssued  Operation = "credential-issued"
-	OperationRecreateRequested Operation = "recreate-requested"
-	OperationOperatorSignedIn  Operation = "operator-signed-in"
-	OperationOperatorSignedOut Operation = "operator-signed-out"
+	OperationContainerObserved   Operation = "container-observed"
+	OperationContainerGone       Operation = "container-gone"
+	OperationBindingReceived     Operation = "binding-received"
+	OperationBindingRetired      Operation = "binding-retired"
+	OperationContractChecked     Operation = "contract-checked"
+	OperationRecreateBegun       Operation = "recreate-begun"
+	OperationRecreateFinished    Operation = "recreate-finished"
+	OperationContainerStarted    Operation = "container-started"
+	OperationLogin               Operation = "login"
+	OperationRenew               Operation = "renew"
+	OperationRevoke              Operation = "revoke"
+	OperationVaultRequest        Operation = "vault-request"
+	OperationSSHList             Operation = "ssh-list"
+	OperationSSHSign             Operation = "ssh-sign"
+	OperationSSHCertificate      Operation = "ssh-certificate"
+	OperationSSHSessionBind      Operation = "ssh-session-bind"
+	OperationAgentApproved       Operation = "agent-approved"
+	OperationAgentRejected       Operation = "agent-rejected"
+	OperationSessionOpened       Operation = "session-opened"
+	OperationSessionClosed       Operation = "session-closed"
+	OperationPolicySaved         Operation = "policy-saved"
+	OperationPolicyDeleted       Operation = "policy-deleted"
+	OperationPolicyRenamed       Operation = "policy-renamed"
+	OperationBindingCreated      Operation = "binding-created"
+	OperationBindingChanged      Operation = "binding-changed"
+	OperationBindingDeleted      Operation = "binding-deleted"
+	OperationCredentialIssued    Operation = "credential-issued"
+	OperationRecreateRequested   Operation = "recreate-requested"
+	OperationOperatorSignedIn    Operation = "operator-signed-in"
+	OperationOperatorSignedOut   Operation = "operator-signed-out"
+	OperationOperatorKeyApproved Operation = "operator-key-approved"
+	OperationOperatorKeyRejected Operation = "operator-key-rejected"
+	OperationOperatorKeyRevoked  Operation = "operator-key-revoked"
 )
 
 // Operations lists the complete operation vocabulary in schema order.
@@ -76,6 +79,7 @@ var Operations = []Operation{
 	OperationPolicySaved, OperationPolicyDeleted, OperationPolicyRenamed, OperationBindingCreated, OperationBindingChanged, OperationBindingDeleted,
 	OperationCredentialIssued, OperationRecreateRequested,
 	OperationOperatorSignedIn, OperationOperatorSignedOut,
+	OperationOperatorKeyApproved, OperationOperatorKeyRejected, OperationOperatorKeyRevoked,
 }
 
 // Outcome is the closed result vocabulary for an operation.
@@ -109,6 +113,7 @@ const (
 	ErrorIdentityProviderUnavailable ErrorCode = "identity-provider-unavailable"
 	ErrorOperatorNotAllowed          ErrorCode = "operator-not-allowed"
 	ErrorSignInInvalid               ErrorCode = "sign-in-invalid"
+	ErrorOutsideGrant                ErrorCode = "outside-grant"
 	ErrorProtocol                    ErrorCode = "protocol"
 	ErrorInternal                    ErrorCode = "internal"
 )
@@ -117,7 +122,7 @@ const (
 var ErrorCodes = []ErrorCode{
 	ErrorEngineUnavailable, ErrorControllerUnavailable, ErrorOpenBaoUnavailable, ErrorOpenBaoDenied,
 	ErrorOpenBaoTimeout, ErrorNoToken, ErrorNotBound, ErrorPolicyDenied, ErrorRecreateNotAllowed,
-	ErrorIdentityProviderUnavailable, ErrorOperatorNotAllowed, ErrorSignInInvalid, ErrorProtocol, ErrorInternal,
+	ErrorIdentityProviderUnavailable, ErrorOperatorNotAllowed, ErrorSignInInvalid, ErrorOutsideGrant, ErrorProtocol, ErrorInternal,
 }
 
 // Mount is the OpenBao mount category of a vault request.
