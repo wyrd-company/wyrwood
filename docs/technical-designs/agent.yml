@@ -113,7 +113,9 @@ proposed-design:
     agent asks for a credential at first observation and drops a credential
     that arrives for a binding with no container. When a bound container is
     destroyed, the agent revokes the token, and it keeps the sockets of a
-    name binding, which the controller still holds. Unbinding revokes the token and
+    name binding, which the controller still holds. A replacement container with
+    that name gets a fresh token, also when the agent saw no gap between the two;
+    the agent's own recreate keeps the token. Unbinding revokes the token and
     removes the consumer sockets. Tokens are never logged, never written, and
     never exposed through the control socket.
   consumer-directories: >-

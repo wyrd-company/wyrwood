@@ -75,7 +75,7 @@ type Agent struct {
 	set           protocol.PolicySet
 	setLoaded     bool
 	known         map[string]bool
-	observed      map[string]bool // bindings that govern an observed container, or one being recreated
+	observed      map[string]string // bindings that govern an observed container, or one being recreated, to observedIdentity
 	consumers     map[string]*consumerState
 	results       map[string]protocol.ContractResult
 	recreating    map[string]bool
@@ -127,7 +127,7 @@ func New(options Options) (*Agent, error) {
 		config: options.Config, paths: options.Paths, engine: options.Engine, endpoints: options.Endpoints,
 		log: options.Log, canAssign: options.CanAssign, hostname: options.Hostname, events: eventStore, root: root,
 		reconcile:  make(chan string, 256),
-		containers: map[string]engine.Container{}, known: map[string]bool{}, observed: map[string]bool{}, consumers: map[string]*consumerState{},
+		containers: map[string]engine.Container{}, known: map[string]bool{}, observed: map[string]string{}, consumers: map[string]*consumerState{},
 		results: map[string]protocol.ContractResult{}, recreating: map[string]bool{}, pending: map[string]contract.CreateRequest{},
 		startAttempts: map[string]time.Time{},
 	}
@@ -294,9 +294,11 @@ func (agent *Agent) fullReconcile(ctx context.Context) error {
 		agent.reportInterruptedRecreatesLocked(observed)
 	}
 	agent.applyLocked(ctx)
+	enforcement := agent.firstObservationsLocked()
 	agent.mu.Unlock()
 	agent.sendInventory()
 	agent.creds.reportUnrecorded()
+	agent.enforce(ctx, enforcement)
 	return nil
 }
 
@@ -318,8 +320,10 @@ func (agent *Agent) reconcileContainer(ctx context.Context, id string) {
 		agent.containers[id] = container
 	}
 	agent.applyLocked(ctx)
+	enforcement := agent.firstObservationsLocked()
 	agent.mu.Unlock()
 	agent.sendInventory()
+	agent.enforce(ctx, enforcement)
 }
 
 func (agent *Agent) containerGoneLocked(id string) {
@@ -436,8 +440,9 @@ func (agent *Agent) applyLocked(ctx context.Context) {
 // observeBindingsLocked ties tokens to observed containers. A binding that
 // gains its first container asks for a credential. The controller keeps a name
 // binding in the policy set after its container is gone, so the agent revokes
-// that token itself: no live token waits for a consumer. The controller
-// withdraws every other binding, which retires its token.
+// that token itself: no live token waits for a consumer. A replacement gets a
+// fresh token even when the agent never saw the gap. The controller withdraws
+// every other binding, which retires its token.
 func (agent *Agent) observeBindingsLocked(ctx context.Context, governed map[string][]engine.Container) {
 	for id := range agent.observed {
 		if _, ok := governed[id]; ok || agent.recreatingBindingLocked(id) {
@@ -449,14 +454,76 @@ func (agent *Agent) observeBindingsLocked(ctx context.Context, governed map[stri
 			delete(agent.results, id)
 		}
 	}
-	for id := range governed {
-		if agent.observed[id] {
+	for id, containers := range governed {
+		bound, _ := agent.bindingLocked(id)
+		identity := observedIdentity(bound, containers)
+		previous, seen := agent.observed[id]
+		agent.observed[id] = identity
+		switch {
+		case seen && (previous == identity || agent.recreatingBindingLocked(id)):
+		case seen:
+			go agent.creds.retry(ctx, id, agent.creds.invalidate(id))
+			delete(agent.results, id)
+		default:
+			if _, held := agent.creds.current(id); !held {
+				go agent.creds.retry(ctx, id, agent.creds.invalidate(id))
+			}
+		}
+	}
+}
+
+// observedIdentity names what a token's consumer is. A name binding governs
+// the one container with that name, so its identity is that container's. Other
+// bindings can govern several and have none.
+func observedIdentity(bound protocol.Binding, containers []engine.Container) string {
+	if bound.Key.Kind == protocol.KeyName {
+		return containers[0].ID
+	}
+	return ""
+}
+
+// firstObservationsLocked records each binding that now governs a container
+// for the first time and returns the recreates its enforcement asks for. For a
+// name binding that can be long after it arrived, with no controller reachable.
+func (agent *Agent) firstObservationsLocked() []recreateTarget {
+	var fresh []protocol.Binding
+	for _, bound := range agent.set.Bindings {
+		if _, observed := agent.observed[bound.Binding]; observed && !agent.known[bound.Binding] {
+			agent.known[bound.Binding] = true
+			fresh = append(fresh, bound)
+		}
+	}
+	if len(fresh) == 0 {
+		return nil
+	}
+	agent.saveCacheLocked()
+	var targets []recreateTarget
+	for _, bound := range fresh {
+		if bound.Policy.Contract.Enforcement != policy.EnforcementRecreate {
 			continue
 		}
-		agent.observed[id] = true
-		if _, held := agent.creds.current(id); !held {
-			go agent.creds.retry(ctx, id, agent.creds.invalidate(id))
+		for _, container := range agent.containers {
+			governing, ok := agent.governingLocked(container)
+			if !ok || governing.Binding != bound.Binding {
+				continue
+			}
+			if len(contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign)) == 0 {
+				continue
+			}
+			targets = append(targets, recreateTarget{bound, container})
 		}
+	}
+	return targets
+}
+
+type recreateTarget struct {
+	binding   protocol.Binding
+	container engine.Container
+}
+
+func (agent *Agent) enforce(ctx context.Context, targets []recreateTarget) {
+	for _, target := range targets {
+		agent.startRecreate(ctx, target.binding, target.container)
 	}
 }
 
@@ -647,7 +714,6 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 	agent.set = set
 	agent.setLoaded = true
 	current := map[string]bool{}
-	var fresh []protocol.Binding
 	for _, bound := range set.Bindings {
 		current[bound.Binding] = true
 		old, ok := previous[bound.Binding]
@@ -655,7 +721,7 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 			// The controller issues a credential for the new policy; a
 			// delivery for the old policy must not install its token.
 			generation := agent.creds.invalidate(bound.Binding)
-			if agent.observed[bound.Binding] {
+			if _, observed := agent.observed[bound.Binding]; observed {
 				go agent.creds.retry(ctx, bound.Binding, generation)
 			}
 		}
@@ -675,40 +741,13 @@ func (agent *Agent) applyPolicySet(ctx context.Context, set protocol.PolicySet) 
 		}
 	}
 	agent.applyLocked(ctx)
-	// A binding is fresh when it first governs a container, which for a name
-	// binding can be long after it arrived.
-	for _, bound := range set.Bindings {
-		if agent.observed[bound.Binding] && !agent.known[bound.Binding] {
-			agent.known[bound.Binding] = true
-			fresh = append(fresh, bound)
-		}
-	}
 	agent.saveCacheLocked()
-	var recreate []engine.Container
-	var recreateBindings []protocol.Binding
-	for _, bound := range fresh {
-		if bound.Policy.Contract.Enforcement != policy.EnforcementRecreate {
-			continue
-		}
-		for _, container := range agent.containers {
-			governing, ok := agent.governingLocked(container)
-			if !ok || governing.Binding != bound.Binding {
-				continue
-			}
-			if len(contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign)) == 0 {
-				continue
-			}
-			recreate = append(recreate, container)
-			recreateBindings = append(recreateBindings, bound)
-		}
-	}
+	enforcement := agent.firstObservationsLocked()
 	agent.mu.Unlock()
 	for _, bound := range retired {
 		agent.retire(bound)
 	}
-	for index, container := range recreate {
-		agent.startRecreate(ctx, recreateBindings[index], container)
-	}
+	agent.enforce(ctx, enforcement)
 }
 
 func (agent *Agent) retire(bound protocol.Binding) {

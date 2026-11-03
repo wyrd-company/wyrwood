@@ -194,7 +194,13 @@ func TestOtherKeyKeepsItsTokenUntilTheControllerWithdrawsIt(t *testing.T) {
 		t.Fatal("agent replaced a token it still holds")
 	}
 	engineFake.Destroy(replacement.ID)
-	instance.reconcileContainer(ctx, replacement.ID)
+	engineFake.Add(compose)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if heldValue(instance.creds, bound.Binding) != "token-role-a" {
+		t.Fatal("agent replaced a token when it saw no gap")
+	}
 	instance.applyPolicySet(ctx, preparedSet(openBao.server.URL))
 	if heldValue(instance.creds, bound.Binding) != "" {
 		t.Fatal("withdrawn binding kept its token")
@@ -240,11 +246,104 @@ func TestFirstObservationRecreatesANonConformingContainer(t *testing.T) {
 	}
 	app := runningApp(engineFake)
 	instance.reconcileContainer(ctx, app.ID)
-	instance.applyPolicySet(ctx, set)
 	eventually(t, "the recreate", func() bool {
 		replacement, ok := engineFake.ByName("app")
 		return ok && replacement.ID != app.ID
 	})
+}
+
+// The cache carries the binding, and no controller answers.
+func TestCachedBindingRecreatesAtFirstObservationWithNoController(t *testing.T) {
+	ctx := context.Background()
+	engineFake := enginetest.New()
+	first := newRecreateAgent(t, engineFake)
+	settings := policy.DefaultSettings()
+	settings.Enforcement = policy.EnforcementRecreate
+	bound := preparedBinding(appKey(), settings)
+	first.applyPolicySet(ctx, preparedSet("http://127.0.0.1:1", bound))
+	first.shutdown()
+	second := newRecreateAgentAt(t, engineFake, first.paths)
+	second.loadCache()
+	app := runningApp(engineFake)
+	if err := second.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	eventually(t, "the recreate", func() bool {
+		replacement, ok := engineFake.ByName("app")
+		return ok && replacement.ID != app.ID
+	})
+	data, err := os.ReadFile(second.paths.PolicyCache())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cached policyCache
+	if err := json.Unmarshal(data, &cached); err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Contains(cached.Bindings, bound.Binding) {
+		t.Fatalf("known bindings = %v", cached.Bindings)
+	}
+}
+
+// A remove and create the agent sees as one change still replaces the token.
+func TestReplacementBetweenReconcilesGetsAFreshToken(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	openBao := newFakeOpenBao(t)
+	engineFake := enginetest.New()
+	instance := newRecreateAgent(t, engineFake)
+	var requests atomic.Int32
+	instance.creds.request = func(string) { requests.Add(1) }
+	instance.creds.retryDelay = 5 * time.Millisecond
+	bound := preparedBinding(appKey(), policy.DefaultSettings())
+	instance.applyPolicySet(ctx, preparedSet(openBao.server.URL, bound))
+	app := runningApp(engineFake)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	deliverToken(ctx, t, instance, bound, "role-a")
+	settled := requests.Load()
+
+	engineFake.Destroy(app.ID)
+	runningApp(engineFake)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if heldValue(instance.creds, bound.Binding) != "" {
+		t.Fatal("replacement kept the removed container's token")
+	}
+	eventually(t, "a request for the replacement", func() bool { return requests.Load() > settled })
+	deliverToken(ctx, t, instance, bound, "role-b")
+}
+
+// An agent's own recreate keeps the token, since no one else had the consumer.
+func TestAgentRecreateKeepsANameBindingToken(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	openBao := newFakeOpenBao(t)
+	engineFake := enginetest.New()
+	app := runningApp(engineFake)
+	instance := newRecreateAgent(t, engineFake)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	bound := preparedBinding(appKey(), policy.DefaultSettings())
+	instance.applyPolicySet(ctx, preparedSet(openBao.server.URL, bound))
+	deliverToken(ctx, t, instance, bound, "role-a")
+
+	instance.requestRecreate(ctx, bound.Binding)
+	eventually(t, "the recreate to finish", func() bool {
+		replacement, ok := engineFake.ByName("app")
+		instance.mu.Lock()
+		defer instance.mu.Unlock()
+		return ok && replacement.ID != app.ID && len(instance.recreating) == 0
+	})
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if heldValue(instance.creds, bound.Binding) != "token-role-a" {
+		t.Fatal("the agent's own recreate replaced the token")
+	}
 }
 
 func TestRestartRestoresAPreparedConsumerFromTheCache(t *testing.T) {

@@ -228,11 +228,12 @@ token can remain valid until the agent revokes it or it expires.
 values, and the access group on every reconcile and reports what is missing.
 
 `recreate` makes the agent apply the contract once, when the binding is first
-bound to a container. The agent stops, removes, and creates the container from
-its inspected definition with the mount and environment merged in. Later drift
-is reported, not recreated. The host's agent configuration must also allow
-recreate; otherwise the binding is reported as non-conforming with that
-reason.
+bound to a container. For a `name` binding that can be after the binding
+exists, and the agent then does not need the controller. The agent stops,
+removes, and creates the container from its inspected definition with the mount
+and environment merged in. Later drift is reported, not recreated. The host's
+agent configuration must also allow recreate; otherwise the binding is reported
+as non-conforming with that reason.
 
 ## Agent configuration
 

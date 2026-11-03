@@ -130,6 +130,10 @@ func (agent *Agent) recreate(ctx context.Context, bound protocol.Binding, contai
 		agent.logf("recreate journal not removed")
 	}
 	agent.mu.Lock()
+	// The replacement inherits the token: the binding did not change hands.
+	if _, observed := agent.observed[bound.Binding]; observed && err == nil && bound.Key.Kind == protocol.KeyName {
+		agent.observed[bound.Binding] = newID
+	}
 	delete(agent.recreating, name)
 	delete(agent.pending, name)
 	agent.reportLocked(result)

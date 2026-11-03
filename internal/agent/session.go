@@ -208,7 +208,8 @@ func (agent *Agent) receiveCredential(ctx context.Context, credential protocol.C
 	agent.mu.Lock()
 	defer agent.mu.Unlock()
 	bound, ok := agent.bindingLocked(credential.Binding)
-	if !ok || bound.Assignment != credential.Assignment || !agent.observed[credential.Binding] {
+	_, observed := agent.observed[credential.Binding]
+	if !ok || bound.Assignment != credential.Assignment || !observed {
 		return false
 	}
 	generation := agent.creds.begin(credential.Binding)
