@@ -71,6 +71,8 @@ export interface OperatorKeysData extends Layout {
     { Label: string; Fingerprint: string; FirstSeen: string }[] | null;
   Approved: OperatorKeyRow[] | null;
   Ended: OperatorKeyRow[] | null;
+  GrantAgents: string[] | null;
+  GrantPolicies: string[] | null;
 }
 export interface PolicyChoice {
   Name: string;

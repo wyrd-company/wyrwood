@@ -14,12 +14,7 @@ import {
 } from "@/components/shared";
 import { ago, stamp } from "@/lib/time";
 import type { OperatorKeyRow, OperatorKeysData } from "@/types";
-
-const actions = [
-  ["read", "Read policies and bindings"],
-  ["bind", "Create and remove bindings"],
-  ["policy-write", "Create and change policies"],
-];
+import { GrantChoices } from "./operator-key-grant";
 
 function names(list: string[] | null) {
   if (!list?.length) return <span className="hint">none</span>;
@@ -45,11 +40,15 @@ function PendingKey({
   label,
   firstSeen,
   csrf,
+  agents,
+  policies,
 }: {
   fingerprint: string;
   label: string;
   firstSeen: string;
   csrf: string;
+  agents: string[];
+  policies: string[];
 }) {
   const id = fingerprint.replace(/[^A-Za-z0-9]/g, "");
   return (
@@ -86,34 +85,7 @@ function PendingKey({
             maxLength={64}
           />
         </Field>
-        <Field
-          label="Agents"
-          id={`agents-${id}`}
-          hint="Names separated by commas, or * for all agents."
-        >
-          <Input id={`agents-${id}`} name="agents" type="text" />
-        </Field>
-        <Field
-          label="Policies"
-          id={`policies-${id}`}
-          hint="Names separated by commas, or * for all policies. This key cannot read or touch a binding that holds a policy outside this list, and cannot change a policy that a binding outside its grant holds."
-        >
-          <Input id={`policies-${id}`} name="policies" type="text" />
-        </Field>
-        <fieldset className="flex flex-col gap-1">
-          <legend>Actions</legend>
-          {actions.map(([value, text]) => (
-            <label key={value} className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                name="actions"
-                value={value}
-                defaultChecked={value === "read"}
-              />
-              {text}
-            </label>
-          ))}
-        </fieldset>
+        <GrantChoices id={id} agents={agents} policies={policies} />
         <div className="actions">
           <Button type="submit" className="primary">
             Approve key
@@ -182,6 +154,8 @@ export function OperatorKeys({ data: d }: { data: OperatorKeysData }) {
               label={key.Label}
               firstSeen={key.FirstSeen}
               csrf={d.CSRF}
+              agents={d.GrantAgents ?? []}
+              policies={d.GrantPolicies ?? []}
             />
           ))}
         </section>

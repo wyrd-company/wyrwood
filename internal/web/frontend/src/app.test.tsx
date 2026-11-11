@@ -1401,14 +1401,22 @@ it("sets a grant at operator key approval and asks before revocation", () => {
           LastUsed: "0001-01-01T00:00:00Z",
         },
       ],
+      GrantAgents: ["sample-host"],
+      GrantPolicies: ["sample-policy"],
     },
   });
   const form = expectPost("Approve key", "/operator-keys/approve", {
     fingerprint: "SHA256:sample",
   });
   expect(within(form).getByLabelText("Label")).toHaveValue("sample-label");
-  expect(within(form).getByLabelText("Agents")).toHaveValue("");
-  expect(within(form).getByLabelText("Policies")).toHaveValue("");
+  expect(within(form).getByLabelText("Other agent names")).toHaveValue("");
+  expect(within(form).getByLabelText("Other policy names")).toHaveValue("");
+  expect(
+    within(form).getByRole("checkbox", { name: "sample-host" }),
+  ).not.toBeChecked();
+  expect(
+    within(form).getByRole("checkbox", { name: "sample-policy" }),
+  ).not.toBeChecked();
   expect(
     within(form).getByRole("checkbox", { name: "Read policies and bindings" }),
   ).toBeChecked();

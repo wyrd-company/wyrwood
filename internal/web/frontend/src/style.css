@@ -744,6 +744,29 @@ ul.plain li {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.grant-choices {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 16px 0;
+}
+.grant-summary {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.grant-summary h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.grant-summary ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
 .screen-tabs {
   display: flex;
   flex-wrap: wrap;

@@ -7,8 +7,10 @@
 package web
 
 import (
+	"context"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -22,6 +24,11 @@ type operatorKeysPage struct {
 	PendingKeys []pendingOperatorKey
 	Approved    []operatorKeyRow
 	Ended       []operatorKeyRow
+	// GrantAgents and GrantPolicies are the names the approval form offers as
+	// choices: the approved agents and the stored policies. Both lists are
+	// already shown on the Agents and Policies screens.
+	GrantAgents   []string
+	GrantPolicies []string
 }
 
 type pendingOperatorKey struct {
@@ -69,7 +76,48 @@ func (server *Server) handleOperatorKeys(writer http.ResponseWriter, request *ht
 			page.Ended = append(page.Ended, newOperatorKeyRow(key))
 		}
 	}
+	if len(page.PendingKeys) > 0 {
+		if page.GrantAgents, page.GrantPolicies, err = server.grantChoices(request.Context()); err != nil {
+			http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
+			return
+		}
+	}
 	server.render(writer, request, "operator-keys", page)
+}
+
+// grantChoices returns the approved agent names and the stored policy names.
+func (server *Server) grantChoices(ctx context.Context) ([]string, []string, error) {
+	agents, err := server.controller.Store().Agents(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	policies, err := server.controller.Store().Policies(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	agentNames, policyNames := []string{}, []string{}
+	for _, agent := range agents {
+		if agent.State == store.AgentApproved {
+			agentNames = append(agentNames, agent.Name)
+		}
+	}
+	for _, stored := range policies {
+		policyNames = append(policyNames, stored.Policy.Name)
+	}
+	slices.Sort(agentNames)
+	slices.Sort(policyNames)
+	return agentNames, policyNames, nil
+}
+
+// grantNames reads one grant list from every value posted for a field. The
+// form posts one value per selected name, and one more for names typed in, so
+// each value can hold several names separated by commas or white space.
+func grantNames(values []string) []string {
+	names := []string{}
+	for _, value := range values {
+		names = append(names, grantList(value)...)
+	}
+	return names
 }
 
 // grantList reads one list of names, separated by commas or white space.
@@ -84,8 +132,9 @@ func grantList(value string) []string {
 }
 
 func (server *Server) handleApproveOperatorKey(writer http.ResponseWriter, request *http.Request) {
+	_ = request.ParseForm()
 	grant := operatorclient.Grant{
-		Agents: grantList(request.PostFormValue("agents")), Policies: grantList(request.PostFormValue("policies")),
+		Agents: grantNames(request.PostForm["agents"]), Policies: grantNames(request.PostForm["policies"]),
 		Actions: []operatorclient.Action{},
 	}
 	for _, action := range request.PostForm["actions"] {
