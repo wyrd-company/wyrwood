@@ -1,0 +1,151 @@
+{
+  "maximumEntries": 256,
+  "agents": [
+    {
+      "name": "agent-a",
+      "valid": true
+    },
+    {
+      "name": "a",
+      "valid": true
+    },
+    {
+      "name": "A-1.b-2",
+      "valid": true
+    },
+    {
+      "name": "1host",
+      "valid": true
+    },
+    {
+      "name": "host-",
+      "valid": true
+    },
+    {
+      "name": "-host",
+      "valid": false
+    },
+    {
+      "name": "host..name",
+      "valid": false
+    },
+    {
+      "name": "host.name.",
+      "valid": false
+    },
+    {
+      "name": ".host",
+      "valid": false
+    },
+    {
+      "name": "bad/name",
+      "valid": false
+    },
+    {
+      "name": "under_score",
+      "valid": false
+    },
+    {
+      "name": "space name",
+      "valid": false
+    },
+    {
+      "name": "é",
+      "valid": false
+    },
+    {
+      "name": "",
+      "valid": false
+    },
+    {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": true
+    },
+    {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "valid": false
+    },
+    {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "valid": true
+    },
+    {
+      "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbc",
+      "valid": false
+    },
+    {
+      "name": "host.-sub",
+      "valid": false
+    },
+    {
+      "name": "*x",
+      "valid": false
+    }
+  ],
+  "policies": [
+    {
+      "name": "policy-x",
+      "valid": true
+    },
+    {
+      "name": "x",
+      "valid": true
+    },
+    {
+      "name": "policy-x2",
+      "valid": true
+    },
+    {
+      "name": "Policy",
+      "valid": false
+    },
+    {
+      "name": "policy--x",
+      "valid": false
+    },
+    {
+      "name": "policy-",
+      "valid": false
+    },
+    {
+      "name": "-policy",
+      "valid": false
+    },
+    {
+      "name": "1policy",
+      "valid": false
+    },
+    {
+      "name": "policy_x",
+      "valid": false
+    },
+    {
+      "name": "bad/name",
+      "valid": false
+    },
+    {
+      "name": "é",
+      "valid": false
+    },
+    {
+      "name": "",
+      "valid": false
+    },
+    {
+      "name": "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "valid": true
+    },
+    {
+      "name": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+      "valid": false
+    },
+    {
+      "name": "p-qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq",
+      "valid": true
+    },
+    {
+      "name": "*x",
+      "valid": false
+    }
+  ]
+}

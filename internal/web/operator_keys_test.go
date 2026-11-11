@@ -252,6 +252,8 @@ func TestOperatorKeyApprovalThroughGrantControls(t *testing.T) {
 		{name: "* with a selected agent", agents: []string{"*", "agent-a", ""}, policies: []string{"policy-x", ""}, actions: []string{"read"}, refusal: `the agent list must hold only "*" or only names`},
 		{name: "* typed beside a policy", agents: []string{"agent-a", ""}, policies: []string{"policy-x", "*"}, actions: []string{"read"}, refusal: `the policy list must hold only "*" or only names`},
 		{name: "an invalid name", agents: []string{"agent-a", "bad/name"}, policies: []string{"policy-x", ""}, actions: []string{"read"}, refusal: `agent name "bad/name" is invalid`},
+		{name: "* twice", agents: []string{"agent-a", ""}, policies: []string{"*", "*"}, actions: []string{"read"}, refusal: `the policy list must hold only "*" or only names`},
+		{name: "more entries than allowed", agents: []string{"agent-a", ""}, policies: []string{strings.TrimSuffix(strings.Repeat("policy-x,", 257), ",")}, actions: []string{"read"}, refusal: "the policy list has more than 256 entries"},
 		{name: "an unknown action", agents: []string{"agent-a", ""}, policies: []string{"policy-x", ""}, actions: []string{"read", "admin"}, refusal: `action "admin" is not supported`},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -2,12 +2,17 @@
 // relationships:
 //   verifies: web-interface
 // ---
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   type GrantAction,
   grantActions,
   grantNames,
+  maximumGrantEntries,
   summarizeGrant,
+  validAgentName,
+  validPolicyName,
 } from "./grant-summary";
 
 interface Lists {
@@ -164,21 +169,80 @@ describe("summarizeGrant", () => {
     },
   );
 
+  // Each choice is one the server refuses, with every other part valid. The
+  // lists are as posted, before repeats are removed for display.
   it.each([
-    { agents: ["*", "agent-a"], policies: ["policy-x"], what: "agents" },
-    { agents: ["agent-a"], policies: ["policy-x", "*"], what: "policies" },
-  ])("refuses * with names in the $what list", ({ agents, policies, what }) => {
+    {
+      name: "* with a name in the agent list",
+      agents: ["*", "agent-a"],
+      policies: ["policy-x"],
+      refusal:
+        "Approval is refused: the agent list holds * with other entries. Use * alone, or names alone.",
+    },
+    {
+      name: "* with a name in the policy list",
+      agents: ["agent-a"],
+      policies: ["policy-x", "*"],
+      refusal:
+        "Approval is refused: the policy list holds * with other entries. Use * alone, or names alone.",
+    },
+    {
+      name: "* twice",
+      agents: ["agent-a"],
+      policies: ["*", "*"],
+      refusal:
+        "Approval is refused: the policy list holds * with other entries. Use * alone, or names alone.",
+    },
+    {
+      name: "an invalid policy name",
+      agents: ["agent-a"],
+      policies: ["policy-x", "bad/name"],
+      refusal: "Approval is refused: policy name bad/name is not valid.",
+    },
+    {
+      name: "invalid agent names",
+      agents: ["bad/name", "-dash", "bad/name"],
+      policies: ["policy-x"],
+      refusal:
+        "Approval is refused: agent names bad/name and -dash are not valid.",
+    },
+    {
+      name: "more entries than allowed",
+      agents: ["agent-a"],
+      policies: Array.from({ length: 257 }, () => "policy-x"),
+      refusal:
+        "Approval is refused: the policy list has more than 256 entries.",
+    },
+    {
+      name: "an unknown action",
+      agents: ["agent-a"],
+      policies: ["policy-x"],
+      actions: ["read", "admin"],
+      refusal: "Approval is refused: action admin is not supported.",
+    },
+  ])(
+    "refuses $name and allows no action",
+    ({ agents, policies, actions, refusal }) => {
+      const summary = summarizeGrant({
+        agents,
+        policies,
+        actions: actions ?? [...grantActions],
+      });
+      expect(summary.refusals).toEqual([refusal]);
+      expect(summary.lines.map((line) => [line.allowed, line.text])).toEqual(
+        grantActions.map((action) => [false, denied[action]]),
+      );
+    },
+  );
+
+  it("allows the largest list the server accepts", () => {
     const summary = summarizeGrant({
-      agents,
-      policies,
-      actions: [...grantActions],
+      agents: ["agent-a"],
+      policies: Array.from({ length: 256 }, () => "policy-x"),
+      actions: ["read"],
     });
-    expect(summary.refusals).toEqual([
-      `Approval is refused: the ${what} list holds * and names. Use * alone, or names alone.`,
-    ]);
-    expect(summary.lines.map((line) => [line.allowed, line.text])).toEqual(
-      grantActions.map((action) => [false, denied[action]]),
-    );
+    expect(summary.refusals).toEqual([]);
+    expect(summary.lines[0].allowed).toBe(true);
   });
 
   it("names a repeated name once", () => {
@@ -191,6 +255,34 @@ describe("summarizeGrant", () => {
       "Can create and remove bindings on agent-a that hold no policy other than policy-x.",
     );
   });
+});
+
+// The server writes its answers for these names in this file, and its own test
+// checks that they are still its answers.
+const cases = JSON.parse(
+  readFileSync(
+    resolve(__dirname, "../../../testdata/grant-name-cases.json"),
+    "utf8",
+  ),
+) as {
+  maximumEntries: number;
+  agents: { name: string; valid: boolean }[];
+  policies: { name: string; valid: boolean }[];
+};
+
+describe("name rules agree with the server", () => {
+  it("has the server's entry limit", () => {
+    expect(maximumGrantEntries).toBe(cases.maximumEntries);
+  });
+  it.each(cases.agents)("agent name $name valid=$valid", ({ name, valid }) => {
+    expect(validAgentName(name)).toBe(valid);
+  });
+  it.each(cases.policies)(
+    "policy name $name valid=$valid",
+    ({ name, valid }) => {
+      expect(validPolicyName(name)).toBe(valid);
+    },
+  );
 });
 
 describe("grantNames", () => {
