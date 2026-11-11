@@ -18,7 +18,7 @@ GO_MOD = ROOT / "go.mod"
 TASKFILE = ROOT / "Taskfile.yml"
 WORKFLOWS = ROOT / ".github" / "workflows"
 
-SUPPORTED_GORELEASER = {"v2.17.0": (1, 26, 4), "v2.19.0": (1, 27, 3)}
+SUPPORTED_GORELEASER = {"v2.17.0": (1, 26, 4), "v2.19.0": (1, 27, 3), "v2.20.1": (1, 27, 3)}
 SETUP_GO_ACTION = "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e"
 
 
