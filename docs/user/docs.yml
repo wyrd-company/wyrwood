@@ -134,7 +134,7 @@ products:
         alt: The keys page listing OpenBao Transit keys and SSH-engine roles.
       - src: assets/web-operator-keys.png
         caption: Operator keys, one approved with its grant and one pending.
-        alt: The Operator keys screen listing an approved key with its agents, policies, and actions, above a pending key with a form to set its grant.
+        alt: The Operator keys screen listing an approved key with its agents, policies, and actions, above a pending key with agent, policy, and action choices and a summary of what the key can do.
       - src: assets/web-events.png
         caption: Controller events, newest first.
         alt: The events page listing controller events with the newest first.

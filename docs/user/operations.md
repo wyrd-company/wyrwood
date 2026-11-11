@@ -290,8 +290,8 @@ the grant:
 
 | Grant | What it means |
 | --- | --- |
-| **Agents** | The agents this key can read and bind on. Use `*` for all. |
-| **Policies** | The policies this key can read, bind, and write. Use `*` for all. |
+| **Agents** | The agents this key can read and bind on. Select approved agents, or **All agents** for `*`. Type the names of agents that are not approved yet. |
+| **Policies** | The policies this key can read, bind, and write. Select stored policies, or **All policies** for `*`. Type the names of policies the key will create. |
 | **Read** | List and read policies and bindings inside the grant. |
 | **Bind** | Create and remove bindings inside the grant. |
 | **Policy write** | Create and change policies inside the grant. |
@@ -302,6 +302,11 @@ a policy that a binding outside its grant holds, since the change reaches that
 binding. Together, **Bind** and **Policy write** can reach whatever the
 controller's OpenBao namespace can grant, so give both only to a key you would
 trust with that.
+
+Below the choices, **What this key can do** states for each action whether the
+key can do it, and on which agents and policies. It changes as you choose. Read
+it before you select **Approve key**, and compare it with what the script needs:
+a grant cannot be changed after approval.
 
 ```bash
 wyrwood policy put sample-policy --file policy.hcl

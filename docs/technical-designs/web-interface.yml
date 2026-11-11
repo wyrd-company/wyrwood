@@ -374,6 +374,26 @@ proposed-design:
     answer, no further key is read: the keys already read stay listed, that key
     is named with OpenBao did not answer, and the page says OpenBao did not
     answer.
+  operator-keys-page: >-
+    Shows the controller SSH host-key fingerprint. Pending operator keys appear
+    first with their presented label, fingerprint, and first-seen time, and a
+    form that approves the key with its final label and grant, or rejects it.
+    The form offers each approved agent and each stored policy as a checkbox,
+    and one checkbox per list for all names, which posts `*`. Selecting all
+    names disables the named checkboxes and the typed names, so that the list
+    posts `*` alone. A text field in each list takes names the form does not
+    offer, such as an agent that is not approved yet or a policy that a
+    `policy-write` key will create. The form posts one value for each selected
+    name and one for the typed names. The server reads names separated by
+    commas or white space from every value and validates the grant as the
+    operator interface defines. The page holds agent and policy names only.
+    Below the choices, a summary in a live region states for `read`, `bind`,
+    and `policy-write` whether the key can do it, and on which agents and
+    policies, in the terms of the grant rules. It names each reason the server
+    refuses the choice, states that a grant cannot be changed after approval,
+    and updates on each change. Approved keys list their grant, approver, and
+    last use, with a revoke action that asks for confirmation. Revoked and
+    rejected keys list who decided.
   events-page: >-
     Lists controller and agent events newest first with time, source,
     operation, outcome with categorical error, subject, operator where

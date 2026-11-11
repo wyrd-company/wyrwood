@@ -12,7 +12,8 @@ description: >-
   policy's secrets. A key with `policy-write` can write HCL for any policy name in
   its list, so with `bind` it can reach whatever the controller's OpenBao
   namespace can grant. Mitigation: an operator signed in through OIDC approves
-  each key and sets its grant; a key has its own list and cannot act as an agent;
+  each key and sets its grant, and the approval form states what the grant
+  allows before it is stored; a key has its own list and cannot act as an agent;
   a binding that holds a policy outside the grant is out of reach; each change and
   each refused change records the key's label; and revocation from the web
   interface takes effect at the key's next request.

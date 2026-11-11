@@ -284,14 +284,19 @@ shot web-bind-values-effective
 "$repository/docs/demo/stack.sh" operator-login sample-script
 browse open "$site/operator-keys"
 browse wait --text "Pending operator keys"
-browse find role textbox fill --name "Agents" "$(hostname)"
-browse find role textbox fill --name "Policies" "shared-key"
+browse find role checkbox click --name "$(hostname)" --exact
+browse find role checkbox click --name "shared-key" --exact
 browse find role checkbox click --name "Create and remove bindings"
+browse wait --text "Can create and remove bindings on $(hostname)"
 browse find role button click --name "Approve key"
 browse wait --text "Operator key approved"
+# Choose a grant for the second key, so that the screen shows its summary.
 "$repository/docs/demo/stack.sh" operator-login workspace-tool
 browse reload
 browse wait --text "Pending operator keys"
+browse find role checkbox click --name "$(hostname)" --exact
+browse find role checkbox click --name "All policies, including policies created later"
+browse wait --text "Can read every policy"
 hold 1
 browse eval "window.scrollTo(0, 0)"
 shot web-operator-keys
