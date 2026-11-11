@@ -157,6 +157,9 @@ class WiringTests(unittest.TestCase):
         self.assertNotIn("persist-credentials: true", self.job)
         self.assertIn("persist-credentials: false", self.job)
 
+    def test_ci_job_fetches_tags(self) -> None:
+        self.assertIn("fetch-depth: 0", [line.strip() for line in self.job.splitlines()])
+
 
 if __name__ == "__main__":
     unittest.main()
