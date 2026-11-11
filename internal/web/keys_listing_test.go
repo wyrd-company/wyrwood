@@ -6,10 +6,15 @@
 package web
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
 	"github.com/wyrd-company/wyrwood/internal/web/oidctest"
 )
@@ -110,6 +115,35 @@ func TestKeysPageReportsARefusedRoleList(t *testing.T) {
 	keys, _ := keyListingPages(t, harness)
 	if !strings.Contains(keys, "SSH roles could not be listed: "+permissionDenied+".") || !strings.Contains(keys, ">sample-key<") || strings.Contains(keys, didNotAnswer) {
 		t.Fatalf("keys page with a refused role list:\n%s", keys)
+	}
+}
+
+// TestKeysPageReportsAnUnansweredRoleList puts a proxy in front of OpenBao
+// that drops the connection of each SSH role list, so that only that list
+// gets no answer.
+func TestKeysPageReportsAnUnansweredRoleList(t *testing.T) {
+	harness := startConfiguredHarness(t, time.Hour, func(configuration *config.Controller) {
+		target, err := url.Parse(configuration.OpenBao.Address)
+		if err != nil {
+			t.Fatal(err)
+		}
+		forward := httputil.NewSingleHostReverseProxy(target)
+		proxy := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if strings.HasPrefix(request.URL.Path, "/v1/ssh/roles") {
+				if connection, _, err := writer.(http.Hijacker).Hijack(); err == nil {
+					_ = connection.Close()
+				}
+				return
+			}
+			forward.ServeHTTP(writer, request)
+		}))
+		t.Cleanup(proxy.Close)
+		configuration.OpenBao.Address = proxy.URL
+	})
+	harness.bao.CreateTransitKey(t, "sample-key", "ed25519")
+	keys, _ := keyListingPages(t, harness)
+	if !strings.Contains(keys, didNotAnswer+". The lists below may be incomplete") || !strings.Contains(keys, ">sample-key<") || strings.Contains(keys, "could not be listed") {
+		t.Fatalf("keys page with an unanswered role list:\n%s", keys)
 	}
 }
 
