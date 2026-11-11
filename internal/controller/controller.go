@@ -62,7 +62,7 @@ type OpenBao interface {
 	TransitKeyExists(ctx context.Context, name string) (bool, error)
 	SSHRoleExists(ctx context.Context, name string) (bool, error)
 	ListKVPaths(ctx context.Context, mount, prefix string) ([]string, error)
-	ListTransitKeys(ctx context.Context) ([]openbao.TransitKey, error)
+	ListTransitKeys(ctx context.Context) (openbao.TransitKeyListing, error)
 	CreateTransitKey(ctx context.Context, name, keyType string) error
 	RotateTransitKey(ctx context.Context, name string) error
 	ListSSHRoles(ctx context.Context) ([]openbao.SSHRole, error)

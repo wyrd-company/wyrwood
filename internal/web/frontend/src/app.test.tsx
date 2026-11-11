@@ -921,7 +921,10 @@ it("keeps Transit creation/rotation and SSH role forms with all existing key typ
       ...layout,
       TransitMount: "transit",
       SSHMount: "ssh",
-      Unavailable: true,
+      Problems: [
+        "sample listing problem",
+        "Transit key sample-other could not be read: permission refused.",
+      ],
       Transit: [
         {
           Name: "sample-key",
@@ -941,7 +944,12 @@ it("keeps Transit creation/rotation and SSH role forms with all existing key typ
       ],
     },
   });
-  expect(screen.getByRole("alert")).toHaveTextContent("OpenBao did not answer");
+  expect(
+    screen.getAllByRole("alert").map((alert) => alert.textContent),
+  ).toEqual([
+    "sample listing problem",
+    "Transit key sample-other could not be read: permission refused.",
+  ]);
   expectPost("Rotate", "/keys/transit/rotate", { name: "sample-key" });
   await userEvent.type(screen.getByLabelText("New Transit key"), "sample-new");
   expectPost("Create key", "/keys/transit", {

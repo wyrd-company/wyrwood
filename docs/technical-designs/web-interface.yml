@@ -255,7 +255,11 @@ proposed-design:
     The notice, problem, heading, and actions are above the tabs, with the name
     on a new policy. Its tabs are OpenBao policy (token lifecycle, HCL, warnings),
     SSH identities (Transit keys, SSH-engine roles, listing problems, unpermitted
-    cautions), and Container contract (mount target, environment). A saved
+    cautions), and Container contract (mount target, environment). Transit
+    listing problems use the categories of keys-page: OpenBao did not answer,
+    a refused or failed list with its category, or a named key that cannot be
+    read with its category. The keys that can be read stay offered, and saved
+    selections are retained. A saved
     policy's page adds a Bindings tab, and its name stays read-only in the
     heading. The actions are above the tabs, so that a list's length cannot move
     them. A problem from a refused save selects the tab that owns it, as
@@ -343,7 +347,18 @@ proposed-design:
     version, SSH fingerprint, and the policies that name each, and SSH-engine
     roles under the configured SSH mount with allowed users, certificate
     time-to-live, and the policies that name each. Keys can be created and
-    rotated; roles can be created. No secret value is read or shown.
+    rotated; roles can be created. No secret value is read or shown. A list
+    entry that ends in a slash, such as import/ after a key import, is a
+    directory and not a key, because OpenBao refuses a key name with a slash,
+    so it is not read or shown. When a list is incomplete, the page names why
+    above the lists, from the failure category. OpenBao did not answer shows
+    only when a list request got no answer: the connection failed or the
+    request timed out. A list that OpenBao refuses or answers with an error
+    names that category, such as permission refused, and the other list stays
+    shown. A listed Transit key that cannot be read is named with its category,
+    and every key that can be read stays listed. When OpenBao stops answering
+    during the key reads, no further key is read and the page says OpenBao did
+    not answer.
   events-page: >-
     Lists controller and agent events newest first with time, source,
     operation, outcome with categorical error, subject, operator where

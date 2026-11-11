@@ -10,15 +10,21 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+
+	"github.com/wyrd-company/wyrwood/internal/openbao"
 )
 
 func (server *Server) fillPolicyChoices(ctx context.Context, page *policyPage) {
 	page.KVMounts = server.controller.OpenBao().Mounts().KV
-	keys, err := server.controller.OpenBao().ListTransitKeys(ctx)
-	if err != nil {
-		page.IdentityProblems = append(page.IdentityProblems, "Transit keys could not be listed. Saved selections are retained.")
+	listing, err := server.controller.OpenBao().ListTransitKeys(ctx)
+	switch {
+	case openbao.Unreachable(err):
+		page.IdentityProblems = append(page.IdentityProblems, "OpenBao did not answer, so Transit keys could not be listed. Saved selections are retained.")
+	case err != nil:
+		page.IdentityProblems = append(page.IdentityProblems, "Transit keys could not be listed: "+openBaoProblem(err)+". Saved selections are retained.")
 	}
-	for _, key := range keys {
+	page.IdentityProblems = append(page.IdentityProblems, unreadableTransitKeyProblems(listing, " Saved selections are retained.")...)
+	for _, key := range listing.Keys {
 		page.AvailableTransitKeys = append(page.AvailableTransitKeys, key.Name)
 	}
 	roles, err := server.controller.OpenBao().ListSSHRoles(ctx)

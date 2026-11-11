@@ -52,6 +52,17 @@ func CategoryOf(err error) Category {
 	return CategoryUnavailable
 }
 
+// Unreachable reports whether err is an OpenBao request that got no answer:
+// the connection failed or the request timed out. An answer with an error
+// status, such as a sealed server's 503, is not unreachable.
+func Unreachable(err error) bool {
+	var categorized *Error
+	if !errors.As(err, &categorized) {
+		return false
+	}
+	return categorized.Category == CategoryTimeout || (categorized.Category == CategoryUnavailable && categorized.Status == 0)
+}
+
 func categorize(err error) error {
 	if err == nil {
 		return nil

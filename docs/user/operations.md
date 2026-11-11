@@ -37,6 +37,20 @@ creation, and container binding with screenshots.
 
 ![OpenBao keys page with Transit keys and SSH-engine roles](assets/web-keys.png)
 
+When a list on **OpenBao keys** is incomplete, the page says why above the
+lists:
+
+| Message | Meaning |
+| --- | --- |
+| **OpenBao did not answer.** | The controller could not reach OpenBao, or the request timed out. Agents keep serving containers. |
+| **Transit keys could not be listed: permission refused.** | OpenBao refused the controller's list of the Transit mount. Check the `list` capability on `<transit mount>/keys` in the controller policy. SSH roles have the same message. |
+| **Transit key `name` could not be read: permission refused.** | OpenBao listed the key but refused to read it. The other keys stay listed. Check the `read` capability on `<transit mount>/keys/name`. |
+
+Another category, such as **not found** or **OpenBao answered with an error**,
+can take the place of **permission refused**. Imported Transit keys are listed
+like generated keys. The policy editor's **SSH identities** tab shows the same
+Transit messages, and keeps saved selections.
+
 Open **Account** at the bottom of the sidebar to select **Security** or
 **Sign out**. The account button shows the signed-in operator. Use the arrow
 keys to move between menu items and Escape to close the menu.

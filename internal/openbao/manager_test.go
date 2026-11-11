@@ -11,7 +11,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -148,11 +152,11 @@ func TestTransitAndSSHManagement(t *testing.T) {
 	if err := manager.RotateTransitKey(ctx, "teal-ed"); err != nil {
 		t.Fatal(err)
 	}
-	keys, err := manager.ListTransitKeys(ctx)
-	if err != nil || len(keys) != 2 {
-		t.Fatalf("ListTransitKeys() = %#v, %v", keys, err)
+	listing, err := manager.ListTransitKeys(ctx)
+	if err != nil || len(listing.Keys) != 2 || len(listing.Unreadable) != 0 {
+		t.Fatalf("ListTransitKeys() = %#v, %v", listing, err)
 	}
-	for _, key := range keys {
+	for _, key := range listing.Keys {
 		if key.PublicKey == nil {
 			t.Fatalf("key %s has no public key", key.Name)
 		}
@@ -175,6 +179,112 @@ func TestTransitAndSSHManagement(t *testing.T) {
 	}
 	if exists, err := manager.SSHRoleExists(ctx, "teal-hosts"); err != nil || !exists {
 		t.Fatalf("SSHRoleExists() = %v, %v", exists, err)
+	}
+}
+
+func transitKeyNames(keys []TransitKey) []string {
+	names := make([]string, 0, len(keys))
+	for _, key := range keys {
+		names = append(names, key.Name)
+	}
+	return names
+}
+
+func TestListTransitKeysWithImportedKey(t *testing.T) {
+	ctx := context.Background()
+	server, manager := testManager(t)
+	server.CreateTransitKey(t, "sample-generated", "ed25519")
+	server.ImportTransitKey(t, "sample-imported")
+	listed, err := server.Root.Logical().List("transit/keys")
+	if err != nil || !slices.Contains(listed.Data["keys"].([]any), any("import/")) {
+		t.Fatalf("fixture LIST transit/keys = %#v, %v; want an import/ entry", listed, err)
+	}
+	listing, err := manager.ListTransitKeys(ctx)
+	if err != nil {
+		t.Fatalf("ListTransitKeys() = %#v, %v", listing, err)
+	}
+	if names := transitKeyNames(listing.Keys); !slices.Equal(names, []string{"sample-generated", "sample-imported"}) || len(listing.Unreadable) != 0 {
+		t.Fatalf("ListTransitKeys() keys = %v, unreadable = %#v", names, listing.Unreadable)
+	}
+	for _, key := range listing.Keys {
+		if key.PublicKey == nil || key.PublicKey.Type() != ssh.KeyAlgoED25519 {
+			t.Fatalf("key %s public key = %v", key.Name, key.PublicKey)
+		}
+	}
+}
+
+func TestListTransitKeysReportsAnUnreadableKey(t *testing.T) {
+	ctx := context.Background()
+	server, manager := testManager(t)
+	server.CreateTransitKey(t, "sample-open", "ed25519")
+	server.CreateTransitKey(t, "sample-locked", "ed25519")
+	// The exact path takes precedence over the controller policy's glob.
+	if err := server.Root.Sys().PutPolicy(baotest.ControllerName, baotest.ControllerPolicy+`path "transit/keys/sample-locked" { capabilities = ["deny"] }`); err != nil {
+		t.Fatal(err)
+	}
+	listing, err := manager.ListTransitKeys(ctx)
+	if err != nil {
+		t.Fatalf("ListTransitKeys() = %#v, %v", listing, err)
+	}
+	if names := transitKeyNames(listing.Keys); !slices.Equal(names, []string{"sample-open"}) {
+		t.Fatalf("readable keys = %v", names)
+	}
+	if len(listing.Unreadable) != 1 || listing.Unreadable[0].Name != "sample-locked" || CategoryOf(listing.Unreadable[0].Err) != CategoryDenied {
+		t.Fatalf("unreadable keys = %#v", listing.Unreadable)
+	}
+}
+
+// TestListTransitKeysStopsWhenOpenBaoStopsAnswering serves the list and then
+// drops the connection of the first read, as an OpenBao that went away between
+// the list and the reads.
+func TestListTransitKeysStopsWhenOpenBaoStopsAnswering(t *testing.T) {
+	var secondRead atomic.Bool
+	fake := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/v1/transit/keys" {
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"data":{"keys":["sample-first","sample-second"]}}`))
+			return
+		}
+		if strings.HasSuffix(request.URL.Path, "/sample-second") {
+			secondRead.Store(true)
+		}
+		connection, _, err := writer.(http.Hijacker).Hijack()
+		if err == nil {
+			_ = connection.Close()
+		}
+	}))
+	defer fake.Close()
+	client, err := NewClient(Endpoint{Address: fake.URL, Timeout: 5 * time.Second})
+	if err != nil {
+		t.Fatal(err)
+	}
+	manager := NewManager(client, Mounts{Transit: "transit"}, "role", nil)
+	manager.token = Token{value: "sample-token", TTL: time.Hour, Obtained: time.Now()}
+	listing, err := manager.ListTransitKeys(context.Background())
+	if !Unreachable(err) || len(listing.Keys) != 0 || len(listing.Unreadable) != 0 {
+		t.Fatalf("ListTransitKeys() = %#v, %v; want unreachable", listing, err)
+	}
+	if secondRead.Load() {
+		t.Fatal("ListTransitKeys read another key after OpenBao stopped answering")
+	}
+}
+
+func TestUnreachableOnlyWithoutAnAnswer(t *testing.T) {
+	for _, test := range []struct {
+		err  error
+		want bool
+	}{
+		{&Error{Category: CategoryUnavailable}, true},
+		{&Error{Category: CategoryTimeout}, true},
+		{&Error{Category: CategoryUnavailable, Status: http.StatusServiceUnavailable}, false},
+		{&Error{Category: CategoryDenied, Status: http.StatusForbidden}, false},
+		{&Error{Category: CategoryNotFound, Status: http.StatusNotFound}, false},
+		{errors.New("sample"), false},
+		{nil, false},
+	} {
+		if got := Unreachable(test.err); got != test.want {
+			t.Errorf("Unreachable(%#v) = %v, want %v", test.err, got, test.want)
+		}
 	}
 }
 

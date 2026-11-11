@@ -11,6 +11,10 @@ package baotest
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"crypto/x509"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -60,6 +64,9 @@ type Server struct {
 	// TopLevel is a root token client in the root namespace, outside
 	// Namespace.
 	TopLevel *api.Client
+
+	executable string
+	process    *devServer
 }
 
 // Executable returns the bao executable path or skips the test.
@@ -106,7 +113,7 @@ func Start(t testing.TB) *Server {
 	}
 	root.SetToken(RootToken)
 	root.SetNamespace(Namespace)
-	server := &Server{Address: url, Namespace: Namespace, Root: root, TopLevel: topLevel}
+	server := &Server{Address: url, Namespace: Namespace, Root: root, TopLevel: topLevel, executable: executable, process: process}
 	server.setup(t)
 	return server
 }
@@ -171,6 +178,41 @@ func (server *Server) CreateTransitKey(t testing.TB, name, keyType string) {
 	if _, err := server.Root.Logical().Write("transit/keys/"+name, map[string]any{"type": keyType}); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// ImportTransitKey imports a new ed25519 private key as a Transit key with the
+// root token, through the bao CLI, which wraps the key material with the
+// mount's wrapping key. It returns the imported private key material, base64
+// encoded, so a test can assert that it never leaves OpenBao.
+func (server *Server) ImportTransitKey(t testing.TB, name string) string {
+	t.Helper()
+	_, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(private)
+	if err != nil {
+		t.Fatal(err)
+	}
+	directory := t.TempDir()
+	source := filepath.Join(directory, "key.b64")
+	material := base64.StdEncoding.EncodeToString(der)
+	if err := os.WriteFile(source, []byte(material), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.Command(server.executable, "transit", "import", "transit/keys/"+name, "@"+source, "type=ed25519")
+	// Only these variables reach the CLI, so no ambient token or address is used.
+	command.Env = []string{"HOME=" + directory, "BAO_ADDR=" + server.Address, "BAO_TOKEN=" + RootToken, "BAO_NAMESPACE=" + server.Namespace}
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("bao transit import %s: %v\n%s", name, err, output)
+	}
+	return material
+}
+
+// Stop ends the dev server before the test ends, so a test can observe an
+// OpenBao that does not answer.
+func (server *Server) Stop() {
+	server.process.stop()
 }
 
 // CreateSSHRole creates an SSH-engine user-certificate role with the root token.

@@ -26,6 +26,7 @@ import (
 	"github.com/wyrd-company/wyrwood/internal/controller"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
+	"github.com/wyrd-company/wyrwood/internal/openbao"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 	"github.com/wyrd-company/wyrwood/internal/updates"
@@ -749,7 +750,8 @@ type keysPage struct {
 	SSHMount     string
 	Transit      []transitRow
 	Roles        []roleRow
-	Unavailable  bool
+	// Problems names each reason the lists are incomplete.
+	Problems []string
 }
 
 type transitRow struct {
@@ -783,10 +785,19 @@ func (server *Server) handleKeys(writer http.ResponseWriter, request *http.Reque
 		}
 		return users
 	}
-	keys, keyErr := server.controller.OpenBao().ListTransitKeys(ctx)
+	listing, keyErr := server.controller.OpenBao().ListTransitKeys(ctx)
 	roles, roleErr := server.controller.OpenBao().ListSSHRoles(ctx)
-	page.Unavailable = keyErr != nil || roleErr != nil
-	for _, key := range keys {
+	if openbao.Unreachable(keyErr) || openbao.Unreachable(roleErr) {
+		page.Problems = append(page.Problems, openBaoDidNotAnswer)
+	}
+	if keyErr != nil && !openbao.Unreachable(keyErr) {
+		page.Problems = append(page.Problems, "Transit keys could not be listed: "+openBaoProblem(keyErr)+".")
+	}
+	if roleErr != nil && !openbao.Unreachable(roleErr) {
+		page.Problems = append(page.Problems, "SSH roles could not be listed: "+openBaoProblem(roleErr)+".")
+	}
+	page.Problems = append(page.Problems, unreadableTransitKeyProblems(listing, "")...)
+	for _, key := range listing.Keys {
 		row := transitRow{Name: key.Name, Type: key.Type, Version: key.LatestVersion, UsedBy: usage(policy.Policy.TransitKeys, key.Name)}
 		if key.PublicKey != nil {
 			row.Fingerprint = sshFingerprint(key.PublicKey)

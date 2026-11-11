@@ -248,7 +248,7 @@ export interface PolicyData extends Layout {
 export interface KeysData extends Layout {
   TransitMount: string;
   SSHMount: string;
-  Unavailable: boolean;
+  Problems: string[] | null;
   Transit:
     | {
         Name: string;

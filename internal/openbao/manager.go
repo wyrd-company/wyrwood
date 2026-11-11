@@ -388,25 +388,53 @@ func validKVDirectory(prefix string) bool {
 	return true
 }
 
-// ListTransitKeys lists keys under the managed Transit mount.
-func (manager *Manager) ListTransitKeys(ctx context.Context) ([]TransitKey, error) {
+// TransitKeyListing is the content of the managed Transit mount. Keys holds
+// every listed key that could be read. Unreadable names each listed key whose
+// read failed, so one unreadable key does not hide the others.
+type TransitKeyListing struct {
+	Keys       []TransitKey
+	Unreadable []UnreadableTransitKey
+}
+
+// UnreadableTransitKey is a listed Transit key whose read failed. Err is a
+// categorized *Error and carries no upstream text.
+type UnreadableTransitKey struct {
+	Name string
+	Err  error
+}
+
+// ListTransitKeys lists and reads the keys under the managed Transit mount.
+// The error is set when the list fails or when OpenBao stops answering during
+// the reads; any other failed read is reported in Unreadable.
+func (manager *Manager) ListTransitKeys(ctx context.Context) (TransitKeyListing, error) {
 	client, err := manager.authorized(ctx)
 	if err != nil {
-		return nil, err
+		return TransitKeyListing{}, err
 	}
 	names, err := listNames(ctx, client, manager.mounts.Transit+"/keys")
 	if err != nil {
-		return nil, err
+		return TransitKeyListing{}, err
 	}
-	keys := make([]TransitKey, 0, len(names))
+	listing := TransitKeyListing{Keys: make([]TransitKey, 0, len(names))}
 	for _, name := range names {
-		key, err := ReadTransitKey(ctx, client, manager.mounts.Transit, name)
-		if err != nil {
-			return nil, err
+		// The list also returns directory entries, such as "import/" after a
+		// key import. OpenBao refuses a key name that holds a slash, so such an
+		// entry is never a key.
+		if strings.HasSuffix(name, "/") {
+			continue
 		}
-		keys = append(keys, key)
+		key, err := ReadTransitKey(ctx, client, manager.mounts.Transit, name)
+		if Unreachable(err) {
+			// Each further read would wait for the same OpenBao.
+			return TransitKeyListing{}, err
+		}
+		if err != nil {
+			listing.Unreadable = append(listing.Unreadable, UnreadableTransitKey{Name: name, Err: err})
+			continue
+		}
+		listing.Keys = append(listing.Keys, key)
 	}
-	return keys, nil
+	return listing, nil
 }
 
 // TransitKeyExists reports whether a named Transit key exists.

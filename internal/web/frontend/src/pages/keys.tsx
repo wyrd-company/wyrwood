@@ -17,12 +17,11 @@ export function Keys({ data: d }: { data: KeysData }) {
   return (
     <main>
       <Notice text={d.Notice} />
-      {d.Unavailable && (
-        <p className="caution" role="alert">
-          OpenBao did not answer. The lists below may be incomplete; agents keep
-          serving containers.
+      {d.Problems?.map((problem) => (
+        <p className="caution" role="alert" key={problem}>
+          {problem}
         </p>
-      )}
+      ))}
       <section className="flex flex-col gap-3" aria-labelledby="h-tr">
         <div className="section-head">
           <div>
