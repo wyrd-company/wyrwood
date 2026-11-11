@@ -115,6 +115,16 @@ are missing. CI installs OpenBao and pulls the test image. For local runs,
 set `WYRWOOD_BAO` to a `bao` executable and `WYRWOOD_TEST_IMAGE` to a local
 container image. `task test` permits prerequisite skips for development.
 
+Pull requests and pushes to `main` also run the docs publisher check, which
+`task docs:publisher` runs locally. It checks
+`docs/user/docs.yml` with the `wyrd.foo` publisher at the commit that
+`.github/workflows/publish-docs.yml` pins, through the publisher's `validate`
+command in offline mode. A schema error, such as more than six product
+highlights, fails the check. A release tag or GitHub Release that does not
+exist yet is a warning, so release preparation passes. The check needs no
+token or secret. It needs network access, Node.js 26, and Corepack. When
+Renovate updates the publisher pin, the check moves with it.
+
 The [screenshot maintenance guide](docs/demo/README.md) describes `task
 docs:screenshots`, the real demo stack, and the freshness check run by
 `task docs:check`. Refresh the screenshots when changing a documented UI flow.

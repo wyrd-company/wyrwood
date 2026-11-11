@@ -168,6 +168,18 @@ tasks:
       - rumdl check .
       - ryl check . --markdown
 
+  docs:publisher:
+    desc: >-
+      Check docs/user/docs.yml with the wyrd.foo publisher pinned in
+      publish-docs.yml (needs network, Node.js, and Corepack)
+    cmds:
+      - python3 scripts/check-docs-publisher.py
+
+  test:docs-publisher:
+    desc: Test the docs.yml publisher check
+    cmds:
+      - python3 -m unittest scripts/check-docs-publisher_test.py
+
   build:
     desc: Build the Wyrwood executable
     deps: [ frontend:build ]
@@ -245,6 +257,7 @@ tasks:
       - release:check
       - scripts:check
       - task: '{{default "test" .TEST_TASK}}'
+      - test:docs-publisher
       - test:release-manifest
       - test:ci-runner
       - vet

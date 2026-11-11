@@ -77,6 +77,28 @@ jobs:
       - name: Validate repository
         run: task ci
 
+  docs-publisher:
+    name: Docs publisher check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "26"
+
+      - name: Install Corepack
+        run: npm install --global corepack
+
+      # The same command as `task docs:publisher`. It reads the publisher pin
+      # from publish-docs.yml and needs no token, secret, or release tag.
+      - name: Check docs.yml with the pinned publisher
+        run: python3 scripts/check-docs-publisher.py
+
   image:
     name: Controller image
     runs-on: ubuntu-latest
