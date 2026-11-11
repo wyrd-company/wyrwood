@@ -359,14 +359,20 @@ func TestAgentBindsServesAndRetires(t *testing.T) {
 		_, err := os.Stat(socket)
 		return os.IsNotExist(err)
 	})
-	var history Events
-	if err := Query(ctx, paths, ControlRequest{Operation: "events", Limit: 1000}, &history); err != nil {
-		t.Fatal(err)
-	}
-	seen := map[events.Operation]bool{}
-	for _, record := range history.Events {
-		seen[record.Operation] = true
-	}
+	// The agent records binding-retired after it revokes the token, so the
+	// event can follow the socket removal.
+	var seen map[events.Operation]bool
+	eventually(t, "binding-retired event", func() bool {
+		var history Events
+		if err := Query(ctx, paths, ControlRequest{Operation: "events", Limit: 1000}, &history); err != nil {
+			t.Fatal(err)
+		}
+		seen = map[events.Operation]bool{}
+		for _, record := range history.Events {
+			seen[record.Operation] = true
+		}
+		return seen[events.OperationBindingRetired]
+	})
 	for _, operation := range []events.Operation{events.OperationContainerObserved, events.OperationBindingReceived,
 		events.OperationLogin, events.OperationContractChecked, events.OperationContainerGone, events.OperationRevoke, events.OperationBindingRetired} {
 		if !seen[operation] {
