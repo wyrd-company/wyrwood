@@ -257,9 +257,10 @@ proposed-design:
     SSH identities (Transit keys, SSH-engine roles, listing problems, unpermitted
     cautions), and Container contract (mount target, environment). Transit
     listing problems use the categories of keys-page: OpenBao did not answer,
-    a refused or failed list with its category, or a named key that cannot be
-    read with its category. The keys that can be read stay offered, and saved
-    selections are retained. A saved
+    so the Transit key list may be incomplete; a refused or failed list with
+    its category; or a named key that cannot be read with its category. The
+    keys that were read stay offered, and saved selections are retained. A
+    saved
     policy's page adds a Bindings tab, and its name stays read-only in the
     heading. The actions are above the tabs, so that a list's length cannot move
     them. A problem from a refused save selects the tab that owns it, as
@@ -356,9 +357,10 @@ proposed-design:
     request timed out. A list that OpenBao refuses or answers with an error
     names that category, such as permission refused, and the other list stays
     shown. A listed Transit key that cannot be read is named with its category,
-    and every key that can be read stays listed. When OpenBao stops answering
-    during the key reads, no further key is read and the page says OpenBao did
-    not answer.
+    and every key that can be read stays listed. When a key read gets no
+    answer, no further key is read: the keys already read stay listed, that key
+    is named with OpenBao did not answer, and the page says OpenBao did not
+    answer.
   events-page: >-
     Lists controller and agent events newest first with time, source,
     operation, outcome with categorical error, subject, operator where

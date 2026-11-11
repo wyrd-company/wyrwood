@@ -404,8 +404,9 @@ type UnreadableTransitKey struct {
 }
 
 // ListTransitKeys lists and reads the keys under the managed Transit mount.
-// The error is set when the list fails or when OpenBao stops answering during
-// the reads; any other failed read is reported in Unreadable.
+// A failed read is reported in Unreadable. The error is set when the list
+// fails, or when a read gets no answer: the listing then holds what was read
+// before, that key is reported in Unreadable, and no further key is read.
 func (manager *Manager) ListTransitKeys(ctx context.Context) (TransitKeyListing, error) {
 	client, err := manager.authorized(ctx)
 	if err != nil {
@@ -424,12 +425,12 @@ func (manager *Manager) ListTransitKeys(ctx context.Context) (TransitKeyListing,
 			continue
 		}
 		key, err := ReadTransitKey(ctx, client, manager.mounts.Transit, name)
-		if Unreachable(err) {
-			// Each further read would wait for the same OpenBao.
-			return TransitKeyListing{}, err
-		}
 		if err != nil {
 			listing.Unreadable = append(listing.Unreadable, UnreadableTransitKey{Name: name, Err: err})
+			if Unreachable(err) {
+				// Each further read would wait for the same OpenBao.
+				return listing, err
+			}
 			continue
 		}
 		listing.Keys = append(listing.Keys, key)

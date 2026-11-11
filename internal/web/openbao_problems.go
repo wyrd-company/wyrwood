@@ -12,9 +12,12 @@ import "github.com/wyrd-company/wyrwood/internal/openbao"
 // answer to a list.
 const openBaoDidNotAnswer = "OpenBao did not answer. The lists below may be incomplete; agents keep serving containers."
 
-// openBaoProblem names the category of an OpenBao failure that got an answer,
-// for an operator message. It carries no upstream text.
+// openBaoProblem names the category of an OpenBao failure for an operator
+// message. It carries no upstream text.
 func openBaoProblem(err error) string {
+	if openbao.Unreachable(err) {
+		return "OpenBao did not answer"
+	}
 	switch openbao.CategoryOf(err) {
 	case openbao.CategoryDenied:
 		return "permission refused"

@@ -9,6 +9,9 @@ package openbao
 
 import (
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net/http"
@@ -234,19 +237,28 @@ func TestListTransitKeysReportsAnUnreadableKey(t *testing.T) {
 	}
 }
 
-// TestListTransitKeysStopsWhenOpenBaoStopsAnswering serves the list and then
-// drops the connection of the first read, as an OpenBao that went away between
-// the list and the reads.
+// TestListTransitKeysStopsWhenOpenBaoStopsAnswering serves the list and one
+// key, and then drops the connection of the next read, as an OpenBao that went
+// away during the reads.
 func TestListTransitKeysStopsWhenOpenBaoStopsAnswering(t *testing.T) {
-	var secondRead atomic.Bool
+	public, _, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstKey := fmt.Sprintf(`{"data":{"type":"ed25519","latest_version":1,"keys":{"1":{"public_key":%q}}}}`, base64.StdEncoding.EncodeToString(public))
+	var thirdRead atomic.Bool
 	fake := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/v1/transit/keys" {
+		switch request.URL.Path {
+		case "/v1/transit/keys", "/v1/transit/keys/":
 			writer.Header().Set("Content-Type", "application/json")
-			_, _ = writer.Write([]byte(`{"data":{"keys":["sample-first","sample-second"]}}`))
+			_, _ = writer.Write([]byte(`{"data":{"keys":["sample-first","sample-second","sample-third"]}}`))
 			return
-		}
-		if strings.HasSuffix(request.URL.Path, "/sample-second") {
-			secondRead.Store(true)
+		case "/v1/transit/keys/sample-first":
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(firstKey))
+			return
+		case "/v1/transit/keys/sample-third":
+			thirdRead.Store(true)
 		}
 		connection, _, err := writer.(http.Hijacker).Hijack()
 		if err == nil {
@@ -261,10 +273,16 @@ func TestListTransitKeysStopsWhenOpenBaoStopsAnswering(t *testing.T) {
 	manager := NewManager(client, Mounts{Transit: "transit"}, "role", nil)
 	manager.token = Token{value: "sample-token", TTL: time.Hour, Obtained: time.Now()}
 	listing, err := manager.ListTransitKeys(context.Background())
-	if !Unreachable(err) || len(listing.Keys) != 0 || len(listing.Unreadable) != 0 {
-		t.Fatalf("ListTransitKeys() = %#v, %v; want unreachable", listing, err)
+	if !Unreachable(err) {
+		t.Fatalf("ListTransitKeys() error = %v; want unreachable", err)
 	}
-	if secondRead.Load() {
+	if names := transitKeyNames(listing.Keys); !slices.Equal(names, []string{"sample-first"}) || listing.Keys[0].PublicKey == nil {
+		t.Fatalf("keys read before OpenBao stopped answering = %#v", listing.Keys)
+	}
+	if len(listing.Unreadable) != 1 || listing.Unreadable[0].Name != "sample-second" || !Unreachable(listing.Unreadable[0].Err) {
+		t.Fatalf("unreadable keys = %#v; want sample-second unreachable", listing.Unreadable)
+	}
+	if thirdRead.Load() {
 		t.Fatal("ListTransitKeys read another key after OpenBao stopped answering")
 	}
 }

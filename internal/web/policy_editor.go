@@ -19,7 +19,7 @@ func (server *Server) fillPolicyChoices(ctx context.Context, page *policyPage) {
 	listing, err := server.controller.OpenBao().ListTransitKeys(ctx)
 	switch {
 	case openbao.Unreachable(err):
-		page.IdentityProblems = append(page.IdentityProblems, "OpenBao did not answer, so Transit keys could not be listed. Saved selections are retained.")
+		page.IdentityProblems = append(page.IdentityProblems, "OpenBao did not answer, so the Transit key list may be incomplete. Saved selections are retained.")
 	case err != nil:
 		page.IdentityProblems = append(page.IdentityProblems, "Transit keys could not be listed: "+openBaoProblem(err)+". Saved selections are retained.")
 	}

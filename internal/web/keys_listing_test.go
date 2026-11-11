@@ -118,18 +118,19 @@ func TestKeysPageReportsARefusedRoleList(t *testing.T) {
 	}
 }
 
-// TestKeysPageReportsAnUnansweredRoleList puts a proxy in front of OpenBao
-// that drops the connection of each SSH role list, so that only that list
-// gets no answer.
-func TestKeysPageReportsAnUnansweredRoleList(t *testing.T) {
-	harness := startConfiguredHarness(t, time.Hour, func(configuration *config.Controller) {
+// startHarnessDroppingOpenBao starts a harness whose controller reaches
+// OpenBao through a proxy that drops the connection of each request whose path
+// starts with prefix, so that only those requests get no answer.
+func startHarnessDroppingOpenBao(t *testing.T, prefix string) *harness {
+	t.Helper()
+	return startConfiguredHarness(t, time.Hour, func(configuration *config.Controller) {
 		target, err := url.Parse(configuration.OpenBao.Address)
 		if err != nil {
 			t.Fatal(err)
 		}
 		forward := httputil.NewSingleHostReverseProxy(target)
 		proxy := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-			if strings.HasPrefix(request.URL.Path, "/v1/ssh/roles") {
+			if strings.HasPrefix(request.URL.Path, prefix) {
 				if connection, _, err := writer.(http.Hijacker).Hijack(); err == nil {
 					_ = connection.Close()
 				}
@@ -140,10 +141,32 @@ func TestKeysPageReportsAnUnansweredRoleList(t *testing.T) {
 		t.Cleanup(proxy.Close)
 		configuration.OpenBao.Address = proxy.URL
 	})
+}
+
+func TestKeysPageReportsAnUnansweredRoleList(t *testing.T) {
+	harness := startHarnessDroppingOpenBao(t, "/v1/ssh/roles")
 	harness.bao.CreateTransitKey(t, "sample-key", "ed25519")
 	keys, _ := keyListingPages(t, harness)
 	if !strings.Contains(keys, didNotAnswer+". The lists below may be incomplete") || !strings.Contains(keys, ">sample-key<") || strings.Contains(keys, "could not be listed") {
 		t.Fatalf("keys page with an unanswered role list:\n%s", keys)
+	}
+}
+
+// TestKeysPagesKeepKeysReadBeforeAnUnansweredRead reads one key and then gets
+// no answer for the next, as an OpenBao that goes away during the reads.
+func TestKeysPagesKeepKeysReadBeforeAnUnansweredRead(t *testing.T) {
+	harness := startHarnessDroppingOpenBao(t, "/v1/transit/keys/sample-later")
+	harness.bao.CreateTransitKey(t, "sample-earlier", "ed25519")
+	harness.bao.CreateTransitKey(t, "sample-later", "ed25519")
+	keys, editor := keyListingPages(t, harness)
+	problem := "Transit key sample-later could not be read: " + didNotAnswer + "."
+	if !strings.Contains(keys, ">sample-earlier<") || strings.Contains(keys, ">sample-later<") ||
+		!strings.Contains(keys, didNotAnswer+". The lists below may be incomplete") || !strings.Contains(keys, problem) {
+		t.Fatalf("keys page after an unanswered read:\n%s", keys)
+	}
+	if !strings.Contains(editor, "sample-earlier") || !strings.Contains(editor, problem+retainedSuffix) ||
+		!strings.Contains(editor, didNotAnswer+", so the Transit key list may be incomplete."+retainedSuffix) {
+		t.Fatalf("policy editor after an unanswered read:\n%s", editor)
 	}
 }
 
@@ -155,7 +178,7 @@ func TestKeysPagesReportAnOpenBaoThatDoesNotAnswer(t *testing.T) {
 	if !strings.Contains(keys, didNotAnswer+". The lists below may be incomplete") {
 		t.Fatalf("keys page without OpenBao:\n%s", keys)
 	}
-	if !strings.Contains(editor, didNotAnswer+", so Transit keys could not be listed."+retainedSuffix) {
+	if !strings.Contains(editor, didNotAnswer+", so the Transit key list may be incomplete."+retainedSuffix) {
 		t.Fatalf("policy editor without OpenBao:\n%s", editor)
 	}
 	for page, body := range map[string]string{"keys page": keys, "policy editor": editor} {

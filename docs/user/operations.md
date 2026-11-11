@@ -46,8 +46,10 @@ lists:
 | **Transit keys could not be listed: permission refused.** | OpenBao refused the controller's list of the Transit mount. Check the `list` capability on `<transit mount>/keys` in the controller policy. SSH roles have the same message. |
 | **Transit key `name` could not be read: permission refused.** | OpenBao listed the key but refused to read it. The other keys stay listed. Check the `read` capability on `<transit mount>/keys/name`. |
 
-Another category, such as **not found** or **OpenBao answered with an error**,
-can take the place of **permission refused**. Imported Transit keys are listed
+Another category, such as **OpenBao did not answer**, **not found**, or
+**OpenBao answered with an error**, can take the place of **permission
+refused**. When a key read gets no answer, the keys read before it stay listed
+and no further key is read. Imported Transit keys are listed
 like generated keys. The policy editor's **SSH identities** tab shows the same
 Transit messages, and keeps saved selections.
 
