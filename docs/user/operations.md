@@ -95,6 +95,9 @@ finishes. The controller retries while the work is pending, with no action from
 you and without a restart. If OpenBao refuses the new policy before the rename
 is recorded, the policy keeps its name.
 
+If you submit the current name, nothing changes. The policy page opens and says
+that the name did not change.
+
 A page opened before a save or an earlier rename cannot rename the policy:
 reload it and try again.
 

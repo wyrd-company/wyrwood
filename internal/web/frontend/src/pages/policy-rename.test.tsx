@@ -4,7 +4,8 @@
 // ---
 import { render, screen, within } from "@testing-library/react";
 import { expect, test } from "vitest";
-import type { BindingRow, PolicyRenameData } from "@/types";
+import type { BindingRow, PolicyData, PolicyRenameData } from "@/types";
+import { PolicyEditor } from "./policy-editor";
 import { PolicyRename } from "./policy-rename";
 
 const page: PolicyRenameData = {
@@ -99,4 +100,48 @@ test("keeps the reason and what the operator typed", () => {
   );
   expect(screen.getByRole("alert")).toHaveTextContent("already in use");
   expect(screen.getByLabelText("New name")).toHaveValue("other");
+});
+
+const editor: PolicyData = {
+  AgentTokenRenewal: true,
+  Title: "Policy editor",
+  Current: "policies",
+  CSRF: "token",
+  Operator: "operator@example.com",
+  Pending: 0,
+  OpenBaoOK: true,
+  OpenBaoURL: "",
+  Controller: "controller.example.com",
+  Notice: "Name not changed. The name you entered is the current name.",
+  Problem: "",
+  New: false,
+  Name: "sample",
+  Revision: 3,
+  BindingRows: [],
+  Bindings: 0,
+  Agents: 0,
+  HCL: 'path "sample-data/*" { capabilities = ["read"] }',
+  Warnings: [],
+  KVMounts: [],
+  AvailableTransitKeys: [],
+  AvailableCARoles: [],
+  IdentityProblems: [],
+  TransitKeys: "",
+  CARoles: "",
+  NotForwardableTransitKeys: "",
+  NotForwardableCARoles: "",
+  MountTarget: "/run/sample",
+  Env: "",
+  Unpermitted: [],
+  PolicyPath: "",
+};
+
+test("announces that a rename to the current name kept the name", () => {
+  render(<PolicyEditor data={editor} />);
+  const notice = screen.getByText(
+    "Name not changed. The name you entered is the current name.",
+  );
+  expect(notice).toBeVisible();
+  expect(notice).toHaveAttribute("role", "status");
+  expect(screen.queryByRole("alert")).toBeNull();
 });

@@ -300,8 +300,10 @@ proposed-design:
     also answers a replay. A successful rename opens the policy under its new name
     with a notice. A rename that committed with its transition pending opens the same
     page with a notice that the controller is finishing it. A rename to the same name
-    returns to the policy. Both routes require the operator session, and POST requires
-    the anti-forgery token.
+    is not a refusal: it returns to the policy with a notice, in the status region
+    of every notice, that the name did not change. It records no revision or event,
+    writes nothing to OpenBao, and issues no credential. Both routes require the
+    operator session, and POST requires the anti-forgery token.
     Simple path/capability HCL has graphical path rows and capability checkboxes.
     Graphical edits replace only the chosen source span. Unsupported constructs
     fall back to the complete raw HCL text; switching views alone does not

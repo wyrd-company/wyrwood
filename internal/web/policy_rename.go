@@ -77,7 +77,7 @@ func (server *Server) handleRenamePolicy(writer http.ResponseWriter, request *ht
 	renamed, err := server.controller.RenamePolicy(ctx, controller.PolicyRename{Name: name, NewName: newName, Revision: revision, Generation: generation}, operatorSubject(request))
 	switch {
 	case err == nil && newName == name:
-		http.Redirect(writer, request, policyPath(name), http.StatusSeeOther)
+		http.Redirect(writer, request, policyPath(name)+"&notice=name-unchanged", http.StatusSeeOther)
 		return
 	case err == nil:
 		http.Redirect(writer, request, policyPath(renamed.Name)+"&notice=policy-renamed", http.StatusSeeOther)

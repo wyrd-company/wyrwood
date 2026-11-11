@@ -101,6 +101,7 @@ var notices = map[string]string{
 	"unbound":           "Binding removed, its AppRole deleted, and the container's token revoked.",
 	"policy-deleted":    "Policy deleted, and its OpenBao policy removed.",
 	"policy-renamed":    "Policy renamed. Each binding that selects it gets a fresh credential.",
+	"name-unchanged":    "Name not changed. The name you entered is the current name.",
 	"rename-pending":    "Policy renamed. A binding transition or the removal of the old OpenBao policy is pending, and the controller retries until OpenBao answers.",
 	"unbound-token-live": "Binding removed and its AppRole deleted, but the container's token could not be revoked: " +
 		"it stays valid until the agent revokes it or it expires.",

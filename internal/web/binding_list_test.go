@@ -19,6 +19,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/policy"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
@@ -49,9 +50,15 @@ func composeKey(value string) protocol.Key {
 	return protocol.Key{Kind: protocol.KeyCompose, Value: value}
 }
 
-func newListFixture(t *testing.T) listFixture {
+// newListFixture starts the harness, after configure adjusts the controller's
+// configuration when one is given.
+func newListFixture(t *testing.T, configure ...func(*config.Controller)) listFixture {
 	t.Helper()
-	h := startHarness(t, time.Hour)
+	var adjust func(*config.Controller)
+	if len(configure) > 0 {
+		adjust = configure[0]
+	}
+	h := startConfiguredHarness(t, time.Hour, adjust)
 	client := browser(t)
 	h.signIn(t, client, operator, oidctest.TamperNone)
 	fixture := listFixture{harness: h, client: client, ctx: context.Background(), now: time.Now().UTC().Truncate(time.Second)}

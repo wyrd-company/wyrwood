@@ -9,11 +9,17 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
 	"net/url"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
+	"github.com/wyrd-company/wyrwood/internal/config"
 	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/openbao/baotest"
@@ -200,21 +206,94 @@ func TestPolicyRenamePostMovesAPolicyAndItsBindings(t *testing.T) {
 	}
 }
 
-func TestPolicyRenameToTheSameNameRedirectsAndChangesNothing(t *testing.T) {
-	fixture := newListFixture(t)
-	saved := fixture.published(t, freePolicy)
-	done := fixture.renameSaved(t, saved, freePolicy)
-	if done.status != http.StatusSeeOther || done.location != policyPath(freePolicy) {
-		t.Fatalf("rename = %d %q", done.status, done.location)
-	}
-	stored, err := fixture.harness.controller.Store().Policy(fixture.ctx, freePolicy)
-	if err != nil || stored.Policy.Revision != saved.Revision {
-		t.Fatalf("stored = %#v, %v", stored, err)
-	}
-	for _, event := range fixture.harness.controller.Events().Recent(1000) {
-		if event.Operation == events.OperationPolicyRenamed {
-			t.Fatalf("recorded %#v", event)
+// openBaoWrites records each request that can change OpenBao state, at a
+// proxy between the controller and its OpenBao server.
+type openBaoWrites struct {
+	mu       sync.Mutex
+	requests []string
+}
+
+// proxy points the controller at a recording proxy in front of its OpenBao server.
+func (writes *openBaoWrites) proxy(t *testing.T) func(*config.Controller) {
+	return func(configuration *config.Controller) {
+		target, err := url.Parse(configuration.OpenBao.Address)
+		if err != nil {
+			t.Fatal(err)
 		}
+		forward := httputil.NewSingleHostReverseProxy(target)
+		server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+			if request.Method != http.MethodGet && request.Method != http.MethodHead && request.Method != "LIST" {
+				writes.mu.Lock()
+				writes.requests = append(writes.requests, request.Method+" "+request.URL.Path)
+				writes.mu.Unlock()
+			}
+			forward.ServeHTTP(writer, request)
+		}))
+		t.Cleanup(server.Close)
+		configuration.OpenBao.Address = server.URL
+	}
+}
+
+func (writes *openBaoWrites) since(mark int) []string {
+	writes.mu.Lock()
+	defer writes.mu.Unlock()
+	return slices.Clone(writes.requests[mark:])
+}
+
+func (writes *openBaoWrites) mark() int {
+	writes.mu.Lock()
+	defer writes.mu.Unlock()
+	return len(writes.requests)
+}
+
+// A rename to the current name is not a refusal: it returns to the policy with
+// a notice, and records no revision or event, writes nothing to OpenBao, and
+// makes no binding due for a fresh credential.
+func TestPolicyRenameToTheSameNameSaysSoAndChangesNothing(t *testing.T) {
+	writes := &openBaoWrites{}
+	fixture := newListFixture(t, writes.proxy(t))
+	saved, bindings := fixture.bound(t, "scratch-bound")
+	data := fixture.harness.controller.Store()
+	before, err := data.Policy(fixture.ctx, saved.Name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	acl := fixture.acl(t, saved.OpenBaoPolicyName())
+	if acl == "" || len(writes.since(0)) == 0 {
+		t.Fatalf("the proxy saw no write while the policy was published: %v", writes.since(0))
+	}
+	recorded := fixture.harness.controller.Events().Recent(1000)
+	token := fixture.deleteToken(t)
+	mark := writes.mark()
+	response, err := noRedirects(fixture.client).PostForm(fixture.harness.site.URL+policyRenamePath+url.QueryEscape(saved.Name), url.Values{
+		"csrf": {token}, "new-name": {saved.Name}, "revision": {strconv.Itoa(saved.Revision)}, "generation": {strconv.Itoa(saved.Generation)},
+	})
+	done := readRename(t, response, err)
+	if done.status != http.StatusSeeOther || done.location != policyPath(saved.Name)+"&notice=name-unchanged" {
+		t.Fatalf("rename = %d %q %s", done.status, done.location, done.raw)
+	}
+	if written := writes.since(mark); len(written) != 0 {
+		t.Fatalf("OpenBao writes = %v", written)
+	}
+	after, err := data.Policy(fixture.ctx, saved.Name)
+	if err != nil || !reflect.DeepEqual(after, before) {
+		t.Fatalf("revision: stored = %#v, %v, want %#v", after, err, before)
+	}
+	if now := fixture.harness.controller.Events().Recent(1000); !reflect.DeepEqual(now, recorded) {
+		t.Fatalf("events: %d before, %d after: %#v", len(recorded), len(now), now)
+	}
+	for _, binding := range bindings {
+		current, err := data.Binding(fixture.ctx, binding.ID)
+		if err != nil || current.Revision != binding.Revision || current.Applied != binding.Applied || current.Assignment() != binding.Assignment() {
+			t.Fatalf("credential: binding = %#v, %v, want %#v", current, err, binding)
+		}
+	}
+	if fixture.acl(t, saved.OpenBaoPolicyName()) != acl {
+		t.Fatal("the OpenBao policy changed")
+	}
+	editor := loadPage[policyPage](t, fixture, done.location, "policy")
+	if editor.Name != saved.Name || editor.Notice != "Name not changed. The name you entered is the current name." {
+		t.Fatalf("editor = %q %q", editor.Name, editor.Notice)
 	}
 }
 
