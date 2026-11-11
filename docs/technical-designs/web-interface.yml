@@ -60,10 +60,21 @@ proposed-design:
     `https://github.com/wyrd-company/wyrwood/issues/new`. It opens a new tab
     with noopener noreferrer, its accessible name says that it opens GitHub,
     and its URL carries no query data, so that no site value leaves through
-    it. The sign-in page has no sidebar and does not show the link. Beside the
-    page, the sidebar stays in the viewport and scrolls independently when
-    its controls exceed the viewport height. Above the page, the sidebar
-    uses its content height. The controller binds to a configurable address
+    it. The sign-in page has no sidebar and does not show the link. The
+    sidebar sits beside the page when the interface is at least 792 pixels
+    wide. There it stays in the viewport and scrolls independently when its
+    controls exceed the viewport height. Below 792 pixels the navigation is a
+    bar above the page that holds the brand link and one Menu control, so
+    that the page starts in the first screen. The control is a native button
+    with an aria-expanded state and an aria-controls reference to the
+    navigation panel. Pointer, Enter, and Space open and close the panel;
+    Escape closes it and returns focus to the control. Escape that closes the
+    account menu closes only that menu. The open panel pushes the page down
+    and holds, in sidebar order, each destination with its pending count,
+    the OpenBao UI link, the OpenBao status, the controller name, Report an
+    issue, and the account menu. Each page load starts with the panel
+    closed. Beside the page the control is not displayed and the panel
+    always shows. The controller binds to a configurable address
     that defaults to loopback and sits behind a reverse proxy that terminates
     TLS. The visual design, with every page and state described here, is the
     Wyrwood Web UI canvas at https://claude.ai/artifact/KvNxxRNgPS9UnWJ7FpfSmy.
@@ -369,11 +380,17 @@ proposed-design:
     recorded, and latency, filterable by outcome and source. It shows only the
     fields the operational-event schema allows.
   accessibility: >-
-    Every page works at phone width: the navigation stacks above the content
-    and wide tables scroll inside their own box. Controls are native buttons,
-    links, and labelled inputs with visible focus, at least 44 pixels high.
-    Text meets a 4.5:1 contrast ratio, and states are distinguished by text,
-    not color alone.
+    Every page works at phone width: below 792 pixels the navigation
+    collapses into the Menu control, and wide tables scroll inside their own
+    box. At 390 by 844 pixels with no scroll, the page heading, the primary
+    action, and the tab list of the policy editor and the binding editor
+    start in the first screen. To keep the binding editor's tab list there,
+    its decision summary uses two columns below 792 pixels. Below 792 pixels,
+    focus in the navigation uses the navigation text color, so that it is
+    visible on the dark background. Controls are native buttons, links, and
+    labelled inputs with visible focus, at least 44 pixels high. Text meets a
+    4.5:1 contrast ratio, and states are distinguished by text, not color
+    alone.
 verification: >-
   Unit tests cover ID token validation failures for issuer, audience, expiry,
   nonce, and signature; group admission with no groups claim, no allowed
@@ -381,5 +398,10 @@ verification: >-
   callback; session expiry and sign-out; and anti-forgery rejection. The
   integration gate runs a test OpenID Connect provider, signs in an allowed
   and a disallowed account, and verifies that an operator event names the
-  operator. A browser test walks sign-in, agent approval, and binding at
-  desktop and phone widths.
+  operator. The demo recorder (`task docs:screenshots`) is the browser
+  test: docs/demo/web.sh walks sign-in, agent approval, policy, and binding
+  at 1280 by 800 pixels, and docs/demo/phone.sh then checks the first-screen
+  positions at 390 by 844 pixels and the Menu control with pointer and
+  keyboard. The recording fails when a check fails. Each change to a
+  screenshot input requires a new recording, and `task ci` rejects a stale
+  recording receipt.

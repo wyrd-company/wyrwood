@@ -32,6 +32,14 @@ behind a reverse proxy that terminates TLS.
 | **Account → Security** | Inspect sign-in details and end operator sessions. |
 | **Report an issue** | Open the GitHub form for a new Wyrwood issue in a new tab. The link sends no data about your site. |
 
+On a phone, or in a window narrower than 792 pixels, the navigation is a bar
+at the top of each page. Select **Menu** to show the destinations, their
+pending counts, the OpenBao status, **Report an issue**, and **Account**.
+Select **Menu** again, or press Escape, to hide them. Each page opens with the
+menu closed, so the page starts in the first screen.
+
+![Open navigation menu at phone width](assets/web-phone-menu.png)
+
 Follow [Getting started](getting-started.md) for agent approval, policy
 creation, and container binding with screenshots.
 
@@ -53,9 +61,10 @@ and no further key is read. Imported Transit keys are listed
 like generated keys. The policy editor's **SSH identities** tab shows the same
 Transit messages, and keeps saved selections.
 
-Open **Account** at the bottom of the sidebar to select **Security** or
-**Sign out**. The account button shows the signed-in operator. Use the arrow
-keys to move between menu items and Escape to close the menu.
+Open **Account** at the bottom of the sidebar, or of **Menu** on a phone, to
+select **Security** or **Sign out**. The account button shows the signed-in
+operator. Use the arrow keys to move between menu items and Escape to close
+the menu.
 
 ![Account menu with Security and Sign out](assets/web-account-menu.png)
 

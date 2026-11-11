@@ -9,9 +9,9 @@
 #
 # Records the web interface half of the demo with agent-browser against the
 # site docs/demo/stack.sh started: sign in, approve the agent, write a policy,
-# bind a container, and read keys and events. Writes the video to
-# $WYRWOOD_DEMO_ROOT/web.mp4 and the documentation screenshots to
-# docs/user/assets.
+# bind a container, and read keys and events, then runs docs/demo/phone.sh.
+# Writes the video to $WYRWOOD_DEMO_ROOT/web.mp4 and the documentation
+# screenshots to docs/user/assets.
 set -euo pipefail
 
 repository=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -299,4 +299,7 @@ shot web-operator-keys
 if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
 	browse record stop
 fi
+
+# The phone-width test needs the policy, the binding, and the pending key above.
+"$repository/docs/demo/phone.sh"
 browse close

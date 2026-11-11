@@ -16,6 +16,15 @@ identity provider with a generic operator, and a real agent with three
 throwaway workloads on a separate Docker Engine. No application responses
 are mocked. `task demo` also records the CLI with VHS and rebuilds `demo.gif`.
 
+The recording is also the browser test of the web interface. After the
+walk-through at 1280 by 800 pixels, `web.sh` runs `phone.sh` at 390 by 844
+pixels. It checks that the page heading, the primary action, and the tab list
+of the policy editor and the binding editor start in the first screen, and
+that the **Menu** control opens and closes with pointer, Enter, Space, and
+Escape. It prints each position, and the recording fails when a check fails.
+`phone.sh` also runs alone against a demo site that `web.sh` has walked
+through.
+
 Requirements: Linux, Docker Engine, passwordless sudo, Go, Task, Corepack,
 Node.js, curl, jq, iproute2, and agent-browser with its browser installed.
 The full GIF also needs VHS, ffmpeg, and gifsicle. Run on a development host

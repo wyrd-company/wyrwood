@@ -130,6 +130,59 @@ p {
     overflow-y: auto;
   }
 }
+/* Beside the page, the bar and the panel add no boxes, so the sidebar keeps
+   one column. */
+.nav-bar,
+.nav-panel {
+  display: contents;
+}
+.nav-toggle {
+  display: none;
+}
+/* Above the page, the navigation is a bar with a menu control. The control
+   shows and hides the panel, so the page starts in the first screen. */
+@container (width < 792px) {
+  .nav {
+    padding: 8px 16px;
+    gap: 0;
+  }
+  .nav-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .nav-toggle {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    border: 1px solid #2b4436;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--nav-ink);
+    font: 500 14px var(--sans);
+    cursor: pointer;
+  }
+  .nav-toggle:hover,
+  .nav-toggle[aria-expanded="true"] {
+    background: var(--nav-active);
+    color: #ffffff;
+  }
+  .nav-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding: 16px 0 8px;
+  }
+  .nav-panel:not([data-open]) {
+    display: none;
+  }
+  .nav :focus-visible {
+    outline-color: var(--nav-ink);
+  }
+}
 .brand {
   display: flex;
   align-items: center;
@@ -683,6 +736,13 @@ ul.plain li {
 .decision-summary {
   border-top: 1px solid var(--line);
   padding-top: 12px;
+}
+/* Above the page, two columns keep the binding editor's tab list in the first
+   screen of a phone. */
+@container (width < 792px) {
+  dl.facts.decision-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 .screen-tabs {
   display: flex;
