@@ -200,11 +200,12 @@ agent reports yet. On the **Key and policies** tab:
 Mount `<consumers root>/<directory name>` into the container at the policy's
 mount target, then create and start the container with the key: for a Compose
 key, its project and service labels. Every container that the binding governs
-uses this directory, also when its name differs. The agent gets a token when it
-observes the container, and revokes it when the container is removed; the
-directory and sockets stay. Another binding on the same agent cannot use the
-directory name, and the binding keeps it until you unbind. The **Status** tab
-and the binding's facts show the directory name.
+uses this directory, also when its name differs. Replicas of a Compose service
+share this directory, its sockets, and the binding's token. The agent gets a
+token when it observes the container, and revokes it when the container is
+removed; the directory and sockets stay. Another binding on the same agent
+cannot use the directory name, and the binding keeps it until you unbind. The
+**Status** tab and the binding's facts show the directory name.
 
 `wyrwood bind` takes no directory name. Its bind of a key other than `name`, for
 a container no agent reports, is stored and waits: the agent prepares nothing
