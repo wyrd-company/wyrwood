@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.7.0
+
+### Breaking
+
+- The controller database moves to schema 5, and the controller sends a binding's `directory` in the policy set. A 0.6.1 controller refuses a schema 5 database at startup and leaves it unchanged, and a 0.6.1 agent closes the session when it receives a binding with a `directory`, so mixed versions do not stay connected. Use the stopped rollout: stop every agent, back up the controller state directory, upgrade the controller, upgrade every agent while it is stopped, then start the agents. Going back needs that backup.
+
+### Features
+
+- A container can now be bound by a key that is not `name` before it exists. On
+  **Add binding**, **Bind by typed key** opens a bind screen where you choose an
+  approved agent, type a `devcontainer`, `compose`, or `name` key, and, for a key
+  other than `name`, a directory name. The agent creates that consumer directory
+  and its sockets right away, so a container created with that key and a mount of
+  the directory finds working sockets on its first start and reads its secrets
+  through `vault.sock`. Every container the binding governs uses the directory,
+  also when its name differs; the token follows the container as for a `name`
+  binding. A directory name is required when no agent reports a container with the
+  key. It uses the rule a container name follows, and another binding on the same
+  agent cannot use it. The binding screen shows it. `wyrwood bind` takes no
+  directory name and binds as before.
+
+  The controller moves its database to schema 5 when it starts, keeping every
+  binding as it was. A 0.6.1 controller refuses a schema 5 database and leaves it
+  unchanged, so going back needs the state directory backed up before the
+  upgrade. A policy set now carries the directory name of such a binding, which a
+  0.6.1 agent rejects: stop all agents, back up the controller state, upgrade the
+  controller, then upgrade the agents.
+- When you approve an operator key, you now choose its agents and policies from
+  lists of the approved agents and the stored policies, or select all agents or
+  all policies. You can still type a name that does not exist yet, such as a
+  policy the key will create. Before you approve, the form states what the key can
+  and cannot do with each action, on which agents and policies, and that the grant
+  cannot be changed after approval. Before, you typed each name, and the form did
+  not show what the grant allowed.
+
+### Fixes
+
+- **OpenBao keys** and the policy editor list Transit keys again after a key is imported into the Transit mount. OpenBao then lists an `import/` directory beside the keys, and the controller tried to read it as a key, so both pages showed no Transit key and said OpenBao did not answer. A key that cannot be read no longer empties the list: the page names that key and the failure, such as permission refused, and lists the others. "OpenBao did not answer" now shows only when OpenBao did not answer; a refused list says permission refused.
+- Sign-in now works with an identity provider whose key set also holds an
+  elliptic-curve key on a curve Wyrwood cannot use, or an RSA key larger than it
+  accepts. Wyrwood ignores such a key and verifies with the other keys. Before,
+  the whole key set failed to load, and sign-in failed.
+- Below 792 pixels wide, the web interface shows the navigation as a bar with a **Menu** button, so the page heading, its actions, and the policy editor's tabs start in the first screen on a phone. The tabs of the policy editor and the binding editor stay in one row that you scroll sideways; an edge with more tabs beyond it fades, and a tab you focus or select scrolls into view. **Menu** shows every destination with its pending count, the OpenBao status, **Report an issue**, and **Account**. Escape closes it.
+- When you rename a policy to its current name, the policy page now says that the name did not change. Before, the page opened with no message. The rename still changes nothing.
+
 ## 0.6.1
 
 ### Fixes
