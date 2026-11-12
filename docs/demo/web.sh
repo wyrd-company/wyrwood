@@ -129,6 +129,9 @@ browse fill "#typed-value" "shop/web"
 browse fill "#typed-directory" "shop-web"
 browse find role checkbox click --name "teal" --exact
 expect_page "document.querySelector('input[name=key]').value" "compose:shop/web"
+# The typed key and directory name keep the 44 pixel control height and the
+# monospace font of the summary's values.
+expect_page "(() => { const mono = getComputedStyle(document.querySelector('dd.mono')).fontFamily; return ['typed-value', 'typed-directory'].every((id) => { const style = getComputedStyle(document.getElementById(id)); return style.fontFamily === mono && parseFloat(style.height) >= 44; }) ? 'ok' : 'no'; })()" ok
 browse eval "window.scrollTo(0, 0)"
 hold 1.5
 shot web-bind-typed

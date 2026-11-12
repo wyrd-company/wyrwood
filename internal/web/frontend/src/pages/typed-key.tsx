@@ -93,6 +93,7 @@ export function TypedKey({
       <Field label="Key value" id="typed-value" hint={chosen.hint}>
         <Input
           id="typed-value"
+          type="text"
           className="mono"
           required
           maxLength={512}
@@ -113,6 +114,7 @@ export function TypedKey({
         >
           <Input
             id="typed-directory"
+            type="text"
             name="directory"
             className="mono"
             maxLength={255}

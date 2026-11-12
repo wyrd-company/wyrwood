@@ -58,6 +58,17 @@ it("posts a typed key, an approved agent, and a directory name", async () => {
   expect(entered.has("key-kind")).toBe(false);
 });
 
+// The base input rule gives a text input the 44 pixel control height only
+// when the input states type="text".
+it("renders the key value and directory name as text inputs", () => {
+  render(<Keyed data={data()} />);
+  expect(screen.getByLabelText("Key value")).toHaveAttribute("type", "text");
+  expect(screen.getByLabelText("Directory name")).toHaveAttribute(
+    "type",
+    "text",
+  );
+});
+
 it("asks for no directory name for a name key", async () => {
   const user = userEvent.setup();
   const { container } = render(
