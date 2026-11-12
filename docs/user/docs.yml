@@ -66,6 +66,7 @@ products:
         interface, and a script's key acts only inside its grant.
       - Operational events are bounded and categorical, with no tokens, secret values, or raw
         upstream errors.
+      - A seventh highlight that exceeds the publisher limit, for a CI proof only.
     media:
       - src: assets/web-agents.png
         caption: Agents page with one key pending approval.
