@@ -171,3 +171,50 @@ func TestDirectoryBelongsToItsBinding(t *testing.T) {
 		}
 	}
 }
+
+// A recreate mounts the binding's directory, not one named after the container.
+func TestDirectoryBindingRecreateMountsIt(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	engineFake := enginetest.New()
+	instance := newRecreateAgent(t, engineFake)
+	bound := directoryBinding("shop-web")
+	bound.Policy.Contract.Enforcement = policy.EnforcementRecreate
+	bound.Assignment = bound.Policy.Identity()
+	unmounted := shopContainer(bound, "shop-web-1", "/elsewhere")
+	engineFake.Add(unmounted)
+	if err := instance.fullReconcile(ctx); err != nil {
+		t.Fatal(err)
+	}
+	instance.applyPolicySet(ctx, preparedSet("http://127.0.0.1:1", bound))
+	instance.engineWorkers.Wait()
+	recreated, ok := engineFake.ByName("shop-web-1")
+	if !ok || len(recreated.Mounts) != 1 || recreated.Mounts[0].Source != instance.root.DirectoryPath("shop-web") {
+		t.Fatalf("recreated container = %#v", recreated)
+	}
+}
+
+// A container whose start failed on the binding's directory is started once the
+// directory and its sockets are ready.
+func TestDirectoryBindingStartsAfterAFailedMount(t *testing.T) {
+	fake := enginetest.New()
+	paths := newPaths(t)
+	directory := filepath.Join(paths.Runtime, "containers", "shop-web")
+	instance := newRecreateAgentAt(t, socketsAtStart{Fake: fake, t: t, directory: directory}, paths)
+	instance.config.AllowRecreate = false
+	bound := directoryBinding("shop-web")
+	failed := shopContainer(bound, "shop-web-1", directory)
+	failed.State.Status = "exited"
+	failed.State.Error = bootFailure(directory)
+	failed.HostConfig.RestartPolicy.Name = "always"
+	fake.Add(failed)
+	added, _ := fake.ByName("shop-web-1")
+	instance.applyPolicySet(context.Background(), preparedSet("http://127.0.0.1:1", bound))
+	if err := instance.fullReconcile(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	instance.engineWorkers.Wait()
+	if started, err := fake.Inspect(context.Background(), added.ID); err != nil || started.State.Status != "running" {
+		t.Fatalf("container = %q, %v; calls %v", started.State.Status, err, fake.CallLog())
+	}
+}
