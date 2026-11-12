@@ -68,6 +68,12 @@
     }
   ],
   "$defs": {
+    "directory-name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+    },
     "id": {
       "type": "string",
       "pattern": "^[a-z0-9-]{1,64}$"
@@ -373,12 +379,36 @@
               "policy",
               "assignment"
             ],
+            "if": {
+              "required": [
+                "key"
+              ],
+              "properties": {
+                "key": {
+                  "properties": {
+                    "kind": {
+                      "const": "name"
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "not": {
+                "required": [
+                  "directory"
+                ]
+              }
+            },
             "properties": {
               "binding": {
                 "$ref": "#/$defs/id"
               },
               "key": {
                 "$ref": "#/$defs/key"
+              },
+              "directory": {
+                "$ref": "#/$defs/directory-name"
               },
               "policy": {
                 "$ref": "#/$defs/effective"

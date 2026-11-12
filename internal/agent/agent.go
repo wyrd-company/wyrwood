@@ -405,24 +405,54 @@ func (agent *Agent) bindingKey(id string) string {
 	return ""
 }
 
+// directoryName returns the consumer directory name of a container that bound
+// governs: the binding's directory, or else the container's name.
+func directoryName(bound protocol.Binding, container engine.Container) string {
+	if bound.Directory != "" {
+		return bound.Directory
+	}
+	return container.ShortName()
+}
+
+// containerDirectoryLocked returns the consumer directory path of a container:
+// its governing binding's directory, or else the one its name gives.
+func (agent *Agent) containerDirectoryLocked(container engine.Container) string {
+	bound, _ := agent.governingLocked(container)
+	return agent.root.DirectoryPath(directoryName(bound, container))
+}
+
 // applyLocked makes consumer directories, sockets, and contract results
 // match the observed containers and the current policy set.
 func (agent *Agent) applyLocked(ctx context.Context) {
 	desired := map[string]protocol.Binding{}
-	// A name binding identifies its mount source even before a container exists.
+	// A name binding, and a binding with a directory, identify the mount source
+	// even before a container exists. A binding's directory belongs to it alone.
+	owned := map[string]string{}
 	for _, bound := range agent.set.Bindings {
-		if bound.Key.Kind == protocol.KeyName && consumer.ValidName(bound.Key.Value) {
-			desired[bound.Key.Value] = bound
+		if name := bound.PreparedDirectory(); name != "" && consumer.ValidName(name) {
+			desired[name] = bound
+			if bound.Directory != "" {
+				owned[name] = bound.Binding
+			}
 		}
 	}
 	governed := map[string][]engine.Container{}
 	for _, container := range agent.containers {
 		bound, ok := agent.governingLocked(container)
-		if !ok || !consumer.ValidName(container.ShortName()) {
+		if !ok {
 			continue
 		}
-		desired[container.ShortName()] = bound
+		name := directoryName(bound, container)
+		if !consumer.ValidName(name) {
+			continue
+		}
 		governed[bound.Binding] = append(governed[bound.Binding], container)
+		// A container whose name is another binding's directory gets none, and
+		// its contract check reports the consumer directory.
+		if owner, taken := owned[name]; taken && owner != bound.Binding {
+			continue
+		}
+		desired[name] = bound
 	}
 	for name, state := range agent.consumers {
 		if _, ok := desired[name]; ok || agent.recreating[name] {
@@ -444,8 +474,9 @@ func (agent *Agent) applyLocked(ctx context.Context) {
 
 // observeBindingsLocked ties tokens to observed containers. A binding that
 // gains its first container asks for a credential. The controller keeps a name
-// binding in the policy set after its container is gone, so the agent revokes
-// that token itself: no live token waits for a consumer. A replacement gets a
+// binding, and a binding with a directory, in the policy set after its container
+// is gone, so the agent revokes that token itself: no live token waits for a
+// consumer. A replacement gets a
 // fresh token even when the agent never saw the gap. The controller withdraws
 // every other binding, which retires its token.
 func (agent *Agent) observeBindingsLocked(ctx context.Context, governed map[string][]engine.Container) {
@@ -454,7 +485,7 @@ func (agent *Agent) observeBindingsLocked(ctx context.Context, governed map[stri
 			continue
 		}
 		delete(agent.observed, id)
-		if bound, ok := agent.bindingLocked(id); ok && bound.Key.Kind == protocol.KeyName {
+		if bound, ok := agent.bindingLocked(id); ok && bound.PreparedDirectory() != "" {
 			agent.creds.invalidate(id)
 			delete(agent.results, id)
 		}
@@ -512,7 +543,7 @@ func (agent *Agent) firstObservationsLocked() []recreateTarget {
 			if !ok || governing.Binding != bound.Binding {
 				continue
 			}
-			if len(contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign)) == 0 {
+			if len(contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(directoryName(bound, container)), agent.canAssign)) == 0 {
 				continue
 			}
 			targets = append(targets, recreateTarget{bound, container})
@@ -627,14 +658,15 @@ func (agent *Agent) checkLocked(ctx context.Context, bound protocol.Binding, con
 	}
 	failedSet := map[protocol.FailedItem]bool{}
 	for _, container := range containers {
-		state := agent.consumers[container.ShortName()]
+		name := directoryName(bound, container)
+		state := agent.consumers[name]
 		if state == nil || state.binding != bound.Binding || len(state.listeners) != 2 || !sameGroup(state.group, bound.Policy.Contract.AccessGroup) {
 			failedSet[protocol.FailedConsumerDirectory] = true
 		}
 		if !contract.SocketReachable(container, bound.Policy.Contract.AccessGroup) {
 			failedSet[protocol.FailedSocketAccess] = true
 		}
-		for _, item := range contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign) {
+		for _, item := range contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(name), agent.canAssign) {
 			failedSet[item] = true
 		}
 	}
@@ -913,7 +945,7 @@ func (agent *Agent) inventory() protocol.Inventory {
 	sort.Strings(ids)
 	for _, id := range ids {
 		if report, ok := Report(agent.containers[id]); ok && len(inventory.Containers) < 1024 {
-			report.ConsumerDirectory = agent.root.DirectoryPath(agent.containers[id].ShortName())
+			report.ConsumerDirectory = agent.containerDirectoryLocked(agent.containers[id])
 			inventory.Containers = append(inventory.Containers, report)
 		}
 	}

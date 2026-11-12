@@ -77,7 +77,7 @@ func (agent *Agent) startRecreate(ctx context.Context, bound protocol.Binding, c
 	key := events.ContainerKey(string(bound.Key.Kind), bound.Key.Value)
 	if !agent.config.AllowRecreate {
 		agent.mu.Lock()
-		failed := contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), agent.canAssign)
+		failed := contract.Check(container, bound.Policy.Contract, agent.root.DirectoryPath(directoryName(bound, container)), agent.canAssign)
 		agent.reportLocked(protocol.ContractResult{Binding: bound.Binding, Outcome: protocol.OutcomeNonConforming,
 			FailedItems: append(failed, protocol.FailedRecreateNotAllowed)})
 		agent.mu.Unlock()
@@ -169,7 +169,7 @@ func (agent *Agent) performRecreate(ctx context.Context, bound protocol.Binding,
 	if err != nil {
 		configuredImage = ""
 	}
-	request, err := contract.BuildCreateRequest(container, bound.Policy.Contract, agent.root.DirectoryPath(container.ShortName()), configuredImage)
+	request, err := contract.BuildCreateRequest(container, bound.Policy.Contract, agent.root.DirectoryPath(directoryName(bound, container)), configuredImage)
 	if err != nil {
 		return "", err
 	}

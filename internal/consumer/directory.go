@@ -16,7 +16,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"sync"
 	"syscall"
@@ -32,10 +31,8 @@ const (
 	SSHAgentSocket = string(protocol.SocketSSHAgent)
 )
 
-var namePattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_.-]{0,254}$`)
-
 // ValidName reports whether a container name is usable as a directory name.
-func ValidName(name string) bool { return namePattern.MatchString(name) && name != "." && name != ".." }
+func ValidName(name string) bool { return protocol.ValidDirectoryName(name) }
 
 // Root is the consumer root directory.
 type Root struct {

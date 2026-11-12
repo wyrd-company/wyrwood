@@ -24,12 +24,12 @@ import (
 func (agent *Agent) startFailedMountsLocked(ctx context.Context) {
 	for id := range agent.startAttempts {
 		container, ok := agent.containers[id]
-		if !ok || !contract.StartFailedOnMount(container, agent.root.DirectoryPath(container.ShortName())) {
+		if !ok || !contract.StartFailedOnMount(container, agent.containerDirectoryLocked(container)) {
 			delete(agent.startAttempts, id)
 		}
 	}
 	for id, container := range agent.containers {
-		if !contract.StartFailedOnMount(container, agent.root.DirectoryPath(container.ShortName())) {
+		if !contract.StartFailedOnMount(container, agent.containerDirectoryLocked(container)) {
 			continue
 		}
 		bound, ok := agent.governingLocked(container)
@@ -54,12 +54,11 @@ func (agent *Agent) startFailedMountsLocked(ctx context.Context) {
 // readyToStartLocked reports whether a binding governs container, no recreate
 // holds it, and its directory and both sockets are ready.
 func (agent *Agent) readyToStartLocked(container engine.Container) bool {
-	name := container.ShortName()
 	bound, ok := agent.governingLocked(container)
-	if !ok || agent.recreating[name] {
+	if !ok || agent.recreating[container.ShortName()] {
 		return false
 	}
-	state := agent.consumers[name]
+	state := agent.consumers[directoryName(bound, container)]
 	return state != nil && state.binding == bound.Binding && len(state.listeners) == 2 &&
 		sameGroup(state.group, bound.Policy.Contract.AccessGroup)
 }
@@ -96,8 +95,9 @@ func (agent *Agent) startIfStillFailed(ctx context.Context, id string) (bool, er
 	}
 	agent.mu.Lock()
 	ready := agent.readyToStartLocked(container)
+	directory := agent.containerDirectoryLocked(container)
 	agent.mu.Unlock()
-	if !ready || !contract.StartFailedOnMount(container, agent.root.DirectoryPath(container.ShortName())) {
+	if !ready || !contract.StartFailedOnMount(container, directory) {
 		return false, nil
 	}
 	return true, agent.engine.Start(ctx, id)

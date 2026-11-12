@@ -263,16 +263,41 @@ type OpenBao struct {
 	SSHMount     string `json:"ssh-mount,omitempty"`
 }
 
-// Binding is one binding that matches a container in the latest inventory.
+// Binding is one binding that matches a container in the latest inventory, or
+// one that names its consumer directory before its container exists.
 type Binding struct {
-	Binding    string           `json:"binding"`
-	Key        Key              `json:"key"`
+	Binding string `json:"binding"`
+	Key     Key    `json:"key"`
+	// Directory is the consumer directory name the operator gave a binding
+	// whose key is not name. Every container the binding governs uses it.
+	Directory  string           `json:"directory,omitempty"`
 	Policy     policy.Effective `json:"policy"`
 	Assignment string           `json:"assignment"`
 }
 
+// PreparedDirectory returns the consumer directory name a binding gives before
+// its container exists: its directory, or the value of a name key. It is empty
+// for a binding that waits for a container to name its directory.
+func (b Binding) PreparedDirectory() string {
+	if b.Key.Kind == KeyName {
+		return b.Key.Value
+	}
+	return b.Directory
+}
+
+// validateDirectory checks a binding's directory against its key.
+func (b Binding) validateDirectory() error {
+	if b.Directory == "" {
+		return nil
+	}
+	if b.Key.Kind == KeyName {
+		return ErrDirectoryNameForName
+	}
+	return ValidateDirectoryName(b.Directory)
+}
+
 // PolicySet carries every binding matching the latest inventory and every
-// name binding with no match.
+// binding that names its consumer directory with no match.
 type PolicySet struct {
 	OpenBao  OpenBao   `json:"openbao"`
 	Bindings []Binding `json:"bindings"`
@@ -481,6 +506,9 @@ func (message PolicySet) Validate() error {
 			return err
 		}
 		if err := binding.Key.Validate(); err != nil {
+			return err
+		}
+		if err := binding.validateDirectory(); err != nil {
 			return err
 		}
 		if !ValidID(binding.Assignment) {

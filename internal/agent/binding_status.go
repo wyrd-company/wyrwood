@@ -73,10 +73,10 @@ func (agent *Agent) bindingStatuses() []protocol.BindingStatus {
 		status := protocol.BindingStatus{Binding: bound.Binding, Assignment: bound.Assignment, Token: tokenState(holding, bound.Binding),
 			Consumers: []protocol.ConsumerStatus{}, LastError: failures[bound.Binding]}
 		for _, container := range containers {
-			status.Consumers = append(status.Consumers, agent.consumerStatusLocked(bound, container.ShortName(), container.ID))
+			status.Consumers = append(status.Consumers, agent.consumerStatusLocked(bound, directoryName(bound, container), container.ID))
 		}
-		if len(containers) == 0 && bound.Key.Kind == protocol.KeyName && consumer.ValidName(bound.Key.Value) {
-			status.Consumers = append(status.Consumers, agent.consumerStatusLocked(bound, bound.Key.Value, ""))
+		if name := bound.PreparedDirectory(); len(containers) == 0 && name != "" && consumer.ValidName(name) {
+			status.Consumers = append(status.Consumers, agent.consumerStatusLocked(bound, name, ""))
 		}
 		if len(containers) > 0 || agent.recreatingBindingLocked(bound.Binding) {
 			if result, ok := agent.results[bound.Binding]; ok {
