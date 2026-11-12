@@ -173,7 +173,8 @@ proposed-design:
     container name, agent, image or runtime state. Each row's Actions column has
     an Add binding link with an icon, visible text, and an accessible name that
     names the container and agent. The action and the container link open the
-    bind screen and retain the filters, and the bind screen links back here. A failed
+    bind screen and retain the filters, and the bind screen links back here.
+    Bind by typed key opens the typed-key bind screen with the same filters. A failed
     read of an inventory or of the bindings answers an error page and never reads
     as containers being absent or having no binding.
   screen-tabs: >-
@@ -213,6 +214,22 @@ proposed-design:
     its inventory or its bindings answers an error page, and never reads as the
     container being unbound or not reported. A failed submission keeps its reason
     on that page.
+  typed-bind-screen: >-
+    GET /bindings/new/key binds a container that no agent needs to report. Key
+    and policies has an agent choice that lists only approved agents, a key kind
+    of devcontainer, compose, or name with its value, and a directory name field
+    when the kind is not name, with the policy checkboxes. The agent filter of
+    Add binding preselects its agent when it names an approved one; another
+    value selects none. The form posts to POST /bindings as the bind screen
+    does, with typed=yes, the agent, the key as kind:value, and the directory
+    name, so it keeps the session and anti-forgery checks and the
+    binding-created event. The controller decides the key, agent, and directory
+    name: a key that is not name, for a container the agent does not report,
+    needs a directory name, and a refused one answers 422 with this screen, the
+    entered values, and the Key and policies tab selected. The summary shows the
+    agent, key, and directory name. Settings, Effective policy, and preview are
+    the bind screen's. The access group choices are unverified, since the agent
+    can change. Success opens the binding screen.
   binding-screen: >-
     GET /bindings/{id} shows one bound container, taking the agent from the
     binding record. A binding key can select several reported containers; the
@@ -221,8 +238,8 @@ proposed-design:
     Request recreate and an Unbind action set apart from them, and the live
     summary without the key. Status has readiness with its reasons, each consumer
     directory, its access group and listening sockets, and the last login or
-    renewal error, then the assignment, token, key, contract report, and pending
-    transition state. Policies and Settings edit the
+    renewal error, then the assignment, token, key, the directory name when the
+    binding has one, contract report, and pending transition state. Policies and Settings edit the
     selection and settings. The selection also asks for one required value for each
     {{binding.name}} placeholder of the selected policies, and the summary shows the
     values. A saved value that no selected policy uses stays as an optional field,

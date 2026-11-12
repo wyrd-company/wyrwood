@@ -54,8 +54,9 @@ proposed-design:
     retains the default /run/wyrwood mount target and the SSH_AUTH_SOCK and
     VAULT_ADDR templates. A policy's revision identifies its complete content.
   binding-model: >-
-    A binding contains id, agent, container key, a policies array of unique
-    names, revision, role, settings, and creation metadata.
+    A binding contains id, agent, container key, an optional directory name, a
+    policies array of unique names, revision, role, settings, and creation
+    metadata.
     The controller validates every selected name and resolves every reference;
     unknown names, an empty selection, and repeated names are errors.
     Canonical storage and display sort policy names; selection order has no
@@ -91,6 +92,12 @@ proposed-design:
     in one SQLite transaction; reads resolve a consistent source snapshot.
     AppRole names retain the existing agent-and-binding identity. No token,
     SecretID, wrapping token, or container environment observation is stored.
+    Schema 5 adds bindings.directory, text with an empty default, and a unique
+    index on agent and directory where the directory is not empty. The
+    migration adds the column to each existing row with the empty default, so
+    every binding that schema 4 stored reads as before with no directory. The
+    directory is not part of the assignment identity, so the move to schema 5
+    changes no assignment and issues no credential.
   policy-identity: >-
     OpenBao resolves a token's policies by name on each request, so a token that
     outlives its binding holds whatever a later policy publishes under that name.
@@ -335,6 +342,34 @@ proposed-design:
     unintended first-bind recreate. Group changes reapply the
     existing directory and socket modes through the retained consumer
     directory; an unassignable group is reported through existing diagnostics.
+  directory-before-container: >-
+    A name key gives its consumer directory name, so its binding prepares the
+    directory before the container exists. A binding on another key can carry a
+    directory name for the same purpose: the operator enters it when binding,
+    and the controller stores it on the binding. A key that is not name, for a
+    container that the agent's latest inventory does not report, needs one. A
+    reported container's key does not, and binds as before. The name follows
+    the rule that a container name meets to name a directory: 1 to 255 bytes of
+    letters, digits, '.', '_', and '-', starting with a letter or digit, and
+    neither . nor .., so that it is one path element under the consumer root.
+    The refusals are named: empty, a path separator, . or .., over 255 bytes,
+    and other characters. A name key refuses a directory name. One agent's
+    directories are distinct: a directory name that another binding on the
+    agent names, by its directory or a name key's value, is refused, and so is
+    a name key whose value another binding names as its directory. The
+    directory is fixed when the binding is created; a change keeps it. The
+    controller carries a binding with a directory in the policy set while no
+    container matches, as it carries a name binding, and issues no credential
+    until a container matches. The agent prepares the directory and both
+    sockets, uses it for every container the binding governs, in place of a
+    directory named after the container, and keeps it for that binding alone: a
+    container whose name is the directory, governed by another binding, gets no
+    consumer directory and reports consumer-directory. A removed container's
+    token is revoked and the directory and sockets stay, as for a name binding.
+    The operator protocol, and so wyrwood bind, carries no directory name: its
+    bind of a key that is not name, for a container no agent reports, is stored
+    with no directory and waits for its container to name the directory, as it
+    did before.
   controller-and-http-api: >-
     Controller CreateBinding and ChangeBinding accept a typed request with
     policies and settings. ChangeBinding replaces the complete membership and
@@ -376,7 +411,12 @@ proposed-design:
     credentials. Unsupported peers and caches are rejected. Unsupported cache
     versions
     cannot authorize sockets or automatic recreate. This is a protocol
-    version, not an executable-version pin.
+    version, not an executable-version pin. A policy-set binding carries its
+    directory name as an optional field, absent when the binding has none, so
+    that a set without one encodes as before. An older agent rejects the field,
+    so rollout stops all agents, upgrades the controller, then upgrades all
+    agents before restarting them; mixed peers do not reconnect. The cache keeps
+    the field with the set it belongs to.
   package-boundaries: >-
     internal/policy owns reusable source documents and deterministic composition
     types and rules without store or HTTP dependencies. A separate effective
@@ -448,6 +488,15 @@ proposed-design:
     change. Refusal tests cover an unset, hostile, and misspelled value at bind and preview
     with nothing saved, and a policy edit that needs an unset value with the published
     policy unchanged.
+    A binding's directory name has tests for each named refusal with every other
+    field valid and nothing stored, for the directory required only for an
+    unreported key, for distinct directories per agent, and for the operator
+    protocol keeping its waiting bind. A state fixture written by the store at
+    schema 4 opens at schema 5 with every row and assignment unchanged. A real
+    agent with Docker Engine and OpenBao binds a Compose key with a directory
+    name before its container exists; docker create of a container with the key
+    and that mount gets a token, docker start finds working sockets, and the
+    container reads a secret through vault.sock.
     Repository gates are task check, task test, and task ci with WYRWOOD_BAO
     set; hosted CI is required at the implementation PR handoff.
   authoritative-references: >-

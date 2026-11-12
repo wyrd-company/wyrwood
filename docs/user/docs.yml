@@ -25,6 +25,7 @@ assets:
   - assets/web-binding-settings.png
   - assets/web-binding-effective.png
   - assets/web-add-binding.png
+  - assets/web-bind-typed.png
   - assets/web-bindings.png
   - assets/web-keys.png
   - assets/web-operator-keys.png
@@ -126,6 +127,9 @@ products:
       - src: assets/web-add-binding.png
         caption: Reported containers that have no binding.
         alt: The add binding screen listing reported containers with no binding.
+      - src: assets/web-bind-typed.png
+        caption: Binding a container by typed key before it exists.
+        alt: The bind screen for a typed key with an agent, a Compose key, and a directory name entered.
       - src: assets/web-bindings.png
         caption: The bindings list with a binding and its container.
         alt: The bindings list with a binding whose container meets its contract.

@@ -106,6 +106,10 @@ containers that have no binding.
 
 ![Reported containers with no binding](assets/web-add-binding.png)
 
+To bind a container before its agent reports it, select **Bind by typed key**
+and give its key and directory name. See
+[Bind a container before it exists](operations.md#bind-a-container-before-it-exists).
+
 Select **Add binding** on the container's row. Its bind screen opens, with
 its actions at the top and a summary of what you are about to save. Select one
 or more policies on **Key and policies**, and change any defaults on **Settings**.

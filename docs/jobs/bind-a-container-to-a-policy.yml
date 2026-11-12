@@ -6,7 +6,7 @@ description: >-
   place, and know whether the container is actually set up to receive it.
 job-map:
   define: Decide which secrets and keys a class of container needs and how it must be mounted.
-  locate: See the container reported by its host's agent with the keys it offers.
+  locate: See the container reported by its host's agent with the keys it offers, or name its key and directory before it exists.
   prepare: Write or reuse a policy whose contract matches the container.
   confirm: Review the OpenBao policy text and the contract before binding.
   execute: Bind the policy to the container by its most stable key.

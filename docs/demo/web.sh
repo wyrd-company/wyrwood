@@ -120,6 +120,20 @@ browse find role link click --name "Add binding"
 browse wait --text "teal-api"
 hold 1.5
 shot web-add-binding
+# A key typed for a container no agent reports yet, with its directory name.
+browse find role link click --name "Bind by typed key"
+browse wait --text "Container key"
+browse select "#typed-agent" "$(hostname)"
+browse select "#typed-kind" "compose"
+browse fill "#typed-value" "shop/web"
+browse fill "#typed-directory" "shop-web"
+browse find role checkbox click --name "teal" --exact
+expect_page "document.querySelector('input[name=key]').value" "compose:shop/web"
+browse eval "window.scrollTo(0, 0)"
+hold 1.5
+shot web-bind-typed
+browse find role link click --name "Back to Add binding"
+browse wait --text "teal-api"
 browse find role link click --name "Add binding for teal-api"
 browse wait --text "Bind by key"
 browse find role checkbox click --name "teal" --exact

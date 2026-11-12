@@ -75,7 +75,10 @@ description: >-
   `wyrwood bind --agent NAME --key KIND:VALUE --policy NAME` binds a container key,
   with a repeatable `--policy`, `--access-group GID`, repeatable `--value
   NAME=VALUE`, `--token-ttl`, `--token-max-ttl`, and `--enforcement`. A repeat with
-  the same selection returns the binding. `wyrwood binding list [--agent NAME]` and
+  the same selection returns the binding. `bind` takes no directory name: a key
+  that is not `name`, for a container no agent reports, is stored and waits for
+  its container to name its consumer directory; the web interface binds such a
+  key with a directory name. `wyrwood binding list [--agent NAME]` and
   `wyrwood binding get <id>` read bindings inside the grant with their readiness.
   `wyrwood unbind <id>` or `wyrwood unbind --agent NAME --key KIND:VALUE` removes a
   binding, and succeeds when it is not there. These commands are a thin layer over

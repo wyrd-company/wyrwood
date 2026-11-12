@@ -167,13 +167,48 @@ mount the directory on its first start. The agent revokes the token when the
 container goes. It gets a new token from the controller when a container with
 that name appears, usually within seconds of `docker create`. Until then,
 requests fail: `vault.sock` answers with status 503 and the error `no-token`.
-A binding on another key keeps its directory but not its sockets.
+A binding on another key keeps its directory but not its sockets, unless it has
+a directory name: see
+[Bind a container before it exists](#bind-a-container-before-it-exists).
 
 **Add binding** lists the reported containers that have no binding, with the
 same filters. Every container an agent reports is on one of these two pages.
 **Add binding** on a row, or a container's name, opens its bind screen. Links to
 the former `/containers` address go to **Bindings** and keep their agent filter,
 text filter, and sort. A container selected by a former link is not kept.
+
+### Bind a container before it exists
+
+Select **Bind by typed key** on **Add binding** to bind a container that no
+agent reports yet. On the **Key and policies** tab:
+
+1. Choose the **Agent**. Only approved agents are listed.
+2. Choose the **Key kind** and type the **Key value**: the local folder for a
+   dev container, `project/service` for a Compose service, or the container
+   name.
+3. For a key kind other than `name`, type the **Directory name**. The agent
+   creates this consumer directory and its sockets under its consumers root as
+   soon as you save. It is required when no agent reports a container with this
+   key. Use letters, digits, `.`, `_`, and `-`, up to 255 bytes, starting with a
+   letter or digit. A `name` key needs none: the container name names the
+   directory.
+4. Select the policies and settings, then **Bind policies**.
+
+![Bind by typed key on the Key and policies tab](assets/web-bind-typed.png)
+
+Mount `<consumers root>/<directory name>` into the container at the policy's
+mount target, then create and start the container with the key: for a Compose
+key, its project and service labels. Every container that the binding governs
+uses this directory, also when its name differs. The agent gets a token when it
+observes the container, and revokes it when the container is removed; the
+directory and sockets stay. Another binding on the same agent cannot use the
+directory name, and the binding keeps it until you unbind. The **Status** tab
+and the binding's facts show the directory name.
+
+`wyrwood bind` takes no directory name. Its bind of a key other than `name`, for
+a container no agent reports, is stored and waits: the agent prepares nothing
+until it reports a container with the key, and then names the directory after
+that container.
 
 The policy and binding screens keep their actions at the top and split their
 content into tabs. A tab that holds something you should read says **Needs
@@ -214,10 +249,11 @@ their sockets now:
 
 The tab also shows each consumer directory with the access group applied to it
 and the sockets that listen, and the last login or renewal error. A `name`
-binding with no container shows **Waiting** with its prepared directory and
-sockets, so a wrong access group shows here before the container exists. A
-recreate that removed the container and could not create it again shows
-**Failed** until a container with the key returns.
+binding, or a binding with a directory name, with no container shows
+**Waiting** with its prepared directory and sockets, so a wrong access group
+shows here before the container exists. A recreate that removed the container
+and could not create it again shows **Failed** until a container with the key
+returns.
 
 ## After a host reboot
 

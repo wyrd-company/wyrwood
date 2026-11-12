@@ -49,7 +49,13 @@ description: >-
   `{mount-target}/ssh-agent.sock`, `VAULT_ADDR` to
   `unix://{mount-target}/vault.sock`.
 
-  A binding selects a nonempty set of policy names. Its settings hold
+  A binding binds one container key on one agent. A binding whose key is not
+  `name` can hold a directory name, the consumer directory that every container
+  it governs mounts, so that the agent prepares it before the container exists;
+  a key that no agent reports needs one when it is bound from the web interface.
+  It follows the rule a container name meets to name a directory, is distinct
+  among the agent's bindings, and does not change. A `name` key names its own
+  directory and takes none. A binding selects a nonempty set of policy names. Its settings hold
   `token-ttl` (default `1h`), `token-max-ttl` (default `8h`, at least TTL),
   optional numeric `access-group`, and `enforcement` (`report` by default or
   `recreate`), and `values`, a map of per-binding values. These fields are

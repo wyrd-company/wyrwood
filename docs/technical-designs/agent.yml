@@ -119,20 +119,26 @@ proposed-design:
     agent asks for a credential at first observation and drops a credential
     that arrives for a binding with no container. When a bound container is
     destroyed, the agent revokes the token, and it keeps the sockets of a
-    name binding, which the controller still holds. A replacement container with
+    name binding or a binding with a directory name, which the controller still
+    holds. A replacement container with
     that name gets a fresh token, also when the agent saw no gap between the two;
     the agent's own recreate keeps the token. Unbinding revokes the token and
     removes the consumer sockets. Tokens are never logged, never written, and
     never exposed through the control socket.
   consumer-directories: >-
-    A consumer directory is `/run/wyrwood/containers/<container-name>/`, owned
+    A consumer directory is `/run/wyrwood/containers/<directory-name>/`, owned
     by the agent user, with mode 0750 and the binding's access group, or
     0700 without one. The sockets inside have mode 0660 or 0600 to match.
-    The directory is created when a bound container is first observed, or
-    when a name binding reaches the agent, which can be before its container
-    exists. This holds after an agent restart, from the policy cache, and when
-    the engine is unavailable at that restart. The sockets of a name binding with
-    no container answer that the agent holds no token. Empty
+    The directory name is the governing binding's directory name when it has
+    one, and otherwise the container name. A name key's value, and a binding's
+    directory name, give it before a container exists. The directory is created
+    when a bound container is first observed, or when a name binding or a
+    binding with a directory name reaches the agent, which can be before its
+    container exists. A binding's directory name belongs to it alone: a
+    container of another binding with that name gets no directory there. This
+    holds after an agent restart, from the policy cache, and when the engine is
+    unavailable at that restart. The sockets of such a binding with no container
+    answer that the agent holds no token. Empty
     agent-owned directories remain after retirement so a manual replacement
     can mount the same directory without Docker creating a root-owned source.
     Listeners close and sockets are removed when the binding is withdrawn.
