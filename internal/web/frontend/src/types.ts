@@ -189,7 +189,14 @@ export interface BindingData extends Layout {
   Policies: PolicyChoice[] | null;
   Form: BindingForm;
   Typed?: boolean;
-  AgentChoices?: { Name: string; Selected: boolean }[] | null;
+  AgentChoices?:
+    | {
+        Name: string;
+        Selected: boolean;
+        Connected: boolean;
+        AssignableGroups?: AssignableGroups | null;
+      }[]
+    | null;
   Screen: string;
   Action: string;
   Recreate: string;

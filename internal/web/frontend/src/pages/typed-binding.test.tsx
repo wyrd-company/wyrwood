@@ -4,6 +4,7 @@
 // ---
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { expect, it } from "vitest";
 import type { BindingData } from "@/types";
 import { TypedKey } from "./typed-key";
@@ -23,13 +24,17 @@ function data(overrides: Partial<BindingData> = {}) {
   } as unknown as BindingData;
 }
 
+// Keyed holds the selected agent as the binding form does.
+function Keyed({ data: d }: { data: BindingData }) {
+  const [agent, setAgent] = useState(d.Form.Agent ?? "");
+  return <TypedKey data={d} agent={agent} onAgent={setAgent} />;
+}
+
 it("posts a typed key, an approved agent, and a directory name", async () => {
   const user = userEvent.setup();
   const { container } = render(
     <form>
-      <TypedKey
-        data={data({ Form: { ...data().Form, Agent: "approved-b" } })}
-      />
+      <Keyed data={data({ Form: { ...data().Form, Agent: "approved-b" } })} />
     </form>,
   );
   const form = container.querySelector("form")!;
@@ -57,7 +62,7 @@ it("asks for no directory name for a name key", async () => {
   const user = userEvent.setup();
   const { container } = render(
     <form>
-      <TypedKey data={data()} />
+      <Keyed data={data()} />
     </form>,
   );
   const form = container.querySelector("form")!;
@@ -76,7 +81,7 @@ it("asks for no directory name for a name key", async () => {
 it("refuses a directory name that the rule refuses", () => {
   render(
     <form>
-      <TypedKey data={data()} />
+      <Keyed data={data()} />
     </form>,
   );
   const input = screen.getByLabelText<HTMLInputElement>("Directory name");
@@ -104,7 +109,7 @@ it("keeps entered values after a refused submission", () => {
   });
   const { container } = render(
     <form>
-      <TypedKey data={refused} />
+      <Keyed data={refused} />
     </form>,
   );
   expect(screen.getByLabelText("Key kind")).toHaveValue("devcontainer");

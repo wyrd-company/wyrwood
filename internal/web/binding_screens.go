@@ -37,7 +37,7 @@ type bindingScreen struct {
 	// Typed marks the bind screen for a key the operator types, for a
 	// container no agent needs to report. AgentChoices are the approved agents.
 	Typed        bool
-	AgentChoices []agentChoice
+	AgentChoices []typedAgent
 	Screen       string
 	Action       string
 	Recreate     string

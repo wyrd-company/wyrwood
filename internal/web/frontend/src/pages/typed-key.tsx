@@ -33,8 +33,17 @@ function splitKey(encoded: string) {
 
 // TypedKey is the key fieldset of a binding for a container that no agent needs
 // to report: an approved agent, a key kind and value, and the directory name
-// that a key other than name needs.
-export function TypedKey({ data: d }: { data: BindingData }) {
+// that a key other than name needs. The form owns the selected agent, so that
+// its settings follow the agent's groups.
+export function TypedKey({
+  data: d,
+  agent,
+  onAgent,
+}: {
+  data: BindingData;
+  agent: string;
+  onAgent: (agent: string) => void;
+}) {
   const saved = splitKey(d.Form.Key);
   const [kind, setKind] = useState(
     keyKinds.some((k) => k.kind === saved.kind) ? saved.kind : "compose",
@@ -55,7 +64,8 @@ export function TypedKey({ data: d }: { data: BindingData }) {
           id="typed-agent"
           name="agent"
           required
-          defaultValue={d.Form.Agent ?? ""}
+          value={agent}
+          onChange={(event) => onAgent(event.target.value)}
         >
           <option value="" disabled>
             Select an agent

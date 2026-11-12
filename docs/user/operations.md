@@ -192,7 +192,8 @@ agent reports yet. On the **Key and policies** tab:
    key. Use letters, digits, `.`, `_`, and `-`, up to 255 bytes, starting with a
    letter or digit. A `name` key needs none: the container name names the
    directory.
-4. Select the policies and settings, then **Bind policies**.
+4. Select the policies, and on **Settings** the access group: the choices are
+   the groups the selected agent reports. Then select **Bind policies**.
 
 ![Bind by typed key on the Key and policies tab](assets/web-bind-typed.png)
 

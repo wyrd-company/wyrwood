@@ -9,9 +9,11 @@ import (
 	"context"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/wyrd-company/wyrwood/internal/controller/store"
 	"github.com/wyrd-company/wyrwood/internal/events"
 	"github.com/wyrd-company/wyrwood/internal/protocol"
 )
@@ -186,5 +188,28 @@ func TestTypedKeyCreateRequiresASessionAndAntiForgeryToken(t *testing.T) {
 	}
 	if created := fixture.post(t, "/bindings", form); created.status != http.StatusOK || created.data.Row.Directory != "shop-web" {
 		t.Fatalf("admitted create = %d %#v", created.status, created.data.Row)
+	}
+}
+
+// Each approved agent carries what its live session reports, so that the form's
+// access group choice follows the selected agent. Other agents are not offered.
+func TestTypedAgentsCarryEachAgentsGroups(t *testing.T) {
+	groups := &protocol.AssignableGroups{Groups: []protocol.Group{{GID: 4242, Name: "apps"}}}
+	agents := []store.Agent{{Name: "pending-host", State: store.AgentPending}, {Name: "host-a", State: store.AgentApproved},
+		{Name: "host-b", State: store.AgentApproved}, {Name: "gone-host", State: store.AgentRejected}}
+	connected := func(name string) bool { return name == "host-a" }
+	reported := func(name string) *protocol.AssignableGroups {
+		if name == "host-a" {
+			return groups
+		}
+		return nil
+	}
+	got := typedAgents(agents, "host-a", connected, reported)
+	want := []typedAgent{{Name: "host-a", Selected: true, Connected: true, AssignableGroups: groups}, {Name: "host-b"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("typedAgents() = %#v, want %#v", got, want)
+	}
+	if got := typedAgents(agents, "pending-host", connected, reported); got[0].Selected || got[1].Selected {
+		t.Fatalf("a pending agent was selected: %#v", got)
 	}
 }

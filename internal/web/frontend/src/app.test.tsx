@@ -1446,3 +1446,95 @@ it("sets a grant at operator key approval and asks before revocation", () => {
   );
   expect(screen.getByLabelText("1 pending")).toBeInTheDocument();
 });
+
+describe("typed-key binding", () => {
+  function typed(): BindingData {
+    const data = binding(false);
+    return {
+      ...data,
+      Title: "Bind by typed key",
+      Row: {
+        ...data.Row,
+        Agent: "",
+        Name: "",
+        ID: "",
+        Candidates: null,
+        Connected: false,
+        AssignableGroups: null,
+      },
+      Reported: false,
+      Typed: true,
+      AgentChoices: [
+        {
+          Name: "group-host",
+          Selected: false,
+          Connected: true,
+          AssignableGroups: { groups: [{ gid: 4242, name: "apps" }] },
+        },
+        {
+          Name: "privileged-host",
+          Selected: false,
+          Connected: true,
+          AssignableGroups: { groups: [], any: true },
+        },
+        { Name: "offline-host", Selected: false, Connected: false },
+      ],
+      Form: { ...data.Form, Key: "", Agent: "" },
+    };
+  }
+  function groupSelect(container: HTMLElement) {
+    return container.querySelector<HTMLSelectElement>("#binding-group")!;
+  }
+
+  it("offers the selected agent's groups and submits the chosen one", async () => {
+    const user = userEvent.setup();
+    const { container } = draw({ page: "binding", data: typed() });
+    await user.selectOptions(screen.getByLabelText("Agent"), "group-host");
+    await user.type(screen.getByLabelText("Key value"), "shop/web");
+    await user.type(screen.getByLabelText("Directory name"), "shop-web");
+    await user.click(screen.getByRole("tab", { name: /Settings/ }));
+    expect(
+      [...groupSelect(container).options].map((option) => option.value),
+    ).toEqual(["", "4242"]);
+    await user.selectOptions(groupSelect(container), "4242");
+    expectPost("Bind policies", "/bindings?tab=settings", {
+      typed: "yes",
+      agent: "group-host",
+      key: "compose:shop/web",
+      directory: "shop-web",
+      "access-group": "4242",
+    });
+    expect(
+      within(screen.getByLabelText("Binding decisions")).getByText(
+        "apps (4242)",
+      ),
+    ).toBeInTheDocument();
+
+    // Another agent's capabilities replace them, and the choice is unverified.
+    await user.selectOptions(screen.getByLabelText("Agent"), "offline-host");
+    expect(
+      [...groupSelect(container).options].map((option) => option.textContent),
+    ).toEqual(["Owner-only (omit access group)", "4242 (unverified)"]);
+    expect(screen.getByText(/the agent is offline/)).toBeInTheDocument();
+  });
+
+  it("takes another numeric group for an agent that can assign any", async () => {
+    const user = userEvent.setup();
+    const { container } = draw({ page: "binding", data: typed() });
+    await user.selectOptions(screen.getByLabelText("Agent"), "privileged-host");
+    await user.click(screen.getByRole("tab", { name: /Settings/ }));
+    await user.selectOptions(groupSelect(container), "custom");
+    await user.type(screen.getByLabelText("Numeric access group"), "1234");
+    expectPost("Bind policies", "/bindings?tab=settings", {
+      agent: "privileged-host",
+      "access-group": "1234",
+    });
+  });
+
+  it("offers only owner-only access before an agent is chosen", () => {
+    const { container } = draw({ page: "binding", data: typed() });
+    expect(
+      [...groupSelect(container).options].map((option) => option.value),
+    ).toEqual([""]);
+  });
+});

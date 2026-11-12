@@ -24,7 +24,22 @@ import { EffectivePolicy } from "./effective-policy";
 
 const fragments = { "#h-setup": "container-setup" };
 
-export function BindingForm({ data: d }: { data: BindingData }) {
+export function BindingForm({ data }: { data: BindingData }) {
+  // On the typed-key screen the operator chooses the agent, so its connection
+  // and groups replace the row's for the settings and the summary.
+  const [agent, setAgent] = useState(data.Form.Agent ?? "");
+  const chosen = data.AgentChoices?.find((choice) => choice.Name === agent);
+  const d: BindingData = data.Typed
+    ? {
+        ...data,
+        Row: {
+          ...data.Row,
+          Agent: agent,
+          Connected: chosen?.Connected ?? false,
+          AssignableGroups: chosen?.AssignableGroups ?? null,
+        },
+      }
+    : data;
   const r = d.Row;
   const ids = r.Bound
     ? [
@@ -166,7 +181,11 @@ export function BindingForm({ data: d }: { data: BindingData }) {
           label: "Key and policies",
           content: (
             <div className="binding-choices">
-              {d.Typed ? <TypedKey data={d} /> : <KeyChoice data={d} />}
+              {d.Typed ? (
+                <TypedKey data={d} agent={agent} onAgent={setAgent} />
+              ) : (
+                <KeyChoice data={d} />
+              )}
               <PolicyChoices data={d} />
             </div>
           ),

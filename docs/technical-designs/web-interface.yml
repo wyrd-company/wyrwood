@@ -228,8 +228,10 @@ proposed-design:
     needs a directory name, and a refused one answers 422 with this screen, the
     entered values, and the Key and policies tab selected. The summary shows the
     agent, key, and directory name. Settings, Effective policy, and preview are
-    the bind screen's. The access group choices are unverified, since the agent
-    can change. Success opens the binding screen.
+    the bind screen's. Each offered agent carries its live session's connection
+    and assignable groups, so the access group choice is the bind screen's for
+    the selected agent and changes with it; with no agent selected it offers
+    owner-only access. Success opens the binding screen.
   binding-screen: >-
     GET /bindings/{id} shows one bound container, taking the agent from the
     binding record. A binding key can select several reported containers; the
