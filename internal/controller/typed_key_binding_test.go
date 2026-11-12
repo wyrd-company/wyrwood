@@ -213,3 +213,34 @@ func TestDirectoryNameRefusals(t *testing.T) {
 		t.Fatalf("the directory on another agent = %v", err)
 	}
 }
+
+// A change of policies or settings keeps the directory, and the agent's next set
+// still carries it.
+func TestABindingChangeKeepsItsDirectory(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	connection := harness.connectAgent(t, "sample-host")
+	harness.savePolicy(t, "sample")
+	c := harness.controller
+	bound, err := c.CreateBindingFor(ctx, BindingTarget{Agent: "sample-host", Key: shopWeb, Directory: "shop-web"}, sampleSelection(), "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := connection.receive(t).(protocol.PolicySet); !ok {
+		t.Fatal("no policy set after the create")
+	}
+	changed := sampleSelection()
+	changed.Revision = bound.Revision
+	changed.Settings.TokenTTL = "2h"
+	if err := c.ChangeBinding(ctx, bound.ID, changed, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	stored, err := c.Store().Binding(ctx, bound.ID)
+	if err != nil || stored.Directory != "shop-web" || stored.Revision != bound.Revision+1 {
+		t.Fatalf("Binding() after the change = %+v, %v", stored, err)
+	}
+	set, ok := connection.receive(t).(protocol.PolicySet)
+	if !ok || len(set.Bindings) != 1 || set.Bindings[0].Directory != "shop-web" || set.Bindings[0].Assignment != stored.Assignment() {
+		t.Fatalf("policy set after the change = %#v", set)
+	}
+}
