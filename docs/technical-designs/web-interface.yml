@@ -424,7 +424,10 @@ proposed-design:
     box. At 390 by 844 pixels with no scroll, the page heading, the primary
     action, and the tab list of the policy editor and the binding editor
     start in the first screen. To keep the binding editor's tab list there,
-    its decision summary uses two columns below 792 pixels. Below 792 pixels,
+    its decision summary uses two columns below 792 pixels, and the tabs of
+    both editors stay in one row that scrolls sideways. A tab that takes focus
+    or becomes selected scrolls into view, and an edge of the row with tabs
+    beyond it fades. Below 792 pixels,
     focus in the navigation uses the navigation text color, so that it is
     visible on the dark background. Controls are native buttons, links, and
     labelled inputs with visible focus, at least 44 pixels high. Text meets a
@@ -440,7 +443,7 @@ verification: >-
   operator. The demo recorder (`task docs:screenshots`) is the browser
   test: docs/demo/web.sh walks sign-in, agent approval, policy, and binding
   at 1280 by 800 pixels, and docs/demo/phone.sh then checks the first-screen
-  positions at 390 by 844 pixels and the Menu control with pointer and
-  keyboard. The recording fails when a check fails. Each change to a
+  positions at 390 by 844 pixels, the one row of tabs with its faded edges and
+  keyboard focus on each tab, and the Menu control with pointer and keyboard. The recording fails when a check fails. Each change to a
   screenshot input requires a new recording, and `task ci` rejects a stale
   recording receipt.
