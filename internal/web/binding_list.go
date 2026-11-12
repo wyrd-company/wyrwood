@@ -274,6 +274,8 @@ type addBindingPage struct {
 	Agents []agentChoice
 	Rows   []containerRow
 	Back   string
+	// TypedScreen is the bind screen for a key the operator types.
+	TypedScreen string
 }
 
 // handleAddBinding lists the reported containers that have no binding, so that
@@ -287,7 +289,7 @@ func (server *Server) handleAddBinding(writer http.ResponseWriter, request *http
 	}
 	query := request.URL.Query()
 	list := listContext(query)
-	page := addBindingPage{layout: server.layout(request, "Add binding", "bindings"), Back: listURL(list),
+	page := addBindingPage{layout: server.layout(request, "Add binding", "bindings"), Back: listURL(list), TypedScreen: typedBindingURL(list),
 		listFilter: parseListFilter(query, "name", "agent", "image", "state")}
 	view := server.inventoryView(ctx)
 	counts := map[string]int{}

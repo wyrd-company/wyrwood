@@ -612,6 +612,7 @@ function addBinding(): AddBindingData {
   return {
     ...listData(),
     Back: "/bindings?q=sample",
+    TypedScreen: "/bindings/new/key?q=sample",
     Rows: [{ ...row, Bound: false }],
   };
 }

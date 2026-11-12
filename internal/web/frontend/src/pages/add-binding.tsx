@@ -3,7 +3,7 @@
 //   implements: web-interface
 // ---
 import { RowAction } from "@/components/row-action";
-import { Notice, Table } from "@/components/shared";
+import { Button, Notice, Table } from "@/components/shared";
 import type { AddBindingData } from "@/types";
 import { AgentReport, ListFilters } from "./list-filters";
 
@@ -19,6 +19,14 @@ export function AddBinding({ data: d }: { data: AddBindingData }) {
         </p>
         {d.Agents?.length ? (
           <>
+            <div className="flex flex-wrap items-center gap-4">
+              <Button asChild variant="outline">
+                <a href={d.TypedScreen}>Bind by typed key</a>
+              </Button>
+              <span className="hint">
+                Bind a container by its key before an agent reports it.
+              </span>
+            </div>
             <ListFilters
               data={d}
               action="/bindings/add"

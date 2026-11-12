@@ -304,9 +304,12 @@ type containerRow struct {
 	Bound            bool
 	BindingID        string
 	KeyValue         string
-	Token            string
-	Checks           []check
-	Candidates       []candidate
+	// Directory is the consumer directory name stored on a binding whose key
+	// is not name.
+	Directory  string
+	Token      string
+	Checks     []check
+	Candidates []candidate
 }
 
 type check struct {
@@ -393,7 +396,7 @@ func (view inventoryState) applyBinding(row *containerRow, binding store.Binding
 	renewal := row.Effective.AgentRenewal()
 	row.Effective.OpenBao.Policy = row.Effective.PreviewHCL()
 	row.Effective.OpenBao.AgentTokenRenewal = &renewal
-	row.KeyKind, row.KeyValue = string(binding.Key.Kind), binding.Key.Value
+	row.KeyKind, row.KeyValue, row.Directory = string(binding.Key.Kind), binding.Key.Value, binding.Directory
 	row.Badge, row.BadgeClass = stateBadge(view.results[binding.ID])
 	row.Token = "No credential issued yet"
 	if when, ok := view.issued[binding.ID]; ok {

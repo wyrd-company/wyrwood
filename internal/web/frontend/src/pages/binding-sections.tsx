@@ -17,9 +17,9 @@ export function BindingHeading({
   return (
     <div className="screen-heading">
       <div>
-        <h2 id="h-container">{r.Name}</h2>
+        <h2 id="h-container">{r.Name || (d.Typed && "Container by key")}</h2>
         <span className="hint">
-          on {r.Agent}
+          {r.Agent && <>on {r.Agent}</>}
           {d.Reported && (
             <>
               {" "}
@@ -234,6 +234,12 @@ export function BindingStatus({ data: d }: { data: BindingData }) {
             <dt>Bound by {r.KeyKind} key</dt>
             <dd className="mono">{r.KeyValue}</dd>
           </div>
+          {r.Directory && (
+            <div className="col-span-full">
+              <dt>Directory name</dt>
+              <dd className="mono">{r.Directory}</dd>
+            </div>
+          )}
         </dl>
         {d.Reported && (
           <div>

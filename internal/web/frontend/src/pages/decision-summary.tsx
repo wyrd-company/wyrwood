@@ -8,6 +8,8 @@ import type { BindingData } from "@/types";
 // has not opened.
 export interface Decisions {
   key: string;
+  agent: string;
+  directory: string;
   policies: string[];
   ttl: string;
   maxTTL: string;
@@ -19,6 +21,8 @@ export interface Decisions {
 export function savedDecisions(d: BindingData): Decisions {
   return {
     key: d.Form.Key,
+    agent: d.Form.Agent ?? "",
+    directory: d.Form.Directory ?? "",
     policies: d.Policies?.filter((p) => p.Selected).map((p) => p.Name) ?? [],
     ttl: d.Form.Settings?.["token-ttl"] || "1h",
     maxTTL: d.Form.Settings?.["token-max-ttl"] || "8h",
@@ -38,6 +42,8 @@ export function enteredDecisions(form: HTMLFormElement): Decisions {
   });
   return {
     key: text("key"),
+    agent: text("agent"),
+    directory: text("directory"),
     policies: entered.getAll("policies").map(String),
     ttl: text("token-ttl"),
     maxTTL: text("token-max-ttl"),
@@ -67,16 +73,32 @@ export function DecisionSummary({
   data: BindingData;
   decisions: Decisions;
 }) {
-  const key = d.Row.Candidates?.find((c) => c.Encoded === decisions.key);
   const missing = <span className="hint">Not set</span>;
+  const typedKind = decisions.key.split(":", 1)[0];
+  const typedValue = decisions.key.slice(typedKind.length + 1);
+  const key = d.Typed
+    ? typedValue && { Kind: typedKind, Value: typedValue }
+    : d.Row.Candidates?.find((c) => c.Encoded === decisions.key);
   return (
     <dl className="facts decision-summary" aria-label="Binding decisions">
+      {d.Typed && (
+        <div>
+          <dt>Agent</dt>
+          <dd>{decisions.agent || missing}</dd>
+        </div>
+      )}
       {!d.Row.Bound && (
         <div>
           <dt>Key</dt>
           <dd className="mono">
             {key ? `${key.Kind} · ${key.Value}` : missing}
           </dd>
+        </div>
+      )}
+      {d.Typed && typedKind !== "name" && (
+        <div>
+          <dt>Directory name</dt>
+          <dd className="mono">{decisions.directory || missing}</dd>
         </div>
       )}
       <div>

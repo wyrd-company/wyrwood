@@ -97,6 +97,7 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("GET /bindings", server.handleBindings)
 	authenticated.HandleFunc("GET /bindings/add", server.handleAddBinding)
 	authenticated.HandleFunc("GET /bindings/new", server.handleBindScreen)
+	authenticated.HandleFunc("GET /bindings/new/key", server.handleTypedBindScreen)
 	authenticated.HandleFunc("GET /bindings/{id}", server.handleBindingScreen)
 	authenticated.HandleFunc("POST /bindings", server.handleCreateBinding)
 	authenticated.HandleFunc("POST /bindings/preview", server.handlePreviewBinding)

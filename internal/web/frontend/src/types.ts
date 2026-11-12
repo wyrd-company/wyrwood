@@ -111,6 +111,7 @@ export interface ContainerRow {
   Bound: boolean;
   BindingID: string;
   KeyValue: string;
+  Directory?: string;
   Token: string;
   Checks: { Label: string; Mark: string; Status: string }[] | null;
   Candidates:
@@ -158,9 +159,12 @@ export interface BindingsData extends ListData {
 export interface AddBindingData extends ListData {
   Rows: ContainerRow[] | null;
   Back: string;
+  TypedScreen: string;
 }
 export interface BindingForm {
   Key: string;
+  Agent?: string;
+  Directory?: string;
   Revision: number;
   Settings: EnteredBindingSettings;
   Understood: boolean;
@@ -184,6 +188,8 @@ export interface BindingData extends Layout {
   Readiness?: BindingReadiness | null;
   Policies: PolicyChoice[] | null;
   Form: BindingForm;
+  Typed?: boolean;
+  AgentChoices?: { Name: string; Selected: boolean }[] | null;
   Screen: string;
   Action: string;
   Recreate: string;

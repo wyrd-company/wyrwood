@@ -14,6 +14,7 @@ import {
 } from "./binding-sections";
 import { BindingSettings, groupUnassignable } from "./binding-settings";
 import { ContainerSetup } from "./container-setup";
+import { TypedKey } from "./typed-key";
 import {
   DecisionSummary,
   enteredDecisions,
@@ -165,7 +166,7 @@ export function BindingForm({ data: d }: { data: BindingData }) {
           label: "Key and policies",
           content: (
             <div className="binding-choices">
-              <KeyChoice data={d} />
+              {d.Typed ? <TypedKey data={d} /> : <KeyChoice data={d} />}
               <PolicyChoices data={d} />
             </div>
           ),
@@ -217,8 +218,12 @@ export function BindingForm({ data: d }: { data: BindingData }) {
       }}
     >
       <CSRF token={d.CSRF} />
-      <input type="hidden" name="agent" value={r.Agent} />
-      <input type="hidden" name="container" value={r.ID} />
+      {!d.Typed && (
+        <>
+          <input type="hidden" name="agent" value={r.Agent} />
+          <input type="hidden" name="container" value={r.ID} />
+        </>
+      )}
       <input type="hidden" name="revision" value={d.Form.Revision || 0} />
       {d.Problem && (
         <p className="problem" role="alert">
@@ -226,11 +231,19 @@ export function BindingForm({ data: d }: { data: BindingData }) {
           {r.Bound && <a href={withTab(d.Screen)}>Reload saved values</a>}
         </p>
       )}
-      {!d.Reported && (
-        <p className="caution">
-          The agent does not report a container for this binding now. The
-          contract check and setup examples return when it does.
+      {d.Typed ? (
+        <p className="hint">
+          No agent needs to report this container yet. The agent prepares its
+          consumer directory when the binding is saved, and the container gets a
+          token once the agent observes it.
         </p>
+      ) : (
+        !d.Reported && (
+          <p className="caution">
+            The agent does not report a container for this binding now. The
+            contract check and setup examples return when it does.
+          </p>
+        )
       )}
       <section
         className="card flex flex-col gap-4"

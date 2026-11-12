@@ -34,17 +34,25 @@ type bindingScreen struct {
 	Readiness *controller.BindingStatus
 	Policies  []policyChoice
 	Form      bindingForm
-	Screen    string
-	Action    string
-	Recreate  string
-	Unbind    string
-	Back      string
+	// Typed marks the bind screen for a key the operator types, for a
+	// container no agent needs to report. AgentChoices are the approved agents.
+	Typed        bool
+	AgentChoices []agentChoice
+	Screen       string
+	Action       string
+	Recreate     string
+	Unbind       string
+	Back         string
 }
 
 // bindingForm is what the form shows: saved values, or the operator's entered
 // text after a failed submission, including text that does not validate.
 type bindingForm struct {
-	Key        string
+	Key string
+	// Agent and Directory are the typed-key form's entered agent and directory
+	// name. The other forms take the agent from the report or the record.
+	Agent      string `json:",omitempty"`
+	Directory  string `json:",omitempty"`
 	Revision   int
 	Policies   []string
 	Settings   enteredSettings
@@ -346,6 +354,7 @@ func (server *Server) handleBindingScreen(writer http.ResponseWriter, request *h
 func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *http.Request) {
 	ctx := request.Context()
 	agent, container := request.PostFormValue("agent"), request.PostFormValue("container")
+	typed := request.PostFormValue("typed") == "yes"
 	kind, value, _ := strings.Cut(request.PostFormValue("key"), ":")
 	bindingRequest, err := bindingFromForm(request)
 	if err == nil && bindingRequest.Settings.Enforcement == policy.EnforcementRecreate && request.PostFormValue("understood") != "yes" {
@@ -353,11 +362,14 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	}
 	var binding store.Binding
 	if err == nil {
-		binding, err = server.controller.CreateBinding(ctx, agent, protocol.Key{Kind: protocol.KeyKind(kind), Value: value}, bindingRequest, operatorSubject(request))
+		target := controller.BindingTarget{Agent: agent, Key: protocol.Key{Kind: protocol.KeyKind(kind), Value: value}, Directory: request.PostFormValue("directory")}
+		binding, err = server.controller.CreateBindingFor(ctx, target, bindingRequest, operatorSubject(request))
 	}
 	values := listContext(request.URL.Query())
 	if err == nil {
-		values.Set("container", container)
+		if container != "" {
+			values.Set("container", container)
+		}
 		values.Set("notice", "bound")
 		if tab := request.URL.Query().Get("tab"); tab != "" {
 			values.Set("tab", tab)
@@ -369,6 +381,12 @@ func (server *Server) handleCreateBinding(writer http.ResponseWriter, request *h
 	// A binding can be saved before OpenBao refuses its assignment.
 	if binding.ID != "" {
 		server.renderBoundScreen(writer, request, http.StatusUnprocessableEntity, binding, container, nil, problem, "")
+		return
+	}
+	if typed {
+		form := enteredForm(request)
+		form.Agent, form.Directory = agent, request.PostFormValue("directory")
+		server.renderTypedBindScreen(writer, request, http.StatusUnprocessableEntity, form, problem, bindingProblemTab(err, false))
 		return
 	}
 	row, ok, readErr := server.reportedContainer(ctx, agent, container)
