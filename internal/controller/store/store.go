@@ -142,10 +142,14 @@ var migrations = []string{
 		last_used INTEGER
 	);
 	CREATE UNIQUE INDEX operator_keys_label ON operator_keys(label) WHERE state IN ('approved', 'revoked');`,
+	// A binding whose key is not name can name its consumer directory. Every
+	// earlier binding has none, which is the default.
+	`ALTER TABLE bindings ADD COLUMN directory TEXT NOT NULL DEFAULT '';
+	CREATE UNIQUE INDEX bindings_directory ON bindings(agent, directory) WHERE directory != '';`,
 }
 
 // schemaVersion is the controller state version that this controller reads and writes.
-const schemaVersion = 4
+const schemaVersion = 5
 
 // Open opens or creates the database at path, applying migrations.
 func Open(path string) (*Store, error) {
@@ -515,9 +519,13 @@ func scanPolicy(row interface{ Scan(...any) error }) (StoredPolicy, error) {
 
 // Binding resolves several policies and runtime settings for one container key.
 type Binding struct {
-	ID        string
-	Agent     string
-	Key       protocol.Key
+	ID    string
+	Agent string
+	Key   protocol.Key
+	// Directory is the consumer directory name the operator gave a binding
+	// whose key is not name. It is empty for a name key and for a binding that
+	// waits for its container to name the directory.
+	Directory string
 	Policies  []string
 	Settings  policy.Settings
 	Revision  int
@@ -526,6 +534,15 @@ type Binding struct {
 	Role      string
 	CreatedAt time.Time
 	CreatedBy string
+}
+
+// PreparedDirectory returns the consumer directory name the binding gives
+// before its container exists: its directory, or the value of a name key.
+func (b Binding) PreparedDirectory() string {
+	if b.Key.Kind == protocol.KeyName {
+		return b.Key.Value
+	}
+	return b.Directory
 }
 
 // Assignment identifies the complete immutable runtime assignment.
@@ -546,7 +563,7 @@ func (b Binding) HasPolicy(name string) bool {
 	return false
 }
 
-const bindingColumns = `id, agent, key_kind, key_value,
+const bindingColumns = `id, agent, key_kind, key_value, directory,
  (SELECT json_group_array(policy_name) FROM (SELECT policy_name FROM binding_policies WHERE binding_id=bindings.id ORDER BY policy_name)),
  role, created_at, created_by, settings, revision, effective, applied`
 
@@ -554,7 +571,7 @@ func scanBinding(row interface{ Scan(...any) error }) (Binding, error) {
 	var b Binding
 	var created int64
 	var names, settings, effective string
-	if err := row.Scan(&b.ID, &b.Agent, &b.Key.Kind, &b.Key.Value, &names, &b.Role, &created, &b.CreatedBy, &settings, &b.Revision, &effective, &b.Applied); err != nil {
+	if err := row.Scan(&b.ID, &b.Agent, &b.Key.Kind, &b.Key.Value, &b.Directory, &names, &b.Role, &created, &b.CreatedBy, &settings, &b.Revision, &effective, &b.Applied); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return Binding{}, ErrNotFound
 		}
@@ -608,7 +625,7 @@ func (store *Store) CreateBinding(ctx context.Context, b Binding) error {
 	if b.Revision == 0 {
 		b.Revision = 1
 	}
-	_, err = tx.ExecContext(ctx, `INSERT INTO bindings(id,agent,key_kind,key_value,role,created_at,created_by,settings,revision,effective,applied) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, b.ID, b.Agent, b.Key.Kind, b.Key.Value, b.Role, unix(b.CreatedAt), b.CreatedBy, settings, b.Revision, effective, b.Applied)
+	_, err = tx.ExecContext(ctx, `INSERT INTO bindings(id,agent,key_kind,key_value,directory,role,created_at,created_by,settings,revision,effective,applied) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, b.ID, b.Agent, b.Key.Kind, b.Key.Value, b.Directory, b.Role, unix(b.CreatedAt), b.CreatedBy, settings, b.Revision, effective, b.Applied)
 	if err == nil {
 		err = writeMembership(ctx, tx, b)
 	}

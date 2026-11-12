@@ -382,9 +382,9 @@ func MatchBindings(containers []protocol.Container, bindings []store.Binding) []
 }
 
 // CarriedBindings returns the bindings a policy set carries: every matched
-// binding, then every name binding with no match. A name binding gives the
-// agent its consumer directory's name, so the agent can prepare the directory
-// before the container exists.
+// binding, then every binding with no match that names its consumer directory:
+// a name binding, or a binding with a directory. The agent can then prepare the
+// directory before the container exists.
 func CarriedBindings(containers []protocol.Container, bindings []store.Binding) []store.Binding {
 	carried := MatchBindings(containers, bindings)
 	seen := make(map[string]bool, len(carried))
@@ -392,7 +392,7 @@ func CarriedBindings(containers []protocol.Container, bindings []store.Binding) 
 		seen[binding.ID] = true
 	}
 	for _, binding := range bindings {
-		if binding.Key.Kind == protocol.KeyName && !seen[binding.ID] {
+		if binding.PreparedDirectory() != "" && !seen[binding.ID] {
 			carried = append(carried, binding)
 		}
 	}
@@ -400,7 +400,7 @@ func CarriedBindings(containers []protocol.Container, bindings []store.Binding) 
 }
 
 func wireBinding(binding store.Binding) protocol.Binding {
-	return protocol.Binding{Binding: binding.ID, Key: binding.Key, Policy: binding.Effective, Assignment: binding.Assignment()}
+	return protocol.Binding{Binding: binding.ID, Key: binding.Key, Directory: binding.Directory, Policy: binding.Effective, Assignment: binding.Assignment()}
 }
 
 // ContainerBinding returns the binding that governs one container, if any.

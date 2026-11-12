@@ -166,7 +166,7 @@ func (controller *Controller) bindingStatus(binding store.Binding, containers []
 	var waiting, failed []NotReadyReason
 	report, ok := session.status(binding.ID)
 	switch {
-	case len(containers) == 0 && binding.Key.Kind != protocol.KeyName:
+	case len(containers) == 0 && binding.PreparedDirectory() == "":
 		// The controller has withdrawn this binding, so the agent has retired
 		// what its last status describes.
 		waiting = []NotReadyReason{ReasonNoContainer}

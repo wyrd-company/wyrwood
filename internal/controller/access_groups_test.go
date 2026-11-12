@@ -72,7 +72,7 @@ func TestBindingMutationsRejectKnownUnassignableGroupsBeforeWrites(t *testing.T)
 	// Call the mutation internals to avoid a policy push to this synthetic session.
 	zero := uint32(0)
 	req := BindingRequest{Policies: []string{"sample"}, Settings: policy.Settings{AccessGroup: &zero}, Revision: b.Revision}
-	if _, err := c.createBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "other"}, req, "operator-1"); err == nil || !strings.Contains(err.Error(), "cannot assign group 0") {
+	if _, err := c.createBinding(ctx, BindingTarget{Agent: "host-a", Key: protocol.Key{Kind: protocol.KeyName, Value: "other"}}, req, "operator-1"); err == nil || !strings.Contains(err.Error(), "cannot assign group 0") {
 		t.Fatalf("create: %v", err)
 	}
 	_, assignErr := c.changeBinding(ctx, b.ID, req, "operator-1")
@@ -93,7 +93,7 @@ func TestBindingMutationsRejectKnownUnassignableGroupsBeforeWrites(t *testing.T)
 	}
 	valid := uint32(987)
 	req.Settings.AccessGroup = &valid
-	created, err := c.createBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "other"}, req, "operator-1")
+	created, err := c.createBinding(ctx, BindingTarget{Agent: "host-a", Key: protocol.Key{Kind: protocol.KeyName, Value: "other"}}, req, "operator-1")
 	if err != nil || created.Settings.AccessGroup == nil || *created.Settings.AccessGroup != 987 {
 		t.Fatalf("valid group not saved: %+v %v", created, err)
 	}

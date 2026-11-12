@@ -772,7 +772,7 @@ func TestMatchBindingsUsesKeyPrecedence(t *testing.T) {
 	}
 }
 
-func TestCarriedBindingsAddOnlyUnmatchedNameBindings(t *testing.T) {
+func TestCarriedBindingsAddOnlyUnmatchedPreparedBindings(t *testing.T) {
 	containers := []protocol.Container{{Keys: []protocol.Key{
 		{Kind: protocol.KeyDevcontainer, Value: "/src/app"}, {Kind: protocol.KeyName, Value: "app"},
 	}}}
@@ -781,12 +781,13 @@ func TestCarriedBindingsAddOnlyUnmatchedNameBindings(t *testing.T) {
 		{ID: "b-dev", Key: protocol.Key{Kind: protocol.KeyDevcontainer, Value: "/src/app"}},
 		{ID: "b-waiting", Key: protocol.Key{Kind: protocol.KeyName, Value: "later"}},
 		{ID: "b-compose", Key: protocol.Key{Kind: protocol.KeyCompose, Value: "shop/later"}},
+		{ID: "b-directory", Key: protocol.Key{Kind: protocol.KeyCompose, Value: "shop/next"}, Directory: "shop-next"},
 	}
 	var carried []string
 	for _, binding := range CarriedBindings(containers, bindings) {
 		carried = append(carried, binding.ID)
 	}
-	if strings.Join(carried, ",") != "b-dev,b-shadowed,b-waiting" {
+	if strings.Join(carried, ",") != "b-dev,b-shadowed,b-waiting,b-directory" {
 		t.Fatalf("CarriedBindings() = %v", carried)
 	}
 }

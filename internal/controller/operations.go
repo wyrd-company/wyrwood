@@ -38,9 +38,14 @@ type OperationError struct {
 	// Part is what the operator must change. It is empty when no single part
 	// of the form owns the problem.
 	Part policy.Part
+	// Cause is the named refusal behind the message, when there is one.
+	Cause error
 }
 
 func (err *OperationError) Error() string { return err.Message }
+
+// Unwrap returns the named refusal, so that errors.Is can tell refusals apart.
+func (err *OperationError) Unwrap() error { return err.Cause }
 
 func operationError(code events.ErrorCode, format string, arguments ...any) error {
 	return &OperationError{Message: fmt.Sprintf(format, arguments...), Code: code}
@@ -258,12 +263,21 @@ func (controller *Controller) savePolicy(ctx context.Context, document policy.Po
 	return saved, agents, nil
 }
 
+// CreateBinding binds a container key with no directory name. A key that is
+// not name then waits for its container to name the directory.
 func (controller *Controller) CreateBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
+	return controller.CreateBindingFor(ctx, BindingTarget{Agent: agent, Key: key, waits: true}, request, operator)
+}
+
+// CreateBindingFor binds target. A key that is not name, for a container its
+// agent does not report, needs a directory name, so that the agent can prepare
+// the directory before the container exists.
+func (controller *Controller) CreateBindingFor(ctx context.Context, target BindingTarget, request BindingRequest, operator string) (store.Binding, error) {
 	started := controller.now()
 	controller.mutationMu.Lock()
-	b, err := controller.createBinding(ctx, agent, key, request, operator)
+	b, err := controller.createBinding(ctx, target, request, operator)
 	controller.mutationMu.Unlock()
-	controller.finishCreateBinding(ctx, agent, key, b, err, operator, started)
+	controller.finishCreateBinding(ctx, target.Agent, target.Key, b, err, operator, started)
 	return b, err
 }
 
@@ -285,12 +299,16 @@ func (controller *Controller) finishCreateBinding(ctx context.Context, agent str
 		controller.hub.pushAgent(ctx, agent)
 	}
 }
-func (controller *Controller) createBinding(ctx context.Context, agent string, key protocol.Key, request BindingRequest, operator string) (store.Binding, error) {
+func (controller *Controller) createBinding(ctx context.Context, target BindingTarget, request BindingRequest, operator string) (store.Binding, error) {
+	agent, key := target.Agent, target.Key
 	if err := key.Validate(); err != nil {
 		return store.Binding{}, partOperationError(policy.PartKey, events.ErrorPolicyDenied, "the container key is invalid")
 	}
 	if _, err := controller.store.ApprovedAgent(ctx, agent); err != nil {
 		return store.Binding{}, operationError(events.ErrorNotBound, "the agent is not approved")
+	}
+	if err := controller.validateDirectory(ctx, target); err != nil {
+		return store.Binding{}, err
 	}
 	if err := controller.validateAccessGroup(agent, request.Settings.AccessGroup); err != nil {
 		return store.Binding{}, err
@@ -299,7 +317,10 @@ func (controller *Controller) createBinding(ctx context.Context, agent string, k
 	if err != nil {
 		return store.Binding{}, err
 	}
-	b := store.Binding{ID: store.NewID("b-"), Agent: agent, Key: key, Policies: effective.Names(), Settings: effective.Settings, Effective: effective, Revision: 1, CreatedAt: controller.now(), CreatedBy: operator}
+	if err := controller.requireDirectory(ctx, target); err != nil {
+		return store.Binding{}, err
+	}
+	b := store.Binding{ID: store.NewID("b-"), Agent: agent, Key: key, Directory: target.Directory, Policies: effective.Names(), Settings: effective.Settings, Effective: effective, Revision: 1, CreatedAt: controller.now(), CreatedBy: operator}
 	b.Role = RoleName(agent, b.ID)
 	if err := controller.preflight(ctx, []store.Binding{b}); err != nil {
 		return store.Binding{}, err

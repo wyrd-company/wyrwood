@@ -375,6 +375,8 @@ func TestSchemaThreeStateMigratesWithEveryRowIntact(t *testing.T) {
 	}
 	before := dump(t, first.db)
 	exec(t, first.db, `DROP TABLE operator_keys`)
+	exec(t, first.db, `DROP INDEX bindings_directory`)
+	exec(t, first.db, `ALTER TABLE bindings DROP COLUMN directory`)
 	exec(t, first.db, `PRAGMA user_version = 3`)
 	if err := first.Close(); err != nil {
 		t.Fatal(err)

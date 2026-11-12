@@ -475,7 +475,9 @@ func (controller *Controller) operatorBind(ctx context.Context, key store.Operat
 		}
 		return controller.readOperatorBinding(ctx, applied)
 	}
-	created, err := controller.createBinding(ctx, request.Agent, wanted, selection, subject)
+	// The operator protocol carries no directory name, so its bind of a key
+	// that is not name waits for the container, as it always did.
+	created, err := controller.createBinding(ctx, BindingTarget{Agent: request.Agent, Key: wanted, waits: true}, selection, subject)
 	controller.mutationMu.Unlock()
 	controller.finishCreateBinding(ctx, request.Agent, wanted, created, err, subject, started)
 	if err != nil && created.ID != "" {
