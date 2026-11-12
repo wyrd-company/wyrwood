@@ -17,6 +17,8 @@ agent cannot use it. The binding screen shows it. `wyrwood bind` takes no
 directory name and binds as before.
 
 The controller moves its database to schema 5 when it starts, keeping every
-binding as it was. A policy set now carries the directory name of such a
-binding, which an older agent rejects: stop all agents, upgrade the controller,
-then upgrade the agents.
+binding as it was. A 0.6.1 controller refuses a schema 5 database and leaves it
+unchanged, so going back needs the state directory backed up before the
+upgrade. A policy set now carries the directory name of such a binding, which a
+0.6.1 agent rejects: stop all agents, back up the controller state, upgrade the
+controller, then upgrade the agents.

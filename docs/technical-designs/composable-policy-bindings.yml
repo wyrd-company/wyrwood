@@ -97,7 +97,11 @@ proposed-design:
     migration adds the column to each existing row with the empty default, so
     every binding that schema 4 stored reads as before with no directory. The
     directory is not part of the assignment identity, so the move to schema 5
-    changes no assignment and issues no credential.
+    changes no assignment and issues no credential. The move runs at the first
+    start of this controller, whether or not any binding has a directory. A
+    controller that reads schema 4 refuses a schema 5 database at startup and
+    leaves it unchanged, so going back to it needs the state from before the
+    upgrade. The controller is upgraded first, in the stopped rollout below.
   policy-identity: >-
     OpenBao resolves a token's policies by name on each request, so a token that
     outlives its binding holds whatever a later policy publishes under that name.
