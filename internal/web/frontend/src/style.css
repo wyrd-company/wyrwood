@@ -812,6 +812,49 @@ ul.plain li {
 .screen-panel[hidden] {
   display: none;
 }
+/* Above the page, the tabs keep one row that scrolls sideways, so that the
+   binding editor's tabs stay in the first screen of a phone. An edge with tabs
+   beyond it fades. The scroll padding keeps a tab that takes focus or becomes
+   selected clear of the fade, and the focus outline sits inside the tab so
+   that the list does not clip it. */
+@container (width < 792px) {
+  .screen-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-padding-inline: 32px;
+    border-bottom: 0;
+    box-shadow: inset 0 -1px var(--line);
+  }
+  .screen-tabs[data-more-start] {
+    mask-image: linear-gradient(to right, transparent, #000 32px);
+  }
+  .screen-tabs[data-more-end] {
+    mask-image: linear-gradient(to left, transparent, #000 32px);
+  }
+  .screen-tabs[data-more-start][data-more-end] {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 32px,
+      #000 calc(100% - 32px),
+      transparent
+    );
+  }
+  .screen-tab {
+    flex: none;
+    margin-bottom: 0;
+    white-space: nowrap;
+  }
+  .screen-tab:focus-visible {
+    outline-offset: -2px;
+  }
+  /* With the summary card above it, this keeps the binding editor's tab list
+     inside the first screen of a 390 by 844 phone. */
+  .card.tabs-card {
+    padding-top: 12px;
+  }
+}
 .row-action {
   display: inline-flex;
   align-items: center;

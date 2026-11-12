@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -85,6 +86,30 @@ export function useScreenTabs(
   return { tab, setTab, reveal, onInvalidCapture, withTab };
 }
 
+// keepInView scrolls the tab list sideways so that the tab is inside the
+// list's scroll padding, clear of a faded edge. It moves only the list, never
+// the page.
+function keepInView(list: HTMLElement, tab: HTMLElement) {
+  const pad = parseFloat(getComputedStyle(list).scrollPaddingLeft) || 0;
+  const box = list.getBoundingClientRect();
+  const edges = tab.getBoundingClientRect();
+  if (edges.left < box.left + pad) {
+    list.scrollLeft -= box.left + pad - edges.left;
+  } else if (edges.right > box.right - pad) {
+    list.scrollLeft += edges.right - (box.right - pad);
+  }
+}
+
+// markMore marks each side of the tab list that has tabs out of sight, so that
+// the stylesheet fades that edge.
+function markMore(list: HTMLElement) {
+  const rest = list.scrollWidth - list.clientWidth - list.scrollLeft;
+  list.toggleAttribute("data-more-start", list.scrollLeft > 1);
+  list.toggleAttribute("data-more-end", rest > 1);
+}
+
+// At phone width the tab list is one row that scrolls sideways. A tab that
+// takes focus or becomes selected scrolls into view.
 export function ScreenTabs({
   label,
   tabs,
@@ -96,9 +121,38 @@ export function ScreenTabs({
   value: string;
   onValueChange: (id: string) => void;
 }) {
+  const list = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const element = list.current;
+    const selected = element?.querySelector<HTMLElement>(
+      '[role="tab"][data-state="active"]',
+    );
+    if (element && selected) keepInView(element, selected);
+    if (element) markMore(element);
+  }, [value]);
+  useEffect(() => {
+    const element = list.current;
+    if (!element || typeof ResizeObserver === "undefined") return;
+    // The tabs change width when the web font loads, and the list when the
+    // page does.
+    const observer = new ResizeObserver(() => markMore(element));
+    observer.observe(element);
+    for (const tab of element.children) observer.observe(tab);
+    return () => observer.disconnect();
+  }, [tabs.map((tab) => tab.id).join()]);
   return (
     <Tabs.Root value={value} onValueChange={onValueChange}>
-      <Tabs.List aria-label={label} className="screen-tabs">
+      <Tabs.List
+        ref={list}
+        aria-label={label}
+        className="screen-tabs"
+        onFocus={(event) => {
+          if (event.target.getAttribute("role") === "tab") {
+            keepInView(event.currentTarget, event.target);
+          }
+        }}
+        onScroll={(event) => markMore(event.currentTarget)}
+      >
         {tabs.map((tab) => (
           <Tabs.Trigger key={tab.id} value={tab.id} className="screen-tab">
             {tab.label}

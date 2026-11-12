@@ -9,7 +9,9 @@
 # teal-api, and a pending operator key. web.sh runs it last; it also runs alone
 # against a site in that state. It checks that the page heading, the primary
 # action, and the tab list of the policy editor and the binding editor start in
-# the first screen, and that the navigation menu works with pointer and
+# the first screen, that each editor's tabs keep one row with a faded edge
+# where tabs are out of sight, that the arrow keys move visible focus through
+# each tab inside the row, and that the navigation menu works with pointer and
 # keyboard. It prints each measurement and exits 1 after the last check when
 # any check failed. It also captures docs/user/assets/web-phone-menu.png.
 set -euo pipefail
@@ -72,6 +74,69 @@ first_screen() {
 	})()"
 }
 
+# Fails a check unless the tabs share one row and the tab list ends in the
+# first screen.
+one_row() {
+	check "$1: tabs in one row that ends above y $height" "(() => {
+		window.scrollTo(0, 0);
+		const list = document.querySelector('main [role=tablist]');
+		const tabs = list ? [...list.querySelectorAll('[role=tab]')] : [];
+		if (tabs.length < 2) return 'tab list has ' + tabs.length + ' tabs';
+		const tops = [...new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top + window.scrollY)))];
+		if (tops.length !== 1) return 'tabs start at y ' + tops.join(', ');
+		const bottom = Math.round(list.getBoundingClientRect().bottom);
+		return bottom <= $height ? 'ok' : 'tab list ends at y ' + bottom;
+	})()"
+}
+
+# Grades the tab list's sign that tabs are out of sight: each side is marked
+# exactly when the list scrolls further that way, and a marked list is faded.
+more_sign() {
+	check "$1: the tab list marks the sides with tabs out of sight" "(() => {
+		const list = document.querySelector('main [role=tablist]');
+		const before = list.scrollLeft > 1;
+		const after = list.scrollLeft + list.clientWidth < list.scrollWidth - 1;
+		if (list.hasAttribute('data-more-start') !== before) return 'data-more-start is ' + list.hasAttribute('data-more-start') + ' at scrollLeft ' + list.scrollLeft;
+		if (list.hasAttribute('data-more-end') !== after) return 'data-more-end is ' + list.hasAttribute('data-more-end') + ' with ' + (list.scrollWidth - list.clientWidth - list.scrollLeft) + ' px to the end';
+		const mask = getComputedStyle(list).maskImage || getComputedStyle(list).webkitMaskImage;
+		return (before || after) === (mask !== 'none') ? 'ok' : 'mask ' + mask;
+	})()"
+}
+
+# Tab moves focus to the selected tab, and the arrow keys move it through
+# each tab. Each focused tab and its focus outline must be inside the tab
+# list's visible box. The tabs move focus from a timer after an arrow key, so
+# each check first lets the page's pending timers run.
+tabs_by_keyboard() {
+	browse eval "window.scrollTo(0, 0); document.activeElement.blur(); true"
+	for _ in $(seq 40); do
+		browse press Tab
+		if [ "$(agent-browser eval 'document.activeElement.getAttribute("role")')" = '"tab"' ]; then
+			break
+		fi
+	done
+	local count
+	count=$(agent-browser eval "document.querySelectorAll('main [role=tablist] [role=tab]').length")
+	for index in $(seq "$count"); do
+		check "$1: tab $index has visible focus inside the tab list" "new Promise((settle) => setTimeout(settle)).then(() => {
+			const tab = document.activeElement;
+			const list = tab.closest('main [role=tablist]');
+			if (!list || tab.getAttribute('role') !== 'tab') return 'focus on ' + focused();
+			if (tab !== list.querySelectorAll('[role=tab]')[$index - 1]) return 'focus on tab ' + ([...list.querySelectorAll('[role=tab]')].indexOf(tab) + 1);
+			const style = getComputedStyle(tab);
+			if (!tab.matches(':focus-visible') || style.outlineStyle === 'none') return 'no visible focus';
+			// A list that clips its content must hold the whole focus outline.
+			const ring = getComputedStyle(list).overflowX === 'visible' ? 0 : parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset);
+			const box = list.getBoundingClientRect();
+			const r = tab.getBoundingClientRect();
+			const inside = r.left - ring >= box.left - 0.5 && r.right + ring <= box.right + 0.5 && r.top - ring >= box.top - 0.5 && r.bottom + ring <= box.bottom + 0.5;
+			return inside ? 'ok' : 'tab or outline outside the list: tab ' + Math.round(r.left) + '..' + Math.round(r.right) + ', list ' + Math.round(box.left) + '..' + Math.round(box.right);
+		})"
+		more_sign "$1 with tab $index focused"
+		browse press ArrowRight
+	done
+}
+
 # The page must show its own heading before any position is graded.
 on_page() {
 	check "reached $1" "(() => {
@@ -95,6 +160,13 @@ browse find role link click --name "Edit binding for teal-api"
 browse wait "main [role=tablist]"
 on_page "binding editor at 1280 x 800" /bindings/
 measure "binding editor" "Save binding"
+check "binding editor at 1280 x 800: tabs in one row" "(() => {
+	const tabs = [...document.querySelectorAll('main [role=tablist] [role=tab]')];
+	const tops = new Set(tabs.map((t) => Math.round(t.getBoundingClientRect().top)));
+	const list = document.querySelector('main [role=tablist]');
+	if (tabs.length < 2 || tops.size !== 1) return tabs.length + ' tabs at ' + tops.size + ' tops';
+	return list.scrollWidth === list.clientWidth ? 'ok' : 'tab list scrolls at 1280 x 800';
+})()"
 check "navigation beside the page shows each destination and no menu control" "(() => {
 	const control = $toggle;
 	if (control && control.checkVisibility()) return 'menu control is displayed';
@@ -114,6 +186,9 @@ browse wait --text "1 binding on 1 agent"
 on_page "policy editor" /policies/edit
 measure "policy editor" "Save and validate"
 first_screen "policy editor" "Save and validate"
+one_row "policy editor"
+more_sign "policy editor"
+tabs_by_keyboard "policy editor"
 
 browse open "$site/bindings"
 browse find role link click --name "Edit binding for teal-api"
@@ -121,6 +196,9 @@ browse wait "main [role=tablist]"
 on_page "binding editor" /bindings/
 measure "binding editor" "Save binding"
 first_screen "binding editor" "Save binding"
+one_row "binding editor"
+more_sign "binding editor"
+tabs_by_keyboard "binding editor"
 
 if [ "$(agent-browser eval "Boolean($toggle)")" != true ]; then
 	echo "phone.sh: FAIL no menu control in the primary navigation" >&2

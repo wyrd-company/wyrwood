@@ -271,7 +271,7 @@ export function BindingForm({ data }: { data: BindingData }) {
         <BindingHeading data={d} actions={actions} />
         <DecisionSummary data={d} decisions={decisions} />
       </section>
-      <section className="card" aria-label="Binding details">
+      <section className="card tabs-card" aria-label="Binding details">
         <ScreenTabs
           label="Binding sections"
           tabs={tabs}
