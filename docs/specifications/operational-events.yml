@@ -17,6 +17,10 @@ description: >-
   new name as `new-policy`, the operator, and the outcome, including a refusal and a
   rename that committed with its transition pending; a name that is not a valid
   policy name is omitted. Earlier events keep the name they were recorded with.
+  `binding-changed` records one event for each policy that the binding selected
+  before the change or selects after it: `policy` names the policy when the
+  binding selected it before, and `new-policy` when the binding selects it after.
+  A change that is refused or fails records one event that names no policy.
   `container-started` records the agent's start of a bound container whose
   boot start failed on its consumer directory. It carries the binding, the
   container key, and the outcome, and a failed start carries

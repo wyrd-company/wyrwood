@@ -342,20 +342,55 @@ var errRevisionDiffers = errors.New("the binding changed after the revision the 
 func (controller *Controller) ChangeBinding(ctx context.Context, id string, request BindingRequest, operator string) error {
 	started := controller.now()
 	controller.mutationMu.Lock()
-	b, err := controller.changeBinding(ctx, id, request, operator)
+	before, err := controller.store.Binding(ctx, id)
+	after := before
+	if err != nil {
+		err = operationError(events.ErrorNotBound, "the binding does not exist")
+	} else {
+		after, err = controller.changeStoredBinding(ctx, before, request, operator)
+	}
 	controller.mutationMu.Unlock()
-	eventBinding := b
+	controller.finishChangeBinding(ctx, id, before.Policies, after, err, operator, started)
+	return err
+}
+
+// finishChangeBinding records a change attempt and tells the agent about its
+// result. before is the selection the binding held before the change.
+func (controller *Controller) finishChangeBinding(ctx context.Context, id string, before []string, after store.Binding, err error, operator string, started time.Time) {
+	code := mutationErrorCode(err)
+	event := events.Event{Operation: events.OperationBindingChanged, Outcome: outcomeFor(code), ErrorCode: code, Binding: id, Agent: after.Agent, Operator: operator, Latency: controller.now().Sub(started)}
 	// Failed input is not an audit fan-out source. One categorical event
 	// identifies the attempted binding even for repeated or oversized input.
 	if err != nil {
-		eventBinding.Policies = nil
+		controller.record(event)
+	} else {
+		controller.recordSelectionChange(before, after.Policies, event)
 	}
-	code := mutationErrorCode(err)
-	controller.recordBinding(eventBinding, events.Event{Operation: events.OperationBindingChanged, Outcome: outcomeFor(code), ErrorCode: code, Binding: id, Agent: b.Agent, Operator: operator, Latency: controller.now().Sub(started)})
-	if b.ID != "" {
-		controller.hub.pushAgent(ctx, b.Agent)
+	if after.ID != "" {
+		controller.hub.pushAgent(ctx, after.Agent)
 	}
-	return err
+}
+
+// recordSelectionChange records one event for each policy that a binding
+// selected before a change or selects after it. The event's policy names it
+// when the binding selected it before, and its new policy when the binding
+// selects it after, so that the events of one change hold both selections.
+func (controller *Controller) recordSelectionChange(before, after []string, event events.Event) {
+	names := slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(before), after...))))
+	if len(names) == 0 {
+		controller.record(event)
+		return
+	}
+	for _, name := range names {
+		event.Policy, event.NewPolicy = "", ""
+		if slices.Contains(before, name) {
+			event.Policy = boundedPolicyName(name)
+		}
+		if slices.Contains(after, name) {
+			event.NewPolicy = boundedPolicyName(name)
+		}
+		controller.record(event)
+	}
 }
 func (controller *Controller) changeBinding(ctx context.Context, id string, request BindingRequest, operator string) (store.Binding, error) {
 	b, err := controller.store.Binding(ctx, id)

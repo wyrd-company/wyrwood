@@ -294,7 +294,9 @@ listing, signing, and certificate issuance. Controller events cover operator
 sign-in and sign-out, agent approval, operator key approval and revocation,
 sessions, policy saves, deletes, and renames, bindings, and credential issuance,
 and name the operator who acted. A change made by an operator key names it as
-`key:<label>`. Events
+`key:<label>`. A binding change lists each policy as the binding held it before
+and after: `alpha → alpha` for a policy it keeps, `– → beta` for one it adds,
+and `gamma → –` for one it removes. Events
 contain no tokens, secret values, request bodies, paths, signatures, or raw
 upstream errors.
 

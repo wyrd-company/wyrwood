@@ -401,6 +401,29 @@ func TestFailedChangeStaysOnBoundScreenWithEnteredValues(t *testing.T) {
 	}
 }
 
+func TestEventsShowEachPolicyOfABindingChangeBeforeAndAfter(t *testing.T) {
+	fixture := newScreenFixture(t)
+	binding := fixture.bind(t, "host-a")
+	path := "/bindings/" + binding.ID + "/policy"
+	settings := url.Values{"token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}}
+	for revision, policies := range [][]string{{"first", "second"}, {"second"}} {
+		form := url.Values{"policies": policies, "revision": {strconv.Itoa(revision + 1)}}
+		for name, values := range settings {
+			form[name] = values
+		}
+		if changed := fixture.post(t, path, form); changed.data.Problem != "" {
+			t.Fatalf("change to %v = %d %s", policies, changed.status, changed.raw)
+		}
+	}
+	history := get(t, fixture.client, fixture.harness.site.URL+"/events")
+	// first to first and second, then to second alone.
+	for _, shown := range []string{"first → first", "– → second", "first → –", "second → second"} {
+		if !strings.Contains(history.body, "host-a · "+shown+" · "+binding.ID) {
+			t.Fatalf("the event page does not show %q", shown)
+		}
+	}
+}
+
 func TestPreviewRefusesAnInvalidSelectionWithAnActionableMessage(t *testing.T) {
 	fixture := newScreenFixture(t)
 	form := url.Values{"csrf": {fixture.token}, "policies": {"absent"}, "token-ttl": {"1h"}, "token-max-ttl": {"8h"}, "enforcement": {"report"}}

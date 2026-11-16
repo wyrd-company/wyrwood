@@ -182,7 +182,7 @@ func TestPendingRevocationBlocksIssuanceAndRecoversWithoutAgent(t *testing.T) {
 	}
 	found := false
 	for _, event := range c.Events().Recent(100) {
-		if event.Operation == events.OperationBindingChanged && event.Binding == b.ID && event.Policy == "" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
+		if event.Operation == events.OperationBindingChanged && event.Binding == b.ID && event.Policy == "" && event.NewPolicy == "" && event.Outcome != events.OutcomeOK && event.ErrorCode != events.ErrorNone && event.Latency > 0 {
 			found = true
 		}
 	}
@@ -478,5 +478,42 @@ func TestRejectedBindingSelectionWritesOneEvent(t *testing.T) {
 				t.Fatal("rejected input copied into audit metadata or outcome lost")
 			}
 		})
+	}
+}
+
+func TestABindingChangeRecordsEachPolicyBeforeAndAfter(t *testing.T) {
+	ctx := context.Background()
+	h := startHarness(t)
+	c := h.controller
+	key := newAgentKey(t)
+	_, _ = h.dial("host-a", key)
+	if err := c.DecideAgent(ctx, gossh.FingerprintSHA256(key.PublicKey()), true, "operator-1"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"alpha", "beta", "gamma"} {
+		if _, err := c.SavePolicy(ctx, policy.New(name, policy.StarterHCL), "operator-1"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	b, err := c.CreateBinding(ctx, "host-a", protocol.Key{Kind: protocol.KeyName, Value: "example"}, BindingRequest{Policies: []string{"alpha", "gamma"}}, "operator-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ChangeBinding(ctx, b.ID, BindingRequest{Policies: []string{"alpha", "beta"}, Settings: b.Settings, Revision: b.Revision}, "operator-2"); err != nil {
+		t.Fatal(err)
+	}
+	var got [][2]string
+	for _, event := range c.Events().Recent(100) {
+		if event.Operation != events.OperationBindingChanged || event.Binding != b.ID {
+			continue
+		}
+		if event.Outcome != events.OutcomeOK || event.Operator != "operator-2" || event.Agent != "host-a" {
+			t.Fatalf("event = %#v", event)
+		}
+		got = append(got, [2]string{event.Policy, event.NewPolicy})
+	}
+	// alpha stays, beta is added, and gamma is removed.
+	if want := [][2]string{{"alpha", "alpha"}, {"", "beta"}, {"gamma", ""}}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("binding-changed policy and new policy = %v; want %v", got, want)
 	}
 }

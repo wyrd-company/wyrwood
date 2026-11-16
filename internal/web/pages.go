@@ -894,7 +894,11 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 			continue
 		}
 		var subject []string
-		for _, part := range []string{event.Agent, event.ContainerKey, event.Policy, event.NewPolicy, event.Binding} {
+		parts := []string{event.Agent, event.ContainerKey, event.Policy, event.NewPolicy, event.Binding}
+		if event.Operation == events.OperationBindingChanged && (event.Policy != "" || event.NewPolicy != "") {
+			parts = []string{event.Agent, event.ContainerKey, selectionChange(event.Policy, event.NewPolicy), event.Binding}
+		}
+		for _, part := range parts {
 			if part != "" {
 				subject = append(subject, part)
 			}
@@ -908,6 +912,18 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 		page.Events = append(page.Events, row)
 	}
 	server.render(writer, request, "events", page)
+}
+
+// selectionChange shows one policy of a binding change as the binding held it
+// before and after, with a dash where it held none.
+func selectionChange(before, after string) string {
+	side := func(name string) string {
+		if name == "" {
+			return "–"
+		}
+		return name
+	}
+	return side(before) + " → " + side(after)
 }
 
 // --- Security
