@@ -422,9 +422,10 @@ if errors.Is(err, operator.ErrRevisionDiffers) {
 The settings replace the binding's settings whole, so start from the settings
 you read and change what should change. The revision is the one you read: when
 another change came first, the change fails with `ErrRevisionDiffers` and
-changes nothing. A change to the selection the binding already holds changes
-nothing, so it is safe to send again, and sending it again finishes a change
-that failed with `ErrPending`.
+changes nothing, as a stale edit in the web interface does, even when it selects
+what the binding already holds. A change that fails with `ErrPending` is saved
+with a new revision: read the binding again and send the same change with that
+revision to finish it.
 
 ## Commands
 

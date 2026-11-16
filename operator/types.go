@@ -240,10 +240,13 @@ type BindRequest struct {
 // binding's settings whole, so an empty field takes the controller's default:
 // copy the settings of the binding as read and change what should change.
 //
-// Revision is the binding's revision as it was read. When another change came
-// first, the change fails with ErrRevisionDiffers and changes nothing. A change
-// to the selection the binding already holds changes nothing, whatever its
-// revision, and finishes an assignment that OpenBao could not apply before.
+// Revision is the binding's revision as it was read. When the binding has
+// another revision, because another change came first, the change fails with
+// ErrRevisionDiffers and changes nothing, also when it selects what the binding
+// holds. At the current revision, a change to the selection the binding already
+// holds changes nothing and finishes an assignment that OpenBao could not apply
+// before. A change that failed with ErrPending is saved with a new revision:
+// read the binding again and send the change with that revision to finish it.
 type BindingChange struct {
 	ID       string   `json:"id"`
 	Revision int      `json:"revision"`

@@ -339,6 +339,11 @@ func (controller *Controller) createBinding(ctx context.Context, target BindingT
 // binding no longer has: another change came first.
 var errRevisionDiffers = errors.New("the binding changed after the revision the change names")
 
+// revisionDiffers refuses a change that names a revision the binding no longer has.
+func revisionDiffers() error {
+	return &OperationError{Code: events.ErrorPolicyDenied, Message: "the binding changed; reload before saving", Cause: errRevisionDiffers}
+}
+
 // errChangePending names a binding change that is saved and that OpenBao has not
 // applied yet.
 var errChangePending = errors.New("the binding change is saved and not applied")
@@ -407,7 +412,7 @@ func (controller *Controller) changeBinding(ctx context.Context, id string, requ
 // changeStoredBinding replaces the selection of b, as it is stored now.
 func (controller *Controller) changeStoredBinding(ctx context.Context, b store.Binding, request BindingRequest, operator string) (store.Binding, error) {
 	if request.Revision != b.Revision {
-		return b, &OperationError{Code: events.ErrorPolicyDenied, Message: "the binding changed; reload before saving", Cause: errRevisionDiffers}
+		return b, revisionDiffers()
 	}
 	if err := controller.validateAccessGroup(b.Agent, request.Settings.AccessGroup); err != nil {
 		return b, err

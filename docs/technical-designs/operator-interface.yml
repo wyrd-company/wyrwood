@@ -76,8 +76,8 @@ proposed-design:
     Putting the same policy source again changes nothing. A bind with the selection the
     key is bound to returns the binding, and also finishes an assignment that OpenBao
     could not apply before. A bind with another selection fails with `binding-differs`
-    and changes nothing. A change to the selection the binding holds returns the
-    binding, whatever revision it names, and also finishes an assignment that OpenBao
+    and changes nothing. A change to the selection the binding holds, at the binding's
+    current revision, returns the binding and also finishes an assignment that OpenBao
     could not apply before. An unbind of a binding that is not there succeeds. An unbind
     whose token could stay valid succeeds with a warning.
   binding-change: >-
@@ -89,9 +89,11 @@ proposed-design:
     container reads with it with no restart and its sockets stay in place. Settings are
     replaced whole, and an empty field takes the controller's default. A change whose
     revision is not the binding's fails with `revision-differs` and changes nothing, as
-    a stale edit in the web interface does. A change saved before OpenBao applied it
-    fails with `pending`, and a repeat finishes it. `bind` never changes a binding, so
-    that a script cannot read a binding as what it asked for when it is not.
+    a stale edit in the web interface does, also when it selects what the binding
+    holds. A change saved before OpenBao applied it fails with `pending` and gives the
+    binding a new revision: the same change, sent with that revision, finishes it.
+    `bind` never changes a binding, so that a script cannot read a binding as what it
+    asked for when it is not.
   policy-put: >-
     A put sets a policy's HCL. A new policy takes the default contract and token
     renewal. A policy that exists keeps its contract, and it keeps its SSH identities

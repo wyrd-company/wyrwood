@@ -555,10 +555,14 @@ func (controller *Controller) operatorChangeBinding(ctx context.Context, key sto
 	return controller.readOperatorBinding(ctx, after)
 }
 
-// changeOperatorBinding changes before to selection. A selection the binding
-// already holds is a repeat, whatever revision it names: it changes nothing and
-// finishes an assignment that OpenBao could not apply before.
+// changeOperatorBinding changes before to selection. The revision is checked
+// first, as a web edit checks it, also when the binding already holds the
+// selection. Then a selection the binding holds changes nothing and finishes
+// an assignment that OpenBao could not apply before.
 func (controller *Controller) changeOperatorBinding(ctx context.Context, before store.Binding, selection BindingRequest, subject string) (store.Binding, error) {
+	if selection.Revision != before.Revision {
+		return before, revisionDiffers()
+	}
 	effective, err := controller.compose(ctx, selection.Policies, selection.Settings, nil)
 	if err != nil {
 		return before, err

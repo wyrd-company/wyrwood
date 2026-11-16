@@ -316,7 +316,7 @@ func (client *Client) Bind(ctx context.Context, request BindRequest) (Binding, e
 
 // ChangeBinding replaces a binding's policies and settings and returns the
 // binding. It needs ActionBind, and a grant that covers the binding as it is and
-// every policy the change selects. It is safe to repeat. See BindingChange.
+// every policy the change selects. See BindingChange for the revision it names.
 func (client *Client) ChangeBinding(ctx context.Context, change BindingChange) (Binding, error) {
 	var result Binding
 	err := client.call(ctx, OperationBindingChange, change, &result)

@@ -224,13 +224,24 @@ func TestOperatorChangeBindingRefusesAStaleRevision(t *testing.T) {
 		t.Fatalf("the stale change changed the binding: %+v, %v", stored, err)
 	}
 
-	// A repeat of the first change changes nothing, whatever revision it names.
-	again, err := client.ChangeBinding(ctx, first)
+	// A change that read revision 1 is stale even when it selects what the binding
+	// now holds, as the same edit is in the web interface.
+	if _, err := client.ChangeBinding(ctx, first); !errors.Is(err, operator.ErrRevisionDiffers) {
+		t.Fatalf("ChangeBinding() of the held selection with a stale revision = %v", err)
+	}
+	web := BindingRequest{Policies: first.Policies, Settings: policySettings(first.Settings), Revision: first.Revision}
+	if err := harness.controller.ChangeBinding(ctx, bound.ID, web, "sample-approver"); !errors.Is(err, errRevisionDiffers) {
+		t.Fatalf("the web edit of the held selection with a stale revision = %v", err)
+	}
+	// At the current revision, the held selection changes nothing.
+	current := first
+	current.Revision = changed.Revision
+	again, err := client.ChangeBinding(ctx, current)
 	if err != nil || again.Revision != 2 || !slices.Equal(again.Policies, []string{"alpha", "beta"}) {
-		t.Fatalf("ChangeBinding() again = %+v, %v", again, err)
+		t.Fatalf("ChangeBinding() of the held selection at the current revision = %+v, %v", again, err)
 	}
 	if stored, err := harness.controller.Store().Binding(ctx, bound.ID); err != nil || stored.Revision != 2 || stored.Assignment() != afterFirst.Assignment() {
-		t.Fatalf("the repeat changed the binding: %+v, %v", stored, err)
+		t.Fatalf("a refused or repeated change changed the binding: %+v, %v", stored, err)
 	}
 
 	for name, change := range map[string]operator.BindingChange{
@@ -270,8 +281,18 @@ func TestARepeatedChangeFinishesAPendingAssignment(t *testing.T) {
 	if err != nil || pending.Applied || pending.Revision != 2 || !slices.Equal(pending.Policies, change.Policies) {
 		t.Fatalf("the saved change = %+v, %v", pending, err)
 	}
+	// The saved change moved the revision, so the request as it was sent is stale.
+	if _, err := client.ChangeBinding(ctx, change); !errors.Is(err, operator.ErrRevisionDiffers) {
+		t.Fatalf("ChangeBinding() again with the revision read before it = %v", err)
+	}
+	// Sent again with the revision read after it, the change finishes.
+	read, err := client.GetBinding(ctx, bound.ID)
+	if err != nil || read.Applied || read.Revision != 2 {
+		t.Fatalf("GetBinding() of the saved change = %+v, %v", read, err)
+	}
+	change.Revision = read.Revision
 	if _, err := client.ChangeBinding(ctx, change); !errors.Is(err, operator.ErrPending) {
-		t.Fatalf("ChangeBinding() again while OpenBao fails = %v", err)
+		t.Fatalf("ChangeBinding() at the new revision while OpenBao fails = %v", err)
 	}
 	failing = false
 	finished, err := client.ChangeBinding(ctx, change)
