@@ -31,7 +31,7 @@ const shapes: Lists[] = [
     policies: ["policy-x"],
     allowed: {
       read: "Can read policy-x, and bindings on agent-a that hold no policy other than policy-x.",
-      bind: "Can create and remove bindings on agent-a that hold no policy other than policy-x.",
+      bind: "Can create, change, and remove bindings on agent-a that hold no policy other than policy-x.",
       "policy-write":
         "Can create and change policy-x, when every binding that holds the policy is on agent-a and holds no policy other than policy-x.",
     },
@@ -42,7 +42,7 @@ const shapes: Lists[] = [
     policies: ["policy-x", "policy-y"],
     allowed: {
       read: "Can read policy-x and policy-y, and bindings on agent-a, agent-b, and agent-c that hold no policy other than policy-x and policy-y.",
-      bind: "Can create and remove bindings on agent-a, agent-b, and agent-c that hold no policy other than policy-x and policy-y.",
+      bind: "Can create, change, and remove bindings on agent-a, agent-b, and agent-c that hold no policy other than policy-x and policy-y.",
       "policy-write":
         "Can create and change policy-x and policy-y, when every binding that holds the policy is on agent-a, agent-b, and agent-c and holds no policy other than policy-x and policy-y.",
     },
@@ -53,7 +53,7 @@ const shapes: Lists[] = [
     policies: ["*"],
     allowed: {
       read: "Can read every policy, and every binding.",
-      bind: "Can create and remove every binding.",
+      bind: "Can create, change, and remove every binding.",
       "policy-write": "Can create and change every policy.",
     },
   },
@@ -63,7 +63,7 @@ const shapes: Lists[] = [
     policies: ["policy-x"],
     allowed: {
       read: "Can read policy-x, and bindings on every agent that hold no policy other than policy-x.",
-      bind: "Can create and remove bindings on every agent that hold no policy other than policy-x.",
+      bind: "Can create, change, and remove bindings on every agent that hold no policy other than policy-x.",
       "policy-write":
         "Can create and change policy-x, when every binding that holds the policy holds no policy other than policy-x.",
     },
@@ -74,7 +74,7 @@ const shapes: Lists[] = [
     policies: ["*"],
     allowed: {
       read: "Can read every policy, and bindings on agent-a.",
-      bind: "Can create and remove bindings on agent-a.",
+      bind: "Can create, change, and remove bindings on agent-a.",
       "policy-write":
         "Can create and change every policy, when every binding that holds the policy is on agent-a.",
     },
@@ -83,7 +83,7 @@ const shapes: Lists[] = [
 
 const denied: Record<GrantAction, string> = {
   read: "Cannot read policies or bindings.",
-  bind: "Cannot bind or unbind.",
+  bind: "Cannot bind, change, or unbind.",
   "policy-write": "Cannot change policies.",
 };
 
@@ -127,7 +127,7 @@ describe("summarizeGrant", () => {
           true,
           "Can read policy-x. Cannot read bindings: no agent is selected.",
         ],
-        [false, "Cannot bind or unbind: no agent is selected."],
+        [false, "Cannot bind, change, or unbind: no agent is selected."],
         [
           true,
           "Can create and change policy-x, when no binding holds the policy.",
@@ -140,7 +140,7 @@ describe("summarizeGrant", () => {
       policies: [],
       lines: [
         [false, "Cannot read policies or bindings: no policy is selected."],
-        [false, "Cannot bind or unbind: no policy is selected."],
+        [false, "Cannot bind, change, or unbind: no policy is selected."],
         [false, "Cannot change policies: no policy is selected."],
       ],
     },
@@ -150,7 +150,7 @@ describe("summarizeGrant", () => {
       policies: [],
       lines: [
         [false, "Cannot read policies or bindings: no policy is selected."],
-        [false, "Cannot bind or unbind: no agent is selected."],
+        [false, "Cannot bind, change, or unbind: no agent is selected."],
         [false, "Cannot change policies: no policy is selected."],
       ],
     },
@@ -252,7 +252,7 @@ describe("summarizeGrant", () => {
       actions: ["bind"],
     });
     expect(summary.lines[1].text).toBe(
-      "Can create and remove bindings on agent-a that hold no policy other than policy-x.",
+      "Can create, change, and remove bindings on agent-a that hold no policy other than policy-x.",
     );
   });
 });

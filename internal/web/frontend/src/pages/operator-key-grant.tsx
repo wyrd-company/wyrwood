@@ -15,7 +15,7 @@ import {
 
 const actionText: Record<GrantAction, string> = {
   read: "Read policies and bindings",
-  bind: "Create and remove bindings",
+  bind: "Create, change, and remove bindings",
   "policy-write": "Create and change policies",
 };
 

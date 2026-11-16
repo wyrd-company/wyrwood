@@ -7,7 +7,7 @@
 // The summary states what an operator key's grant allows, in the terms of the
 // grant rules: a grant covers a binding when it allows the binding's agent and
 // every policy the binding holds. `read` returns the allowed policies and the
-// covered bindings, `bind` creates and removes covered bindings, and
+// covered bindings, `bind` creates, changes, and removes covered bindings, and
 // `policy-write` writes an allowed policy when the grant covers every binding
 // that holds it.
 
@@ -100,12 +100,15 @@ function bindLine(agents: string[], policies: string[]): SummaryLine {
     text,
   });
   if (!agents.length)
-    return line(false, "Cannot bind or unbind: no agent is selected.");
+    return line(false, "Cannot bind, change, or unbind: no agent is selected.");
   if (!policies.length)
-    return line(false, "Cannot bind or unbind: no policy is selected.");
+    return line(
+      false,
+      "Cannot bind, change, or unbind: no policy is selected.",
+    );
   return line(
     true,
-    `Can create and remove ${coveredBindings(agents, policies)}.`,
+    `Can create, change, and remove ${coveredBindings(agents, policies)}.`,
   );
 }
 
@@ -135,7 +138,7 @@ function policyWriteLine(agents: string[], policies: string[]): SummaryLine {
 
 const denied: Record<GrantAction, string> = {
   read: "Cannot read policies or bindings.",
-  bind: "Cannot bind or unbind.",
+  bind: "Cannot bind, change, or unbind.",
   "policy-write": "Cannot change policies.",
 };
 

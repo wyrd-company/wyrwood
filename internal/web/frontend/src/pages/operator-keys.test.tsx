@@ -77,7 +77,7 @@ it("posts the chosen names and updates the summary on each change", async () => 
   expect(summary).toHaveAttribute("aria-live", "polite");
   expect(lines()).toEqual([
     "Cannot read policies or bindings: no policy is selected.",
-    "Cannot bind or unbind.",
+    "Cannot bind, change, or unbind.",
     "Cannot change policies.",
   ]);
 
@@ -85,19 +85,21 @@ it("posts the chosen names and updates the summary on each change", async () => 
   await user.click(policies.getByRole("checkbox", { name: "policy-x" }));
   expect(lines()).toEqual([
     "Can read policy-x, and bindings on agent-a that hold no policy other than policy-x.",
-    "Cannot bind or unbind.",
+    "Cannot bind, change, or unbind.",
     "Cannot change policies.",
   ]);
 
   await user.click(
-    actions.getByRole("checkbox", { name: "Create and remove bindings" }),
+    actions.getByRole("checkbox", {
+      name: "Create, change, and remove bindings",
+    }),
   );
   await user.type(
     policies.getByRole("textbox", { name: "Other policy names" }),
     "future-policy",
   );
   expect(lines()[1]).toBe(
-    "Can create and remove bindings on agent-a that hold no policy other than policy-x and future-policy.",
+    "Can create, change, and remove bindings on agent-a that hold no policy other than policy-x and future-policy.",
   );
   expect(summary).toHaveTextContent(
     "A grant cannot be changed after approval.",

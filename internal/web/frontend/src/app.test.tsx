@@ -1422,7 +1422,9 @@ it("sets a grant at operator key approval and asks before revocation", () => {
     within(form).getByRole("checkbox", { name: "Read policies and bindings" }),
   ).toBeChecked();
   expect(
-    within(form).getByRole("checkbox", { name: "Create and remove bindings" }),
+    within(form).getByRole("checkbox", {
+      name: "Create, change, and remove bindings",
+    }),
   ).not.toBeChecked();
   expect(
     within(form).getByRole("checkbox", { name: "Create and change policies" }),

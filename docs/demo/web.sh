@@ -303,8 +303,8 @@ browse open "$site/operator-keys"
 browse wait --text "Pending operator keys"
 browse find role checkbox click --name "$(hostname)" --exact
 browse find role checkbox click --name "shared-key" --exact
-browse find role checkbox click --name "Create and remove bindings"
-browse wait --text "Can create and remove bindings on $(hostname)"
+browse find role checkbox click --name "Create, change, and remove bindings"
+browse wait --text "Can create, change, and remove bindings on $(hostname)"
 browse find role button click --name "Approve key"
 browse wait --text "Operator key approved"
 # Choose a grant for the second key, so that the screen shows its summary.
