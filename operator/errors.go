@@ -36,7 +36,10 @@ var (
 	// ErrInvalid means the controller refused the request's content.
 	ErrInvalid = errors.New("invalid request")
 	// ErrPending means the change is saved and OpenBao has not applied it yet.
-	// Repeat the request to finish it.
+	// Repeat the request to finish it, except a ChangeBinding: the saved change
+	// gave the binding a new revision, so the same request is now stale. Read
+	// the binding again and send the change with its new revision, as
+	// BindingChange says.
 	ErrPending = errors.New("saved; OpenBao has not applied the change")
 	// ErrFailed means the controller could not do the request.
 	ErrFailed = errors.New("operation failed")
