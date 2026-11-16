@@ -333,7 +333,7 @@ the grant:
 | **Agents** | The agents this key can read and bind on. Select approved agents, or **All agents** for `*`. Type the names of agents that are not approved yet. |
 | **Policies** | The policies this key can read, bind, and write. Select stored policies, or **All policies** for `*`. Type the names of policies the key will create. |
 | **Read** | List and read policies and bindings inside the grant. |
-| **Bind** | Create and remove bindings inside the grant. |
+| **Bind** | Create, change, and remove bindings inside the grant. |
 | **Policy write** | Create and change policies inside the grant. |
 
 A binding that holds any policy outside the list is outside the grant, and the
@@ -360,8 +360,9 @@ wyrwood unbind --agent sample-host \
 
 Each command is safe to run again. A `bind` with the selection the key already
 has returns that binding. A `bind` with another selection fails with exit status
-10 and changes nothing, so unbind first to change it. An `unbind` of a binding
-that is not there succeeds. A binding reports the same readiness as its
+10 and changes nothing. To change a binding without taking its container's
+sockets away, a program changes it with the Go package, below. An `unbind` of a
+binding that is not there succeeds. A binding reports the same readiness as its
 **Status** tab, so a script can wait for `ready` before it starts the container.
 
 A key has no expiry. To end one, use **Revoke** on the **Operator keys** screen.
@@ -393,6 +394,37 @@ if errors.Is(err, operator.ErrNotApproved) {
     // The key is recorded as pending. An operator approves it in the web interface.
 }
 ```
+
+`ChangeBinding` changes a binding's policies and settings, including the values
+its policies read. The command line does not have it. The change applies at
+once, as an edit in the web interface does: the container's old token is
+revoked and the container reads with the new selection with no restart. Its
+directory and sockets stay in place. The key needs **Bind**, and a grant that
+covers the binding and every policy the change selects. A program reads the
+binding's revision first, which needs **Read**.
+
+```go
+binding, err := client.GetBinding(ctx, "b-sample")
+if err != nil {
+    return err
+}
+_, err = client.ChangeBinding(ctx, operator.BindingChange{
+    ID:       binding.ID,
+    Revision: binding.Revision,
+    Policies: append(binding.Policies, "sample-extra"),
+    Settings: binding.Settings,
+})
+if errors.Is(err, operator.ErrRevisionDiffers) {
+    // Another change came first. Read the binding again and decide again.
+}
+```
+
+The settings replace the binding's settings whole, so start from the settings
+you read and change what should change. The revision is the one you read: when
+another change came first, the change fails with `ErrRevisionDiffers` and
+changes nothing. A change to the selection the binding already holds changes
+nothing, so it is safe to send again, and sending it again finishes a change
+that failed with `ErrPending`.
 
 ## Commands
 

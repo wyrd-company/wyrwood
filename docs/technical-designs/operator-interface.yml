@@ -56,8 +56,9 @@ proposed-design:
     least one. Every request reads the key and its grant again, so that a revocation
     holds for a session that is already open. A grant covers a binding when it allows
     the binding's agent and every policy it holds. `read` lists and returns only
-    policies and bindings the grant covers. `bind` creates and removes bindings the
-    grant covers. `policy-write` writes a policy the grant allows, when the grant
+    policies and bindings the grant covers. `bind` creates, changes, and removes
+    bindings the grant covers, and a change needs the grant to allow every policy it
+    selects. `policy-write` writes a policy the grant allows, when the grant
     covers every binding that holds it. A refused change records its operation with
     the outcome `denied` and the error `outside-grant`.
   transport: >-
@@ -67,15 +68,30 @@ proposed-design:
     A request is less than 1 MiB and a response less than 16 MiB. A result that does not
     fit is an error that asks for one agent. An unknown field, operation, or version is
     refused. The operations are `whoami`, `policy-list`, `policy-get`, `policy-put`,
-    `binding-list`, `binding-get`, `bind`, and `unbind`. An error has a closed `code`,
-    fixed `message` text, and the `part` of the request it is about when one part owns
-    it. No response holds a token, a secret identifier, or an AppRole name.
+    `binding-list`, `binding-get`, `bind`, `binding-change`, and `unbind`. An error has
+    a closed `code`, fixed `message` text, and the `part` of the request it is about
+    when one part owns it. No response holds a token, a secret identifier, or an AppRole
+    name.
   repeating-a-command: >-
     Putting the same policy source again changes nothing. A bind with the selection the
     key is bound to returns the binding, and also finishes an assignment that OpenBao
     could not apply before. A bind with another selection fails with `binding-differs`
-    and changes nothing. An unbind of a binding that is not there succeeds. An unbind
+    and changes nothing. A change to the selection the binding holds returns the
+    binding, whatever revision it names, and also finishes an assignment that OpenBao
+    could not apply before. An unbind of a binding that is not there succeeds. An unbind
     whose token could stay valid succeeds with a warning.
+  binding-change: >-
+    A change replaces an existing binding's policies and settings, including the values
+    its policies read. It names the binding by its ID and the revision it read, which
+    `binding-get` and `binding-list` return. It applies as an edit in the web interface
+    does: the binding keeps its ID, AppRole, and consumer directory, the container's old
+    token is revoked, and the agent logs in again with the new selection, so a running
+    container reads with it with no restart and its sockets stay in place. Settings are
+    replaced whole, and an empty field takes the controller's default. A change whose
+    revision is not the binding's fails with `revision-differs` and changes nothing, as
+    a stale edit in the web interface does. A change saved before OpenBao applied it
+    fails with `pending`, and a repeat finishes it. `bind` never changes a binding, so
+    that a script cannot read a binding as what it asked for when it is not.
   policy-put: >-
     A put sets a policy's HCL. A new policy takes the default contract and token
     renewal. A policy that exists keeps its contract, and it keeps its SSH identities
@@ -87,21 +103,28 @@ proposed-design:
     a file from `LoadOrCreateKey`, or one key of an SSH agent from `SelectAgentKey`, by
     its SHA256 fingerprint, its public key, or its comment. A connection offers only that
     key, so that no other key in the agent is recorded as pending. Errors match
-    `ErrNotApproved`, `ErrOutsideGrant`, `ErrHostKeyMismatch`, and the others of the
-    package with `errors.Is`. `Profile` saves a login for the command line, with
+    `ErrNotApproved`, `ErrOutsideGrant`, `ErrHostKeyMismatch`, `ErrRevisionDiffers`, and
+    the others of the package with `errors.Is`. `ChangeBinding` is in the package and not
+    in the command line. `Profile` saves a login for the command line, with
     owner-only mode and no private key. The command line holds only its arguments and
     projections.
   audit: >-
     Mutations carry the subject `key:<label>` in events and in the saved-by and
     created-by fields. Approving, rejecting, and revoking a key record their own events,
-    which name the key's fingerprint and the operator who decided.
+    which name the key's fingerprint and the operator who decided. A binding change
+    records each policy of the selection before and after it, as the operational
+    events specification defines.
   verification: >-
     Controller tests run real SSH against a real OpenBao and cover pending, approved,
     rejected, and revoked keys, a pinned host key, keys that try the other role in both
     orders, an agent connection on the operator subsystem and the reverse, an offered key
     followed by a key that fails, each action and each list of a grant, a binding that
     holds a policy outside the grant, a policy that a binding outside the grant holds,
-    repeated commands, a repeated bind after an OpenBao failure, and a revocation with a
-    session open. A test keeps the public status type equal to the controller's. A command
-    test drives each command against a real controller. Web tests approve, reject, and
-    revoke through the pages.
+    repeated commands, a repeated bind after an OpenBao failure, a binding change inside
+    and outside the grant, a change made stale by another change, a repeated change
+    after an OpenBao failure, and a revocation with a session open. An integration test
+    changes a running container's binding with the client and reads with the added
+    policy, with no restart and with the consumer directory and sockets in place. A test
+    keeps the public status type equal to the controller's. A command test drives each
+    command against a real controller. Web tests approve, reject, and revoke through the
+    pages.
