@@ -4,5 +4,5 @@
 # ---
 
 # Tools used by task docs:check; Renovate manages these pins.
-rumdl==0.3.3
+rumdl==0.3.4
 ryl==0.29.0

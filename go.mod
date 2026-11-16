@@ -4,7 +4,7 @@
 
 module github.com/wyrd-company/wyrwood
 
-go 1.27.3
+go 1.27.4
 
 require (
 	charm.land/ssh v0.4.3
@@ -14,7 +14,7 @@ require (
 	github.com/hashicorp/hcl v1.0.1-vault-7
 	github.com/openbao/openbao/api/v2 v2.7.1
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3
-	golang.org/x/crypto v0.58.0
+	golang.org/x/crypto v0.59.0
 	golang.org/x/mod v0.43.0
 	golang.org/x/oauth2 v0.38.0
 	golang.org/x/sys v0.50.0
@@ -63,9 +63,9 @@ require (
 	github.com/ryanuber/go-glob v1.0.0 // indirect
 	github.com/xo/terminfo v1.2.0 // indirect
 	golang.org/x/exp v0.0.0-20260908205506-85c1c2202aba // indirect
-	golang.org/x/net v0.60.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
-	golang.org/x/text v0.43.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 	golang.org/x/time v0.16.0 // indirect
 	modernc.org/libc v1.80.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

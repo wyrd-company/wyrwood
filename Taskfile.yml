@@ -189,7 +189,7 @@ tasks:
   release:check:
     desc: Validate the GoReleaser configuration
     cmds:
-      - go run github.com/goreleaser/goreleaser/v2@v2.20.1 check .goreleaser.yaml
+      - go run github.com/goreleaser/goreleaser/v2@v2.20.2 check .goreleaser.yaml
 
   release:ci:
     desc: Run portable validation required before a release
@@ -217,7 +217,7 @@ tasks:
     cmds:
       - >-
           RELEASE_VERSION="{{.RELEASE_VERSION}}"
-          go run github.com/goreleaser/goreleaser/v2@v2.20.1
+          go run github.com/goreleaser/goreleaser/v2@v2.20.2
           release --snapshot --clean
       - >-
           scripts/create-release-manifest.py
@@ -239,7 +239,7 @@ tasks:
     cmds:
       - >-
           RELEASE_VERSION="${RELEASE_VERSION:-0.0.0}"
-          go run github.com/goreleaser/goreleaser/v2@v2.20.1
+          go run github.com/goreleaser/goreleaser/v2@v2.20.2
           release --snapshot --clean
 
   workflows:check:
