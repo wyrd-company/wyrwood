@@ -233,6 +233,24 @@ type BindRequest struct {
 	Settings Settings `json:"settings"`
 }
 
+// BindingChange replaces one binding's policies and settings. The change applies
+// at once, as an edit in the web interface does: the container's old token is
+// revoked and the container reads with the new selection, with no restart, and
+// its consumer directory and sockets stay in place. Settings replace the
+// binding's settings whole, so an empty field takes the controller's default:
+// copy the settings of the binding as read and change what should change.
+//
+// Revision is the binding's revision as it was read. When another change came
+// first, the change fails with ErrRevisionDiffers and changes nothing. A change
+// to the selection the binding already holds changes nothing, whatever its
+// revision, and finishes an assignment that OpenBao could not apply before.
+type BindingChange struct {
+	ID       string   `json:"id"`
+	Revision int      `json:"revision"`
+	Policies []string `json:"policies"`
+	Settings Settings `json:"settings"`
+}
+
 // Binding is one binding with its readiness.
 type Binding struct {
 	ID       string        `json:"id"`
@@ -325,12 +343,13 @@ type ConsumerStatus struct {
 type Operation string
 
 const (
-	OperationWhoami      Operation = "whoami"
-	OperationPolicyList  Operation = "policy-list"
-	OperationPolicyGet   Operation = "policy-get"
-	OperationPolicyPut   Operation = "policy-put"
-	OperationBindingList Operation = "binding-list"
-	OperationBindingGet  Operation = "binding-get"
-	OperationBind        Operation = "bind"
-	OperationUnbind      Operation = "unbind"
+	OperationWhoami        Operation = "whoami"
+	OperationPolicyList    Operation = "policy-list"
+	OperationPolicyGet     Operation = "policy-get"
+	OperationPolicyPut     Operation = "policy-put"
+	OperationBindingList   Operation = "binding-list"
+	OperationBindingGet    Operation = "binding-get"
+	OperationBind          Operation = "bind"
+	OperationBindingChange Operation = "binding-change"
+	OperationUnbind        Operation = "unbind"
 )

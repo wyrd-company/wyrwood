@@ -121,6 +121,9 @@ func operatorWireError(err error) *operator.Error {
 	if errors.Is(err, errOperatorNotApproved) {
 		return &operator.Error{Code: operator.CodeNotApproved, Message: "this key is not approved"}
 	}
+	if errors.Is(err, errRevisionDiffers) {
+		return &operator.Error{Code: operator.CodeRevisionDiffer, Message: "the binding changed after this revision; read it again"}
+	}
 	var operation *OperationError
 	if !errors.As(err, &operation) {
 		return &operator.Error{Code: operator.CodeFailed, Message: "the operation failed"}
@@ -211,6 +214,12 @@ func (controller *Controller) dispatchOperator(ctx context.Context, fingerprint 
 			return nil, err
 		}
 		return controller.operatorBind(ctx, key, bind)
+	case operator.OperationBindingChange:
+		var change operator.BindingChange
+		if err := decodeOperatorBody(request.Body, &change); err != nil {
+			return nil, err
+		}
+		return controller.operatorChangeBinding(ctx, key, change)
 	case operator.OperationUnbind:
 		var unbind operator.UnbindRequest
 		if err := decodeOperatorBody(request.Body, &unbind); err != nil {
@@ -449,10 +458,7 @@ func (controller *Controller) operatorBind(ctx context.Context, key store.Operat
 		controller.recordDenied(events.OperationBindingCreated, request.Agent, subject)
 		return operator.Binding{}, outsideGrant
 	}
-	selection := BindingRequest{Policies: request.Policies, Settings: policy.Settings{
-		TokenTTL: request.Settings.TokenTTL, TokenMaxTTL: request.Settings.TokenMaxTTL, AccessGroup: request.Settings.AccessGroup,
-		Enforcement: policy.Enforcement(request.Settings.Enforcement), Values: request.Settings.Values,
-	}}
+	selection := BindingRequest{Policies: request.Policies, Settings: policySettings(request.Settings)}
 	wanted := protocolKey(request.Key)
 	started := controller.now()
 	controller.mutationMu.Lock()
@@ -505,6 +511,74 @@ func (controller *Controller) repeatBind(ctx context.Context, key store.Operator
 	}
 	existing.Applied = true
 	return existing, nil
+}
+
+// operatorChangeBinding replaces a binding's selection as an edit in the web
+// interface does. The grant must cover the binding as it is and every policy
+// the change selects. The lock holds from the grant check through the change,
+// so that another change cannot fall between them.
+func (controller *Controller) operatorChangeBinding(ctx context.Context, key store.OperatorKey, change operator.BindingChange) (operator.Binding, error) {
+	subject := OperatorSubject(key.Label)
+	if change.Revision < 1 {
+		return operator.Binding{}, &operator.Error{Code: operator.CodeInvalid, Message: "a change needs the revision of the binding as it was read"}
+	}
+	if !key.Grant.Can(operator.ActionBind) {
+		controller.recordDenied(events.OperationBindingChanged, "", subject)
+		return operator.Binding{}, outsideGrant
+	}
+	selection := BindingRequest{Policies: change.Policies, Settings: policySettings(change.Settings), Revision: change.Revision}
+	started := controller.now()
+	controller.mutationMu.Lock()
+	before, err := controller.store.Binding(ctx, change.ID)
+	if err != nil {
+		controller.mutationMu.Unlock()
+		if errors.Is(err, store.ErrNotFound) {
+			return operator.Binding{}, operationError(events.ErrorNotBound, "the binding does not exist")
+		}
+		return operator.Binding{}, operationError(events.ErrorInternal, "the binding could not be read")
+	}
+	if !key.Grant.Covers(before.Agent, before.Policies) || !key.Grant.Covers(before.Agent, change.Policies) {
+		controller.mutationMu.Unlock()
+		controller.record(events.Event{Operation: events.OperationBindingChanged, Outcome: events.OutcomeDenied, ErrorCode: events.ErrorOutsideGrant,
+			Agent: eventAgent(before.Agent), Binding: before.ID, Operator: subject})
+		return operator.Binding{}, outsideGrant
+	}
+	after, err := controller.changeOperatorBinding(ctx, before, selection, subject)
+	controller.mutationMu.Unlock()
+	controller.finishChangeBinding(ctx, before.ID, before.Policies, after, err, subject, started)
+	if errors.Is(err, errChangePending) {
+		return operator.Binding{}, pendingError{err}
+	}
+	if err != nil {
+		return operator.Binding{}, err
+	}
+	return controller.readOperatorBinding(ctx, after)
+}
+
+// changeOperatorBinding changes before to selection. A selection the binding
+// already holds is a repeat, whatever revision it names: it changes nothing and
+// finishes an assignment that OpenBao could not apply before.
+func (controller *Controller) changeOperatorBinding(ctx context.Context, before store.Binding, selection BindingRequest, subject string) (store.Binding, error) {
+	effective, err := controller.compose(ctx, selection.Policies, selection.Settings, nil)
+	if err != nil {
+		return before, err
+	}
+	if effective.Identity() != before.Effective.Identity() {
+		return controller.changeStoredBinding(ctx, before, selection, subject)
+	}
+	if err := controller.applyBinding(ctx, before); err != nil {
+		return before, &OperationError{Code: openBaoError(err), Message: "binding saved; OpenBao could not apply its pending assignment", Cause: errChangePending}
+	}
+	before.Applied = true
+	return before, nil
+}
+
+// policySettings reads a binding's settings from a request.
+func policySettings(settings operator.Settings) policy.Settings {
+	return policy.Settings{
+		TokenTTL: settings.TokenTTL, TokenMaxTTL: settings.TokenMaxTTL, AccessGroup: settings.AccessGroup,
+		Enforcement: policy.Enforcement(settings.Enforcement), Values: settings.Values,
+	}
 }
 
 func (controller *Controller) findBinding(ctx context.Context, agent string, key protocol.Key) (store.Binding, bool, error) {

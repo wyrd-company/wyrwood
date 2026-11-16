@@ -30,6 +30,9 @@ var (
 	ErrNotFound = errors.New("not found")
 	// ErrBindingDiffers means the container key is bound to another selection.
 	ErrBindingDiffers = errors.New("the container key is bound to another selection")
+	// ErrRevisionDiffers means the binding changed after the revision the request
+	// names. Read the binding again before you decide on the change.
+	ErrRevisionDiffers = errors.New("the binding changed after the revision the request names")
 	// ErrInvalid means the controller refused the request's content.
 	ErrInvalid = errors.New("invalid request")
 	// ErrPending means the change is saved and OpenBao has not applied it yet.
@@ -43,18 +46,19 @@ var (
 type Code string
 
 const (
-	CodeNotApproved   Code = "not-approved"
-	CodeOutsideGrant  Code = "outside-grant"
-	CodeNotFound      Code = "not-found"
-	CodeBindingDiffer Code = "binding-differs"
-	CodeInvalid       Code = "invalid"
-	CodePending       Code = "pending"
-	CodeFailed        Code = "failed"
+	CodeNotApproved    Code = "not-approved"
+	CodeOutsideGrant   Code = "outside-grant"
+	CodeNotFound       Code = "not-found"
+	CodeBindingDiffer  Code = "binding-differs"
+	CodeRevisionDiffer Code = "revision-differs"
+	CodeInvalid        Code = "invalid"
+	CodePending        Code = "pending"
+	CodeFailed         Code = "failed"
 )
 
 var codeErrors = map[Code]error{
 	CodeNotApproved: ErrNotApproved, CodeOutsideGrant: ErrOutsideGrant, CodeNotFound: ErrNotFound,
-	CodeBindingDiffer: ErrBindingDiffers, CodeInvalid: ErrInvalid, CodePending: ErrPending, CodeFailed: ErrFailed,
+	CodeBindingDiffer: ErrBindingDiffers, CodeRevisionDiffer: ErrRevisionDiffers, CodeInvalid: ErrInvalid, CodePending: ErrPending, CodeFailed: ErrFailed,
 }
 
 // Error is a failure the controller reported. errors.Is matches its code's

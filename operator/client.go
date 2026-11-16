@@ -314,6 +314,15 @@ func (client *Client) Bind(ctx context.Context, request BindRequest) (Binding, e
 	return result, err
 }
 
+// ChangeBinding replaces a binding's policies and settings and returns the
+// binding. It needs ActionBind, and a grant that covers the binding as it is and
+// every policy the change selects. It is safe to repeat. See BindingChange.
+func (client *Client) ChangeBinding(ctx context.Context, change BindingChange) (Binding, error) {
+	var result Binding
+	err := client.call(ctx, OperationBindingChange, change, &result)
+	return result, err
+}
+
 // Unbind removes a binding. It needs ActionBind. A binding that does not exist
 // is a success, so it is safe to repeat.
 func (client *Client) Unbind(ctx context.Context, request UnbindRequest) (UnbindResult, error) {

@@ -339,6 +339,10 @@ func (controller *Controller) createBinding(ctx context.Context, target BindingT
 // binding no longer has: another change came first.
 var errRevisionDiffers = errors.New("the binding changed after the revision the change names")
 
+// errChangePending names a binding change that is saved and that OpenBao has not
+// applied yet.
+var errChangePending = errors.New("the binding change is saved and not applied")
+
 func (controller *Controller) ChangeBinding(ctx context.Context, id string, request BindingRequest, operator string) error {
 	started := controller.now()
 	controller.mutationMu.Lock()
@@ -427,8 +431,9 @@ func (controller *Controller) changeStoredBinding(ctx context.Context, b store.B
 		return b, operationError(events.ErrorInternal, "the binding could not be updated")
 	}
 	if err := controller.applyBinding(ctx, b); err != nil {
-		return b, operationError(openBaoError(err), "binding saved; token transition pending until the old token can be revoked")
+		return b, &OperationError{Code: openBaoError(err), Message: "binding saved; token transition pending until the old token can be revoked", Cause: errChangePending}
 	}
+	b.Applied = true
 	return b, nil
 }
 
