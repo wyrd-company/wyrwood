@@ -279,7 +279,13 @@ func TestCallbackRejectsStateMismatchAndReplay(t *testing.T) {
 }
 
 func TestSessionExpiryAndAntiForgery(t *testing.T) {
-	harness := startHarness(t, 2*time.Second)
+	harness := startHarness(t, time.Hour)
+	// React rendering can outlast a short real cookie lifetime on a busy runner.
+	// Keep the browser cookie valid and advance only the server's expiry clock.
+	var elapsed atomic.Int64
+	harness.server.now = func() time.Time {
+		return time.Now().UTC().Add(time.Duration(elapsed.Load()))
+	}
 	client := browser(t)
 	agents := harness.signIn(t, client, operator, oidctest.TamperNone)
 	if forged := post(t, client, harness.site.URL+"/agents/decide", url.Values{"fingerprint": {"x"}, "decision": {"approve"}}); forged.status != http.StatusForbidden {
@@ -296,8 +302,11 @@ func TestSessionExpiryAndAntiForgery(t *testing.T) {
 			token = cookie.Value
 		}
 	}
-	time.Sleep(2500 * time.Millisecond)
-	if expired := get(t, client, harness.site.URL+"/agents"); !strings.Contains(expired.url, "/sign-in") {
+	if token == "" {
+		t.Fatal("sign-in did not set a session cookie")
+	}
+	elapsed.Store(int64(2 * time.Hour))
+	if expired := get(t, client, harness.site.URL+"/agents"); !strings.Contains(expired.url, "problem=expired") {
 		t.Fatalf("expired session = %s", expired.url)
 	}
 	// The server refuses the session even when a client keeps sending it.
