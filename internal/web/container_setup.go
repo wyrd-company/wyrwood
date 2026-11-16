@@ -23,7 +23,7 @@ type containerSetup struct {
 
 // bindingSetup uses the agent's directory, never an inferred mount or a
 // controller-side default. Existing inventories can omit this observation.
-func bindingSetup(container protocol.Container, contract policy.Contract) *containerSetup {
+func bindingSetup(container protocol.Container, key protocol.Key, contract policy.Contract) *containerSetup {
 	if container.ConsumerDirectory == "" || container.Image == "" {
 		return nil
 	}
@@ -31,6 +31,11 @@ func bindingSetup(container protocol.Container, contract policy.Contract) *conta
 	composeValue := func(value string) string { return strings.ReplaceAll(value, "$", "$$") }
 	environment := map[string]string{}
 	command := []string{"docker run", "--name " + shellQuote(container.Name)}
+	project, serviceName, composeKey := strings.Cut(key.Value, "/")
+	composeKey = key.Kind == protocol.KeyCompose && composeKey && project != "" && serviceName != ""
+	if composeKey {
+		command = append(command, "--label "+shellQuote("com.docker.compose.project="+project), "--label "+shellQuote("com.docker.compose.service="+serviceName))
+	}
 	var mount strings.Builder
 	writer := csv.NewWriter(&mount)
 	_ = writer.Write([]string{"type=bind", "source=" + source, "target=" + target})
@@ -58,8 +63,14 @@ func bindingSetup(container protocol.Container, contract policy.Contract) *conta
 	if len(environment) > 0 {
 		service["environment"] = environment
 	}
+	document := map[string]any{"services": map[string]any{"app": service}}
+	if composeKey {
+		delete(service, "container_name")
+		document["name"] = composeValue(project)
+		document["services"] = map[string]any{serviceName: service}
+	}
 	// The document contains only maps, strings and a bool, all supported by yaml.
-	fragment, _ := yaml.Marshal(map[string]any{"services": map[string]any{"app": service}})
+	fragment, _ := yaml.Marshal(document)
 	return &containerSetup{Source: source, Target: target, Compose: string(fragment), DockerRun: strings.Join(command, " \\\n  ")}
 }
 

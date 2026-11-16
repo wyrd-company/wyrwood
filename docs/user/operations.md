@@ -228,6 +228,11 @@ actual container name. The agent manages this directory. Let the agent create
 it before starting the container; the Compose fragment disables automatic
 host-path creation. The examples do not include application commands, ports,
 networks, or unrelated mounts. They do not change an existing container.
+For a Compose key, the fragment sets the project name and service from the
+key, and the `docker run` example supplies matching Compose labels. Compose
+command-line project options or environment variables can override the project
+name; use the project's name from the key when starting the service. Replicas
+share the binding.
 
 ![Container setup examples on the binding screen](assets/web-container-setup.png)
 

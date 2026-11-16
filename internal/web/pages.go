@@ -365,7 +365,7 @@ func (server *Server) agentRows(ctx context.Context, view inventoryState, agent 
 		if binding, ok := controller.ContainerBinding(container, bindings); ok {
 			view.applyBinding(&row, binding)
 			row.Checks = contractChecks(binding.Effective.Contract, container, view.results[binding.ID])
-			row.Setup = bindingSetup(container, binding.Effective.Contract)
+			row.Setup = bindingSetup(container, binding.Key, binding.Effective.Contract)
 		} else {
 			for index, key := range container.Keys {
 				note := "most stable"

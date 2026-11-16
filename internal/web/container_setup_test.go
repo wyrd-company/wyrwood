@@ -29,7 +29,7 @@ func TestBindingSetupUsesEffectiveContract(t *testing.T) {
 			contract := policy.Contract{MountTarget: test.target, Env: map[string]string{
 				"VAULT_ADDR": "unix://{mount-target}/vault.sock", "SAMPLE": test.value,
 			}}
-			setup := bindingSetup(container, contract)
+			setup := bindingSetup(container, protocol.Key{Kind: protocol.KeyName, Value: container.Name}, contract)
 			if setup == nil || setup.Source != test.source || setup.Target != test.target {
 				t.Fatalf("setup = %#v", setup)
 			}
@@ -95,7 +95,7 @@ func TestBindingSetupRequiresAgentObservation(t *testing.T) {
 		{Name: "sample", Image: "alpine", Mounts: []protocol.Mount{{Source: "/wrong", Target: contract.MountTarget}}},
 		{Name: "sample", ConsumerDirectory: "/srv/sample"},
 	} {
-		if setup := bindingSetup(container, contract); setup != nil {
+		if setup := bindingSetup(container, protocol.Key{Kind: protocol.KeyName, Value: container.Name}, contract); setup != nil {
 			t.Fatalf("invented setup = %#v", setup)
 		}
 	}
@@ -130,7 +130,7 @@ func TestBindingSetupIncludesConfiguredAccessGroup(t *testing.T) {
 	group := uint32(2300)
 	contract := policy.DefaultContract()
 	contract.AccessGroup = &group
-	setup := bindingSetup(protocol.Container{Name: "sample", Image: "alpine", ConsumerDirectory: "/srv/sample"}, contract)
+	setup := bindingSetup(protocol.Container{Name: "sample", Image: "alpine", ConsumerDirectory: "/srv/sample"}, protocol.Key{Kind: protocol.KeyName, Value: "sample"}, contract)
 	var document map[string]any
 	if err := yaml.Unmarshal([]byte(setup.Compose), &document); err != nil {
 		t.Fatal(err)
@@ -138,5 +138,39 @@ func TestBindingSetupIncludesConfiguredAccessGroup(t *testing.T) {
 	service := document["services"].(map[string]any)["app"].(map[string]any)
 	if !reflect.DeepEqual(service["group_add"], []any{"2300"}) || !strings.Contains(setup.DockerRun, "--group-add '2300'") {
 		t.Fatalf("setup = %#v", setup)
+	}
+}
+
+func TestBindingSetupMatchesComposeKey(t *testing.T) {
+	key := protocol.Key{Kind: protocol.KeyCompose, Value: "sample/web"}
+	container := protocol.Container{Name: "sample-web-1", Image: "alpine", ConsumerDirectory: "/srv/sample"}
+	setup := bindingSetup(container, key, policy.DefaultContract())
+	var document struct {
+		Name     string                    `yaml:"name"`
+		Services map[string]map[string]any `yaml:"services"`
+	}
+	if err := yaml.Unmarshal([]byte(setup.Compose), &document); err != nil {
+		t.Fatal(err)
+	}
+	service, ok := document.Services["web"]
+	if document.Name != "sample" || len(document.Services) != 1 || !ok {
+		t.Fatalf("Compose project and services = %#v", document)
+	}
+	if _, exists := service["container_name"]; exists {
+		t.Fatalf("Compose service fixes the container name: %#v", service)
+	}
+	output, err := exec.Command("sh", "-c", "docker() { printf '%s\\0' \"$@\"; }\n"+setup.DockerRun).Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Split(strings.TrimSuffix(string(output), "\x00"), "\x00")
+	labels := map[string]bool{}
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--label" {
+			labels[args[i+1]] = true
+		}
+	}
+	if !labels["com.docker.compose.project=sample"] || !labels["com.docker.compose.service=web"] {
+		t.Fatalf("docker run labels = %#v", labels)
 	}
 }
