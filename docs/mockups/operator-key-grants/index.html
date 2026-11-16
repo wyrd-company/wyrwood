@@ -1,0 +1,1832 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Operator key grants · Wyrwood mockup</title>
+    <style>
+      :root {
+        --ground: #f3f4f1;
+        --surface: #ffffff;
+        --ink: #17201b;
+        --ink-2: #3d4641;
+        --muted: #56605a;
+        --line: #d9ddd7;
+        --line-soft: #eceeea;
+        --control: #b9c0ba;
+        --accent: #2c6a4c;
+        --accent-ink: #1c4a34;
+        --nav: #14251c;
+        --nav-active: #24402f;
+        --nav-ink: #c9d4cd;
+        --nav-quiet: #a9b8af;
+        --good-bg: #e3eee7;
+        --good-fg: #1c4a34;
+        --bad-bg: #f8dcdc;
+        --bad-fg: #7f1414;
+        --warn-bg: #fbe9d0;
+        --warn-fg: #7a3e06;
+        --neutral-bg: #eceeea;
+        --neutral-fg: #3d4641;
+        --notice-bg: #fff8ec;
+        --notice-line: #e8c78f;
+        --notice-fg: #5c3a06;
+        --danger: #a61b1b;
+        --sans:
+          "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+        --mono:
+          "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: var(--sans);
+        font-size: 15px;
+        line-height: 1.5;
+      }
+      @layer base {
+        a {
+          color: var(--accent);
+        }
+        a:hover {
+          color: var(--accent-ink);
+        }
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      code,
+      .mono {
+        font-family: var(--mono);
+      }
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+        line-height: 1.25;
+      }
+      p {
+        margin: 0;
+      }
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+      }
+
+      .app {
+        min-height: 900px;
+        display: flex;
+        flex-wrap: wrap;
+        container-type: inline-size;
+      }
+      .nav {
+        flex: 1 1 232px;
+        max-width: 100%;
+        background: var(--nav);
+        color: #e8ede9;
+        padding: 24px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      /* The sidebar and page fit beside each other at 232px + 560px. */
+      @container (min-width: 792px) {
+        .nav {
+          position: sticky;
+          top: 0;
+          min-height: 760px;
+          align-self: flex-start;
+          overflow-y: auto;
+        }
+      }
+      /* Beside the page, the bar and the panel add no boxes, so the sidebar keeps
+   one column. */
+      .nav-bar,
+      .nav-panel {
+        display: contents;
+      }
+      .nav-toggle {
+        display: none;
+      }
+      /* Above the page, the navigation is a bar with a menu control. The control
+   shows and hides the panel, so the page starts in the first screen. */
+      @container (width < 792px) {
+        .nav {
+          padding: 8px 16px;
+          gap: 0;
+        }
+        .nav-bar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .nav-toggle {
+          min-height: 44px;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 0 12px;
+          border: 1px solid #2b4436;
+          border-radius: 6px;
+          background: transparent;
+          color: var(--nav-ink);
+          font: 500 14px var(--sans);
+          cursor: pointer;
+        }
+        .nav-toggle:hover,
+        .nav-toggle[aria-expanded="true"] {
+          background: var(--nav-active);
+          color: #ffffff;
+        }
+        .nav-panel {
+          display: flex;
+          flex-direction: column;
+          gap: 24px;
+          padding: 16px 0 8px;
+        }
+        .nav-panel:not([data-open]) {
+          display: none;
+        }
+        .nav :focus-visible {
+          outline-color: var(--nav-ink);
+        }
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 0 8px;
+        font-size: 18px;
+        font-weight: 600;
+        color: #e8ede9;
+        text-decoration: none;
+      }
+      .brand .logo {
+        width: 26px;
+        height: 26px;
+        flex: none;
+      }
+      .nav-links {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        font-size: 14px;
+      }
+      .nav-links a {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 12px;
+        border-radius: 6px;
+        color: var(--nav-ink);
+        text-decoration: none;
+      }
+      .nav-links a[aria-current="page"] {
+        background: var(--nav-active);
+        color: #ffffff;
+        font-weight: 500;
+      }
+      .nav-links a:hover {
+        color: #ffffff;
+      }
+      .count {
+        min-width: 22px;
+        padding: 1px 7px;
+        border-radius: 10px;
+        background: #e9a23b;
+        color: var(--nav);
+        font-size: 12px;
+        font-weight: 600;
+        text-align: center;
+      }
+      .nav-foot {
+        margin-top: auto;
+        padding: 12px;
+        border-top: 1px solid #2b4436;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: var(--nav-quiet);
+      }
+      .nav-foot a {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        align-self: flex-start;
+        color: var(--nav-ink);
+        text-decoration: underline;
+      }
+      .nav-foot a:hover {
+        color: #ffffff;
+      }
+      .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: #5fbf8a;
+        margin-right: 8px;
+      }
+      .dot.off {
+        background: transparent;
+        border: 2px solid #8a938d;
+      }
+      .dot.bad {
+        background: #e36a6a;
+      }
+
+      .page {
+        flex: 999 1 560px;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px 40px;
+        border-bottom: 1px solid var(--line);
+        background: var(--surface);
+      }
+      .topbar h1 {
+        font-size: 22px;
+        font-weight: 600;
+      }
+      .account-trigger {
+        width: 100%;
+        height: auto;
+        min-height: 52px;
+        justify-content: space-between;
+        padding: 8px 12px;
+        text-align: left;
+        white-space: normal;
+        border-color: transparent;
+        background: transparent;
+        color: var(--nav-ink);
+      }
+      .account-trigger:hover,
+      .account-trigger[data-state="open"] {
+        background: var(--nav-active);
+        color: #ffffff;
+      }
+      .account-trigger:focus-visible {
+        outline: 2px solid var(--nav-ink);
+        outline-offset: 2px;
+      }
+      .account-identity {
+        display: flex;
+        min-width: 0;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .account-label {
+        font-weight: 600;
+      }
+      .account-operator {
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+      [data-slot="dropdown-menu-item"] {
+        justify-content: flex-start;
+        padding: 8px 12px;
+        border: 0;
+        border-radius: 4px;
+        background: transparent;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      [data-slot="dropdown-menu-item"]:focus {
+        background: var(--good-bg);
+        color: var(--accent-ink);
+      }
+      main {
+        padding: 28px 40px 56px;
+        display: flex;
+        flex-direction: column;
+        gap: 28px;
+        width: 100%;
+        max-width: 1240px;
+      }
+      main.wide {
+        max-width: none;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 20px 24px;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .card h2 {
+        font-size: 17px;
+        font-weight: 600;
+      }
+      .section-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .section-head .sub {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .notice {
+        padding: 12px 16px;
+        border-radius: 8px;
+        background: var(--good-bg);
+        color: var(--good-fg);
+        border: 1px solid #b9d6c3;
+      }
+      .problem {
+        padding: 14px 18px;
+        border-radius: 10px;
+        background: #fdf0f0;
+        border: 1px solid #e8b4b4;
+        color: #5c1010;
+      }
+      .caution {
+        padding: 12px 14px;
+        border-radius: 8px;
+        background: var(--notice-bg);
+        border: 1px solid var(--notice-line);
+        color: var(--notice-fg);
+        font-size: 13px;
+      }
+
+      .table-box {
+        overflow-x: auto;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      table {
+        width: 100%;
+        min-width: 640px;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      thead tr {
+        text-align: left;
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      th,
+      td {
+        padding: 12px;
+        border-bottom: 1px solid var(--line-soft);
+        vertical-align: middle;
+      }
+      thead th {
+        font-weight: 500;
+        border-bottom: 1px solid var(--line);
+      }
+      th:first-child,
+      td:first-child {
+        padding-left: 20px;
+      }
+      th:last-child,
+      td:last-child {
+        padding-right: 20px;
+      }
+      tbody tr:last-child th,
+      tbody tr:last-child td {
+        border-bottom: 0;
+      }
+      tbody th {
+        text-align: left;
+        font-weight: 500;
+      }
+      .row-link {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        min-height: 44px;
+        justify-content: center;
+        color: var(--ink);
+        text-decoration: none;
+      }
+      .row-link .mono {
+        font-size: 12px;
+        font-weight: 400;
+        color: var(--muted);
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 2px 9px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 500;
+        white-space: nowrap;
+      }
+      .badge.good {
+        background: var(--good-bg);
+        color: var(--good-fg);
+      }
+      .badge.bad {
+        background: var(--bad-bg);
+        color: var(--bad-fg);
+      }
+      .badge.warn,
+      .badge.degraded {
+        background: var(--warn-bg);
+        color: var(--warn-fg);
+      }
+      .badge.neutral,
+      .badge.unknown {
+        background: var(--neutral-bg);
+        color: var(--neutral-fg);
+      }
+      .badge.healthy {
+        background: var(--good-bg);
+        color: var(--good-fg);
+      }
+      .badge.denied {
+        background: var(--bad-bg);
+        color: var(--bad-fg);
+      }
+      .tag {
+        padding: 2px 7px;
+        border-radius: 4px;
+        background: var(--neutral-bg);
+        color: var(--neutral-fg);
+        font-size: 12px;
+      }
+      .mark {
+        display: inline-block;
+        width: 72px;
+        padding: 2px 0;
+        border-radius: 4px;
+        text-align: center;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
+      button,
+      .button {
+        min-height: 44px;
+        padding: 0 18px;
+        border-radius: 8px;
+        border: 1px solid var(--control);
+        background: var(--surface);
+        color: var(--ink);
+        font: 500 14px var(--sans);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        text-decoration: none;
+      }
+      button.primary,
+      .button.primary {
+        border: 0;
+        background: var(--accent);
+        color: #ffffff;
+      }
+      button.primary:hover,
+      .button.primary:hover {
+        background: var(--accent-ink);
+        color: #ffffff;
+      }
+      button.danger {
+        border-color: #e2b4b4;
+        color: var(--danger);
+      }
+      button.small {
+        min-height: 36px;
+        padding: 0 12px;
+        font-size: 13px;
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .actions-separate {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-left: 10px;
+        border-left: 1px solid var(--line);
+      }
+      form.inline {
+        display: inline;
+      }
+
+      label {
+        font-size: 14px;
+        font-weight: 500;
+      }
+      input[type="text"],
+      input[type="number"],
+      select,
+      textarea {
+        width: 100%;
+        min-height: 44px;
+        padding: 8px 12px;
+        border: 1px solid var(--control);
+        border-radius: 8px;
+        background: var(--surface);
+        color: var(--ink);
+        font: 400 14px var(--sans);
+      }
+      input[type="text"].mono {
+        font-family: var(--mono);
+      }
+      textarea {
+        font-family: var(--mono);
+        font-size: 13px;
+        line-height: 1.6;
+        resize: vertical;
+      }
+      textarea.hcl {
+        min-height: 320px;
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .field .hint {
+        font-weight: 400;
+      }
+      fieldset {
+        margin: 0;
+        padding: 0;
+        border: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      legend {
+        padding: 0 0 8px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .choice {
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 400;
+      }
+      .choice input {
+        margin: 3px 0 0;
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+        flex: none;
+      }
+      .choice strong {
+        font-weight: 500;
+        font-size: 13px;
+      }
+      .choice .mono {
+        font-size: 12px;
+        color: var(--ink-2);
+        word-break: break-all;
+      }
+      .grid-2 {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 20px;
+      }
+      dl.facts {
+        margin: 0;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 14px 20px;
+        font-size: 14px;
+      }
+      dl.facts dt {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      dl.facts dd {
+        margin: 0;
+        word-break: break-word;
+      }
+      ul.plain {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      ul.plain li {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        font-size: 14px;
+      }
+      .chip {
+        padding: 3px 10px;
+        border-radius: 12px;
+        background: var(--neutral-bg);
+        font-size: 13px;
+      }
+      .filters {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .list-filters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+        gap: 12px;
+        align-items: end;
+      }
+      .list-filters input {
+        height: 44px;
+      }
+      .list-filter-actions {
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .list-actions {
+        display: flex;
+        justify-content: flex-end;
+      }
+      .filters a {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        padding: 0 14px;
+        border: 1px solid var(--control);
+        border-radius: 22px;
+        color: var(--ink);
+        text-decoration: none;
+        font-size: 14px;
+      }
+      .filters a[aria-current="true"] {
+        background: var(--nav);
+        border-color: var(--nav);
+        color: #ffffff;
+      }
+
+      .screen-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px 16px;
+      }
+      .screen-heading-end {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+      }
+      .decision-summary {
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
+      }
+      /* Above the page, two columns keep the binding editor's tab list in the first
+   screen of a phone. */
+      @container (width < 792px) {
+        dl.facts.decision-summary {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      .grant-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        margin: 16px 0;
+      }
+      .grant-summary {
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
+      }
+      .grant-summary h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .grant-summary ul {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        margin: 0 0 8px;
+        padding: 0;
+        list-style: none;
+      }
+      .screen-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        border-bottom: 1px solid var(--line);
+      }
+      .screen-tab {
+        min-height: 44px;
+        padding: 0 14px;
+        margin-bottom: -1px;
+        border: 0;
+        border-bottom: 2px solid transparent;
+        border-radius: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .screen-tab:hover {
+        color: var(--ink);
+      }
+      .screen-tab[data-state="active"] {
+        border-bottom-color: var(--accent);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .screen-tab:focus-visible,
+      .screen-panel:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .tab-attention {
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .screen-panel {
+        padding-top: 16px;
+      }
+      .screen-panel[hidden] {
+        display: none;
+      }
+      /* Above the page, the tabs keep one row that scrolls sideways, so that the
+   binding editor's tabs stay in the first screen of a phone. An edge with tabs
+   beyond it fades. The scroll padding keeps a tab that takes focus or becomes
+   selected clear of the fade, and the focus outline sits inside the tab so
+   that the list does not clip it. */
+      @container (width < 792px) {
+        .screen-tabs {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          scrollbar-width: none;
+          scroll-padding-inline: 32px;
+          border-bottom: 0;
+          box-shadow: inset 0 -1px var(--line);
+        }
+        .screen-tabs[data-more-start] {
+          mask-image: linear-gradient(to right, transparent, #000 32px);
+        }
+        .screen-tabs[data-more-end] {
+          mask-image: linear-gradient(to left, transparent, #000 32px);
+        }
+        .screen-tabs[data-more-start][data-more-end] {
+          mask-image: linear-gradient(
+            to right,
+            transparent,
+            #000 32px,
+            #000 calc(100% - 32px),
+            transparent
+          );
+        }
+        .screen-tab {
+          flex: none;
+          margin-bottom: 0;
+          white-space: nowrap;
+        }
+        .screen-tab:focus-visible {
+          outline-offset: -2px;
+        }
+        /* With the summary card above it, this keeps the binding editor's tab list
+     inside the first screen of a 390 by 844 phone. */
+        .card.tabs-card {
+          padding-top: 12px;
+        }
+      }
+      .row-action {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 44px;
+        white-space: nowrap;
+      }
+      .screen-heading h2 {
+        font-size: 17px;
+        font-weight: 600;
+        overflow-wrap: anywhere;
+      }
+      .screen-heading .hint {
+        overflow-wrap: anywhere;
+      }
+      .binding-summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+        gap: 24px;
+      }
+      .binding-summary > *,
+      .binding-choices > * {
+        min-width: 0;
+      }
+      .binding-choices {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .binding-choices .mono,
+      .binding-summary .mono {
+        overflow-wrap: anywhere;
+      }
+      .binding-settings {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+        gap: 16px;
+        align-items: start;
+      }
+      .binding-settings > p,
+      .binding-settings > .choice,
+      .binding-settings > .field:has(#binding-enforcement) {
+        grid-column: 1 / -1;
+      }
+      #binding-enforcement {
+        max-width: 480px;
+      }
+
+      .signin {
+        min-height: 900px;
+        display: flex;
+        flex-wrap: wrap;
+      }
+      .signin aside {
+        flex: 1 1 380px;
+        background: var(--nav);
+        color: #e8ede9;
+        padding: 48px 56px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 40px;
+      }
+      .signin aside .lede {
+        font-size: 32px;
+        line-height: 1.2;
+        font-weight: 500;
+        max-width: 420px;
+      }
+      .signin aside p {
+        color: #b7c4bc;
+        max-width: 420px;
+      }
+      .signin aside dl {
+        margin: 0;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 6px 16px;
+        font-size: 13px;
+        color: #b7c4bc;
+      }
+      .signin aside dd {
+        margin: 0;
+        font-family: var(--mono);
+        color: #e8ede9;
+      }
+      .signin main {
+        flex: 999 1 520px;
+        min-width: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 48px 24px;
+        max-width: none;
+      }
+      .signin .panel {
+        width: 100%;
+        max-width: 400px;
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+      }
+      .signin h1 {
+        font-size: 28px;
+        font-weight: 600;
+      }
+      .signin button.primary {
+        width: 100%;
+        min-height: 48px;
+        font-size: 15px;
+      }
+      .signin .foot {
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      @media (max-width: 720px) {
+        .topbar,
+        main {
+          padding-left: 16px;
+          padding-right: 16px;
+        }
+        .signin aside {
+          padding: 32px 24px;
+        }
+        .signin aside .lede {
+          font-size: 24px;
+        }
+      }
+
+      .card.pending-key {
+        background: var(--notice-bg);
+        border-color: var(--notice-line);
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .card.key-form {
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .key-form .field {
+        flex: 1 1 180px;
+      }
+
+      /* Compact choices keep path capabilities and identity selections together. */
+      .editor-choice {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 32px;
+        cursor: pointer;
+      }
+      .editor-choice input {
+        width: 18px;
+        height: 18px;
+        flex: none;
+        accent-color: var(--accent);
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+      code {
+        overflow-wrap: anywhere;
+      }
+      .section-head > * {
+        min-width: 0;
+        max-width: 100%;
+      }
+      /* Isolated prototype additions; the application stylesheet above is copied from the base. */
+      html {
+        background: transparent;
+      }
+      body {
+        background: transparent;
+      }
+      button:disabled {
+        opacity: 0.6;
+        cursor: default;
+      }
+      .prototype {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 20px;
+        padding: 12px 16px;
+        border-bottom: 1px solid var(--line);
+        font-size: 14px;
+      }
+      .prototype a {
+        min-height: 32px;
+        display: inline-flex;
+        align-items: center;
+      }
+      .prototype strong {
+        color: var(--accent-ink);
+      }
+      .prototype button {
+        margin-left: auto;
+        min-height: 32px;
+      }
+      .app {
+        min-height: 800px;
+      }
+      .page {
+        background: var(--ground);
+      }
+      main {
+        gap: 24px;
+      }
+      .nav {
+        flex: 0 0 232px;
+        position: relative;
+        top: auto;
+        align-self: stretch;
+      }
+      .nav .logo svg {
+        width: 26px;
+        height: 26px;
+      }
+      .nav-foot {
+        margin-top: 100px;
+      }
+      h2 {
+        font-size: 18px;
+      }
+      h3 {
+        font-size: 16px;
+      }
+      .hint,
+      .section-head .sub {
+        font-size: 14px;
+      }
+      .stack {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .gap8 {
+        gap: 8px;
+      }
+      .mono {
+        overflow-wrap: anywhere;
+      }
+      .key-heading {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+      .identity {
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--line);
+      }
+      .grant-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 24px;
+      }
+      .grant-grid .span-all {
+        grid-column: 1/-1;
+      }
+      .grant-summary li {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        font-size: 15px;
+      }
+      .grant-summary .badge {
+        flex: none;
+      }
+      .summary-note {
+        border-top: 1px solid var(--line);
+        padding-top: 12px;
+      }
+      .preview {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 16px;
+      }
+      .preview.grant-summary {
+        border-top: 1px solid var(--line);
+      }
+      .grant-diff {
+        min-width: 0;
+        table-layout: fixed;
+      }
+      .grant-diff th:first-child {
+        width: 22%;
+      }
+      .grant-diff td,
+      .grant-diff th {
+        padding: 10px 12px;
+        overflow-wrap: anywhere;
+      }
+      .grant-diff .changed {
+        background: var(--good-bg);
+      }
+      .grant-diff .removed {
+        background: var(--warn-bg);
+      }
+      .change-list {
+        display: grid;
+        grid-template-columns: 100px minmax(0, 1fr) minmax(0, 1fr);
+        margin: 0;
+      }
+      .change-list > * {
+        margin: 0;
+        padding: 10px 12px;
+        border-bottom: 1px solid var(--line-soft);
+        overflow-wrap: anywhere;
+      }
+      .change-list .changed {
+        background: var(--good-bg);
+      }
+      .change-list .removed {
+        background: var(--warn-bg);
+      }
+      .change-list .colhead {
+        color: var(--muted);
+        font-weight: 500;
+      }
+      .policy-key {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px 16px;
+        align-items: center;
+        padding: 16px 0;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .policy-key label {
+        min-height: 44px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .policy-key input {
+        width: 18px;
+        height: 18px;
+        accent-color: var(--accent);
+        flex: none;
+      }
+      .policy-key .details {
+        grid-column: 1/-1;
+        padding-left: 28px;
+      }
+      .policy-key .details p {
+        margin: 4px 0;
+      }
+      .policy-key:last-child {
+        border: 0;
+      }
+      .button-link {
+        border: 0;
+        background: none;
+        color: var(--accent);
+        padding: 0;
+        min-height: 44px;
+        text-decoration: underline;
+      }
+      .section-head.align-start {
+        align-items: flex-start;
+      }
+      .screen-tabs {
+        margin-bottom: 16px;
+      }
+      .screen-tab[aria-current="page"] {
+        border-bottom-color: var(--accent);
+        color: var(--ink);
+        font-weight: 600;
+      }
+      .empty {
+        padding: 24px;
+        text-align: center;
+      }
+      .event-meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+      }
+      .event-meta strong {
+        display: block;
+        font-size: 14px;
+      }
+      .event-meta span {
+        font-size: 14px;
+      }
+      pre {
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        margin: 0;
+      }
+      .screenreader {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+      }
+      @media (max-width: 791px) {
+        .app {
+          display: block;
+          min-height: 600px;
+        }
+        .nav {
+          min-height: 0;
+        }
+        .nav-foot {
+          margin-top: 0;
+        }
+        .grant-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .prototype {
+          gap: 4px 14px;
+        }
+        .prototype button {
+          margin-left: 0;
+        }
+        .card {
+          padding: 16px;
+        }
+        .change-list {
+          grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr);
+          font-size: 13px;
+        }
+        .change-list > * {
+          padding: 8px 6px;
+        }
+        .policy-key {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .policy-key .details {
+          padding-left: 0;
+        }
+        .table-box {
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="prototype" aria-label="Prototype controls">
+      <strong>Mockup · #157</strong
+      ><span>Fictional data. Changes last until reload.</span
+      ><a href="#keys">Key list</a><a href="#policy">Edit policy</a
+      ><a href="#new-policy">Create policy</a><a href="#events">Event history</a
+      ><button id="reset">Reset demo</button>
+    </div>
+    <div class="app">
+      <nav class="nav" aria-label="Primary">
+        <div class="nav-bar">
+          <a class="brand" href="#keys"
+            ><span class="logo"
+              ><svg
+                xmlns="http://www.w3.org/2000/svg"
+                viewBox="104 100 1045 1045"
+                fill="#8FC5A6"
+                role="img"
+                aria-label="Wyrwood"
+              >
+                <g id="ring">
+                  <path
+                    id="ring-left"
+                    d="M540.7,125.7 A499.5,484.5 0 0 0 209,868 L247,815.3 A437,428 0 0 1 497.5,194 Z"
+                  />
+                  <use
+                    id="ring-right"
+                    href="#ring-left"
+                    transform="matrix(-1 0 0 1 1253 0)"
+                  />
+                </g>
+                <path
+                  id="crown-bud"
+                  d="M627,105 C660,140 709,200 709,265 C709,320 680,350 664,380 C655,397 651,410 651,430 L603,430 C603,410 599,397 590,380 C574,350 545,320 545,265 C545,200 594,140 627,105 Z"
+                />
+                <path
+                  id="trunk"
+                  d="M603,420 L651,420 L653,470 C657,520 685,560 685,620 C685,670 694,690 699,705 L555,705 C560,690 569,670 569,620 C569,560 597,520 601,470 Z"
+                />
+                <g id="leaves">
+                  <path
+                    id="leaf-left"
+                    d="M318,338 C450,335 500,365 530,440 C545,465 560,500 590,530 L600,600 L569,600 C566,560 556,540 533,530 C525,522 480,495 400,470 C370,445 330,400 318,338 Z"
+                  />
+                  <use
+                    id="leaf-right"
+                    href="#leaf-left"
+                    transform="matrix(-1 0 0 1 1254 0)"
+                  />
+                </g>
+                <g id="roots">
+                  <path
+                    id="roots-left"
+                    d="M560,690 L552,700 C525,745 480,790 431,790 C340,795 275,830 240,872 C238,910 262,955 308,990 C303,965 300,920 338,870 C410,838 520,822 551,788 C540,830 480,875 427,900 C390,920 365,960 371,1000 C377,1040 410,1062 434,1074 C425,1055 405,990 465,946 C470,985 528,1038 575,1072 C600,1090 618,1115 627,1140 L632,1125 L632,1075 L627,1068 C600,1058 540,1005 519,960 C505,905 615,840 627,778 L632,778 L632,690 Z"
+                  />
+                  <use
+                    id="roots-right"
+                    href="#roots-left"
+                    transform="matrix(-1 0 0 1 1254 0)"
+                  />
+                </g>
+                <path
+                  id="root-bud"
+                  d="M627,852 C648,895 665,930 665,957 C665,990 645,1035 627,1067 C609,1035 589,990 589,957 C589,930 606,895 627,852 Z"
+                />
+              </svg> </span
+            ><span>Wyrwood</span></a
+          ><button
+            class="nav-toggle"
+            aria-expanded="false"
+            aria-controls="nav-panel"
+          >
+            Menu
+          </button>
+        </div>
+        <div class="nav-panel" id="nav-panel">
+          <div class="nav-links">
+            <span class="hint" style="padding: 0 12px; color: var(--nav-quiet)"
+              >Grant-editing prototype</span
+            ><a href="#policy" data-nav="policy">Policies</a
+            ><a href="#keys" data-nav="keys">Operator keys</a
+            ><a href="#events" data-nav="events">Events</a>
+          </div>
+          <div class="nav-foot">
+            <span><span class="dot"></span>OpenBao reachable</span
+            ><span class="mono">controller.example.test</span>
+          </div>
+          <div class="account-trigger">
+            <strong>Account</strong>
+            <div class="account-operator">boblangley</div>
+          </div>
+        </div>
+      </nav>
+      <div class="page">
+        <header class="topbar">
+          <h1 id="page-title">Operator keys</h1>
+          <span class="hint">Demonstration</span>
+        </header>
+        <main id="content"></main>
+      </div>
+    </div>
+    <noscript
+      ><p class="problem">
+        This interactive mockup needs JavaScript. Use the screenshots linked in
+        the pull request to review the static screens.
+      </p></noscript
+    >
+    <script>
+      // Fixture-only state. No requests, storage, credentials or application imports.
+      const initial = [
+        {
+          id: "menagerie",
+          label: "menagerie",
+          fingerprint: "SHA256:U04dsnYHFG5fUmK4FYYzBHDNU85/LRjOa+k9vNPJQkw",
+          agents: ["tools"],
+          policies: ["shared-key"],
+          actions: ["read", "bind"],
+        },
+        {
+          id: "reader",
+          label: "inventory-reader",
+          fingerprint: "SHA256:Gnr27VyoNUIdCeh/yfUZfiGpM+FgQEuZ8NO8qR4Ib2c",
+          agents: ["tools"],
+          policies: ["teal"],
+          actions: ["read"],
+        },
+        {
+          id: "admin",
+          label: "fleet-admin",
+          fingerprint: "SHA256:Qd6qGw7zmTj4Y7vBKAc3kN8wFhE2cD9rP1sV0aL5uXo",
+          agents: ["*"],
+          policies: ["*"],
+          actions: ["read", "bind", "policy-write"],
+        },
+      ];
+      const clone = (x) => JSON.parse(JSON.stringify(x));
+      const esc = (x) =>
+        String(x).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      const list = (x) =>
+        x.length ? (x[0] === "*" ? "All" : x.join(", ")) : "None";
+      const names = (x) => [...new Set(x.split(/[,\s]+/).filter(Boolean))];
+      const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+      const actionNames = {
+        read: "Read",
+        bind: "Bind",
+        "policy-write": "Policy write",
+      };
+      let keys = clone(initial),
+        policies = ["shared-key", "teal", "bob-secrets"],
+        events = [],
+        draft = null,
+        pending = null,
+        notice = "",
+        policyDraft = null;
+      const content = document.getElementById("content");
+      const badge = (text, kind = "neutral") =>
+        `<span class="badge ${kind}">${text}</span>`;
+      function summary(g) {
+        const on = g.agents[0] === "*" ? "every agent" : g.agents.join(" and ");
+        const pol =
+          g.policies[0] === "*" ? "every policy" : g.policies.join(" and ");
+        const bindings =
+          g.agents[0] === "*" && g.policies[0] === "*"
+            ? "every binding"
+            : `bindings on ${on}${g.policies[0] === "*" ? "" : ` that hold no policy other than ${pol}`}`;
+        const problem = grantError(g);
+        const valid = !problem;
+        let rows = [
+          [
+            "read",
+            g.policies.length > 0,
+            !g.policies.length
+              ? "Cannot read policies or bindings: no policy is selected."
+              : `Can read ${pol}${g.agents.length ? `, and ${bindings}` : ". Cannot read bindings: no agent is selected"}.`,
+          ],
+          [
+            "bind",
+            g.agents.length > 0 && g.policies.length > 0,
+            !g.agents.length
+              ? "Cannot bind or unbind: no agent is selected."
+              : !g.policies.length
+                ? "Cannot bind or unbind: no policy is selected."
+                : `Can create and remove ${bindings}.`,
+          ],
+          [
+            "policy-write",
+            g.policies.length > 0,
+            !g.policies.length
+              ? "Cannot change policies: no policy is selected."
+              : `Can create and change ${pol}${!g.agents.length ? ", when no binding holds the policy" : g.agents[0] === "*" && g.policies[0] === "*" ? "" : `, when every binding that holds the policy ${g.agents[0] === "*" ? "" : `is on ${on}`}${g.agents[0] !== "*" && g.policies[0] !== "*" ? " and " : ""}${g.policies[0] === "*" ? "" : `holds no policy other than ${pol}`}`}.`,
+          ],
+        ];
+        const denied = {
+          read: "Cannot read policies or bindings.",
+          bind: "Cannot bind or unbind.",
+          "policy-write": "Cannot change policies.",
+        };
+        return `<section class="grant-summary preview"><h3>What this key can do</h3>${problem ? `<p class="problem">${esc(problem)}</p>` : ""}<ul>${rows
+          .map(([a, allowed, text]) => {
+            const yes = valid && allowed && g.actions.includes(a);
+            return `<li>${badge(yes ? "Allowed" : "Denied", yes ? "good" : "neutral")}<span>${esc(!valid || !g.actions.includes(a) ? denied[a] : text)}</span></li>`;
+          })
+          .join(
+            "",
+          )}</ul>${g.actions.includes("bind") && g.actions.includes("policy-write") ? '<p class="caution">Bind and Policy write together can reach whatever the controller’s OpenBao namespace can grant. Give both only to a key you trust with that.</p>' : ""}</section>`;
+      }
+      function grantDiff(before, after) {
+        const entries = [
+          ["Agents", before.agents, after.agents],
+          ["Policies", before.policies, after.policies],
+          ...["read", "bind", "policy-write"].map((a) => [
+            actionNames[a],
+            [before.actions.includes(a) ? "Allowed" : "Denied"],
+            [after.actions.includes(a) ? "Allowed" : "Denied"],
+          ]),
+        ];
+        return `<table class="grant-diff"><caption class="screenreader">Old and new grant</caption><thead><tr><th scope="col">Grant</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>${entries.map(([name, old, next]) => `<tr><th scope="row">${name}</th><td>${esc(list(old))}</td><td class="${same(old, next) ? "" : old.some((x) => !next.includes(x)) ? "removed" : "changed"}">${esc(list(next))}${same(old, next) ? "" : " <strong>· Changed</strong>"}</td></tr>`).join("")}</tbody></table>`;
+      }
+      function identity(k) {
+        return `<div class="identity stack gap8"><div class="key-heading"><h2>${esc(k.label)}</h2>${badge("Approved", "good")}</div><div class="mono hint">${esc(k.fingerprint)}</div><p class="hint">The key, fingerprint and label stay the same. Its client needs no change or restart.</p></div>`;
+      }
+      function keyList() {
+        return `<section class="card"><div class="section-head"><div><h2>Controller SSH host key</h2><code class="hint">SHA256:l90rdkg9CrZSLjucJ5WNQU1J3jAZmSze7G3yuGGrok</code></div><p class="hint">Operator keys manage policies and bindings from a script, inside their grants.</p></div></section><section class="stack"><div class="section-head"><h2>Approved operator keys</h2><span class="sub">3 keys</span></div><div class="table-box"><table><thead><tr>${["Key", "Agents", "Policies", "Actions", "Approved by", ""].map((x) => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>${keys.map((k) => `<tr><th scope="row">${esc(k.label)}<div class="mono hint">${esc(k.fingerprint)}</div></th><td>${esc(list(k.agents))}</td><td>${esc(list(k.policies))}</td><td>${k.actions.map((a) => actionNames[a]).join(", ")}</td><td>boblangley</td><td><a class="button" href="#edit/${k.id}">Edit grant</a></td></tr>`).join("")}</tbody></table></div><p class="hint">Edit the grant on an approved key. Each confirmed change records the operator and the old and new grant in Events.</p></section>`;
+      }
+      function namePicker(field, title, available, current) {
+        const all = current.includes("*");
+        const other = current
+          .filter((x) => x !== "*" && !available.includes(x))
+          .join(", ");
+        return `<fieldset><legend>${title}</legend><label class="choice"><input type="checkbox" data-grant="${field}" value="*" ${all ? "checked" : ""}><span>All ${field}, including ${field === "agents" ? "agents approved" : "policies created"} later</span></label>${available.map((name) => `<label class="choice"><input type="checkbox" data-grant="${field}" value="${esc(name)}" ${current.includes(name) ? "checked" : ""} ${all ? "disabled" : ""}><span>${esc(name)}</span></label>`).join("")}<div class="field"><label for="other-${field}">Other ${field === "agents" ? "agent" : "policy"} names</label><input type="text" id="other-${field}" data-other="${field}" value="${esc(other)}" ${all ? "disabled" : ""} aria-describedby="hint-${field}"><p class="hint" id="hint-${field}">Names separated by commas, for ${field === "agents" ? "agents that are not approved" : "policies that do not exist"} yet.</p></div></fieldset>`;
+      }
+      function editKey(id) {
+        const key = keys.find((k) => k.id === id) || keys[0];
+        if (!draft || draft.id !== key.id) draft = clone(key);
+        return `<a href="#keys">← Back to operator keys</a><section class="card stack">${identity(key)}<div class="section-head"><h2>Edit grant</h2><span class="sub">Changes are pending until confirmed.</span></div><form id="grant-form" class="stack"><div class="grant-grid">${namePicker("agents", "Agents", ["tools", "build-host"], draft.agents)}${namePicker("policies", "Policies", policies, draft.policies)}<fieldset class="span-all"><legend>Actions</legend><div class="grid-2">${["read", "bind", "policy-write"].map((a) => `<label class="choice"><input type="checkbox" data-action="${a}" ${draft.actions.includes(a) ? "checked" : ""}><span><strong>${actionNames[a]}</strong><br><span class="hint">${a === "read" ? "List and read policies and bindings" : a === "bind" ? "Create and remove bindings" : "Create and change policies"}</span></span></label>`).join("")}</div></fieldset></div><p class="hint">A binding is inside the grant only if its agent and every policy it holds are allowed. Policy write also requires every binding holding that policy to be covered.</p><div id="live-preview" aria-live="polite">${summary(draft)}</div><p id="grant-error" class="problem" role="alert" hidden></p><div class="actions"><button class="primary" type="submit">Review grant</button><a class="button" href="#keys">Cancel</a></div></form></section>`;
+      }
+      function policyScreen(isNew) {
+        if (!policyDraft || policyDraft.isNew !== isNew)
+          policyDraft = {
+            isNew,
+            name: isNew ? "operator-secrets" : "bob-secrets",
+            selected: keys
+              .filter(
+                (k) =>
+                  k.policies.includes("*") ||
+                  k.policies.includes(
+                    isNew ? "operator-secrets" : "bob-secrets",
+                  ),
+              )
+              .filter((k) => k.actions.includes("bind"))
+              .map((k) => k.id),
+          };
+        const name = policyDraft.name;
+        return `<div class="section-head align-start"><div class="stack gap8"><h2 class="mono">${isNew ? "New policy" : esc(name)}</h2><p class="hint">${isNew ? "Create a policy and choose which keys may bind it." : "Revision 1 · 0 bindings on 0 agents"}</p></div><button class="primary" id="policy-review">${isNew ? "Create and validate" : "Save and validate"}</button></div>${isNew ? `<section class="card stack"><div class="field"><label for="policy-name">Name</label><input id="policy-name" type="text" value="${esc(name)}" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" maxlength="64" required><p class="hint">Lower-kebab-case. This mockup creates a fixture policy.</p></div></section>` : ""}<div><nav class="screen-tabs" aria-label="Policy sections"><button class="screen-tab" data-policy-tab="hcl">OpenBao policy</button><span class="screen-tab" aria-disabled="true">SSH identities</span><span class="screen-tab" aria-disabled="true">Container contract</span>${isNew ? "" : '<span class="screen-tab" aria-disabled="true">Bindings</span>'}<button class="screen-tab" data-policy-tab="keys" aria-current="page">Operator keys</button></nav><section id="policy-hcl" class="card stack" hidden><h2>OpenBao policy</h2><p class="hint">Example HCL, shown for context. Editing HCL is outside this mockup.</p><pre class="mono">path "kv/data/operators/bob/*" {
+  capabilities = ["read"]
+}</pre></section><section id="policy-keys" class="card stack"><div class="section-head"><h2>Operator keys that may bind this policy</h2><span class="sub">Approved keys only</span></div><p>Select keys that can bind <code id="policy-name-inline">${esc(name)}</code>. Their agent scope still applies.</p><p class="caution">This changes each key’s Policies list. Adding this policy also enables its existing Read and Policy write actions for this policy. Removing it removes those permissions too. Review each key’s full grant before confirming.</p><div>${keys
+          .map((k) => {
+            const wildcard = k.policies.includes("*"),
+              canBind = k.actions.includes("bind");
+            return `<div class="policy-key"><label><input type="checkbox" data-policy-key="${k.id}" ${policyDraft.selected.includes(k.id) ? "checked" : ""} ${wildcard || !canBind ? "disabled" : ""}><strong>${esc(k.label)}</strong>${badge(wildcard ? "All policies" : canBind ? "Bind allowed" : "Bind denied", canBind ? "good" : "neutral")}</label><a href="#edit/${k.id}">Edit grant</a><div class="details hint"><p>Agents: ${esc(list(k.agents))} · Actions: ${k.actions.map((a) => actionNames[a]).join(", ")}</p><p class="mono">${esc(k.fingerprint)}</p>${wildcard ? "<p>Already includes this policy and future policies. Narrow the grant from Operator keys to exclude it.</p>" : !canBind ? "<p>Enable Bind from Edit grant before selecting this key here. No actions are added automatically.</p>" : ""}</div></div>`;
+          })
+          .join(
+            "",
+          )}</div><div id="policy-error" class="problem" role="alert" hidden></div><div class="actions"><button class="primary" id="policy-review-bottom">Review changes</button><a class="button" href="#keys">Cancel</a></div></section></div>`;
+      }
+      function confirmScreen() {
+        if (!pending)
+          return '<section class="card"><p>No change is awaiting confirmation.</p><a href="#keys">Back to operator keys</a></section>';
+        return `<a href="${pending.from}">← Back to editing</a><section class="stack"><div class="section-head"><div><h2>${pending.isNew ? "Create policy and change grants?" : "Confirm grant changes"}</h2><p class="hint">${pending.source === "key" ? "From Operator keys" : `From policy ${esc(pending.policy)}`} · Signed in as boblangley</p></div>${badge("Not saved", "warn")}</div><p>${pending.isNew ? `Create <code>${esc(pending.policy)}</code> and apply the grants below. ` : ""}Confirmed grants apply to the key’s next request, including an existing connection. The key, fingerprint and label stay the same.</p>${pending.changes.map(({ before, after }) => `<section class="card stack">${identity(before)}${grantDiff(before, after)}${summary(after)}</section>`).join("")}${!pending.changes.length ? '<p class="notice">No key grants change. This creates only the fixture policy.</p>' : ""}<p class="hint">${pending.changes.length} grant-change event${pending.changes.length === 1 ? "" : "s"} will record boblangley, the key, the time, and the complete old and new grant.</p><div class="actions"><button class="primary" id="confirm-save">${pending.isNew ? "Create policy" : "Confirm changes"}</button><a class="button" href="${pending.from}">Cancel</a></div></section>`;
+      }
+      function eventScreen() {
+        const sample = {
+          before: clone(initial[0]),
+          after: {
+            ...clone(initial[0]),
+            policies: ["shared-key", "bob-secrets"],
+          },
+          time: "2026-11-16T20:00:00Z",
+          source: "Operator keys",
+          sample: true,
+        };
+        const shown = events.length ? events : [sample];
+        return `<div class="filters"><span class="chip">All outcomes</span><span class="hint">Controller events, newest first · retention 10,000</span></div>${events.length ? "" : '<p class="caution">Example event. Confirm an edit to replace this with the events produced by your mockup session.</p>'}<section class="stack" aria-label="Event history">${shown.map((e, i) => `<section class="card stack"><div class="section-head"><h2 class="mono">operator-key-grant-changed</h2>${badge("Changed", "good")}</div><div class="event-meta"><div><strong>Time (UTC)</strong><span class="mono">${esc(e.time.replace("T", " ").replace("Z", ""))}</span></div><div><strong>Operator</strong><span>boblangley</span></div><div><strong>Subject</strong><span>key:${esc(e.before.label)}</span></div><div><strong>Changed from</strong><span>${esc(e.source)}</span></div></div><p class="hint mono">${esc(e.before.fingerprint)}</p><details ${i === 0 ? "open" : ""}><summary>Old and new grant</summary>${grantDiff(e.before, e.after)}</details><a href="#edit/${e.before.id}">View current key grant</a></section>`).join("")}</section><p class="hint">Grant fields identify scope and actions. Events contain no tokens, secret values, HCL, signatures or raw upstream errors. Event name and field layout are proposed.</p>`;
+      }
+      function readGrantForm() {
+        const g = clone(draft);
+        for (const field of ["agents", "policies"]) {
+          const inputs = [
+            ...document.querySelectorAll(`[data-grant="${field}"]`),
+          ];
+          const all = inputs.find((x) => x.value === "*").checked;
+          for (const el of inputs) if (el.value !== "*") el.disabled = all;
+          const other = document.querySelector(`[data-other="${field}"]`);
+          other.disabled = all;
+          g[field] = all
+            ? ["*"]
+            : [
+                ...new Set([
+                  ...inputs
+                    .filter((x) => x.value !== "*" && x.checked)
+                    .map((x) => x.value),
+                  ...names(other.value),
+                ]),
+              ];
+        }
+        g.actions = [...document.querySelectorAll("[data-action]:checked")].map(
+          (x) => x.dataset.action,
+        );
+        draft = g;
+        return g;
+      }
+      function grantError(g) {
+        if (!g.actions.length)
+          return "Select at least one action before reviewing the grant.";
+        for (const field of ["agents", "policies"]) {
+          if (g[field].length > 256) return `Use no more than 256 ${field}.`;
+          if (g[field].includes("*") && g[field].length !== 1)
+            return `Use * alone for all ${field}, or use names alone.`;
+          const bad = g[field].find(
+            (x) =>
+              x !== "*" &&
+              !(field === "policies"
+                ? x.length <= 64 && /^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(x)
+                : x.length <= 253 &&
+                  x
+                    .split(".")
+                    .every((part) =>
+                      /^[A-Za-z0-9][A-Za-z0-9-]{0,62}$/.test(part),
+                    )),
+          );
+          if (bad)
+            return `“${bad}” is not a valid ${field === "agents" ? "agent" : "policy"} name. Use a valid name and review again.`;
+        }
+        return "";
+      }
+      function error(id, text) {
+        const el = document.getElementById(id);
+        el.textContent = text;
+        el.hidden = false;
+        el.tabIndex = -1;
+        el.focus();
+      }
+      function reviewPolicy() {
+        const isNew = policyDraft.isNew;
+        const name = isNew
+          ? document.getElementById("policy-name").value.trim()
+          : policyDraft.name;
+        policyDraft.name = name;
+        if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name) || name.length > 64)
+          return error(
+            "policy-error",
+            "Enter a lower-kebab-case policy name, up to 64 characters.",
+          );
+        if (isNew && policies.includes(name))
+          return error(
+            "policy-error",
+            "This policy already exists. Use a new name.",
+          );
+        const changes = [];
+        for (const k of keys) {
+          if (k.policies.includes("*") || !k.actions.includes("bind")) continue;
+          const selected = policyDraft.selected.includes(k.id);
+          const after = clone(k);
+          after.policies = selected
+            ? [...new Set([...k.policies, name])]
+            : k.policies.filter((p) => p !== name);
+          if (!same(k, after)) changes.push({ before: clone(k), after });
+        }
+        if (!changes.length && !isNew)
+          return error(
+            "policy-error",
+            "No grants have changed. Choose a key before reviewing.",
+          );
+        pending = {
+          source: "policy",
+          policy: name,
+          isNew,
+          changes,
+          from: isNew ? "#new-policy" : "#policy",
+        };
+        location.hash = "confirm";
+      }
+      function render() {
+        const route = location.hash.slice(1) || "keys";
+        const mode = route.startsWith("edit/") ? "edit" : route;
+        const pageTitle =
+          {
+            keys: "Operator keys",
+            edit: "Operator keys",
+            policy: "Policy editor",
+            "new-policy": "Policy editor",
+            confirm: "Review changes",
+            events: "Events",
+          }[mode] || "Operator keys";
+        document.title = `${pageTitle} · Wyrwood mockup`;
+        document.getElementById("page-title").textContent = pageTitle;
+        for (const a of document.querySelectorAll("[data-nav]")) {
+          const active =
+            mode === "edit" || mode === "keys"
+              ? "keys"
+              : mode === "new-policy"
+                ? "policy"
+                : mode;
+          a.toggleAttribute("aria-current", a.dataset.nav === active);
+          if (a.dataset.nav === active) a.setAttribute("aria-current", "page");
+        }
+        document.querySelector(".nav-panel").removeAttribute("data-open");
+        document
+          .querySelector(".nav-toggle")
+          .setAttribute("aria-expanded", "false");
+        const page =
+          mode === "edit"
+            ? editKey(route.split("/")[1])
+            : mode === "policy" || mode === "new-policy"
+              ? policyScreen(mode === "new-policy")
+              : mode === "confirm"
+                ? confirmScreen()
+                : mode === "events"
+                  ? eventScreen()
+                  : keyList();
+        content.innerHTML =
+          (notice
+            ? `<div class="notice" role="status">${esc(notice)} <a href="#events">View event</a></div>`
+            : "") + page;
+        if (mode === "keys") draft = null;
+        const grantForm = document.getElementById("grant-form");
+        if (grantForm) {
+          grantForm.addEventListener("input", () => {
+            const g = readGrantForm();
+            document.getElementById("live-preview").innerHTML = summary(g);
+            document.getElementById("grant-error").hidden = true;
+          });
+          grantForm.addEventListener("submit", (ev) => {
+            ev.preventDefault();
+            const g = readGrantForm(),
+              problem = grantError(g);
+            if (problem) return error("grant-error", problem);
+            const before = keys.find((k) => k.id === g.id);
+            if (same(before, g))
+              return error(
+                "grant-error",
+                "The grant has not changed. Edit a field or cancel.",
+              );
+            pending = {
+              source: "key",
+              from: `#edit/${g.id}`,
+              changes: [{ before: clone(before), after: clone(g) }],
+            };
+            location.hash = "confirm";
+          });
+        }
+        for (const el of document.querySelectorAll("[data-policy-key]"))
+          el.addEventListener("change", () => {
+            policyDraft.selected = [
+              ...document.querySelectorAll("[data-policy-key]:checked"),
+            ].map((x) => x.dataset.policyKey);
+          });
+        document
+          .getElementById("policy-name")
+          ?.addEventListener("input", (e) => {
+            policyDraft.name = e.target.value;
+            document.getElementById("policy-name-inline").textContent =
+              e.target.value;
+          });
+        document
+          .getElementById("policy-review")
+          ?.addEventListener("click", reviewPolicy);
+        document
+          .getElementById("policy-review-bottom")
+          ?.addEventListener("click", reviewPolicy);
+        for (const tab of document.querySelectorAll("[data-policy-tab]"))
+          tab.addEventListener("click", () => {
+            for (const t of document.querySelectorAll("[data-policy-tab]"))
+              t.removeAttribute("aria-current");
+            tab.setAttribute("aria-current", "page");
+            document.getElementById("policy-keys").hidden =
+              tab.dataset.policyTab !== "keys";
+            document.getElementById("policy-hcl").hidden =
+              tab.dataset.policyTab !== "hcl";
+          });
+        document
+          .getElementById("confirm-save")
+          ?.addEventListener("click", () => {
+            if (!pending) return;
+            for (const { before, after } of pending.changes) {
+              keys[keys.findIndex((k) => k.id === before.id)] = clone(after);
+              events.unshift({
+                before: clone(before),
+                after: clone(after),
+                source:
+                  pending.source === "key"
+                    ? "Operator keys"
+                    : `Policy: ${pending.policy}`,
+                time: new Date().toISOString(),
+              });
+            }
+            if (pending.isNew) policies.push(pending.policy);
+            notice = pending.isNew
+              ? `Policy ${pending.policy} created in this mockup. ${pending.changes.length} key grant(s) changed.`
+              : `${pending.changes.length} key grant(s) changed in this mockup. The next client request uses the new grant.`;
+            pending = null;
+            draft = null;
+            policyDraft = null;
+            location.hash = "keys";
+          });
+        const heading = document.getElementById("page-title");
+        heading.tabIndex = -1;
+        heading.focus({ preventScroll: true });
+        window.scrollTo(0, 0);
+      }
+      window.addEventListener("hashchange", render);
+      document.querySelector(".nav-toggle").addEventListener("click", () => {
+        const toggle = document.querySelector(".nav-toggle"),
+          open = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(open));
+        document.querySelector(".nav-panel").toggleAttribute("data-open", open);
+      });
+      document.querySelector(".nav").addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          document.querySelector(".nav-panel").removeAttribute("data-open");
+          document
+            .querySelector(".nav-toggle")
+            .setAttribute("aria-expanded", "false");
+          document.querySelector(".nav-toggle").focus();
+        }
+      });
+      document.getElementById("reset").addEventListener("click", () => {
+        keys = clone(initial);
+        policies = ["shared-key", "teal", "bob-secrets"];
+        events = [];
+        draft = null;
+        pending = null;
+        notice = "";
+        policyDraft = null;
+        if (location.hash === "#keys") render();
+        else location.hash = "keys";
+      });
+      render();
+    </script>
+  </body>
+</html>
