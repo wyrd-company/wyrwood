@@ -44,7 +44,14 @@ func newRecreateAgentAt(t *testing.T, fake engine.Engine, paths Paths) *Agent {
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(instance.shutdown)
+	t.Cleanup(func() {
+		// Match Run's teardown: join state writers before removing their paths.
+		instance.mu.Lock()
+		instance.stopping = true
+		instance.mu.Unlock()
+		instance.engineWorkers.Wait()
+		instance.shutdown()
+	})
 	return instance
 }
 
