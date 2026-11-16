@@ -67,7 +67,7 @@ type Action string
 const (
 	// ActionRead reads policies and bindings inside the grant.
 	ActionRead Action = "read"
-	// ActionBind creates and removes bindings inside the grant.
+	// ActionBind creates, changes, and removes bindings inside the grant.
 	ActionBind Action = "bind"
 	// ActionPolicyWrite creates and changes policies inside the grant.
 	ActionPolicyWrite Action = "policy-write"
