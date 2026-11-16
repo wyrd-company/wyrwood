@@ -42,11 +42,13 @@ const go = async (hash) => {
   await page.locator("#page-title").waitFor();
 };
 const route = async (hash) => {
-  await page.evaluate((h) => {
-    location.hash = h;
-  }, hash);
-  await page.waitForFunction(
-    (h) => location.hash === `#${h}` && !!document.querySelector("main > *"),
+  await page.evaluate(
+    (h) =>
+      new Promise((resolve) => {
+        if (location.hash === `#${h}`) return resolve();
+        addEventListener("hashchange", () => resolve(), { once: true });
+        location.hash = h;
+      }),
     hash,
   );
 };
@@ -313,6 +315,7 @@ try {
   );
   await shot("09-phone-confirm");
   await page.setViewportSize({ width: 1280, height: 900 });
+  await route("edit/menagerie");
   await page.evaluate(() => {
     const sizes = [...document.querySelectorAll("body *")].map((el) => [
       el,
@@ -320,7 +323,6 @@ try {
     ]);
     for (const [el, size] of sizes) el.style.fontSize = `${size * 2}px`;
   });
-  await route("edit/menagerie");
   check(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth,
