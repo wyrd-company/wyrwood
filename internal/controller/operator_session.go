@@ -516,32 +516,38 @@ func (controller *Controller) repeatBind(ctx context.Context, key store.Operator
 // operatorChangeBinding replaces a binding's selection as an edit in the web
 // interface does. The grant must cover the binding as it is and every policy
 // the change selects. The lock holds from the grant check through the change,
-// so that another change cannot fall between them.
+// so that another change cannot fall between them. Every attempt, refused or
+// not, records a binding-changed event that names the key.
 func (controller *Controller) operatorChangeBinding(ctx context.Context, key store.OperatorKey, change operator.BindingChange) (operator.Binding, error) {
 	subject := OperatorSubject(key.Label)
-	if change.Revision < 1 {
-		return operator.Binding{}, &operator.Error{Code: operator.CodeInvalid, Message: "a change needs the revision of the binding as it was read"}
+	started := controller.now()
+	// refuse records a refusal before the change starts, as one event that names
+	// no policy, since the request's selection is not an audit fan-out source.
+	refuse := func(agent string, err error) (operator.Binding, error) {
+		code := mutationErrorCode(err)
+		controller.record(events.Event{Operation: events.OperationBindingChanged, Outcome: outcomeFor(code), ErrorCode: code,
+			Agent: eventAgent(agent), Binding: eventBinding(change.ID), Operator: subject, Latency: controller.now().Sub(started)})
+		return operator.Binding{}, err
 	}
 	if !key.Grant.Can(operator.ActionBind) {
-		controller.recordDenied(events.OperationBindingChanged, "", subject)
-		return operator.Binding{}, outsideGrant
+		return refuse("", outsideGrant)
+	}
+	if change.Revision < 1 {
+		return refuse("", operationError(events.ErrorPolicyDenied, "a change needs the revision of the binding as it was read"))
 	}
 	selection := BindingRequest{Policies: change.Policies, Settings: policySettings(change.Settings), Revision: change.Revision}
-	started := controller.now()
 	controller.mutationMu.Lock()
 	before, err := controller.store.Binding(ctx, change.ID)
 	if err != nil {
 		controller.mutationMu.Unlock()
 		if errors.Is(err, store.ErrNotFound) {
-			return operator.Binding{}, operationError(events.ErrorNotBound, "the binding does not exist")
+			return refuse("", operationError(events.ErrorNotBound, "the binding does not exist"))
 		}
-		return operator.Binding{}, operationError(events.ErrorInternal, "the binding could not be read")
+		return refuse("", operationError(events.ErrorInternal, "the binding could not be read"))
 	}
 	if !key.Grant.Covers(before.Agent, before.Policies) || !key.Grant.Covers(before.Agent, change.Policies) {
 		controller.mutationMu.Unlock()
-		controller.record(events.Event{Operation: events.OperationBindingChanged, Outcome: events.OutcomeDenied, ErrorCode: events.ErrorOutsideGrant,
-			Agent: eventAgent(before.Agent), Binding: before.ID, Operator: subject})
-		return operator.Binding{}, outsideGrant
+		return refuse(before.Agent, outsideGrant)
 	}
 	after, err := controller.changeOperatorBinding(ctx, before, selection, subject)
 	controller.mutationMu.Unlock()
@@ -575,6 +581,15 @@ func (controller *Controller) changeOperatorBinding(ctx context.Context, before 
 	}
 	before.Applied = true
 	return before, nil
+}
+
+// eventBinding returns a binding identifier from a request for an event, or
+// nothing when it cannot be one, so that the event is still recorded.
+func eventBinding(id string) string {
+	if events.ValidBinding(id) {
+		return id
+	}
+	return ""
 }
 
 // policySettings reads a binding's settings from a request.

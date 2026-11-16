@@ -303,3 +303,73 @@ func TestARepeatedChangeFinishesAPendingAssignment(t *testing.T) {
 		t.Fatalf("Binding() = %+v, %v", stored, err)
 	}
 }
+
+func TestEveryRefusedChangeRecordsTheKey(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	harness.approveAgent(t, "inside-host")
+	harness.savePolicy(t, "allowed")
+	harness.savePolicy(t, "forbidden")
+	client, _ := harness.approvedOperator(t, "sample-operator", operator.Grant{Agents: []string{"inside-host"}, Policies: []string{"allowed"},
+		Actions: []operator.Action{operator.ActionRead, operator.ActionBind}})
+	readOnly, _ := harness.approvedOperator(t, "read-key", operator.Grant{Agents: []string{operator.AllNames}, Policies: []string{operator.AllNames},
+		Actions: []operator.Action{operator.ActionRead}})
+	bound, err := client.Bind(ctx, operator.BindRequest{Agent: "inside-host", Key: operator.Key{Kind: operator.KeyName, Value: "app"}, Policies: []string{"allowed"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// refusals returns the binding-changed events that name subject and no policy.
+	refusals := func(subject string) []events.Event {
+		var result []events.Event
+		for _, event := range harness.controller.Events().Recent(1000) {
+			if event.Operation == events.OperationBindingChanged && event.Operator == subject {
+				if event.Policy != "" || event.NewPolicy != "" || event.Outcome == events.OutcomeOK {
+					t.Fatalf("a refusal event names a policy or succeeded: %#v", event)
+				}
+				result = append(result, event)
+			}
+		}
+		return result
+	}
+	for _, attempt := range []struct {
+		name    string
+		client  *operator.Client
+		subject string
+		change  operator.BindingChange
+		want    error
+		code    events.ErrorCode
+		binding string
+		agent   string
+	}{
+		{"no revision", client, "key:sample-operator", operator.BindingChange{ID: bound.ID, Policies: []string{"allowed"}},
+			operator.ErrInvalid, events.ErrorPolicyDenied, bound.ID, ""},
+		{"a binding that does not exist", client, "key:sample-operator", operator.BindingChange{ID: "b-missing", Revision: 1, Policies: []string{"allowed"}},
+			operator.ErrNotFound, events.ErrorNotBound, "b-missing", ""},
+		{"an identifier that cannot be a binding", client, "key:sample-operator", operator.BindingChange{ID: "../B", Revision: 1, Policies: []string{"allowed"}},
+			operator.ErrNotFound, events.ErrorNotBound, "", ""},
+		{"a stale revision", client, "key:sample-operator", operator.BindingChange{ID: bound.ID, Revision: 7, Policies: []string{"allowed"}},
+			operator.ErrRevisionDiffers, events.ErrorPolicyDenied, bound.ID, "inside-host"},
+		{"a policy outside the grant", client, "key:sample-operator", operator.BindingChange{ID: bound.ID, Revision: 1, Policies: []string{"allowed", "forbidden"}},
+			operator.ErrOutsideGrant, events.ErrorOutsideGrant, bound.ID, "inside-host"},
+		{"a key that cannot bind", readOnly, "key:read-key", operator.BindingChange{ID: bound.ID, Revision: 1, Policies: []string{"allowed"}},
+			operator.ErrOutsideGrant, events.ErrorOutsideGrant, bound.ID, ""},
+	} {
+		t.Run(attempt.name, func(t *testing.T) {
+			before := len(refusals(attempt.subject))
+			if _, err := attempt.client.ChangeBinding(ctx, attempt.change); !errors.Is(err, attempt.want) {
+				t.Fatalf("ChangeBinding() = %v; want %v", err, attempt.want)
+			}
+			recorded := refusals(attempt.subject)
+			if len(recorded) != before+1 {
+				t.Fatalf("binding-changed events naming %s: %d, then %d; want one more", attempt.subject, before, len(recorded))
+			}
+			event := recorded[len(recorded)-1]
+			if event.ErrorCode != attempt.code || event.Binding != attempt.binding || event.Agent != attempt.agent {
+				t.Fatalf("event = %#v; want error %s, binding %q, agent %q", event, attempt.code, attempt.binding, attempt.agent)
+			}
+		})
+	}
+	if stored, err := harness.controller.Store().Binding(ctx, bound.ID); err != nil || stored.Revision != bound.Revision || !stored.Applied {
+		t.Fatalf("a refused change changed the binding: %+v, %v", stored, err)
+	}
+}

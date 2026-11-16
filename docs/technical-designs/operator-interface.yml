@@ -115,7 +115,9 @@ proposed-design:
     created-by fields. Approving, rejecting, and revoking a key record their own events,
     which name the key's fingerprint and the operator who decided. A binding change
     records each policy of the selection before and after it, as the operational
-    events specification defines.
+    events specification defines. Every refused change records `binding-changed` with
+    the key and no policy, also a change with no revision or of a binding that does
+    not exist.
   verification: >-
     Controller tests run real SSH against a real OpenBao and cover pending, approved,
     rejected, and revoked keys, a pinned host key, keys that try the other role in both

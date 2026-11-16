@@ -177,6 +177,9 @@ type Event struct {
 	Method       Method
 }
 
+// ValidBinding reports whether id can be an event's binding identifier.
+func ValidBinding(id string) bool { return bindingPattern.MatchString(id) }
+
 // ContainerKey projects a container key into its event form. Name and
 // compose keys are recorded as kind and value. A devcontainer key is derived
 // from host paths, so its value is recorded only as a short digest that stays
