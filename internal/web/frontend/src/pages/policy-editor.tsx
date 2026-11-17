@@ -20,6 +20,7 @@ import { ScreenTabs, useScreenTabs } from "@/components/screen-tabs";
 import { useRef, useState } from "react";
 import type { PolicyData } from "@/types";
 import { PolicyBindings } from "./policy-bindings";
+import { PolicyOperatorKeys } from "./operator-key-grant";
 const fragments = { "#h-bindings": "bindings" };
 
 export function PolicyEditor({ data: d }: { data: PolicyData }) {
@@ -28,6 +29,7 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
     "ssh-identities",
     "container-contract",
     ...(d.New ? [] : ["bindings"]),
+    "operator-keys",
   ];
   const { tab, setTab, reveal, onInvalidCapture, withTab } = useScreenTabs(
     ids,
@@ -70,6 +72,11 @@ export function PolicyEditor({ data: d }: { data: PolicyData }) {
             ),
           },
         ]),
+    {
+      id: "operator-keys",
+      label: "Operator keys",
+      content: <PolicyOperatorKeys keys={d.OperatorKeys ?? []} />,
+    },
   ];
   return (
     <main>

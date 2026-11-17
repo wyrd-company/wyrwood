@@ -272,6 +272,15 @@ export interface PolicyData extends Layout {
   Env: string;
   Unpermitted: string[] | null;
   PolicyPath: string;
+  OperatorKeys?: PolicyOperatorKey[] | null;
+}
+export interface PolicyOperatorKey {
+  Label: string;
+  Fingerprint: string;
+  Actions: string[] | null;
+  AllPolicies: boolean;
+  Held: boolean;
+  Selected: boolean;
 }
 export interface KeysData extends Layout {
   TransitMount: string;

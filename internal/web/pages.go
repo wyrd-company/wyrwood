@@ -558,6 +558,7 @@ type policyPage struct {
 
 	NotForwardableTransitKeys string
 	NotForwardableCARoles     string
+	OperatorKeys              []policyOperatorKey
 }
 
 func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *http.Request) {
@@ -581,6 +582,10 @@ func (server *Server) handlePolicyEditor(writer http.ResponseWriter, request *ht
 	}
 	server.fillPolicyPage(&page, document)
 	server.fillPolicyChoices(request.Context(), &page)
+	if err := server.fillPolicyOperatorKeys(ctx, &page, name, nil); err != nil {
+		http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
+		return
+	}
 	server.render(writer, request, "policy", page)
 }
 
@@ -670,6 +675,15 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 	if parseErr == nil {
 		saved, err := server.controller.SavePolicy(request.Context(), document, operatorSubject(request))
 		if err == nil {
+			add, remove := policyKeyChanges(request.PostForm)
+			if err = server.controller.ChangePolicyOperatorKeys(request.Context(), saved.Name, add, remove, operatorSubject(request)); err != nil {
+				// The policy exists now, so the form edits it from here on.
+				page.New = false
+				page.Problem = "Policy saved. Its operator keys did not change: " + problemMessage(err)
+				page.ProblemTab = "operator-keys"
+			}
+		}
+		if err == nil {
 			target := "/policies/edit?name=" + url.QueryEscape(saved.Name) + "&notice=saved"
 			if tab := request.URL.Query().Get("tab"); tab != "" {
 				target += "&tab=" + url.QueryEscape(tab)
@@ -677,8 +691,10 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 			http.Redirect(writer, request, target, http.StatusSeeOther)
 			return
 		}
-		page.Problem = problemMessage(err)
-		page.ProblemTab = policyProblemTab(err)
+		if page.Problem == "" {
+			page.Problem = problemMessage(err)
+			page.ProblemTab = policyProblemTab(err)
+		}
 	} else {
 		page.Problem = parseErr.Error()
 		page.ProblemTab = policyProblemTab(parseErr)
@@ -703,6 +719,10 @@ func (server *Server) handleSavePolicy(writer http.ResponseWriter, request *http
 		}
 	}
 	server.fillPolicyChoices(request.Context(), &page)
+	if err := server.fillPolicyOperatorKeys(request.Context(), &page, document.Name, request.PostForm); err != nil {
+		http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
+		return
+	}
 	server.renderStatus(writer, request, http.StatusUnprocessableEntity, "policy", page)
 }
 

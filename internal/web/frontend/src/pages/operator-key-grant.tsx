@@ -20,7 +20,7 @@ import {
   type GrantAction,
   type GrantChoice,
 } from "@/lib/grant-summary";
-import type { Grant, OperatorKeyGrantData } from "@/types";
+import type { Grant, OperatorKeyGrantData, PolicyOperatorKey } from "@/types";
 
 const actionText: Record<GrantAction, string> = {
   read: "Read policies and bindings",
@@ -398,5 +398,59 @@ export function OperatorKeyGrant({ data: d }: { data: OperatorKeyGrantData }) {
         </form>
       </Panel>
     </main>
+  );
+}
+
+// PolicyOperatorKeys is a policy's Operator keys tab: one box per approved
+// key, with the key's actions. Checking a key gives it the policy, and
+// clearing it takes the policy away; its actions stay as they are. A key whose
+// grant holds every policy stays checked here.
+export function PolicyOperatorKeys({ keys }: { keys: PolicyOperatorKey[] }) {
+  return (
+    <Panel aria-labelledby="h-operator-keys">
+      <h2 id="h-operator-keys">Operator keys</h2>
+      {keys.length ? (
+        <div className="flex flex-col gap-2">
+          {keys.map((key) => (
+            <div key={key.Fingerprint}>
+              {!key.AllPolicies && (
+                <input
+                  type="hidden"
+                  name="operator-keys-listed"
+                  value={key.Fingerprint}
+                />
+              )}
+              {key.Held && (
+                <input
+                  type="hidden"
+                  name="operator-keys-held"
+                  value={key.Fingerprint}
+                />
+              )}
+              <label className="choice key-choice">
+                <input
+                  type="checkbox"
+                  name="operator-keys"
+                  value={key.Fingerprint}
+                  defaultChecked={key.Selected}
+                  disabled={key.AllPolicies}
+                />
+                <span>
+                  <strong>{key.Label}</strong>
+                  <span className="hint">
+                    {(key.Actions ?? [])
+                      .map((action) => actionNames[action as GrantAction])
+                      .join(", ")}
+                    {key.AllPolicies && " · All policies"}
+                  </span>
+                </span>
+              </label>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="hint">No operator key is approved.</p>
+      )}
+    </Panel>
   );
 }

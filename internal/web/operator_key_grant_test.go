@@ -51,13 +51,22 @@ func grantEditFixture(t *testing.T, grant operatorclient.Grant) (*harness, *http
 			t.Fatal(err)
 		}
 	}
+	client, fingerprint := approveOperatorKey(t, harness, "menagerie", grant)
+	return harness, browserClient, client, fingerprint
+}
+
+// approveOperatorKey approves a new key with grant and returns a client with a
+// session open, and the key's fingerprint.
+func approveOperatorKey(t *testing.T, harness *harness, label string, grant operatorclient.Grant) (*operatorclient.Client, string) {
+	t.Helper()
+	ctx := context.Background()
 	key := mustKey(t)
-	settings := operatorclient.Config{URL: harness.controller.URL, Signer: key, HostKey: harness.controller.Fingerprint, Label: "menagerie", Timeout: 5 * time.Second}
+	settings := operatorclient.Config{URL: harness.controller.URL, Signer: key, HostKey: harness.controller.Fingerprint, Label: label, Timeout: 5 * time.Second}
 	if _, err := operatorclient.Login(ctx, settings, nil); err != nil {
 		t.Fatal(err)
 	}
 	fingerprint := gossh.FingerprintSHA256(key.PublicKey())
-	if err := harness.controller.ApproveOperatorKey(ctx, fingerprint, "menagerie", grant, "approver"); err != nil {
+	if err := harness.controller.ApproveOperatorKey(ctx, fingerprint, label, grant, "approver"); err != nil {
 		t.Fatal(err)
 	}
 	client, err := operatorclient.Dial(ctx, settings)
@@ -65,7 +74,7 @@ func grantEditFixture(t *testing.T, grant operatorclient.Grant) (*harness, *http
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = client.Close() })
-	return harness, browserClient, client, fingerprint
+	return client, fingerprint
 }
 
 // Adding a policy to a key is one edit in the web interface. The client the
@@ -177,5 +186,108 @@ func TestAStaleGrantEditIsRefused(t *testing.T) {
 	}
 	if missing := get(t, browserClient, harness.site.URL+"/operator-keys/grant?fingerprint=SHA256%3Aunknown"); !strings.Contains(missing.body, "No approved key has this fingerprint") {
 		t.Fatalf("editor of an unknown key = %s", missing.body)
+	}
+}
+
+// A policy's Operator keys tab gives the policy to the keys checked there and
+// takes it from the keys cleared there. A key keeps its actions, which then
+// reach the policy, also a key without Bind. A key that holds all policies is
+// never rewritten.
+func TestAPolicyChoosesItsOperatorKeys(t *testing.T) {
+	ctx := context.Background()
+	binder := operatorclient.Grant{Agents: []string{"sample-host"}, Policies: []string{"teal"}, Actions: []operatorclient.Action{operatorclient.ActionRead, operatorclient.ActionBind}}
+	harness, browserClient, binderClient, binderPrint := grantEditFixture(t, binder)
+	reader := operatorclient.Grant{Agents: []string{}, Policies: []string{}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	readerClient, readerPrint := approveOperatorKey(t, harness, "inventory-reader", reader)
+	everything := operatorclient.Grant{Agents: []string{"*"}, Policies: []string{"*"}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	_, adminPrint := approveOperatorKey(t, harness, "fleet-admin", everything)
+	grantOf := func(fingerprint string) operatorclient.Grant {
+		t.Helper()
+		key, err := harness.controller.Store().OperatorKey(ctx, fingerprint)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return key.Grant
+	}
+
+	editor := get(t, browserClient, harness.site.URL+"/policies/edit?name=amber")
+	for _, want := range []string{"Operator keys", "menagerie", "Read, Bind", "inventory-reader", "fleet-admin", "Read · All policies",
+		`name="operator-keys-listed" value="` + binderPrint + `"`, `name="operator-keys-listed" value="` + readerPrint + `"`,
+		`disabled="" name="operator-keys" checked="" value="` + adminPrint + `"`} {
+		if !strings.Contains(editor.body, want) {
+			t.Fatalf("the policy editor has no %s: %s", want, editor.body)
+		}
+	}
+	if strings.Contains(editor.body, `name="operator-keys-held"`) || strings.Contains(editor.body, `name="operator-keys-listed" value="`+adminPrint+`"`) {
+		t.Fatalf("the policy editor lists a key it must not change: %s", editor.body)
+	}
+	token := csrf(t, editor.body)
+	save := func(fields url.Values) page {
+		t.Helper()
+		form := url.Values{"csrf": {token}, "name": {"amber"}, "hcl": {samplePolicyHCL}, "mount-target": {"/run/wyrwood"}}
+		for name, values := range fields {
+			form[name] = values
+		}
+		return post(t, browserClient, harness.site.URL+"/policies", form)
+	}
+
+	saved := save(url.Values{"operator-keys-listed": {binderPrint, readerPrint}, "operator-keys": {binderPrint, readerPrint}})
+	if !strings.Contains(saved.body, "Policy saved") {
+		t.Fatalf("save = %s", saved.body)
+	}
+	if got := grantOf(binderPrint); !slices.Equal(got.Policies, []string{"teal", "amber"}) || !slices.Equal(got.Actions, binder.Actions) {
+		t.Fatalf("menagerie grant = %+v", got)
+	}
+	if got := grantOf(readerPrint); !slices.Equal(got.Policies, []string{"amber"}) || !slices.Equal(got.Actions, reader.Actions) {
+		t.Fatalf("inventory-reader grant = %+v", got)
+	}
+	if got := grantOf(adminPrint); !store.SameGrant(got, everything) {
+		t.Fatalf("fleet-admin grant = %+v", got)
+	}
+	if _, err := readerClient.GetPolicy(ctx, "amber"); err != nil {
+		t.Fatalf("Read does not reach the policy given from its screen: %v", err)
+	}
+	request := operatorclient.BindRequest{Agent: "sample-host", Key: operatorclient.Key{Kind: operatorclient.KeyName, Value: "amber-app"}, Policies: []string{"amber"}}
+	if _, err := binderClient.Bind(ctx, request); err != nil {
+		t.Fatalf("Bind does not reach the policy given from its screen: %v", err)
+	}
+	if !strings.Contains(saved.body, `name="operator-keys-held" value="`+binderPrint+`"`) {
+		t.Fatalf("the saved policy does not show menagerie as holding it: %s", saved.body)
+	}
+
+	// Clearing a box takes the policy away; a key whose box did not change
+	// keeps what it has, also when another edit gave it the policy meanwhile.
+	cleared := save(url.Values{"operator-keys-listed": {readerPrint}, "operator-keys-held": {readerPrint}})
+	if !strings.Contains(cleared.body, "Policy saved") {
+		t.Fatalf("save = %s", cleared.body)
+	}
+	if got := grantOf(readerPrint); len(got.Policies) != 0 {
+		t.Fatalf("inventory-reader kept the policy: %+v", got)
+	}
+	if got := grantOf(binderPrint); !slices.Contains(got.Policies, "amber") {
+		t.Fatalf("a key the form did not list lost the policy: %+v", got)
+	}
+
+	forged := save(url.Values{"operator-keys-listed": {adminPrint, readerPrint}, "operator-keys-held": {adminPrint}, "operator-keys": {readerPrint}})
+	if forged.status != http.StatusUnprocessableEntity || !strings.Contains(forged.body, "Policy saved. Its operator keys did not change: operator key fleet-admin holds all policies") {
+		t.Fatalf("taking the policy from a key with all policies = %d %s", forged.status, forged.body)
+	}
+	if got := grantOf(adminPrint); !store.SameGrant(got, everything) {
+		t.Fatalf("a key with all policies was rewritten: %+v", got)
+	}
+	if got := grantOf(readerPrint); len(got.Policies) != 0 {
+		t.Fatalf("a refused change applied in part: %+v", got)
+	}
+
+	created := post(t, browserClient, harness.site.URL+"/policies", url.Values{"csrf": {token}, "new": {"yes"}, "name": {"cyan"}, "hcl": {samplePolicyHCL}, "mount-target": {"/run/wyrwood"},
+		"operator-keys-listed": {binderPrint, readerPrint}, "operator-keys": {readerPrint}})
+	if !strings.Contains(created.body, "Policy saved") {
+		t.Fatalf("create = %s", created.body)
+	}
+	if got := grantOf(readerPrint); !slices.Equal(got.Policies, []string{"cyan"}) {
+		t.Fatalf("inventory-reader after create = %+v", got)
+	}
+	if got := grantOf(binderPrint); slices.Contains(got.Policies, "cyan") {
+		t.Fatalf("an unchecked key was given the new policy: %+v", got)
 	}
 }

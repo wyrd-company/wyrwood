@@ -357,6 +357,7 @@ describe("tab structure", () => {
       "OpenBao policy",
       "SSH identities",
       "Container contract",
+      "Operator keys",
     ]);
     first.unmount();
     const second = render(<PolicyEditor data={policy} />);
@@ -365,6 +366,7 @@ describe("tab structure", () => {
       "SSH identities",
       "Container contract",
       "Bindings",
+      "Operator keys",
     ]);
     second.unmount();
     const third = render(<Binding data={binding(false)} />);
@@ -450,9 +452,10 @@ describe("tab structure", () => {
   it("keeps inactive panels mounted and hidden", () => {
     render(<PolicyEditor data={policy} />);
     const panels = document.querySelectorAll<HTMLElement>("[role=tabpanel]");
-    expect(panels).toHaveLength(4);
+    expect(panels).toHaveLength(5);
     expect([...panels].map((panel) => panel.hidden)).toEqual([
       false,
+      true,
       true,
       true,
       true,
