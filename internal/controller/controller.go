@@ -71,7 +71,10 @@ type OpenBao interface {
 
 // Controller is one running controller.
 type Controller struct {
-	mutationMu        sync.Mutex
+	mutationMu sync.Mutex
+	// grantMu orders operator key grant edits, so that each reads the grants
+	// the one before it wrote.
+	grantMu           sync.Mutex
 	policySyncPending bool
 	retirementWake    chan struct{}
 	retirementRetry   time.Duration

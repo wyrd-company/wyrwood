@@ -9,6 +9,7 @@ package controller
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"charm.land/ssh"
@@ -88,4 +89,148 @@ func (controller *Controller) operatorKeyDecision(err error, operation events.Op
 	}
 	controller.record(events.Event{Operation: operation, Outcome: events.OutcomeOK, Fingerprint: fingerprint, Operator: by})
 	return nil
+}
+
+// ChangeOperatorKeyGrant replaces an approved key's grant with to. from is the
+// grant the edit started from, so that an edit made after another one fails
+// and changes nothing. The key keeps its fingerprint, label, and approval, and
+// its next request reads the new grant, so its client needs no change or
+// restart. Only the web interface calls this: no operator request changes a
+// grant.
+func (controller *Controller) ChangeOperatorKeyGrant(ctx context.Context, fingerprint string, from, to operator.Grant, by string) error {
+	if err := to.Validate(ValidAgentName, policy.ValidName); err != nil {
+		return operationError(events.ErrorPolicyDenied, "the grant is invalid: %v", err)
+	}
+	controller.grantMu.Lock()
+	defer controller.grantMu.Unlock()
+	change := store.OperatorKeyGrantChange{Fingerprint: fingerprint, From: from, To: to}
+	if err := controller.changeGrants(ctx, []store.OperatorKeyGrantChange{change}, by); err != nil {
+		switch {
+		case errors.Is(err, store.ErrConflict):
+			return operationError(events.ErrorPolicyDenied, "this key's grant changed after you opened it. Reload to see the grant it holds now")
+		case errors.Is(err, store.ErrNotFound):
+			return operationError(events.ErrorNotBound, "no approved key has this fingerprint")
+		}
+		return err
+	}
+	return nil
+}
+
+// ChangePolicyOperatorKeys adds the policy name to the grant of each approved
+// key in add and removes it from each key in remove, in one change. Only the
+// keys' policy lists change: each key keeps its actions, which then apply to
+// the policy too. A key whose grant holds all policies already covers the
+// policy, so adding it changes nothing, and removing it is refused, since a
+// grant cannot hold all policies but one.
+func (controller *Controller) ChangePolicyOperatorKeys(ctx context.Context, name string, add, remove []string, by string) error {
+	if !policy.ValidName(name) {
+		return operationError(events.ErrorPolicyDenied, "the policy name is invalid")
+	}
+	controller.grantMu.Lock()
+	defer controller.grantMu.Unlock()
+	var changes []store.OperatorKeyGrantChange
+	for _, fingerprint := range slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(add), remove...)))) {
+		adding, removing := slices.Contains(add, fingerprint), slices.Contains(remove, fingerprint)
+		key, err := controller.store.OperatorKey(ctx, fingerprint)
+		if errors.Is(err, store.ErrNotFound) || (err == nil && key.State != store.OperatorKeyApproved) {
+			return operationError(events.ErrorNotBound, "an operator key you selected is no longer approved. Reload to see the keys")
+		}
+		if err != nil {
+			return operationError(events.ErrorInternal, "operator keys could not be read")
+		}
+		if adding && removing {
+			return operationError(events.ErrorPolicyDenied, "operator key %s is both added and removed", key.Label)
+		}
+		policies := key.Grant.Policies
+		switch {
+		case slices.Equal(policies, []string{operator.AllNames}):
+			if removing {
+				return operationError(events.ErrorPolicyDenied, "operator key %s holds all policies. Edit its grant to remove one", key.Label)
+			}
+			continue
+		case adding && !slices.Contains(policies, name):
+			policies = append(slices.Clone(policies), name)
+		case removing:
+			policies = slices.DeleteFunc(slices.Clone(policies), func(held string) bool { return held == name })
+		}
+		to := key.Grant
+		to.Policies = policies
+		if store.SameGrant(to, key.Grant) {
+			continue
+		}
+		if err := to.Validate(ValidAgentName, policy.ValidName); err != nil {
+			return operationError(events.ErrorPolicyDenied, "the grant of operator key %s would be invalid: %v", key.Label, err)
+		}
+		changes = append(changes, store.OperatorKeyGrantChange{Fingerprint: fingerprint, From: key.Grant, To: to})
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+	if err := controller.changeGrants(ctx, changes, by); err != nil {
+		if errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNotFound) {
+			return operationError(events.ErrorPolicyDenied, "an operator key changed while this change was made. Reload to see the keys")
+		}
+		return err
+	}
+	return nil
+}
+
+// changeGrants stores grant changes and records each one. The caller holds
+// grantMu.
+func (controller *Controller) changeGrants(ctx context.Context, changes []store.OperatorKeyGrantChange, by string) error {
+	if err := controller.store.ChangeOperatorKeyGrants(ctx, changes); err != nil {
+		if errors.Is(err, store.ErrConflict) || errors.Is(err, store.ErrNotFound) {
+			return err
+		}
+		return operationError(events.ErrorInternal, "the grant could not be saved")
+	}
+	now := controller.now()
+	for _, change := range changes {
+		controller.recordGrantChange(now, change, by)
+	}
+	return nil
+}
+
+// recordGrantChange records one event for each agent, policy, and action that
+// the grant held before the change or holds after it. Every event of the change
+// has the same time, the key, and the operator, so that the events of one
+// change can be read back together as the old and the new grant. A change that
+// leaves the grant as it was records nothing.
+func (controller *Controller) recordGrantChange(now time.Time, change store.OperatorKeyGrantChange, by string) {
+	if store.SameGrant(change.From, change.To) {
+		return
+	}
+	base := events.Event{Time: now, Operation: events.OperationOperatorKeyGrantChanged, Outcome: events.OutcomeOK,
+		Fingerprint: change.Fingerprint, Operator: by}
+	entries := func(before, after []string, set func(event *events.Event, before, after string)) {
+		for _, name := range slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(before), after...)))) {
+			event := base
+			set(&event, entryIf(before, name), entryIf(after, name))
+			controller.record(event)
+		}
+	}
+	entries(change.From.Agents, change.To.Agents, func(event *events.Event, before, after string) {
+		event.Agent, event.NewAgent = before, after
+	})
+	entries(change.From.Policies, change.To.Policies, func(event *events.Event, before, after string) {
+		event.Policy, event.NewPolicy = before, after
+	})
+	actions := func(list []operator.Action) []string {
+		names := make([]string, 0, len(list))
+		for _, action := range list {
+			names = append(names, string(action))
+		}
+		return names
+	}
+	entries(actions(change.From.Actions), actions(change.To.Actions), func(event *events.Event, before, after string) {
+		event.Action, event.NewAction = events.Action(before), events.Action(after)
+	})
+}
+
+// entryIf returns name when list holds it, and nothing otherwise.
+func entryIf(list []string, name string) string {
+	if slices.Contains(list, name) {
+		return name
+	}
+	return ""
 }
