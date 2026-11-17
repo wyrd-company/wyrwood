@@ -1,8 +1,9 @@
 # Editable operator key grants mockup
 
 Revision 2 for [Wyrwood #157](https://github.com/wyrd-company/wyrwood/issues/157),
-epic task 8. The operator rejected revision 1 on 2026-11-17. **This revision is
-awaiting operator judgement.**
+epic task 8. The operator rejected revision 1 on 2026-11-17 and
+[approved this revision](https://github.com/wyrd-company/wyrwood/pull/164#issuecomment-6948997455)
+the same day.
 
 Open [index.html](index.html) directly in a browser. It has fictional data and
 needs no server, credentials or network. Reload or **Reset demo** resets it.
@@ -44,14 +45,15 @@ action. Each changed key gets an event with the full old and new grant.
 
 Wildcard assumption in this prototype: clearing a policy from an All policies
 key replaces `*` with the other currently stored policy names. Future policies
-are then outside that grant. The old and new values appear in Events. Task 10
-must account for that narrowing when implementing the real grant model.
+are then outside that grant. The old and new values appear in Events. No one
+approved this narrowing, and the product does not build it: on a policy's tab, a
+key with All policies is checked and disabled, and only its grant editor
+narrows it. Epic task 10 put this choice to the operator.
 
 Only the mockup files change. The application, screenshot source inputs and
 existing screenshots stay untouched. HCL editing, persistence, authentication,
 concurrent edits, request failures and existing binding behavior are outside
-this fixture. Event naming is proposed. The epic orchestrator requests the
-operator's judgement; this artifact records no approval.
+this fixture. Event naming is proposed.
 
 ## Verification
 

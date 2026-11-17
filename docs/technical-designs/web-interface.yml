@@ -409,15 +409,28 @@ proposed-design:
     Below the choices, a summary in a live region states for `read`, `bind`,
     and `policy-write` whether the key can do it, and on which agents and
     policies, in the terms of the grant rules. It names each reason the server
-    refuses the choice, states that a grant cannot be changed after approval,
-    and updates on each change. Approved keys list their grant, approver, and
-    last use, with a revoke action that asks for confirmation. Revoked and
-    rejected keys list who decided.
+    refuses the choice, and updates on each change. Approved keys list their
+    grant, approver, and last use, with Edit grant and a revoke action that asks
+    for confirmation. Revoked and rejected keys list who decided.
+  operator-key-grant-page: >-
+    Edits an approved key's grant. It shows the key's label, state, and
+    fingerprint, and the approval form's choices and summary, starting from the
+    grant the key holds; a stored name the screen does not offer is in the
+    typed names. Validate checks the grant without saving it, and Save applies
+    it, with no review step. The form posts the grant it started from, so that
+    a save after another edit is refused and the screen keeps the edit and says
+    why. A policy's Operator keys tab, on Create policy and Edit policy, has one
+    checkbox per approved key with the key's actions. The form posts the keys it
+    listed and those that held the policy when it opened, so that a save adds or
+    removes the policy only for keys whose box changed. A key whose list is `*`
+    is checked and disabled, with All policies beside its actions.
   events-page: >-
     Lists controller and agent events newest first with time, source,
     operation, outcome with categorical error, subject, operator where
     recorded, and latency, filterable by outcome and source. It shows only the
-    fields the operational-event schema allows.
+    fields the operational-event schema allows. The events of one grant edit,
+    which share a time, a key, and an operator, are one row that names the key
+    as `key:<label>` and opens the old and new agents, policies, and actions.
   accessibility: >-
     Every page works at phone width: below 792 pixels the navigation
     collapses into the Menu control, and wide tables scroll inside their own

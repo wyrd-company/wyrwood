@@ -53,6 +53,19 @@ decision-outcome:
       A key has no default expiry. A tool that runs unattended has nobody to renew
       a key, and a lapse fails a workspace in the middle of its setup. Revocation
       from the web interface takes effect at the key's next request.
+    editable-grant: >-
+      An operator signed in through OIDC can edit an approved key's grant in the
+      web interface, from the key or from a policy. Whoever can make the edit can
+      already approve a key with any grant, so a grant that cannot change stops no
+      one: it turns adding one policy into a new key, a configuration change, a
+      restart, and a revocation, and it rewards wide grants up front. An edit is a
+      new approval. It is recorded with the key, the operator, and the old and new
+      grant, and the key keeps its fingerprint and label, so its client needs no
+      change. Every request reads the grant again, so an edit holds from the key's
+      next request. No operator request changes a grant, so a stolen key cannot
+      widen its own. Choosing keys from a policy adds the policy to their lists and
+      never changes their actions, and it never rewrites a key that holds all
+      policies, since a grant cannot hold all policies but one.
     terminal-revocation: >-
       A revoked key cannot be approved again, and its label stays with it, so that
       one audit subject names one key for all time.
@@ -69,7 +82,7 @@ expected-outcomes:
     - A script or a program can make a policy and a binding from end to end.
     - No operator private key is transmitted or stored by the controller.
     - Each key can do only what its approval says, and each event names the key.
+    - Adding a policy to a key is one web edit, and the key's next request can use it.
   negative:
     - A stolen key with a wide grant acts until someone revokes it. The risk record covers this.
-    - A key's grant cannot be edited. A new grant needs a new key.
     - Agent protocol clients and operator clients share one SSH listener.

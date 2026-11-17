@@ -49,18 +49,28 @@ proposed-design:
     Operator keys screen approves a pending key with its final label and its grant,
     or rejects it. A key's state is pending, approved, rejected, or revoked. A label
     of an approved or revoked key cannot be used again.
+  grant-edit: >-
+    The Operator keys screen edits an approved key's grant, and a policy's Operator
+    keys tab adds the policy to the keys checked there and removes it from the keys
+    cleared there. Both change the same stored grant, and nothing else of the key:
+    its fingerprint, label, public key, and approval stay. An edit names the grant
+    it started from and fails with nothing changed when another edit came first,
+    and the changes of one policy save apply together or not at all. The policy tab
+    changes only the policy list, never the actions, and never a key whose list is
+    `*`: adding the policy to it changes nothing, and removing it is refused. No
+    operator request changes a grant.
   grant: >-
     A grant lists allowed agents, allowed policy names, and actions. Each list holds
     exact names, or the single entry `*` for all names, and an empty list permits
     nothing. The actions are `read`, `bind`, and `policy-write`, and approval needs at
     least one. Every request reads the key and its grant again, so that a revocation
-    holds for a session that is already open. A grant covers a binding when it allows
-    the binding's agent and every policy it holds. `read` lists and returns only
-    policies and bindings the grant covers. `bind` creates, changes, and removes
-    bindings the grant covers, and a change needs the grant to allow every policy it
-    selects. `policy-write` writes a policy the grant allows, when the grant
-    covers every binding that holds it. A refused change records its operation with
-    the outcome `denied` and the error `outside-grant`.
+    or a grant edit holds for a session that is already open. A grant covers a binding
+    when it allows the binding's agent and every policy it holds. `read` lists and
+    returns only policies and bindings the grant covers. `bind` creates, changes, and
+    removes bindings the grant covers, and a change needs the grant to allow every
+    policy it selects. `policy-write` writes a policy the grant allows, when the grant
+    covers every binding that holds it. A refused change records its operation with the
+    outcome `denied` and the error `outside-grant`.
   transport: >-
     A connection opens the `wyrwood-operator` SSH subsystem and sends one JSON object
     per line, and the controller answers each with one line. A request has `version`,
@@ -113,7 +123,10 @@ proposed-design:
   audit: >-
     Mutations carry the subject `key:<label>` in events and in the saved-by and
     created-by fields. Approving, rejecting, and revoking a key record their own events,
-    which name the key's fingerprint and the operator who decided. A binding change
+    which name the key's fingerprint and the operator who decided. A grant edit
+    records `operator-key-grant-changed` for each entry of the old and new grant,
+    with one time, the key's fingerprint, and the operator, as the operational
+    events specification defines. A binding change
     records each policy of the selection before and after it, as the operational
     events specification defines. Every refused change records `binding-changed` with
     the key and no policy, also a change with no revision or of a binding that does
@@ -131,4 +144,8 @@ proposed-design:
     policy, with no restart and with the consumer directory and sockets in place. A test
     keeps the public status type equal to the controller's. A command test drives each
     command against a real controller. Web tests approve, reject, and revoke through the
-    pages.
+    pages. A web test adds a policy to a key's grant through the pages, and the client
+    that the key opened before the edit binds the policy on its next request. Tests
+    cover a stale edit, a refused grant, the policy tab's additions and removals, a
+    key with all policies, the events of an edit, and a scan that only the web
+    interface calls the code that writes a grant.
