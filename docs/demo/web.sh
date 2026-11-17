@@ -9,7 +9,8 @@
 #
 # Records the web interface half of the demo with agent-browser against the
 # site docs/demo/stack.sh started: sign in, approve the agent, write a policy,
-# bind a container, and read keys and events, then runs docs/demo/phone.sh.
+# bind a container, read keys and events, approve an operator key and edit its
+# grant, then runs docs/demo/phone.sh.
 # Writes the video to $WYRWOOD_DEMO_ROOT/web.mp4 and the documentation
 # screenshots to docs/user/assets.
 set -euo pipefail
@@ -317,6 +318,35 @@ browse wait --text "Can read every policy"
 hold 1
 browse eval "window.scrollTo(0, 0)"
 shot web-operator-keys
+
+# Give the approved key one more policy with one edit in its grant editor.
+browse find role link click --name "Edit grant of sample-script"
+browse wait --text "Edit grant"
+browse find role checkbox click --name "teal" --exact
+browse wait --text "Can read shared-key and teal"
+browse find role button click --name "Validate"
+browse wait --text "Valid grant."
+hold 1
+browse eval "window.scrollTo(0, 0)"
+shot web-operator-key-grant
+browse find role button click --name "Save" --exact
+browse wait --text "Grant saved."
+
+# A policy's Operator keys tab shows the keys that may use it.
+browse open "$site/policies/edit?name=teal"
+browse wait --text "1 binding on 1 agent"
+tab "Operator keys"
+browse wait --text "sample-script"
+hold 1
+shot web-policy-operator-keys
+
+# The event history shows the edit as one row with its old and new grant.
+browse find role link click --name "Events"
+browse wait --text "operator-key-grant-changed"
+browse click "details.grant-change summary"
+browse wait --text "View current key grant"
+hold 1
+shot web-events-grant
 
 if [ "${WYRWOOD_DEMO_SCREENSHOTS_ONLY:-0}" != 1 ]; then
 	browse record stop

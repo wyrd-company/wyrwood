@@ -29,7 +29,10 @@ assets:
   - assets/web-bindings.png
   - assets/web-keys.png
   - assets/web-operator-keys.png
+  - assets/web-operator-key-grant.png
+  - assets/web-policy-operator-keys.png
   - assets/web-events.png
+  - assets/web-events-grant.png
   - assets/web-settings.png
   - assets/web-security.png
   - assets/web-account-menu.png
@@ -139,9 +142,18 @@ products:
       - src: assets/web-operator-keys.png
         caption: Operator keys, one approved with its grant and one pending.
         alt: The Operator keys screen listing an approved key with its agents, policies, and actions, above a pending key with agent, policy, and action choices and a summary of what the key can do.
+      - src: assets/web-operator-key-grant.png
+        caption: Editing an approved operator key's grant.
+        alt: The grant editor for an approved key, with its agents, policies, and actions, a summary of what the key can do, and Validate and Save.
+      - src: assets/web-policy-operator-keys.png
+        caption: The Operator keys tab of a policy.
+        alt: The policy editor with the Operator keys tab selected, listing an approved key with a checkbox and its actions.
       - src: assets/web-events.png
         caption: Controller events, newest first.
         alt: The events page listing controller events with the newest first.
+      - src: assets/web-events-grant.png
+        caption: A grant edit in the event history.
+        alt: The events page with an operator-key-grant-changed row open, showing the key's old and new agents, policies, and actions.
       - src: assets/web-account-menu.png
         caption: Account menu with Security and Sign out.
         alt: The account menu open to show Security and Sign out.
