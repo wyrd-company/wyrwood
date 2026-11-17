@@ -11,6 +11,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"time"
 
 	"github.com/wyrd-company/wyrwood/operator"
@@ -162,4 +164,60 @@ func (store *Store) RevokeOperatorKey(ctx context.Context, fingerprint, by strin
 func (store *Store) RecordOperatorKeyUse(ctx context.Context, fingerprint string, now time.Time) error {
 	_, err := store.db.ExecContext(ctx, `UPDATE operator_keys SET last_used = ? WHERE fingerprint = ?`, unix(now), fingerprint)
 	return err
+}
+
+// OperatorKeyGrantChange replaces the grant From of one approved key with To.
+type OperatorKeyGrantChange struct {
+	Fingerprint string
+	From, To    operator.Grant
+}
+
+// SameGrant reports whether two grants hold the same entries in the same order.
+// An empty list and an absent list are the same.
+func SameGrant(first, second operator.Grant) bool {
+	return slices.Equal(first.Agents, second.Agents) && slices.Equal(first.Policies, second.Policies) &&
+		slices.Equal(first.Actions, second.Actions)
+}
+
+// ChangeOperatorKeyGrants replaces the grants of approved keys in one
+// transaction. Nothing changes when a key is not approved (ErrNotFound) or no
+// longer holds the grant its change starts from (ErrConflict). Each key keeps
+// its fingerprint, label, public key, and approval.
+func (store *Store) ChangeOperatorKeyGrants(ctx context.Context, changes []OperatorKeyGrantChange) error {
+	transaction, err := store.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = transaction.Rollback() }()
+	for _, change := range changes {
+		var state OperatorKeyState
+		var stored string
+		err := transaction.QueryRowContext(ctx, `SELECT state, grants FROM operator_keys WHERE fingerprint = ?`, change.Fingerprint).Scan(&state, &stored)
+		if errors.Is(err, sql.ErrNoRows) || (err == nil && state != OperatorKeyApproved) {
+			return fmt.Errorf("operator key %s: %w", change.Fingerprint, ErrNotFound)
+		}
+		if err != nil {
+			return err
+		}
+		var current operator.Grant
+		if err := json.Unmarshal([]byte(stored), &current); err != nil {
+			return err
+		}
+		if !SameGrant(current, change.From) {
+			return fmt.Errorf("operator key %s: %w", change.Fingerprint, ErrConflict)
+		}
+		encoded, err := json.Marshal(change.To)
+		if err != nil {
+			return err
+		}
+		result, err := transaction.ExecContext(ctx, `UPDATE operator_keys SET grants = ? WHERE fingerprint = ? AND state = 'approved' AND grants = ?`,
+			string(encoded), change.Fingerprint, stored)
+		if err != nil {
+			return err
+		}
+		if updated, _ := result.RowsAffected(); updated != 1 {
+			return fmt.Errorf("operator key %s: %w", change.Fingerprint, ErrConflict)
+		}
+	}
+	return transaction.Commit()
 }

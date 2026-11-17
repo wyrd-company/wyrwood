@@ -475,3 +475,68 @@ func TestOperatorKeyStates(t *testing.T) {
 		t.Fatalf("OperatorKeys() = %+v, %v", keys, err)
 	}
 }
+
+// A grant edit replaces only the grant, and only from the grant it read. A
+// change of several keys applies whole or not at all.
+func TestOperatorKeyGrantChanges(t *testing.T) {
+	ctx := context.Background()
+	opened, _ := openTest(t)
+	now := time.Now()
+	read := operator.Grant{Agents: []string{"sample-host"}, Policies: []string{"teal"}, Actions: []operator.Action{operator.ActionRead}}
+	approve := func(fingerprint, label string) OperatorKey {
+		t.Helper()
+		if _, err := opened.RecordOperatorKey(ctx, fingerprint, label, "key-"+label, now); err != nil {
+			t.Fatal(err)
+		}
+		approved, err := opened.ApproveOperatorKey(ctx, fingerprint, label, read, "approver", now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return approved
+	}
+	first := approve("SHA256:a", "first")
+	approve("SHA256:b", "second")
+	if _, err := opened.RecordOperatorKey(ctx, "SHA256:p", "pending", "key", now); err != nil {
+		t.Fatal(err)
+	}
+	wider := read
+	wider.Policies = []string{"teal", "amber"}
+	if err := opened.ChangeOperatorKeyGrants(ctx, []OperatorKeyGrantChange{{Fingerprint: "SHA256:a", From: read, To: wider}}); err != nil {
+		t.Fatal(err)
+	}
+	changed, err := opened.OperatorKey(ctx, "SHA256:a")
+	if err != nil || !SameGrant(changed.Grant, wider) {
+		t.Fatalf("OperatorKey() = %+v, %v", changed, err)
+	}
+	changed.Grant, first.Grant = operator.Grant{}, operator.Grant{}
+	if !reflect.DeepEqual(changed, first) {
+		t.Fatalf("the edit changed more than the grant: %+v; want %+v", changed, first)
+	}
+
+	// The second change starts from a grant that the first key no longer holds,
+	// so neither key changes.
+	both := []OperatorKeyGrantChange{
+		{Fingerprint: "SHA256:b", From: read, To: wider},
+		{Fingerprint: "SHA256:a", From: read, To: read},
+	}
+	if err := opened.ChangeOperatorKeyGrants(ctx, both); !errors.Is(err, ErrConflict) {
+		t.Fatalf("a change from a stale grant = %v", err)
+	}
+	if kept, err := opened.OperatorKey(ctx, "SHA256:b"); err != nil || !SameGrant(kept.Grant, read) {
+		t.Fatalf("a refused change applied in part: %+v, %v", kept, err)
+	}
+	for _, fingerprint := range []string{"SHA256:p", "SHA256:none"} {
+		if err := opened.ChangeOperatorKeyGrants(ctx, []OperatorKeyGrantChange{{Fingerprint: fingerprint, To: wider}}); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("changing %s = %v", fingerprint, err)
+		}
+	}
+	if _, err := opened.RevokeOperatorKey(ctx, "SHA256:b", "approver", now); err != nil {
+		t.Fatal(err)
+	}
+	if err := opened.ChangeOperatorKeyGrants(ctx, []OperatorKeyGrantChange{{Fingerprint: "SHA256:b", From: read, To: wider}}); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("changing a revoked key = %v", err)
+	}
+	if !SameGrant(operator.Grant{Agents: nil, Actions: []operator.Action{operator.ActionRead}}, operator.Grant{Agents: []string{}, Actions: []operator.Action{operator.ActionRead}}) {
+		t.Fatal("an empty list and an absent list differ")
+	}
+}
