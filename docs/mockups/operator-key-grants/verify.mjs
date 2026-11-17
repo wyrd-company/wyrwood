@@ -3,9 +3,11 @@
 // Install Playwright outside the repo; optionally set PLAYWRIGHT_MODULE to its
 // module path and PLAYWRIGHT_BROWSERS_PATH to its browser cache.
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 const { chromium } = await import(
   process.env.PLAYWRIGHT_MODULE || "playwright"
 );
@@ -15,7 +17,10 @@ await writeFile(
   path.join(output, "result.json"),
   JSON.stringify({ passed: false, reason: "Walkthrough has not completed" }),
 );
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({
+  headless: true,
+  executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE,
+});
 const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
 page.setDefaultTimeout(10000);
 const accessibility = [];
@@ -65,158 +70,204 @@ try {
     .getByRole("link", { name: "Edit grant", exact: true })
     .first()
     .click();
+  check(
+    !(await text("#content")).includes("client needs no change"),
+    "Removed key/client filler",
+  );
   await page.locator('[data-grant="policies"][value="bob-secrets"]').check();
   check(
     (await text("#live-preview")).includes("shared-key and bob-secrets"),
-    "Live preview includes added policy",
+    "Live preview updates",
+  );
+  await page.getByRole("button", { name: "Validate", exact: true }).click();
+  check(
+    await page.locator("#grant-valid").isVisible(),
+    "Validate checks the grant inline",
   );
   await shot("02-edit-grant");
-  await page.getByRole("button", { name: "Review grant", exact: true }).click();
-  await page.getByRole("heading", { name: "Confirm grant changes" }).waitFor();
-  check(
-    (await text(".grant-diff")).includes("shared-key, bob-secrets"),
-    "Confirmation shows full new grant",
-  );
-  await shot("03-confirm-grant");
-  await page.getByRole("link", { name: "Cancel", exact: true }).click();
-  check(
-    await page
-      .locator('[data-grant="policies"][value="bob-secrets"]')
-      .isChecked(),
-    "Cancel confirmation preserves draft",
-  );
-  await page.getByRole("link", { name: "Cancel", exact: true }).click();
+  await route("keys");
   check(
     !(await page.locator("tbody tr").first().innerText()).includes(
       "bob-secrets",
     ),
-    "Cancel leaves saved grant unchanged",
+    "Validate leaves saved grant unchanged",
   );
-  await page
-    .getByRole("link", { name: "Edit grant", exact: true })
-    .first()
-    .click();
+  await route("edit/menagerie");
   await page.locator('[data-grant="policies"][value="bob-secrets"]').check();
-  await page.getByRole("button", { name: "Review grant", exact: true }).click();
-  await page
-    .getByRole("button", { name: "Confirm changes", exact: true })
-    .click();
-  await page
-    .getByRole("heading", { name: "Approved operator keys", exact: true })
-    .waitFor();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  check(
+    (await text(".notice")).includes("Grant saved."),
+    "Save applies grant directly",
+  );
+  check(
+    (await page
+      .getByRole("button", { name: /Confirm|Review|Cancel/ })
+      .count()) === 0,
+    "No extra key confirmation controls",
+  );
+  await route("keys");
   check(
     (await page.locator("tbody tr").first().innerText()).includes(
       "bob-secrets",
     ),
-    "Confirmed edit updates approved key",
-  );
-  check(
-    (await page.locator("tbody tr").first().innerText()).includes(
-      "SHA256:U04dsnYHFG5fUmK4FYYzBHDNU85/LRjOa+k9vNPJQkw",
-    ),
-    "Key fingerprint remains unchanged",
+    "Direct save updates key list",
   );
   await route("events");
-  await page
-    .getByRole("heading", { name: "operator-key-grant-changed", exact: true })
-    .waitFor();
   const event = await text("#content");
   check(
     event.includes("boblangley") &&
       event.includes("key:menagerie") &&
       event.toLowerCase().includes("before") &&
       event.toLowerCase().includes("after"),
-    "Event names operator, key and old/new grant",
+    "Saved event retains operator, key and full old/new grant",
   );
-  await shot("04-grant-event");
+  await shot("03-grant-event");
   await route("policy");
-  await page.locator('[data-policy-key="menagerie"]').waitFor();
   check(
     await page.locator('[data-policy-key="menagerie"]').isChecked(),
-    "Policy view reflects key-side edit",
+    "Policy reflects key-side save",
   );
   check(
-    await page.locator('[data-policy-key="reader"]').isDisabled(),
-    "Policy-side picker does not silently enable Bind",
+    (await page.locator("[data-policy-key]").count()) === 3,
+    "One checkbox per existing key",
   );
   check(
-    (await page.locator('[data-policy-key="admin"]').isChecked()) &&
-      (await page.locator('[data-policy-key="admin"]').isDisabled()),
-    "All policies key is included and cannot be excluded here",
+    (await page.locator("[data-policy-key]:disabled").count()) === 0,
+    "Every key can be selected or removed",
   );
-  await shot("05-policy-keys");
-  await page.locator('[data-policy-key="menagerie"]').uncheck();
-  await page
-    .getByRole("button", { name: "Save and validate", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Confirm changes", exact: true })
-    .click();
-  await page
-    .getByRole("heading", { name: "Approved operator keys", exact: true })
-    .waitFor();
   check(
-    !(await page.locator("tbody tr").first().innerText()).includes(
+    (await page.locator("#policy-keys input").count()) === 3,
+    "No extra policy selection controls",
+  );
+  check(
+    (await page
+      .locator("#policy-keys .caution, #policy-keys .badge, #policy-keys a")
+      .count()) === 0,
+    "No policy warnings, permission badges or action links",
+  );
+  check(
+    !(await text("#policy-keys")).includes("SHA256:"),
+    "No policy fingerprint lines",
+  );
+  check(
+    (await text('[data-policy-key="reader"] + span')).includes("Read") &&
+      !(await text('[data-policy-key="reader"] + span')).includes("Bind"),
+    "Key action list shows only enabled actions",
+  );
+  check(
+    (await page
+      .getByRole("button", { name: /Review|Confirm|Cancel/ })
+      .count()) === 0,
+    "No extra policy confirmation controls",
+  );
+  await shot("04-policy-keys");
+  await page.locator('[data-policy-key="reader"]').check();
+  await page.getByRole("button", { name: "Validate", exact: true }).click();
+  check(
+    await page.locator("#policy-valid").isVisible(),
+    "Validate checks policy without navigation",
+  );
+  await route("keys");
+  check(
+    !(await page.locator("tbody tr").nth(1).innerText()).includes(
       "bob-secrets",
     ),
-    "Policy-side removal updates same key grant",
+    "Policy validation does not apply checkbox changes",
+  );
+  await route("policy");
+  await page.locator('[data-policy-key="menagerie"]').uncheck();
+  await page.locator('[data-policy-key="reader"]').check();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  check(
+    (await text(".notice")).includes("Policy saved."),
+    "Policy saves directly",
+  );
+  await route("edit/menagerie");
+  check(
+    !(await page
+      .locator('[data-grant="policies"][value="bob-secrets"]')
+      .isChecked()),
+    "Policy-side removal updates key grant",
+  );
+  await route("edit/reader");
+  check(
+    await page
+      .locator('[data-grant="policies"][value="bob-secrets"]')
+      .isChecked(),
+    "Policy-side addition works without Bind",
+  );
+  check(
+    !(await page.locator('[data-action="bind"]').isChecked()),
+    "Policy selection preserves enabled actions",
+  );
+  await route("policy");
+  await page.locator('[data-policy-key="admin"]').uncheck();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await route("edit/admin");
+  check(
+    !(await page.locator('[data-grant="policies"][value="*"]').isChecked()) &&
+      !(await page
+        .locator('[data-grant="policies"][value="bob-secrets"]')
+        .isChecked()),
+    "Wildcard key removal uses explicit remaining policies",
+  );
+  check(
+    (await page
+      .locator('[data-grant="policies"][value="shared-key"]')
+      .isChecked()) &&
+      (await page.locator('[data-grant="policies"][value="teal"]').isChecked()),
+    "Wildcard removal preserves other stored policies",
   );
   await route("new-policy");
+  await page.locator("#policy-name").fill("Invalid/Name");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  check(
+    await page.locator("#policy-error").isVisible(),
+    "Invalid policy save is refused",
+  );
   await page.locator("#policy-name").fill("alice-secrets");
   await page.locator('[data-policy-key="menagerie"]').check();
-  await shot("06-create-policy");
-  await page
-    .getByRole("button", { name: "Create and validate", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Create policy", exact: true })
-    .click();
-  await page
-    .getByRole("heading", { name: "Approved operator keys", exact: true })
-    .waitFor();
+  await shot("05-create-policy");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   check(
-    (await page.locator("tbody tr").first().innerText()).includes(
+    (await page.locator("#content h2").first().innerText()).includes(
       "alice-secrets",
     ),
-    "Create-policy flow grants named policy to selected key",
+    "Create saves policy directly",
+  );
+  await route("edit/menagerie");
+  check(
+    await page
+      .locator('[data-grant="policies"][value="alice-secrets"]')
+      .isChecked(),
+    "New policy is added to selected key",
   );
   await route("events");
-  await page
-    .getByRole("heading", { name: "operator-key-grant-changed", exact: true })
-    .first()
-    .waitFor();
   check(
     (await page
       .getByRole("heading", { name: "operator-key-grant-changed", exact: true })
-      .count()) === 3,
-    "One event per confirmed grant change",
+      .count()) === 5,
+    "One event per changed grant, no events from validation",
   );
   check(
     (await text("#content")).includes("Policy: alice-secrets"),
-    "Policy-originated event names source",
+    "Policy event records source",
   );
   await page.getByRole("button", { name: "Reset demo" }).click();
-  await page
-    .getByRole("link", { name: "Edit grant", exact: true })
-    .first()
-    .click();
+  await route("edit/menagerie");
   for (const action of ["read", "bind", "policy-write"])
     await page.locator(`[data-action="${action}"]`).uncheck();
-  await page.getByRole("button", { name: "Review grant", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
   check(
     await page.locator("#grant-error").isVisible(),
-    "No-action grant is refused",
-  );
-  check(
-    !(await text("#live-preview")).includes("Allowed"),
-    "Invalid grant preview grants no actions",
+    "Invalid grant cannot be saved",
   );
   await page.locator('[data-action="read"]').check();
   await page.locator("#other-policies").fill("Invalid/Policy");
-  await page.getByRole("button", { name: "Review grant", exact: true }).click();
+  await page.getByRole("button", { name: "Validate", exact: true }).click();
   check(
     (await text("#grant-error")).includes("not a valid policy name"),
-    "Invalid policy name is refused",
+    "Invalid grant name is refused",
   );
   await page.locator("#other-policies").fill("");
   await page.locator('[data-grant="policies"][value="*"]').check();
@@ -224,24 +275,17 @@ try {
     await page
       .locator('[data-grant="policies"][value="shared-key"]')
       .isDisabled(),
-    "All policies disables named selections",
+    "All policies disables named choices on key editor",
   );
   await page.getByRole("button", { name: "Reset demo" }).click();
-  await page
-    .getByRole("link", { name: "Edit grant", exact: true })
-    .first()
-    .click();
-  // Follow the primary editing path with keyboard-only activation.
+  await route("edit/menagerie");
   await page.locator('[data-grant="policies"][value="bob-secrets"]').focus();
   await page.keyboard.press("Space");
-  await page.getByRole("button", { name: "Review grant", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await page.getByRole("heading", { name: "Confirm grant changes" }).waitFor();
-  await page.getByRole("link", { name: "Cancel", exact: true }).focus();
+  await page.getByRole("button", { name: "Save", exact: true }).focus();
   await page.keyboard.press("Enter");
   check(
-    await page.locator("#grant-form").isVisible(),
-    "Keyboard selection, review and cancel work",
+    (await text(".notice")).includes("Grant saved."),
+    "Keyboard editing saves without extra step",
   );
   for (const width of [390, 1280]) {
     await page.setViewportSize({ width, height: 900 });
@@ -288,7 +332,7 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await route("edit/menagerie");
-  await shot("07-phone-edit");
+  await shot("06-phone-edit");
   await page.getByRole("button", { name: "Menu", exact: true }).click();
   check(
     await page.getByRole("link", { name: "Events", exact: true }).isVisible(),
@@ -302,18 +346,7 @@ try {
     "Escape closes phone menu",
   );
   await route("policy");
-  await shot("08-phone-policy");
-  await route("edit/menagerie");
-  await page.locator('[data-grant="policies"][value="bob-secrets"]').check();
-  await page.getByRole("button", { name: "Review grant", exact: true }).click();
-  await page.getByRole("heading", { name: "Confirm grant changes" }).waitFor();
-  check(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    ),
-    "No page overflow: confirmation at 390px",
-  );
-  await shot("09-phone-confirm");
+  await shot("07-phone-policy");
   await page.setViewportSize({ width: 1280, height: 900 });
   await route("edit/menagerie");
   await page.evaluate(() => {
@@ -330,10 +363,27 @@ try {
     "No page overflow at 200% text",
   );
   check(failures.length === 0, "No browser errors or network requests");
+  const htmlSHA256 = createHash("sha256")
+    .update(
+      await readFile(fileURLToPath(new URL("./index.html", import.meta.url))),
+    )
+    .digest("hex");
+  const head = execFileSync("git", ["rev-parse", "HEAD"], {
+    cwd: fileURLToPath(new URL(".", import.meta.url)),
+    encoding: "utf8",
+  }).trim();
   await writeFile(
     path.join(output, "result.json"),
     JSON.stringify(
-      { passed: true, checks, screenshots, failures, accessibility },
+      {
+        passed: true,
+        head,
+        htmlSHA256,
+        checks,
+        screenshots,
+        failures,
+        accessibility,
+      },
       null,
       2,
     ),

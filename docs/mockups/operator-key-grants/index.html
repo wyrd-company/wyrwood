@@ -1160,6 +1160,15 @@
         color: var(--muted);
         font-weight: 500;
       }
+      .key-actions {
+        display: block;
+        margin-top: 4px;
+      }
+      .screen-tab {
+        display: inline-flex;
+        align-items: center;
+        white-space: nowrap;
+      }
       .policy-key {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -1440,9 +1449,9 @@
         policies = ["shared-key", "teal", "bob-secrets"],
         events = [],
         draft = null,
-        pending = null,
         notice = "",
-        policyDraft = null;
+        policyDraft = null,
+        currentPolicy = "bob-secrets";
       const content = document.getElementById("content");
       const badge = (text, kind = "neutral") =>
         `<span class="badge ${kind}">${text}</span>`;
@@ -1491,9 +1500,7 @@
             const yes = valid && allowed && g.actions.includes(a);
             return `<li>${badge(yes ? "Allowed" : "Denied", yes ? "good" : "neutral")}<span>${esc(!valid || !g.actions.includes(a) ? denied[a] : text)}</span></li>`;
           })
-          .join(
-            "",
-          )}</ul>${g.actions.includes("bind") && g.actions.includes("policy-write") ? '<p class="caution">Bind and Policy write together can reach whatever the controller’s OpenBao namespace can grant. Give both only to a key you trust with that.</p>' : ""}</section>`;
+          .join("")}</ul></section>`;
       }
       function grantDiff(before, after) {
         const entries = [
@@ -1508,56 +1515,46 @@
         return `<table class="grant-diff"><caption class="screenreader">Old and new grant</caption><thead><tr><th scope="col">Grant</th><th scope="col">Before</th><th scope="col">After</th></tr></thead><tbody>${entries.map(([name, old, next]) => `<tr><th scope="row">${name}</th><td>${esc(list(old))}</td><td class="${same(old, next) ? "" : old.some((x) => !next.includes(x)) ? "removed" : "changed"}">${esc(list(next))}${same(old, next) ? "" : " <strong>· Changed</strong>"}</td></tr>`).join("")}</tbody></table>`;
       }
       function identity(k) {
-        return `<div class="identity stack gap8"><div class="key-heading"><h2>${esc(k.label)}</h2>${badge("Approved", "good")}</div><div class="mono hint">${esc(k.fingerprint)}</div><p class="hint">The key, fingerprint and label stay the same. Its client needs no change or restart.</p></div>`;
+        return `<div class="identity stack gap8"><div class="key-heading"><h2>${esc(k.label)}</h2>${badge("Approved", "good")}</div><div class="mono hint">${esc(k.fingerprint)}</div></div>`;
       }
       function keyList() {
-        return `<section class="card"><div class="section-head"><div><h2>Controller SSH host key</h2><code class="hint">SHA256:l90rdkg9CrZSLjucJ5WNQU1J3jAZmSze7G3yuGGrok</code></div><p class="hint">Operator keys manage policies and bindings from a script, inside their grants.</p></div></section><section class="stack"><div class="section-head"><h2>Approved operator keys</h2><span class="sub">3 keys</span></div><div class="table-box"><table><thead><tr>${["Key", "Agents", "Policies", "Actions", "Approved by", ""].map((x) => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>${keys.map((k) => `<tr><th scope="row">${esc(k.label)}<div class="mono hint">${esc(k.fingerprint)}</div></th><td>${esc(list(k.agents))}</td><td>${esc(list(k.policies))}</td><td>${k.actions.map((a) => actionNames[a]).join(", ")}</td><td>boblangley</td><td><a class="button" href="#edit/${k.id}">Edit grant</a></td></tr>`).join("")}</tbody></table></div><p class="hint">Edit the grant on an approved key. Each confirmed change records the operator and the old and new grant in Events.</p></section>`;
+        return `<section class="card"><div class="section-head"><div><h2>Controller SSH host key</h2><code class="hint">SHA256:l90rdkg9CrZSLjucJ5WNQU1J3jAZmSze7G3yuGGrok</code></div></div></section><section class="stack"><div class="section-head"><h2>Approved operator keys</h2><span class="sub">3 keys</span></div><div class="table-box"><table><thead><tr>${["Key", "Agents", "Policies", "Actions", "Approved by", ""].map((x) => `<th scope="col">${x}</th>`).join("")}</tr></thead><tbody>${keys.map((k) => `<tr><th scope="row">${esc(k.label)}<div class="mono hint">${esc(k.fingerprint)}</div></th><td>${esc(list(k.agents))}</td><td>${esc(list(k.policies))}</td><td>${k.actions.map((a) => actionNames[a]).join(", ")}</td><td>boblangley</td><td><a class="button" href="#edit/${k.id}">Edit grant</a></td></tr>`).join("")}</tbody></table></div></section>`;
       }
       function namePicker(field, title, available, current) {
         const all = current.includes("*");
         const other = current
           .filter((x) => x !== "*" && !available.includes(x))
           .join(", ");
-        return `<fieldset><legend>${title}</legend><label class="choice"><input type="checkbox" data-grant="${field}" value="*" ${all ? "checked" : ""}><span>All ${field}, including ${field === "agents" ? "agents approved" : "policies created"} later</span></label>${available.map((name) => `<label class="choice"><input type="checkbox" data-grant="${field}" value="${esc(name)}" ${current.includes(name) ? "checked" : ""} ${all ? "disabled" : ""}><span>${esc(name)}</span></label>`).join("")}<div class="field"><label for="other-${field}">Other ${field === "agents" ? "agent" : "policy"} names</label><input type="text" id="other-${field}" data-other="${field}" value="${esc(other)}" ${all ? "disabled" : ""} aria-describedby="hint-${field}"><p class="hint" id="hint-${field}">Names separated by commas, for ${field === "agents" ? "agents that are not approved" : "policies that do not exist"} yet.</p></div></fieldset>`;
+        return `<fieldset><legend>${title}</legend><label class="choice"><input type="checkbox" data-grant="${field}" value="*" ${all ? "checked" : ""}><span>All ${field}, including ${field === "agents" ? "agents approved" : "policies created"} later</span></label>${available.map((name) => `<label class="choice"><input type="checkbox" data-grant="${field}" value="${esc(name)}" ${current.includes(name) ? "checked" : ""} ${all ? "disabled" : ""}><span>${esc(name)}</span></label>`).join("")}<div class="field"><label for="other-${field}">Other ${field === "agents" ? "agent" : "policy"} names</label><input type="text" id="other-${field}" data-other="${field}" value="${esc(other)}" ${all ? "disabled" : ""} aria-describedby="hint-${field}"><p class="hint" id="hint-${field}">Comma-separated names.</p></div></fieldset>`;
       }
       function editKey(id) {
         const key = keys.find((k) => k.id === id) || keys[0];
         if (!draft || draft.id !== key.id) draft = clone(key);
-        return `<a href="#keys">← Back to operator keys</a><section class="card stack">${identity(key)}<div class="section-head"><h2>Edit grant</h2><span class="sub">Changes are pending until confirmed.</span></div><form id="grant-form" class="stack"><div class="grant-grid">${namePicker("agents", "Agents", ["tools", "build-host"], draft.agents)}${namePicker("policies", "Policies", policies, draft.policies)}<fieldset class="span-all"><legend>Actions</legend><div class="grid-2">${["read", "bind", "policy-write"].map((a) => `<label class="choice"><input type="checkbox" data-action="${a}" ${draft.actions.includes(a) ? "checked" : ""}><span><strong>${actionNames[a]}</strong><br><span class="hint">${a === "read" ? "List and read policies and bindings" : a === "bind" ? "Create and remove bindings" : "Create and change policies"}</span></span></label>`).join("")}</div></fieldset></div><p class="hint">A binding is inside the grant only if its agent and every policy it holds are allowed. Policy write also requires every binding holding that policy to be covered.</p><div id="live-preview" aria-live="polite">${summary(draft)}</div><p id="grant-error" class="problem" role="alert" hidden></p><div class="actions"><button class="primary" type="submit">Review grant</button><a class="button" href="#keys">Cancel</a></div></form></section>`;
+        return `<a href="#keys">← Operator keys</a><section class="card stack">${identity(key)}<h2>Edit grant</h2><form id="grant-form" class="stack"><div class="grant-grid">${namePicker("agents", "Agents", ["tools", "build-host"], draft.agents)}${namePicker("policies", "Policies", policies, draft.policies)}<fieldset class="span-all"><legend>Actions</legend><div class="grid-2">${["read", "bind", "policy-write"].map((a) => `<label class="choice"><input type="checkbox" data-action="${a}" ${draft.actions.includes(a) ? "checked" : ""}><span>${actionNames[a]}</span></label>`).join("")}</div></fieldset></div><div id="live-preview" aria-live="polite">${summary(draft)}</div><p id="grant-error" class="problem" role="alert" hidden></p><p id="grant-valid" class="hint" role="status" hidden>Valid grant.</p><div class="actions"><button type="button" id="grant-validate">Validate</button><button class="primary" type="submit">Save</button></div></form></section>`;
       }
       function policyScreen(isNew) {
-        if (!policyDraft || policyDraft.isNew !== isNew)
+        const name = isNew
+          ? policyDraft?.isNew
+            ? policyDraft.name
+            : "operator-secrets"
+          : currentPolicy;
+        if (
+          !policyDraft ||
+          policyDraft.isNew !== isNew ||
+          policyDraft.name !== name
+        )
           policyDraft = {
             isNew,
-            name: isNew ? "operator-secrets" : "bob-secrets",
+            name,
             selected: keys
               .filter(
-                (k) =>
-                  k.policies.includes("*") ||
-                  k.policies.includes(
-                    isNew ? "operator-secrets" : "bob-secrets",
-                  ),
+                (k) => k.policies.includes("*") || k.policies.includes(name),
               )
-              .filter((k) => k.actions.includes("bind"))
               .map((k) => k.id),
           };
-        const name = policyDraft.name;
-        return `<div class="section-head align-start"><div class="stack gap8"><h2 class="mono">${isNew ? "New policy" : esc(name)}</h2><p class="hint">${isNew ? "Create a policy and choose which keys may bind it." : "Revision 1 · 0 bindings on 0 agents"}</p></div><button class="primary" id="policy-review">${isNew ? "Create and validate" : "Save and validate"}</button></div>${isNew ? `<section class="card stack"><div class="field"><label for="policy-name">Name</label><input id="policy-name" type="text" value="${esc(name)}" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" maxlength="64" required><p class="hint">Lower-kebab-case. This mockup creates a fixture policy.</p></div></section>` : ""}<div><nav class="screen-tabs" aria-label="Policy sections"><button class="screen-tab" data-policy-tab="hcl">OpenBao policy</button><span class="screen-tab" aria-disabled="true">SSH identities</span><span class="screen-tab" aria-disabled="true">Container contract</span>${isNew ? "" : '<span class="screen-tab" aria-disabled="true">Bindings</span>'}<button class="screen-tab" data-policy-tab="keys" aria-current="page">Operator keys</button></nav><section id="policy-hcl" class="card stack" hidden><h2>OpenBao policy</h2><p class="hint">Example HCL, shown for context. Editing HCL is outside this mockup.</p><pre class="mono">path "kv/data/operators/bob/*" {
+        return `<div class="section-head align-start"><div class="stack gap8"><h2 class="mono">${isNew ? "New policy" : esc(name)}</h2>${isNew ? "" : '<p class="hint">Revision 1 · 0 bindings on 0 agents</p>'}</div><div class="actions"><button id="policy-validate">Validate</button><button class="primary" id="policy-save">Save</button></div></div>${isNew ? `<section class="card"><div class="field"><label for="policy-name">Name</label><input id="policy-name" type="text" value="${esc(name)}" pattern="[a-z][a-z0-9]*(-[a-z0-9]+)*" maxlength="64" required></div></section>` : ""}<div><nav class="screen-tabs" aria-label="Policy sections"><button class="screen-tab" data-policy-tab="hcl">OpenBao policy</button><span class="screen-tab" aria-disabled="true">SSH identities</span><span class="screen-tab" aria-disabled="true">Container contract</span>${isNew ? "" : '<span class="screen-tab" aria-disabled="true">Bindings</span>'}<button class="screen-tab" data-policy-tab="keys" aria-current="page">Operator keys</button></nav><section id="policy-hcl" class="card stack" hidden><h2>OpenBao policy</h2><pre class="mono">path "kv/data/operators/bob/*" {
   capabilities = ["read"]
-}</pre></section><section id="policy-keys" class="card stack"><div class="section-head"><h2>Operator keys that may bind this policy</h2><span class="sub">Approved keys only</span></div><p>Select keys that can bind <code id="policy-name-inline">${esc(name)}</code>. Their agent scope still applies.</p><p class="caution">This changes each key’s Policies list. Adding this policy also enables its existing Read and Policy write actions for this policy. Removing it removes those permissions too. Review each key’s full grant before confirming.</p><div>${keys
-          .map((k) => {
-            const wildcard = k.policies.includes("*"),
-              canBind = k.actions.includes("bind");
-            return `<div class="policy-key"><label><input type="checkbox" data-policy-key="${k.id}" ${policyDraft.selected.includes(k.id) ? "checked" : ""} ${wildcard || !canBind ? "disabled" : ""}><strong>${esc(k.label)}</strong>${badge(wildcard ? "All policies" : canBind ? "Bind allowed" : "Bind denied", canBind ? "good" : "neutral")}</label><a href="#edit/${k.id}">Edit grant</a><div class="details hint"><p>Agents: ${esc(list(k.agents))} · Actions: ${k.actions.map((a) => actionNames[a]).join(", ")}</p><p class="mono">${esc(k.fingerprint)}</p>${wildcard ? "<p>Already includes this policy and future policies. Narrow the grant from Operator keys to exclude it.</p>" : !canBind ? "<p>Enable Bind from Edit grant before selecting this key here. No actions are added automatically.</p>" : ""}</div></div>`;
-          })
-          .join(
-            "",
-          )}</div><div id="policy-error" class="problem" role="alert" hidden></div><div class="actions"><button class="primary" id="policy-review-bottom">Review changes</button><a class="button" href="#keys">Cancel</a></div></section></div>`;
-      }
-      function confirmScreen() {
-        if (!pending)
-          return '<section class="card"><p>No change is awaiting confirmation.</p><a href="#keys">Back to operator keys</a></section>';
-        return `<a href="${pending.from}">← Back to editing</a><section class="stack"><div class="section-head"><div><h2>${pending.isNew ? "Create policy and change grants?" : "Confirm grant changes"}</h2><p class="hint">${pending.source === "key" ? "From Operator keys" : `From policy ${esc(pending.policy)}`} · Signed in as boblangley</p></div>${badge("Not saved", "warn")}</div><p>${pending.isNew ? `Create <code>${esc(pending.policy)}</code> and apply the grants below. ` : ""}Confirmed grants apply to the key’s next request, including an existing connection. The key, fingerprint and label stay the same.</p>${pending.changes.map(({ before, after }) => `<section class="card stack">${identity(before)}${grantDiff(before, after)}${summary(after)}</section>`).join("")}${!pending.changes.length ? '<p class="notice">No key grants change. This creates only the fixture policy.</p>' : ""}<p class="hint">${pending.changes.length} grant-change event${pending.changes.length === 1 ? "" : "s"} will record boblangley, the key, the time, and the complete old and new grant.</p><div class="actions"><button class="primary" id="confirm-save">${pending.isNew ? "Create policy" : "Confirm changes"}</button><a class="button" href="${pending.from}">Cancel</a></div></section>`;
+}</pre></section><section id="policy-keys" class="card stack"><h2>Operator keys</h2><div class="stack gap8">${keys.map((k) => `<label class="choice policy-choice"><input type="checkbox" data-policy-key="${k.id}" ${policyDraft.selected.includes(k.id) ? "checked" : ""}><span><strong>${esc(k.label)}</strong><span class="hint key-actions">${k.actions.map((a) => actionNames[a]).join(", ")}</span></span></label>`).join("")}</div></section><p id="policy-error" class="problem" role="alert" hidden></p><p id="policy-valid" class="hint" role="status" hidden>Valid policy.</p></div>`;
       }
       function eventScreen() {
         const sample = {
@@ -1571,7 +1568,7 @@
           sample: true,
         };
         const shown = events.length ? events : [sample];
-        return `<div class="filters"><span class="chip">All outcomes</span><span class="hint">Controller events, newest first · retention 10,000</span></div>${events.length ? "" : '<p class="caution">Example event. Confirm an edit to replace this with the events produced by your mockup session.</p>'}<section class="stack" aria-label="Event history">${shown.map((e, i) => `<section class="card stack"><div class="section-head"><h2 class="mono">operator-key-grant-changed</h2>${badge("Changed", "good")}</div><div class="event-meta"><div><strong>Time (UTC)</strong><span class="mono">${esc(e.time.replace("T", " ").replace("Z", ""))}</span></div><div><strong>Operator</strong><span>boblangley</span></div><div><strong>Subject</strong><span>key:${esc(e.before.label)}</span></div><div><strong>Changed from</strong><span>${esc(e.source)}</span></div></div><p class="hint mono">${esc(e.before.fingerprint)}</p><details ${i === 0 ? "open" : ""}><summary>Old and new grant</summary>${grantDiff(e.before, e.after)}</details><a href="#edit/${e.before.id}">View current key grant</a></section>`).join("")}</section><p class="hint">Grant fields identify scope and actions. Events contain no tokens, secret values, HCL, signatures or raw upstream errors. Event name and field layout are proposed.</p>`;
+        return `<div class="filters"><span class="chip">All outcomes</span><span class="hint">Controller events, newest first · retention 10,000</span></div>${events.length ? "" : '<p class="hint">Example event</p>'}<section class="stack" aria-label="Event history">${shown.map((e, i) => `<section class="card stack"><div class="section-head"><h2 class="mono">operator-key-grant-changed</h2>${badge("Changed", "good")}</div><div class="event-meta"><div><strong>Time (UTC)</strong><span class="mono">${esc(e.time.replace("T", " ").replace("Z", ""))}</span></div><div><strong>Operator</strong><span>boblangley</span></div><div><strong>Subject</strong><span>key:${esc(e.before.label)}</span></div><div><strong>Changed from</strong><span>${esc(e.source)}</span></div></div><p class="hint mono">${esc(e.before.fingerprint)}</p><details ${i === 0 ? "open" : ""}><summary>Old and new grant</summary>${grantDiff(e.before, e.after)}</details><a href="#edit/${e.before.id}">View current key grant</a></section>`).join("")}</section>`;
       }
       function readGrantForm() {
         const g = clone(draft);
@@ -1601,8 +1598,7 @@
         return g;
       }
       function grantError(g) {
-        if (!g.actions.length)
-          return "Select at least one action before reviewing the grant.";
+        if (!g.actions.length) return "Select at least one action.";
         for (const field of ["agents", "policies"]) {
           if (g[field].length > 256) return `Use no more than 256 ${field}.`;
           if (g[field].includes("*") && g[field].length !== 1)
@@ -1620,7 +1616,7 @@
                     )),
           );
           if (bad)
-            return `“${bad}” is not a valid ${field === "agents" ? "agent" : "policy"} name. Use a valid name and review again.`;
+            return `“${bad}” is not a valid ${field === "agents" ? "agent" : "policy"} name. Enter a valid name.`;
         }
         return "";
       }
@@ -1631,45 +1627,70 @@
         el.tabIndex = -1;
         el.focus();
       }
-      function reviewPolicy() {
-        const isNew = policyDraft.isNew;
-        const name = isNew
-          ? document.getElementById("policy-name").value.trim()
-          : policyDraft.name;
+      function policyError() {
+        const name = policyDraft.name.trim();
         policyDraft.name = name;
         if (!/^[a-z][a-z0-9]*(-[a-z0-9]+)*$/.test(name) || name.length > 64)
-          return error(
-            "policy-error",
-            "Enter a lower-kebab-case policy name, up to 64 characters.",
-          );
-        if (isNew && policies.includes(name))
-          return error(
-            "policy-error",
-            "This policy already exists. Use a new name.",
-          );
-        const changes = [];
-        for (const k of keys) {
-          if (k.policies.includes("*") || !k.actions.includes("bind")) continue;
-          const selected = policyDraft.selected.includes(k.id);
-          const after = clone(k);
-          after.policies = selected
-            ? [...new Set([...k.policies, name])]
-            : k.policies.filter((p) => p !== name);
-          if (!same(k, after)) changes.push({ before: clone(k), after });
+          return "Enter a lower-kebab-case name, up to 64 characters.";
+        if (policyDraft.isNew && policies.includes(name))
+          return "This policy already exists.";
+        return "";
+      }
+      function validatePolicy() {
+        const problem = policyError();
+        if (problem) {
+          error("policy-error", problem);
+          return false;
         }
-        if (!changes.length && !isNew)
-          return error(
-            "policy-error",
-            "No grants have changed. Choose a key before reviewing.",
-          );
-        pending = {
-          source: "policy",
-          policy: name,
-          isNew,
-          changes,
-          from: isNew ? "#new-policy" : "#policy",
-        };
-        location.hash = "confirm";
+        document.getElementById("policy-error").hidden = true;
+        document.getElementById("policy-valid").hidden = false;
+        return true;
+      }
+      function recordChange(before, after, source) {
+        if (same(before, after)) return;
+        keys[keys.findIndex((k) => k.id === before.id)] = clone(after);
+        events.unshift({
+          before: clone(before),
+          after: clone(after),
+          source,
+          time: new Date().toISOString(),
+        });
+      }
+      function savePolicy() {
+        if (!validatePolicy()) return;
+        const name = policyDraft.name;
+        const isNew = policyDraft.isNew;
+        for (const key of [...keys]) {
+          const after = clone(key);
+          const selected = policyDraft.selected.includes(key.id);
+          if (key.policies.includes("*")) {
+            // A wildcard has no exclusions: removing one policy narrows it to
+            // the explicit current policy names. Events retain before and after.
+            if (!selected) after.policies = policies.filter((p) => p !== name);
+          } else {
+            after.policies = selected
+              ? [...new Set([...key.policies, name])]
+              : key.policies.filter((p) => p !== name);
+          }
+          recordChange(key, after, `Policy: ${name}`);
+        }
+        if (isNew) policies.push(name);
+        currentPolicy = name;
+        policyDraft = null;
+        notice = "Policy saved.";
+        history.replaceState(null, "", "#policy");
+        render();
+      }
+      function validateGrant() {
+        const g = readGrantForm();
+        const problem = grantError(g);
+        if (problem) {
+          error("grant-error", problem);
+          return false;
+        }
+        document.getElementById("grant-error").hidden = true;
+        document.getElementById("grant-valid").hidden = false;
+        return true;
       }
       function render() {
         const route = location.hash.slice(1) || "keys";
@@ -1680,7 +1701,6 @@
             edit: "Operator keys",
             policy: "Policy editor",
             "new-policy": "Policy editor",
-            confirm: "Review changes",
             events: "Events",
           }[mode] || "Operator keys";
         document.title = `${pageTitle} · Wyrwood mockup`;
@@ -1704,11 +1724,9 @@
             ? editKey(route.split("/")[1])
             : mode === "policy" || mode === "new-policy"
               ? policyScreen(mode === "new-policy")
-              : mode === "confirm"
-                ? confirmScreen()
-                : mode === "events"
-                  ? eventScreen()
-                  : keyList();
+              : mode === "events"
+                ? eventScreen()
+                : keyList();
         content.innerHTML =
           (notice
             ? `<div class="notice" role="status">${esc(notice)} <a href="#events">View event</a></div>`
@@ -1720,25 +1738,19 @@
             const g = readGrantForm();
             document.getElementById("live-preview").innerHTML = summary(g);
             document.getElementById("grant-error").hidden = true;
+            document.getElementById("grant-valid").hidden = true;
           });
           grantForm.addEventListener("submit", (ev) => {
             ev.preventDefault();
-            const g = readGrantForm(),
-              problem = grantError(g);
-            if (problem) return error("grant-error", problem);
-            const before = keys.find((k) => k.id === g.id);
-            if (same(before, g))
-              return error(
-                "grant-error",
-                "The grant has not changed. Edit a field or cancel.",
-              );
-            pending = {
-              source: "key",
-              from: `#edit/${g.id}`,
-              changes: [{ before: clone(before), after: clone(g) }],
-            };
-            location.hash = "confirm";
+            if (!validateGrant()) return;
+            const before = keys.find((k) => k.id === draft.id);
+            recordChange(before, draft, "Operator keys");
+            notice = "Grant saved.";
+            render();
           });
+          document
+            .getElementById("grant-validate")
+            .addEventListener("click", validateGrant);
         }
         for (const el of document.querySelectorAll("[data-policy-key]"))
           el.addEventListener("change", () => {
@@ -1750,15 +1762,15 @@
           .getElementById("policy-name")
           ?.addEventListener("input", (e) => {
             policyDraft.name = e.target.value;
-            document.getElementById("policy-name-inline").textContent =
-              e.target.value;
+            document.getElementById("policy-error").hidden = true;
+            document.getElementById("policy-valid").hidden = true;
           });
         document
-          .getElementById("policy-review")
-          ?.addEventListener("click", reviewPolicy);
+          .getElementById("policy-validate")
+          ?.addEventListener("click", validatePolicy);
         document
-          .getElementById("policy-review-bottom")
-          ?.addEventListener("click", reviewPolicy);
+          .getElementById("policy-save")
+          ?.addEventListener("click", savePolicy);
         for (const tab of document.querySelectorAll("[data-policy-tab]"))
           tab.addEventListener("click", () => {
             for (const t of document.querySelectorAll("[data-policy-tab]"))
@@ -1770,36 +1782,19 @@
               tab.dataset.policyTab !== "hcl";
           });
         document
-          .getElementById("confirm-save")
-          ?.addEventListener("click", () => {
-            if (!pending) return;
-            for (const { before, after } of pending.changes) {
-              keys[keys.findIndex((k) => k.id === before.id)] = clone(after);
-              events.unshift({
-                before: clone(before),
-                after: clone(after),
-                source:
-                  pending.source === "key"
-                    ? "Operator keys"
-                    : `Policy: ${pending.policy}`,
-                time: new Date().toISOString(),
-              });
-            }
-            if (pending.isNew) policies.push(pending.policy);
-            notice = pending.isNew
-              ? `Policy ${pending.policy} created in this mockup. ${pending.changes.length} key grant(s) changed.`
-              : `${pending.changes.length} key grant(s) changed in this mockup. The next client request uses the new grant.`;
-            pending = null;
-            draft = null;
-            policyDraft = null;
-            location.hash = "keys";
-          });
+          .querySelector('.screen-tab[aria-current="page"]')
+          ?.scrollIntoView({ block: "nearest", inline: "nearest" });
         const heading = document.getElementById("page-title");
         heading.tabIndex = -1;
         heading.focus({ preventScroll: true });
         window.scrollTo(0, 0);
       }
-      window.addEventListener("hashchange", render);
+      window.addEventListener("hashchange", () => {
+        notice = "";
+        policyDraft = null;
+        draft = null;
+        render();
+      });
       document.querySelector(".nav-toggle").addEventListener("click", () => {
         const toggle = document.querySelector(".nav-toggle"),
           open = toggle.getAttribute("aria-expanded") !== "true";
@@ -1820,9 +1815,9 @@
         policies = ["shared-key", "teal", "bob-secrets"];
         events = [];
         draft = null;
-        pending = null;
         notice = "";
         policyDraft = null;
+        currentPolicy = "bob-secrets";
         if (location.hash === "#keys") render();
         else location.hash = "keys";
       });
