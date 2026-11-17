@@ -33,10 +33,13 @@ type Record struct {
 	LatencyNS    int64     `json:"latency-ns"`
 	Error        ErrorCode `json:"error,omitempty"`
 	Agent        string    `json:"agent,omitempty"`
+	NewAgent     string    `json:"new-agent,omitempty"`
 	Binding      string    `json:"binding,omitempty"`
 	ContainerKey string    `json:"container-key,omitempty"`
 	Policy       string    `json:"policy,omitempty"`
 	NewPolicy    string    `json:"new-policy,omitempty"`
+	Action       Action    `json:"action,omitempty"`
+	NewAction    Action    `json:"new-action,omitempty"`
 	Operator     string    `json:"operator,omitempty"`
 	Fingerprint  string    `json:"fingerprint,omitempty"`
 	Mount        Mount     `json:"mount,omitempty"`
@@ -52,10 +55,13 @@ func (event Event) Record() Record {
 		LatencyNS:    int64(event.Latency),
 		Error:        event.ErrorCode,
 		Agent:        event.Agent,
+		NewAgent:     event.NewAgent,
 		Binding:      event.Binding,
 		ContainerKey: event.ContainerKey,
 		Policy:       event.Policy,
 		NewPolicy:    event.NewPolicy,
+		Action:       event.Action,
+		NewAction:    event.NewAction,
 		Operator:     event.Operator,
 		Fingerprint:  event.Fingerprint,
 		Mount:        event.Mount,
@@ -79,10 +85,13 @@ func (record Record) Event() (Event, error) {
 		Latency:      time.Duration(record.LatencyNS),
 		ErrorCode:    record.Error,
 		Agent:        record.Agent,
+		NewAgent:     record.NewAgent,
 		Binding:      record.Binding,
 		ContainerKey: record.ContainerKey,
 		Policy:       record.Policy,
 		NewPolicy:    record.NewPolicy,
+		Action:       record.Action,
+		NewAction:    record.NewAction,
 		Operator:     record.Operator,
 		Fingerprint:  record.Fingerprint,
 		Mount:        record.Mount,

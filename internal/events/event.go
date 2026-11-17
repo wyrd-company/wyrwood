@@ -67,6 +67,9 @@ const (
 	OperationOperatorKeyApproved Operation = "operator-key-approved"
 	OperationOperatorKeyRejected Operation = "operator-key-rejected"
 	OperationOperatorKeyRevoked  Operation = "operator-key-revoked"
+	// OperationOperatorKeyGrantChanged records one entry of an operator key's
+	// grant before and after an edit. One edit records an event for each entry.
+	OperationOperatorKeyGrantChanged Operation = "operator-key-grant-changed"
 )
 
 // Operations lists the complete operation vocabulary in schema order.
@@ -80,6 +83,7 @@ var Operations = []Operation{
 	OperationCredentialIssued, OperationRecreateRequested,
 	OperationOperatorSignedIn, OperationOperatorSignedOut,
 	OperationOperatorKeyApproved, OperationOperatorKeyRejected, OperationOperatorKeyRevoked,
+	OperationOperatorKeyGrantChanged,
 }
 
 // Outcome is the closed result vocabulary for an operation.
@@ -125,6 +129,19 @@ var ErrorCodes = []ErrorCode{
 	ErrorIdentityProviderUnavailable, ErrorOperatorNotAllowed, ErrorSignInInvalid, ErrorOutsideGrant, ErrorProtocol, ErrorInternal,
 }
 
+// Action is the closed vocabulary of the actions an operator key's grant holds.
+type Action string
+
+const (
+	ActionNone        Action = ""
+	ActionRead        Action = "read"
+	ActionBind        Action = "bind"
+	ActionPolicyWrite Action = "policy-write"
+)
+
+// Actions lists every non-empty grant action in schema order.
+var Actions = []Action{ActionRead, ActionBind, ActionPolicyWrite}
+
 // Mount is the OpenBao mount category of a vault request.
 type Mount string
 
@@ -167,10 +184,13 @@ type Event struct {
 	Latency      time.Duration
 	ErrorCode    ErrorCode
 	Agent        string
+	NewAgent     string
 	Binding      string
 	ContainerKey string
 	Policy       string
 	NewPolicy    string
+	Action       Action
+	NewAction    Action
 	Operator     string
 	Fingerprint  string
 	Mount        Mount
@@ -223,6 +243,9 @@ func (event Event) Validate() error {
 	if err := boundedText("agent", event.Agent, maximumAgentBytes); err != nil {
 		return err
 	}
+	if err := boundedText("new agent", event.NewAgent, maximumAgentBytes); err != nil {
+		return err
+	}
 	if event.Binding != "" && !bindingPattern.MatchString(event.Binding) {
 		return errors.New("binding is not a binding identifier")
 	}
@@ -243,6 +266,12 @@ func (event Event) Validate() error {
 	}
 	if event.Fingerprint != "" && !fingerprintPattern.MatchString(event.Fingerprint) {
 		return errors.New("fingerprint is not a canonical OpenSSH SHA-256 fingerprint")
+	}
+	if event.Action != ActionNone && !contains(Actions, event.Action) {
+		return fmt.Errorf("action %q is not supported", event.Action)
+	}
+	if event.NewAction != ActionNone && !contains(Actions, event.NewAction) {
+		return fmt.Errorf("new action %q is not supported", event.NewAction)
 	}
 	if event.Mount != MountNone && !contains(Mounts, event.Mount) {
 		return fmt.Errorf("mount %q is not supported", event.Mount)

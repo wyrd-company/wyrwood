@@ -54,6 +54,8 @@ func TestRecordMatchesSchemaPropertiesAndEnums(t *testing.T) {
 	assertEnum(t, properties, "error", ErrorCodes)
 	assertEnum(t, properties, "mount", Mounts)
 	assertEnum(t, properties, "method", Methods)
+	assertEnum(t, properties, "action", Actions)
+	assertEnum(t, properties, "new-action", Actions)
 }
 
 func TestEveryValidRecordValidatesAgainstSchema(t *testing.T) {
@@ -79,6 +81,14 @@ func TestEveryValidRecordValidatesAgainstSchema(t *testing.T) {
 		{
 			Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Operation: OperationPolicyRenamed,
 			Outcome: OutcomeOK, Policy: "teal", NewPolicy: "cyan", Operator: "subject-1",
+		},
+		{
+			Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Operation: OperationOperatorKeyGrantChanged,
+			Outcome: OutcomeOK, Agent: "host.example", NewAgent: "host.example", Operator: "subject-1", Fingerprint: fingerprint,
+		},
+		{
+			Time: time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC), Operation: OperationOperatorKeyGrantChanged,
+			Outcome: OutcomeOK, Action: ActionRead, NewAction: ActionPolicyWrite, Operator: "subject-1", Fingerprint: fingerprint,
 		},
 	}
 	for _, operation := range Operations {
@@ -159,6 +169,9 @@ func TestEventValidationClosesCategoricalVocabularies(t *testing.T) {
 		"control":         func(event *Event) { event.Agent = "host\nname" },
 		"policy":          func(event *Event) { event.Policy = strings.Repeat("p", 65) },
 		"new-policy":      func(event *Event) { event.NewPolicy = strings.Repeat("p", 65) },
+		"new-agent":       func(event *Event) { event.NewAgent = strings.Repeat("a", 254) },
+		"action":          func(event *Event) { event.Action = "write" },
+		"new-action":      func(event *Event) { event.NewAction = "write" },
 	}
 	for name, mutate := range tests {
 		t.Run(name, func(t *testing.T) {
