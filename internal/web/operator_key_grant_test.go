@@ -535,3 +535,59 @@ func TestACutOffGrantEditShowsNoGrant(t *testing.T) {
 		t.Fatalf("the Events screen does not say the edit is cut off: %s", rendered.body)
 	}
 }
+
+// An edit whose entries are as long as names and an operator subject may be is
+// recorded whole. This is review round 2's reproducer: with a 253-byte agent
+// name kept by the edit and a 255-byte subject of characters that JSON
+// escapes, the agent entry does not fit one event. The row must not count the
+// edit as whole without that entry, and the edit must in fact be whole.
+func TestAGrantEditWithTheLongestNamesIsWhole(t *testing.T) {
+	agent := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)
+	before := operatorclient.Grant{Agents: []string{agent}, Policies: []string{"teal"}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	harness, browserClient, _, fingerprint := grantEditFixture(t, before)
+	by := strings.Repeat("<", 255)
+	browserClient = browser(t)
+	account := operator
+	account.Subject = by
+	harness.signIn(t, browserClient, account, oidctest.TamperNone)
+	editor := get(t, browserClient, harness.site.URL+"/operator-keys/grant?"+url.Values{"fingerprint": {fingerprint}}.Encode())
+	previous := previousPattern.FindStringSubmatch(editor.body)
+	if previous == nil {
+		t.Fatal("missing initial grant")
+	}
+	saved := post(t, browserClient, harness.site.URL+"/operator-keys/grant", url.Values{
+		"csrf": {csrf(t, editor.body)}, "fingerprint": {fingerprint}, "previous": {previous[1]},
+		"agents": {agent}, "policies": {"teal", "amber"}, "actions": {"read"},
+	})
+	if !strings.Contains(saved.body, "Grant saved.") {
+		t.Fatalf("save failed: %d %s", saved.status, saved.body)
+	}
+	var bounds, agents int
+	for _, event := range harness.controller.Events().Recent(1000) {
+		if event.Operation != events.OperationOperatorKeyGrantChanged || event.Fingerprint != fingerprint {
+			continue
+		}
+		if event.Agent != "" || event.NewAgent != "" {
+			agents++
+		}
+		if event.Agent == "" && event.NewAgent == "" && event.Policy == "" && event.NewPolicy == "" && event.Action == events.ActionNone && event.NewAction == events.ActionNone {
+			bounds++
+		}
+	}
+	t.Logf("valid grant and 255-byte operator: retained bounds=%d, retained agent entries=%d", bounds, agents)
+	payload := eventsPayload(t, browserClient, harness.site.URL+"/events")
+	for _, row := range payload.Events {
+		if row.Grant == nil {
+			continue
+		}
+		t.Logf("displayed grant: complete=%t rows=%+v", row.Grant.Complete, row.Grant.Rows)
+		if row.Grant.Complete && (len(row.Grant.Rows) < 1 || row.Grant.Rows[0].Before != agent || row.Grant.Rows[0].After != agent) {
+			t.Fatal("both bounds survived a rejected middle entry: missing agent presented as complete None -> None")
+		}
+		if !row.Grant.Complete || row.Grant.Rows[1] != (grantChangeRow{Name: "Policies", Before: "teal", After: "amber, teal", Changed: true}) {
+			t.Fatalf("the edit is not recorded whole: %+v", row.Grant)
+		}
+		return
+	}
+	t.Fatal("expected grant edit row")
+}

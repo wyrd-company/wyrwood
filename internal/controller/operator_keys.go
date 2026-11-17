@@ -205,19 +205,27 @@ func (controller *Controller) recordGrantChange(now time.Time, change store.Oper
 	}
 	base := events.Event{Time: now, Operation: events.OperationOperatorKeyGrantChanged, Outcome: events.OutcomeOK,
 		Fingerprint: change.Fingerprint, Operator: by}
-	controller.record(base)
-	defer controller.record(base)
-	entries := func(before, after []string, set func(event *events.Event, before, after string)) {
+	if err := recordGrantEvents(controller.events.Append, base, grantEntries(base, change)); err != nil {
+		controller.logf("grant change not recorded whole")
+	}
+}
+
+// grantEntries returns one event for each agent, policy, and action of the
+// old or the new grant, which holds the entry's old side, its new side, or
+// both.
+func grantEntries(base events.Event, change store.OperatorKeyGrantChange) []events.Event {
+	var entries []events.Event
+	add := func(before, after []string, set func(event *events.Event, before, after string)) {
 		for _, name := range slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(before), after...)))) {
 			event := base
 			set(&event, entryIf(before, name), entryIf(after, name))
-			controller.record(event)
+			entries = append(entries, event)
 		}
 	}
-	entries(change.From.Agents, change.To.Agents, func(event *events.Event, before, after string) {
+	add(change.From.Agents, change.To.Agents, func(event *events.Event, before, after string) {
 		event.Agent, event.NewAgent = before, after
 	})
-	entries(change.From.Policies, change.To.Policies, func(event *events.Event, before, after string) {
+	add(change.From.Policies, change.To.Policies, func(event *events.Event, before, after string) {
 		event.Policy, event.NewPolicy = before, after
 	})
 	actions := func(list []operator.Action) []string {
@@ -227,9 +235,42 @@ func (controller *Controller) recordGrantChange(now time.Time, change store.Oper
 		}
 		return names
 	}
-	entries(actions(change.From.Actions), actions(change.To.Actions), func(event *events.Event, before, after string) {
+	add(actions(change.From.Actions), actions(change.To.Actions), func(event *events.Event, before, after string) {
 		event.Action, event.NewAction = events.Action(before), events.Action(after)
 	})
+	return entries
+}
+
+// recordGrantEvents appends the bounds and the entries of one grant change.
+// An entry that holds both sides and does not fit one event, as a long agent
+// name with a long operator subject does not, is appended as two: its old side
+// and its new side, which a reader gathers into the same grants. The closing
+// bound is appended only when the opening bound and every entry were, so that
+// both bounds mean the change is whole.
+func recordGrantEvents(appendEvent func(events.Event) error, base events.Event, entries []events.Event) error {
+	if err := appendEvent(base); err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		err := appendEvent(entry)
+		if err == nil {
+			continue
+		}
+		before, after := entry, entry
+		before.NewAgent, before.NewPolicy, before.NewAction = "", "", events.ActionNone
+		after.Agent, after.Policy, after.Action = "", "", events.ActionNone
+		if before == base || after == base {
+			// One side is empty, so the entry has nothing to split.
+			return err
+		}
+		if err := appendEvent(before); err != nil {
+			return err
+		}
+		if err := appendEvent(after); err != nil {
+			return err
+		}
+	}
+	return appendEvent(base)
 }
 
 // entryIf returns name when list holds it, and nothing otherwise.

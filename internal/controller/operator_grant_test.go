@@ -312,3 +312,118 @@ func TestOnlyTheWebInterfaceChangesAGrant(t *testing.T) {
 		t.Fatal("the scan found no caller at all")
 	}
 }
+
+// The longest names and operator subject a grant change can hold are recorded
+// whole: an entry too long for one event is recorded as its old side and its
+// new side, and both bounds are there.
+func TestAGrantChangeWithTheLongestNamesIsRecordedWhole(t *testing.T) {
+	ctx := context.Background()
+	harness := startHarness(t)
+	longAgent := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 63) + "." + strings.Repeat("d", 61)
+	otherAgent := strings.Repeat("e", 63) + "." + strings.Repeat("f", 63) + "." + strings.Repeat("g", 63) + "." + strings.Repeat("h", 61)
+	longPolicy := "p" + strings.Repeat("0", 63)
+	before := operator.Grant{Agents: []string{longAgent, otherAgent}, Policies: []string{longPolicy}, Actions: []operator.Action{operator.ActionRead}}
+	_, key := harness.approvedOperator(t, "sample-key", before)
+	fingerprint := gossh.FingerprintSHA256(key.PublicKey())
+	after := operator.Grant{Agents: []string{longAgent}, Policies: []string{longPolicy, "teal"}, Actions: operator.Actions}
+	// JSON escapes < as six bytes, the longest form a subject's bytes can take.
+	by := strings.Repeat("<", 255)
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, before, after, by); err != nil {
+		t.Fatal(err)
+	}
+	recorded := grantEvents(harness, fingerprint)
+	bound := events.Event{Time: recorded[0].Time, Operation: events.OperationOperatorKeyGrantChanged, Outcome: events.OutcomeOK, Fingerprint: fingerprint, Operator: by}
+	if len(recorded) < 2 || recorded[0] != bound || recorded[len(recorded)-1] != bound {
+		t.Fatalf("the change is not bounded: %+v", recorded)
+	}
+	var oldAgents, newAgents, oldPolicies, newPolicies, oldActions, newActions []string
+	gather := func(list *[]string, name string) {
+		if name != "" && !slices.Contains(*list, name) {
+			*list = append(*list, name)
+		}
+	}
+	split := false
+	for _, event := range recorded[1 : len(recorded)-1] {
+		if event == bound {
+			t.Fatalf("a bound inside the change: %+v", recorded)
+		}
+		gather(&oldAgents, event.Agent)
+		gather(&newAgents, event.NewAgent)
+		gather(&oldPolicies, event.Policy)
+		gather(&newPolicies, event.NewPolicy)
+		gather(&oldActions, string(event.Action))
+		gather(&newActions, string(event.NewAction))
+		split = split || (event.Agent == longAgent && event.NewAgent == "")
+	}
+	actions := func(list []operator.Action) []string {
+		names := []string{}
+		for _, action := range list {
+			names = append(names, string(action))
+		}
+		return names
+	}
+	for name, pair := range map[string][2][]string{
+		"old agents": {oldAgents, before.Agents}, "new agents": {newAgents, after.Agents},
+		"old policies": {oldPolicies, before.Policies}, "new policies": {newPolicies, after.Policies},
+		"old actions": {oldActions, actions(before.Actions)}, "new actions": {newActions, actions(after.Actions)},
+	} {
+		if !slices.Equal(slices.Sorted(slices.Values(pair[0])), slices.Sorted(slices.Values(pair[1]))) {
+			t.Fatalf("%s = %v; want %v", name, pair[0], pair[1])
+		}
+	}
+	if !split {
+		t.Fatal("the kept long agent fit one event, so this test no longer reaches the split")
+	}
+}
+
+// The closing bound follows only the opening bound and every entry. An entry
+// that cannot be appended, whole or as its two sides, leaves the change
+// without its closing bound, so no reader counts it as whole.
+func TestAGrantChangeIsClosedOnlyWhenEveryEntryIsRecorded(t *testing.T) {
+	base := events.Event{Time: time.Date(2026, 11, 17, 0, 0, 0, 0, time.UTC), Operation: events.OperationOperatorKeyGrantChanged,
+		Outcome: events.OutcomeOK, Fingerprint: "SHA256:" + strings.Repeat("A", 43), Operator: "sample-approver"}
+	kept, added := base, base
+	kept.Agent, kept.NewAgent = "host-a", "host-a"
+	added.Policy, added.NewPolicy = "", "teal"
+	entries := []events.Event{kept, added}
+	refused := errors.New("refused")
+	for name, test := range map[string]struct {
+		refuse    func(events.Event) bool
+		wantError bool
+		want      []events.Event
+	}{
+		"every entry fits": {refuse: func(events.Event) bool { return false },
+			want: []events.Event{base, kept, added, base}},
+		"an entry fits only as its two sides": {refuse: func(event events.Event) bool { return event == kept },
+			want: []events.Event{base, {Time: base.Time, Operation: base.Operation, Outcome: base.Outcome, Fingerprint: base.Fingerprint, Operator: base.Operator, Agent: "host-a"},
+				{Time: base.Time, Operation: base.Operation, Outcome: base.Outcome, Fingerprint: base.Fingerprint, Operator: base.Operator, NewAgent: "host-a"}, added, base}},
+		"an entry with both sides is refused": {refuse: func(event events.Event) bool { return event.Agent == "host-a" || event.NewAgent == "host-a" },
+			wantError: true, want: []events.Event{base}},
+		"an entry's new side is refused": {refuse: func(event events.Event) bool {
+			return event == kept || (event.NewAgent == "host-a" && event.Agent == "")
+		},
+			wantError: true, want: []events.Event{base, {Time: base.Time, Operation: base.Operation, Outcome: base.Outcome, Fingerprint: base.Fingerprint, Operator: base.Operator, Agent: "host-a"}}},
+		"an entry's old side is refused": {refuse: func(event events.Event) bool {
+			return event == kept || (event.Agent == "host-a" && event.NewAgent == "")
+		},
+			wantError: true, want: []events.Event{base}},
+		"an entry with one side is refused": {refuse: func(event events.Event) bool { return event == added },
+			wantError: true, want: []events.Event{base, kept}},
+		"the opening bound is refused": {refuse: func(event events.Event) bool { return event == base },
+			wantError: true, want: nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var appended []events.Event
+			err := recordGrantEvents(func(event events.Event) error {
+				if test.refuse(event) {
+					return refused
+				}
+				appended = append(appended, event)
+				return nil
+			}, base, entries)
+			if (err != nil) != test.wantError || !reflect.DeepEqual(appended, test.want) {
+				t.Fatalf("recordGrantEvents() = %v, appended %+v; want error %t, %+v", err, appended, test.wantError, test.want)
+			}
+		})
+	}
+}
