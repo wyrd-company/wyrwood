@@ -16,6 +16,7 @@ import { Policies } from "./pages/policies";
 import { PolicyEditor } from "./pages/policy-editor";
 import { Keys } from "./pages/keys";
 import { OperatorKeys } from "./pages/operator-keys";
+import { OperatorKeyGrant } from "./pages/operator-key-grant";
 import { Events } from "./pages/events";
 import { Security } from "./pages/security";
 import { Settings } from "./pages/settings";
@@ -45,6 +46,8 @@ function Content({ page }: { page: Page }) {
       return <Keys data={page.data} />;
     case "operator-keys":
       return <OperatorKeys data={page.data} />;
+    case "operator-key-grant":
+      return <OperatorKeyGrant data={page.data} />;
     case "events":
       return <Events data={page.data} />;
     case "settings":

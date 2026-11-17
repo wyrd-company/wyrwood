@@ -91,6 +91,8 @@ func (server *Server) Handler() http.Handler {
 	authenticated.HandleFunc("GET /operator-keys", server.handleOperatorKeys)
 	authenticated.HandleFunc("POST /operator-keys/approve", server.handleApproveOperatorKey)
 	authenticated.HandleFunc("POST /operator-keys/reject", server.handleRejectOperatorKey)
+	authenticated.HandleFunc("GET /operator-keys/grant", server.handleOperatorKeyGrant)
+	authenticated.HandleFunc("POST /operator-keys/grant", server.handleChangeOperatorKeyGrant)
 	authenticated.HandleFunc("GET /operator-keys/revoke", server.handleConfirmRevokeOperatorKey)
 	authenticated.HandleFunc("POST /operator-keys/revoke", server.handleRevokeOperatorKey)
 	authenticated.HandleFunc("GET /containers", server.handleContainersRedirect)

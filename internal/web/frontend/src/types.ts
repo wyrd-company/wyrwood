@@ -74,6 +74,19 @@ export interface OperatorKeysData extends Layout {
   GrantAgents: string[] | null;
   GrantPolicies: string[] | null;
 }
+export interface Grant {
+  agents: string[] | null;
+  policies: string[] | null;
+  actions: string[] | null;
+}
+export interface OperatorKeyGrantData extends Layout {
+  Label: string;
+  Fingerprint: string;
+  Grant: Grant;
+  Previous: string;
+  GrantAgents: string[] | null;
+  GrantPolicies: string[] | null;
+}
 export interface PolicyChoice {
   Name: string;
   Selected: boolean;
@@ -327,6 +340,7 @@ interface PageModels {
   policy: PolicyData;
   keys: KeysData;
   "operator-keys": OperatorKeysData;
+  "operator-key-grant": OperatorKeyGrantData;
   events: EventsData;
   security: SecurityData;
   settings: SettingsData;

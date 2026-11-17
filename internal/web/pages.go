@@ -95,6 +95,7 @@ var notices = map[string]string{
 	"operator-approved": "Operator key approved. It can connect now, inside its grant.",
 	"operator-rejected": "Operator key rejected.",
 	"operator-revoked":  "Operator key revoked. Its next request fails.",
+	"grant-saved":       "Grant saved.",
 	"bound":             "Policy bound. The agent receives it on its next report.",
 	"changed":           "Binding moved to the new policy. The agent obtains a fresh token.",
 	"recreate":          "Recreate requested. The agent reports the result.",

@@ -101,9 +101,7 @@ it("posts the chosen names and updates the summary on each change", async () => 
   expect(lines()[1]).toBe(
     "Can create, change, and remove bindings on agent-a that hold no policy other than policy-x and future-policy.",
   );
-  expect(summary).toHaveTextContent(
-    "A grant cannot be changed after approval.",
-  );
+  expect(summary).not.toHaveTextContent("cannot be changed");
   const posted = new FormData(form);
   expect(posted.getAll("agents")).toEqual(["agent-a", ""]);
   expect(posted.getAll("policies")).toEqual(["policy-x", "future-policy"]);
@@ -171,4 +169,42 @@ it("says when no agent or policy can be offered", () => {
   );
   expect(screen.getByText("No agent is approved yet.")).toBeInTheDocument();
   expect(screen.getByText("No policy exists yet.")).toBeInTheDocument();
+});
+
+it("links each approved key to its grant editor", () => {
+  render(
+    <App
+      page={{
+        page: "operator-keys",
+        data: {
+          ...data,
+          PendingKeys: null,
+          Approved: [
+            {
+              Label: "menagerie",
+              Fingerprint: "SHA256:sample/key+",
+              State: "approved",
+              Agents: ["tools"],
+              Policies: ["teal"],
+              Actions: ["read", "bind"],
+              DecidedAt: "",
+              DecidedBy: "operator-1",
+              RevokedAt: "",
+              RevokedBy: "",
+              LastUsed: "",
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  expect(
+    screen.getByRole("link", { name: "Edit grant of menagerie" }),
+  ).toHaveAttribute(
+    "href",
+    "/operator-keys/grant?fingerprint=SHA256%3Asample%2Fkey%2B",
+  );
+  expect(
+    screen.getByRole("link", { name: "Revoke menagerie" }),
+  ).toBeInTheDocument();
 });

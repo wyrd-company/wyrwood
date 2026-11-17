@@ -753,6 +753,30 @@ ul.plain li {
   gap: 16px;
   margin: 16px 0;
 }
+.grant-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 20px 24px;
+  align-items: start;
+}
+.grant-grid .span-all {
+  grid-column: 1 / -1;
+}
+.grant-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 20px;
+}
+.key-identity {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.key-choice .hint {
+  display: block;
+}
 .grant-summary {
   border-top: 1px solid var(--line);
   padding-top: 12px;

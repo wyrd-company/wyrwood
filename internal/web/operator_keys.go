@@ -8,6 +8,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/url"
 	"slices"
@@ -131,7 +132,8 @@ func grantList(value string) []string {
 	return names
 }
 
-func (server *Server) handleApproveOperatorKey(writer http.ResponseWriter, request *http.Request) {
+// grantFromForm reads the grant that the approval and the edit forms post.
+func grantFromForm(request *http.Request) operatorclient.Grant {
 	_ = request.ParseForm()
 	grant := operatorclient.Grant{
 		Agents: grantNames(request.PostForm["agents"]), Policies: grantNames(request.PostForm["policies"]),
@@ -140,8 +142,95 @@ func (server *Server) handleApproveOperatorKey(writer http.ResponseWriter, reque
 	for _, action := range request.PostForm["actions"] {
 		grant.Actions = append(grant.Actions, operatorclient.Action(action))
 	}
+	return grant
+}
+
+func (server *Server) handleApproveOperatorKey(writer http.ResponseWriter, request *http.Request) {
+	grant := grantFromForm(request)
 	err := server.controller.ApproveOperatorKey(request.Context(), request.PostFormValue("fingerprint"), request.PostFormValue("label"), grant, operatorSubject(request))
 	server.finishOperatorKeyDecision(writer, request, err, "operator-approved")
+}
+
+// operatorKeyGrantPage edits the grant of an approved key.
+type operatorKeyGrantPage struct {
+	layout
+	Label       string
+	Fingerprint string
+	// Grant is what the form shows: the key's grant, or an edit that was refused.
+	Grant operatorclient.Grant
+	// Previous is the grant the edit started from, in JSON. The controller
+	// refuses the edit when the key no longer holds it.
+	Previous      string
+	GrantAgents   []string
+	GrantPolicies []string
+}
+
+func (server *Server) operatorKeyGrantPage(request *http.Request, key store.OperatorKey, shown, previous operatorclient.Grant) (operatorKeyGrantPage, error) {
+	encoded, err := json.Marshal(previous)
+	if err != nil {
+		return operatorKeyGrantPage{}, err
+	}
+	page := operatorKeyGrantPage{layout: server.layout(request, "Operator keys", "operator-keys"),
+		Label: key.Label, Fingerprint: key.Fingerprint, Grant: shown, Previous: string(encoded)}
+	page.GrantAgents, page.GrantPolicies, err = server.grantChoices(request.Context())
+	return page, err
+}
+
+// approvedOperatorKey returns the approved key that the request names, or
+// renders a problem and returns false.
+func (server *Server) approvedOperatorKey(writer http.ResponseWriter, request *http.Request, fingerprint string) (store.OperatorKey, bool) {
+	key, err := server.controller.Store().OperatorKey(request.Context(), fingerprint)
+	if err != nil || key.State != store.OperatorKeyApproved {
+		base := server.layout(request, "Operator keys", "operator-keys")
+		base.Problem = "No approved key has this fingerprint."
+		server.renderProblem(writer, request, base, "/operator-keys")
+		return store.OperatorKey{}, false
+	}
+	return key, true
+}
+
+func (server *Server) handleOperatorKeyGrant(writer http.ResponseWriter, request *http.Request) {
+	key, ok := server.approvedOperatorKey(writer, request, request.URL.Query().Get("fingerprint"))
+	if !ok {
+		return
+	}
+	page, err := server.operatorKeyGrantPage(request, key, key.Grant, key.Grant)
+	if err != nil {
+		http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
+		return
+	}
+	server.render(writer, request, "operator-key-grant", page)
+}
+
+func (server *Server) handleChangeOperatorKeyGrant(writer http.ResponseWriter, request *http.Request) {
+	grant := grantFromForm(request)
+	fingerprint := request.PostFormValue("fingerprint")
+	key, ok := server.approvedOperatorKey(writer, request, fingerprint)
+	if !ok {
+		return
+	}
+	var previous operatorclient.Grant
+	decoder := json.NewDecoder(strings.NewReader(request.PostFormValue("previous")))
+	decoder.DisallowUnknownFields()
+	err := decoder.Decode(&previous)
+	if err == nil {
+		err = server.controller.ChangeOperatorKeyGrant(request.Context(), fingerprint, previous, grant, operatorSubject(request))
+		if err == nil {
+			http.Redirect(writer, request, "/operator-keys/grant?"+url.Values{"fingerprint": {fingerprint}, "notice": {"grant-saved"}}.Encode(), http.StatusSeeOther)
+			return
+		}
+	} else {
+		// A form that holds no readable grant to start from edits the grant the
+		// key holds now, which the page then shows as the one to start from.
+		previous = key.Grant
+	}
+	page, readErr := server.operatorKeyGrantPage(request, key, grant, previous)
+	if readErr != nil {
+		http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
+		return
+	}
+	page.Problem = problemMessage(err)
+	server.renderStatus(writer, request, http.StatusUnprocessableEntity, "operator-key-grant", page)
 }
 
 func (server *Server) handleRejectOperatorKey(writer http.ResponseWriter, request *http.Request) {

@@ -142,9 +142,6 @@ const denied: Record<GrantAction, string> = {
   "policy-write": "Cannot change policies.",
 };
 
-export const immutableText =
-  "A grant cannot be changed after approval. To change it, revoke this key and approve a new key.";
-
 // These rules repeat Grant.Validate, ValidAgentName, and policy.ValidName on the
 // server. internal/web/testdata/grant-name-cases.json holds the server's answers,
 // and a test on each side checks them.
@@ -170,6 +167,7 @@ export function validPolicyName(name: string) {
 // listRefusals states why the server refuses one list as it is posted, before
 // repeated names are removed for display.
 function listRefusals(
+  refused: string,
   what: "agent" | "policy",
   names: string[],
   valid: (name: string) => boolean,
@@ -177,38 +175,40 @@ function listRefusals(
   const refusals: string[] = [];
   if (names.length > maximumGrantEntries)
     refusals.push(
-      `Approval is refused: the ${what} list has more than ${maximumGrantEntries} entries.`,
+      `${refused}: the ${what} list has more than ${maximumGrantEntries} entries.`,
     );
   if (names.includes(allNames) && names.length !== 1)
     refusals.push(
-      `Approval is refused: the ${what} list holds * with other entries. Use * alone, or names alone.`,
+      `${refused}: the ${what} list holds * with other entries. Use * alone, or names alone.`,
     );
   const invalid = unique(
     names.filter((name) => name !== allNames && !valid(name)),
   );
   if (invalid.length)
     refusals.push(
-      `Approval is refused: ${invalid.length > 1 ? `${what} names` : `${what} name`} ${join(invalid)} ${invalid.length > 1 ? "are" : "is"} not valid.`,
+      `${refused}: ${invalid.length > 1 ? `${what} names` : `${what} name`} ${join(invalid)} ${invalid.length > 1 ? "are" : "is"} not valid.`,
     );
   return refusals;
 }
 
 // summarizeGrant states, for each action, whether the key can do it and where.
-// A choice the server refuses states no action as allowed.
-export function summarizeGrant(choice: GrantChoice): GrantSummary {
+// A choice the server refuses states no action as allowed. refused begins each
+// reason the server refuses it, such as "Approval is refused".
+export function summarizeGrant(
+  choice: GrantChoice,
+  refused = "Approval is refused",
+): GrantSummary {
   const refusals: string[] = [];
   if (!choice.actions.length)
-    refusals.push("Approval is refused: select at least one action.");
+    refusals.push(`${refused}: select at least one action.`);
   const unknown = choice.actions.filter(
     (action) => !grantActions.includes(action as GrantAction),
   );
   if (unknown.length)
-    refusals.push(
-      `Approval is refused: action ${join(unknown)} is not supported.`,
-    );
+    refusals.push(`${refused}: action ${join(unknown)} is not supported.`);
   refusals.push(
-    ...listRefusals("agent", choice.agents, validAgentName),
-    ...listRefusals("policy", choice.policies, validPolicyName),
+    ...listRefusals(refused, "agent", choice.agents, validAgentName),
+    ...listRefusals(refused, "policy", choice.policies, validPolicyName),
   );
   const agents = unique(choice.agents);
   const policies = unique(choice.policies);

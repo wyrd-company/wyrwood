@@ -3,15 +3,24 @@
 //   implements: web-interface
 // ---
 import { useState } from "react";
-import { Field, Input, Status } from "@/components/shared";
+import {
+  Button,
+  CSRF,
+  Field,
+  Input,
+  Notice,
+  Panel,
+  Status,
+} from "@/components/shared";
 import {
   allNames,
   grantActions,
   grantNames,
-  immutableText,
   summarizeGrant,
   type GrantAction,
+  type GrantChoice,
 } from "@/lib/grant-summary";
+import type { Grant, OperatorKeyGrantData } from "@/types";
 
 const actionText: Record<GrantAction, string> = {
   read: "Read policies and bindings",
@@ -19,10 +28,29 @@ const actionText: Record<GrantAction, string> = {
   "policy-write": "Create and change policies",
 };
 
+const actionNames: Record<GrantAction, string> = {
+  read: "Read",
+  bind: "Bind",
+  "policy-write": "Policy write",
+};
+
 interface ListState {
   all: boolean;
   selected: string[];
   other: string;
+}
+
+// listState shows a stored list: * alone selects all, a name the screen offers
+// is checked, and any other name is in the text field.
+function listState(names: string[] | null, offered: string[]): ListState {
+  const list = names ?? [];
+  if (list.length === 1 && list[0] === allNames)
+    return { all: true, selected: [], other: "" };
+  return {
+    all: false,
+    selected: offered.filter((name) => list.includes(name)),
+    other: list.filter((name) => !offered.includes(name)).join(", "),
+  };
 }
 
 // listNames is the list a grant stores for the state: * alone when all is
@@ -115,16 +143,14 @@ function NameList({
 
 function GrantSummaryView({
   id,
-  agents,
-  policies,
-  actions,
+  choice,
+  refused,
 }: {
   id: string;
-  agents: string[];
-  policies: string[];
-  actions: string[];
+  choice: GrantChoice;
+  refused?: string;
 }) {
-  const summary = summarizeGrant({ agents, policies, actions });
+  const summary = summarizeGrant(choice, refused);
   return (
     <section
       className="grant-summary"
@@ -153,9 +179,63 @@ function GrantSummaryView({
           </li>
         ))}
       </ul>
-      <p className="hint">{immutableText}</p>
     </section>
   );
+}
+
+// useGrant holds the agents, policies, and actions a form chooses, starting
+// from a grant, and the grant they make.
+function useGrant(start: Grant, agents: string[], policies: string[]) {
+  const [agentState, setAgentState] = useState(() =>
+    listState(start.agents, agents),
+  );
+  const [policyState, setPolicyState] = useState(() =>
+    listState(start.policies, policies),
+  );
+  const [actions, setActions] = useState<string[]>(start.actions ?? []);
+  const choice: GrantChoice = {
+    agents: listNames(agentState),
+    policies: listNames(policyState),
+    actions,
+  };
+  return {
+    agentState,
+    setAgentState,
+    policyState,
+    setPolicyState,
+    actions,
+    setActions,
+    choice,
+  };
+}
+
+function ActionChoices({
+  actions,
+  setActions,
+  labels,
+}: {
+  actions: string[];
+  setActions: (actions: string[]) => void;
+  labels: Record<GrantAction, string>;
+}) {
+  return grantActions.map((value) => (
+    <label key={value} className="choice">
+      <input
+        type="checkbox"
+        name="actions"
+        value={value}
+        checked={actions.includes(value)}
+        onChange={(event) =>
+          setActions(
+            grantActions.filter((item) =>
+              item === value ? event.target.checked : actions.includes(item),
+            ),
+          )
+        }
+      />
+      <span>{labels[value]}</span>
+    </label>
+  ));
 }
 
 // GrantChoices are the agents, policies, and actions of the grant a pending key
@@ -169,10 +249,11 @@ export function GrantChoices({
   agents: string[];
   policies: string[];
 }) {
-  const empty: ListState = { all: false, selected: [], other: "" };
-  const [agentState, setAgentState] = useState(empty);
-  const [policyState, setPolicyState] = useState(empty);
-  const [actions, setActions] = useState<string[]>(["read"]);
+  const grant = useGrant(
+    { agents: [], policies: [], actions: ["read"] },
+    agents,
+    policies,
+  );
   return (
     <div className="grant-choices">
       <NameList
@@ -184,8 +265,8 @@ export function GrantChoices({
         emptyText="No agent is approved yet."
         otherLabel="Other agent names"
         otherHint="Names separated by commas, for agents that are not approved yet."
-        state={agentState}
-        onChange={setAgentState}
+        state={grant.agentState}
+        onChange={grant.setAgentState}
       />
       <NameList
         field="policies"
@@ -197,38 +278,125 @@ export function GrantChoices({
         otherLabel="Other policy names"
         hint="This key cannot read or touch a binding that holds a policy outside this list, and cannot change a policy that a binding outside its grant holds."
         otherHint="Names separated by commas, for policies that do not exist yet, such as a policy this key will create."
-        state={policyState}
-        onChange={setPolicyState}
+        state={grant.policyState}
+        onChange={grant.setPolicyState}
       />
       <fieldset>
         <legend>Actions</legend>
-        {grantActions.map((value) => (
-          <label key={value} className="choice">
-            <input
-              type="checkbox"
-              name="actions"
-              value={value}
-              checked={actions.includes(value)}
-              onChange={(event) =>
-                setActions(
-                  grantActions.filter((item) =>
-                    item === value
-                      ? event.target.checked
-                      : actions.includes(item),
-                  ),
-                )
-              }
-            />
-            <span>{actionText[value]}</span>
-          </label>
-        ))}
+        <ActionChoices
+          actions={grant.actions}
+          setActions={grant.setActions}
+          labels={actionText}
+        />
       </fieldset>
-      <GrantSummaryView
-        id={id}
-        agents={listNames(agentState)}
-        policies={listNames(policyState)}
-        actions={actions}
-      />
+      <GrantSummaryView id={id} choice={grant.choice} />
     </div>
+  );
+}
+
+// OperatorKeyGrant edits the grant of an approved key. Validate checks the
+// grant without saving it; Save applies it.
+export function OperatorKeyGrant({ data: d }: { data: OperatorKeyGrantData }) {
+  const id = "edit";
+  const agents = d.GrantAgents ?? [];
+  const policies = d.GrantPolicies ?? [];
+  const grant = useGrant(d.Grant, agents, policies);
+  const [check, setCheck] = useState<string[] | null>(null);
+  return (
+    <main>
+      <Notice text={d.Notice} />
+      {d.Problem && (
+        <p className="problem" role="alert">
+          {d.Problem}
+        </p>
+      )}
+      <a href="/operator-keys">← Operator keys</a>
+      <Panel aria-labelledby="h-grant" className="flex flex-col gap-4">
+        <div className="key-identity">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2>{d.Label}</h2>
+            <Status kind="good">Approved</Status>
+          </div>
+          <code className="break-all hint">{d.Fingerprint}</code>
+        </div>
+        <h2 id="h-grant">Edit grant</h2>
+        <form
+          method="post"
+          action="/operator-keys/grant"
+          className="flex flex-col gap-4"
+          onChange={() => setCheck(null)}
+        >
+          <CSRF token={d.CSRF} />
+          <input type="hidden" name="fingerprint" value={d.Fingerprint} />
+          <input type="hidden" name="previous" value={d.Previous} />
+          <div className="grant-grid">
+            <NameList
+              field="agents"
+              id={id}
+              legend="Agents"
+              allText="All agents, including agents approved later"
+              names={agents}
+              emptyText="No agent is approved yet."
+              otherLabel="Other agent names"
+              otherHint="Comma-separated names."
+              state={grant.agentState}
+              onChange={grant.setAgentState}
+            />
+            <NameList
+              field="policies"
+              id={id}
+              legend="Policies"
+              allText="All policies, including policies created later"
+              names={policies}
+              emptyText="No policy exists yet."
+              otherLabel="Other policy names"
+              otherHint="Comma-separated names."
+              state={grant.policyState}
+              onChange={grant.setPolicyState}
+            />
+            <fieldset className="span-all">
+              <legend>Actions</legend>
+              <div className="grant-actions">
+                <ActionChoices
+                  actions={grant.actions}
+                  setActions={grant.setActions}
+                  labels={actionNames}
+                />
+              </div>
+            </fieldset>
+          </div>
+          <GrantSummaryView
+            id={id}
+            choice={grant.choice}
+            refused="Saving is refused"
+          />
+          {check?.length ? (
+            <p className="problem" role="alert">
+              {check.join(" ")}
+            </p>
+          ) : (
+            check && (
+              <p className="hint" role="status">
+                Valid grant.
+              </p>
+            )
+          )}
+          <div className="actions">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setCheck(summarizeGrant(grant.choice, "Not valid").refusals)
+              }
+            >
+              Validate
+            </Button>
+            <Button type="submit" className="primary">
+              Save
+            </Button>
+          </div>
+        </form>
+      </Panel>
+    </main>
   );
 }

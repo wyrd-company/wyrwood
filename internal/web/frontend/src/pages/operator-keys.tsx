@@ -184,13 +184,23 @@ export function OperatorKeys({ data: d }: { data: OperatorKeysData }) {
                   <When time={item.LastUsed} />
                 </td>
                 <td>
-                  <Button asChild variant="outline" className="danger">
-                    <a
-                      href={`/operator-keys/revoke?fingerprint=${encodeURIComponent(item.Fingerprint)}`}
-                    >
-                      Revoke {item.Label}
-                    </a>
-                  </Button>
+                  <div className="actions">
+                    <Button asChild variant="outline">
+                      <a
+                        href={`/operator-keys/grant?fingerprint=${encodeURIComponent(item.Fingerprint)}`}
+                        aria-label={`Edit grant of ${item.Label}`}
+                      >
+                        Edit grant
+                      </a>
+                    </Button>
+                    <Button asChild variant="outline" className="danger">
+                      <a
+                        href={`/operator-keys/revoke?fingerprint=${encodeURIComponent(item.Fingerprint)}`}
+                      >
+                        Revoke {item.Label}
+                      </a>
+                    </Button>
+                  </div>
                 </td>
               </tr>
             ))}

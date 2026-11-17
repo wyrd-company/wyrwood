@@ -215,7 +215,7 @@ func TestOperatorKeyFormOffersOnlyGrantNames(t *testing.T) {
 		}
 	}
 	page := renderedPage(t, body)
-	for _, want := range []string{`value="*"`, `value="agent-a"`, `value="policy-y"`, "All agents, including agents approved later", "What this key can do", "A grant cannot be changed after approval."} {
+	for _, want := range []string{`value="*"`, `value="agent-a"`, `value="policy-y"`, "All agents, including agents approved later", "What this key can do"} {
 		if !strings.Contains(page, want) {
 			t.Fatalf("the approval form has no %s: %s", want, page)
 		}
