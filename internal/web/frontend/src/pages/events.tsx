@@ -2,6 +2,7 @@
 // relationships:
 //   implements: web-interface
 // ---
+import { Fragment } from "react";
 import { Status, Table } from "@/components/shared";
 import { stamp } from "@/lib/time";
 import type { EventsData, GrantChange } from "@/types";
@@ -80,29 +81,35 @@ export function Events({ data: d }: { data: EventsData }) {
           empty="No events."
         >
           {d.Events?.map((event, index) => (
-            <tr key={index}>
-              <td className="mono whitespace-nowrap text-xs">
-                {stamp(event.Time)}
-              </td>
-              <td className="mono text-sm">{event.Operation}</td>
-              <td>
-                <Status kind={event.Class}>{event.Outcome}</Status>
-                {event.Error && (
-                  <span className="hint mono"> {event.Error}</span>
-                )}
-              </td>
-              <td className="mono text-xs">
-                {event.Subject}
-                {event.Grant && (
-                  <GrantChangeDetails
-                    subject={event.Subject}
-                    change={event.Grant}
-                  />
-                )}
-              </td>
-              <td>{event.Operator}</td>
-              <td className="mono text-xs">{event.Latency}</td>
-            </tr>
+            <Fragment key={index}>
+              <tr className={event.Grant ? "has-detail" : undefined}>
+                <td className="mono whitespace-nowrap text-xs">
+                  {stamp(event.Time)}
+                </td>
+                <td className="mono text-sm">{event.Operation}</td>
+                <td>
+                  <Status kind={event.Class}>{event.Outcome}</Status>
+                  {event.Error && (
+                    <span className="hint mono"> {event.Error}</span>
+                  )}
+                </td>
+                <td className="mono text-xs">{event.Subject}</td>
+                <td>{event.Operator}</td>
+                <td className="mono text-xs">{event.Latency}</td>
+              </tr>
+              {event.Grant && (
+                <tr className="event-detail">
+                  {/* The old and new grant spans the row, so the columns above
+                    keep their widths. */}
+                  <td colSpan={6}>
+                    <GrantChangeDetails
+                      subject={event.Subject}
+                      change={event.Grant}
+                    />
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </Table>
       </section>

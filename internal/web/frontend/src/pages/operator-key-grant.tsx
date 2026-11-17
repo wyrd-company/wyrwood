@@ -354,17 +354,17 @@ export function OperatorKeyGrant({ data: d }: { data: OperatorKeyGrantData }) {
               state={grant.policyState}
               onChange={grant.setPolicyState}
             />
-            <fieldset className="span-all">
-              <legend>Actions</legend>
-              <div className="grant-actions">
-                <ActionChoices
-                  actions={grant.actions}
-                  setActions={grant.setActions}
-                  labels={actionNames}
-                />
-              </div>
-            </fieldset>
           </div>
+          <fieldset>
+            <legend>Actions</legend>
+            <div className="grant-actions">
+              <ActionChoices
+                actions={grant.actions}
+                setActions={grant.setActions}
+                labels={actionNames}
+              />
+            </div>
+          </fieldset>
           <GrantSummaryView
             id={id}
             choice={grant.choice}

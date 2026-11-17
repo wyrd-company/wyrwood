@@ -759,9 +759,6 @@ ul.plain li {
   gap: 20px 24px;
   align-items: start;
 }
-.grant-grid .span-all {
-  grid-column: 1 / -1;
-}
 .grant-actions {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -771,9 +768,13 @@ ul.plain li {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 6px;
-  font-family: var(--sans);
   font-size: 13px;
+}
+tr.has-detail td {
+  border-bottom: 0;
+}
+tr.event-detail td {
+  padding-top: 0;
 }
 .grant-change summary {
   cursor: pointer;
