@@ -42,6 +42,12 @@
   fields are unchanged; a 0.7.0 controller refuses an event log that holds the
   new operation, so going back after a grant edit needs the event log from before
   the upgrade.
+- For a binding keyed by a Compose service, **Container setup** examples now
+  match the key. The Compose fragment sets the project name and service from the
+  key and omits `container_name`; the `docker run` example supplies matching
+  Compose project and service labels. Anyone who copied either example for such
+  a binding before 0.7.1 should copy it again, because the container it made is
+  not governed by the binding.
 
 ## 0.1.5
 
