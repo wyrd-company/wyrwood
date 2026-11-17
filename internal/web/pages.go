@@ -933,7 +933,9 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 			}
 		}
 		if len(page.Events) == maximumEventRows {
-			break
+			// The rows are full. Older events may still hold entries of an edit
+			// that has a row, so the scan goes on without adding rows.
+			continue
 		}
 		if edit != "" {
 			gathered := &grantEdit{row: len(page.Events), fingerprint: event.Fingerprint}

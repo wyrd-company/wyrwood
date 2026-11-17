@@ -7,7 +7,8 @@ import { Status, Table } from "@/components/shared";
 import { stamp } from "@/lib/time";
 import type { EventsData, GrantChange } from "@/types";
 
-// GrantChangeDetails shows the old and new grant of an operator key grant edit.
+// GrantChangeDetails shows the old and new grant of an operator key grant edit,
+// or says that the history no longer holds all of it.
 function GrantChangeDetails({
   subject,
   change,
@@ -19,30 +20,37 @@ function GrantChangeDetails({
     <details className="grant-change">
       <summary>Old and new grant</summary>
       <code className="break-all hint">{change.Fingerprint}</code>
-      <table className="grant-diff">
-        <caption className="visually-hidden">
-          Old and new grant of {subject}
-        </caption>
-        <thead>
-          <tr>
-            <th scope="col">Grant</th>
-            <th scope="col">Before</th>
-            <th scope="col">After</th>
-          </tr>
-        </thead>
-        <tbody>
-          {change.Rows.map((row) => (
-            <tr key={row.Name}>
-              <th scope="row">{row.Name}</th>
-              <td>{row.Before}</td>
-              <td className={row.Changed ? "changed" : undefined}>
-                {row.After}
-                {row.Changed && <strong> · Changed</strong>}
-              </td>
+      {change.Complete ? (
+        <table className="grant-diff">
+          <caption className="visually-hidden">
+            Old and new grant of {subject}
+          </caption>
+          <thead>
+            <tr>
+              <th scope="col">Grant</th>
+              <th scope="col">Before</th>
+              <th scope="col">After</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {change.Rows?.map((row) => (
+              <tr key={row.Name}>
+                <th scope="row">{row.Name}</th>
+                <td>{row.Before}</td>
+                <td className={row.Changed ? "changed" : undefined}>
+                  {row.After}
+                  {row.Changed && <strong> · Changed</strong>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <p className="hint">
+          Part of this edit is no longer in the event history, so its old and
+          new grant are not shown.
+        </p>
+      )}
       {change.EditURL && <a href={change.EditURL}>View current key grant</a>}
     </details>
   );

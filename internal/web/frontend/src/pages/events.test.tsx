@@ -35,6 +35,7 @@ const data: EventsData = {
         Fingerprint: "SHA256:sample-operator-key",
         EditURL:
           "/operator-keys/grant?fingerprint=SHA256%3Asample-operator-key",
+        Complete: true,
         Rows: [
           { Name: "Agents", Before: "tools", After: "tools", Changed: false },
           {
@@ -94,4 +95,34 @@ it("shows a grant edit as one row with its old and new grant", async () => {
 it("leaves other events as they were", () => {
   render(<App page={{ page: "events", data }} />);
   expect(screen.getAllByText("Old and new grant")).toHaveLength(1);
+});
+
+it("shows no grant for an edit the history no longer holds whole", async () => {
+  const user = userEvent.setup();
+  const first = data.Events![0];
+  render(
+    <App
+      page={{
+        page: "events",
+        data: {
+          ...data,
+          Events: [
+            {
+              ...first,
+              Grant: { ...first.Grant!, Complete: false, Rows: null },
+            },
+          ],
+        },
+      }}
+    />,
+  );
+  await user.click(screen.getByText("Old and new grant"));
+  expect(
+    screen.getByText(
+      "Part of this edit is no longer in the event history, so its old and new grant are not shown.",
+    ),
+  ).toBeVisible();
+  expect(
+    screen.queryByRole("table", { name: /Old and new grant of/ }),
+  ).toBeNull();
 });

@@ -118,14 +118,24 @@ func TestAGrantEditRecordsTheOldAndNewGrant(t *testing.T) {
 			got["agents"] = append(got["agents"], entry{event.Agent, event.NewAgent})
 		case event.Policy != "" || event.NewPolicy != "":
 			got["policies"] = append(got["policies"], entry{event.Policy, event.NewPolicy})
-		default:
+		case event.Action != "" || event.NewAction != "":
 			got["actions"] = append(got["actions"], entry{string(event.Action), string(event.NewAction)})
+		default:
+			got["bounds"] = append(got["bounds"], entry{})
 		}
+	}
+	// The edit begins and ends with an event that names no entry, so that a
+	// reader can tell whether it has every event of the edit.
+	bound := events.Event{Time: recorded[0].Time, Operation: events.OperationOperatorKeyGrantChanged, Outcome: events.OutcomeOK,
+		Fingerprint: fingerprint, Operator: "sample-approver"}
+	if recorded[0] != bound || recorded[len(recorded)-1] != bound {
+		t.Fatalf("the edit's first and last events = %+v, %+v; want %+v", recorded[0], recorded[len(recorded)-1], bound)
 	}
 	want := map[string][]entry{
 		"agents":   {{"", "*"}, {"host-a", ""}},
 		"policies": {{"amber", ""}, {"", "cyan"}, {"teal", "teal"}},
 		"actions":  {{"", "policy-write"}, {"read", "read"}},
+		"bounds":   {{}, {}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("recorded entries = %v; want %v", got, want)

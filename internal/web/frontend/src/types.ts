@@ -307,7 +307,11 @@ export interface KeysData extends Layout {
 export interface GrantChange {
   Fingerprint: string;
   EditURL: string;
-  Rows: { Name: string; Before: string; After: string; Changed: boolean }[];
+  // Complete is whether every event of the edit is in the history. Rows is
+  // empty when it is not.
+  Complete: boolean;
+  Rows:
+    { Name: string; Before: string; After: string; Changed: boolean }[] | null;
 }
 export interface EventsData extends Layout {
   Outcome: string;

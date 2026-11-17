@@ -192,16 +192,21 @@ func (controller *Controller) changeGrants(ctx context.Context, changes []store.
 }
 
 // recordGrantChange records one event for each agent, policy, and action that
-// the grant held before the change or holds after it. Every event of the change
-// has the same time, the key, and the operator, so that the events of one
-// change can be read back together as the old and the new grant. A change that
-// leaves the grant as it was records nothing.
+// the grant held before the change or holds after it, between two events that
+// name no entry. Every event of the change has the same time, the key, and the
+// operator, so that the events of one change can be read back together as the
+// old and the new grant, and a reader knows it has them all when it has both
+// bounds: retention drops the oldest events, and a stopped controller can
+// leave a change without its newest. A change that leaves the grant as it was
+// records nothing.
 func (controller *Controller) recordGrantChange(now time.Time, change store.OperatorKeyGrantChange, by string) {
 	if store.SameGrant(change.From, change.To) {
 		return
 	}
 	base := events.Event{Time: now, Operation: events.OperationOperatorKeyGrantChanged, Outcome: events.OutcomeOK,
 		Fingerprint: change.Fingerprint, Operator: by}
+	controller.record(base)
+	defer controller.record(base)
 	entries := func(before, after []string, set func(event *events.Event, before, after string)) {
 		for _, name := range slices.Compact(slices.Sorted(slices.Values(append(slices.Clone(before), after...)))) {
 			event := base

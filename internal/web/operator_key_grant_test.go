@@ -396,7 +396,7 @@ func TestAGrantEditIsOneEventRow(t *testing.T) {
 		{Name: "Bind", Before: "Denied", After: "Denied"},
 		{Name: "Policy write", Before: "Denied", After: "Allowed", Changed: true},
 	}
-	if !reflect.DeepEqual(row.Grant.Rows, want) {
+	if !row.Grant.Complete || !reflect.DeepEqual(row.Grant.Rows, want) {
 		t.Fatalf("rows = %+v; want %+v", row.Grant.Rows, want)
 	}
 	page := renderedPage(t, body)
@@ -404,5 +404,134 @@ func TestAGrantEditIsOneEventRow(t *testing.T) {
 		if !strings.Contains(page, want) {
 			t.Fatalf("the Events screen has no %s: %s", want, page)
 		}
+	}
+}
+
+// The edit at the last displayed row shows its whole old and new grant, also
+// when an unrelated event came between its events and the newer events fill
+// every other row. This is review round 1's reproducer; it picks the edit's
+// last entry by its action, since an edit's events end with one that names
+// no entry.
+func TestAGrantEditAtTheRowLimitIsWhole(t *testing.T) {
+	ctx := context.Background()
+	before := operatorclient.Grant{Agents: []string{"sample-host"}, Policies: []string{"teal"}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	harness, browserClient, _, fingerprint := grantEditFixture(t, before)
+	after := before
+	after.Policies = []string{"teal", "amber"}
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, before, after, "review-operator"); err != nil {
+		t.Fatal(err)
+	}
+	var entry events.Event
+	for _, event := range harness.controller.Events().Recent(1000) {
+		if event.Operation == events.OperationOperatorKeyGrantChanged && event.Fingerprint == fingerprint && event.Action != events.ActionNone {
+			entry = event
+		}
+	}
+	if entry.Action != events.ActionRead {
+		t.Fatalf("expected final action entry, got %+v", entry)
+	}
+	appendEvent := func(event events.Event) {
+		t.Helper()
+		if err := harness.controller.Events().Append(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	unrelated := events.Event{Time: time.Now().UTC(), Operation: events.OperationPolicySaved, Outcome: events.OutcomeOK, Policy: "teal", Operator: "review-operator"}
+	// As in TestAGrantEditIsOneEventRow, move one entry behind an unrelated
+	// event; duplicates disappear in the grant's set projection.
+	appendEvent(unrelated)
+	appendEvent(entry)
+	for range maximumEventRows - 1 {
+		appendEvent(unrelated)
+	}
+	payload := eventsPayload(t, browserClient, harness.site.URL+"/events")
+	if len(payload.Events) != maximumEventRows {
+		t.Fatalf("rows = %d; want %d", len(payload.Events), maximumEventRows)
+	}
+	row := payload.Events[maximumEventRows-1]
+	if row.Grant == nil {
+		t.Fatalf("the last displayed row is not the grant edit: %+v", row)
+	}
+	want := []grantChangeRow{
+		{Name: "Agents", Before: "sample-host", After: "sample-host"},
+		{Name: "Policies", Before: "teal", After: "amber, teal", Changed: true},
+		{Name: "Read", Before: "Allowed", After: "Allowed"},
+		{Name: "Bind", Before: "Denied", After: "Denied"},
+		{Name: "Policy write", Before: "Denied", After: "Denied"},
+	}
+	if !row.Grant.Complete || !reflect.DeepEqual(row.Grant.Rows, want) {
+		t.Fatalf("incomplete history presented as complete old/new grant: %+v", row.Grant)
+	}
+}
+
+// eventsPayload reads the page data of the Events screen.
+func eventsPayload(t *testing.T, client *http.Client, target string) eventsPage {
+	t.Helper()
+	response, err := client.Get(target)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	match := pageDataPattern.FindSubmatch(body)
+	if match == nil {
+		t.Fatalf("no page data in %s", body)
+	}
+	var payload struct{ Data eventsPage }
+	if err := json.Unmarshal(match[1], &payload); err != nil {
+		t.Fatal(err)
+	}
+	return payload.Data
+}
+
+// Retention drops the oldest events, so an edit can lose its first events
+// while its newest stay. Its row then says that the edit is not whole and
+// shows no old or new grant.
+func TestACutOffGrantEditShowsNoGrant(t *testing.T) {
+	ctx := context.Background()
+	before := operatorclient.Grant{Agents: []string{"sample-host"}, Policies: []string{"teal"}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	harness, browserClient, _, fingerprint := grantEditFixture(t, before)
+	after := before
+	after.Policies = []string{"teal", "amber"}
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, before, after, "review-operator"); err != nil {
+		t.Fatal(err)
+	}
+	var edit []events.Event
+	for _, event := range harness.controller.Events().Recent(1000) {
+		if event.Operation == events.OperationOperatorKeyGrantChanged {
+			edit = append(edit, event)
+		}
+	}
+	// Record the same edit again under another time without its first two
+	// events, the bound and the agent entry, as retention would leave it.
+	cut := time.Now().UTC().Add(time.Second)
+	for _, event := range edit[2:] {
+		event.Time = cut
+		if err := harness.controller.Events().Append(event); err != nil {
+			t.Fatal(err)
+		}
+	}
+	page := eventsPayload(t, browserClient, harness.site.URL+"/events")
+	var changes []*grantChange
+	for _, row := range page.Events {
+		if row.Grant != nil {
+			changes = append(changes, row.Grant)
+		}
+	}
+	if len(changes) != 2 {
+		t.Fatalf("grant edit rows = %d; want 2", len(changes))
+	}
+	if changes[0].Complete || len(changes[0].Rows) != 0 {
+		t.Fatalf("a cut-off edit shows a grant: %+v", changes[0])
+	}
+	if !changes[1].Complete || len(changes[1].Rows) != 5 {
+		t.Fatalf("the whole edit = %+v", changes[1])
+	}
+	rendered := get(t, browserClient, harness.site.URL+"/events")
+	if !strings.Contains(rendered.body, "Part of this edit is no longer in the event history") {
+		t.Fatalf("the Events screen does not say the edit is cut off: %s", rendered.body)
 	}
 }

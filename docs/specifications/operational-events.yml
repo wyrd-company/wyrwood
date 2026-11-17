@@ -37,8 +37,10 @@ description: >-
   key's fingerprint, and the operator who edited it: `agent` and `new-agent` name
   an agent entry, `policy` and `new-policy` a policy entry, and `action` and
   `new-action` an action, each set when the grant held the entry before and after
-  the edit respectively. `*` is the entry for all agents or all policies. An edit
-  that leaves the grant as it was records nothing. A change made by an operator
+  the edit respectively. `*` is the entry for all agents or all policies. The
+  edit's first and last events name no entry, so that a reader can tell whether
+  it holds every event of the edit. An edit that leaves the grant as it was
+  records nothing. A change made by an operator
   key carries the subject `key:<label>`. A change that
   the key's grant does not cover carries its operation, the outcome `denied`, and
   `outside-grant`.

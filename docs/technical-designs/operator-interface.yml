@@ -125,8 +125,8 @@ proposed-design:
     created-by fields. Approving, rejecting, and revoking a key record their own events,
     which name the key's fingerprint and the operator who decided. A grant edit
     records `operator-key-grant-changed` for each entry of the old and new grant,
-    with one time, the key's fingerprint, and the operator, as the operational
-    events specification defines. A binding change
+    between two events that name no entry, with one time, the key's fingerprint,
+    and the operator, as the operational events specification defines. A binding change
     records each policy of the selection before and after it, as the operational
     events specification defines. Every refused change records `binding-changed` with
     the key and no policy, also a change with no revision or of a binding that does

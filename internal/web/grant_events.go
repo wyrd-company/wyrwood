@@ -23,7 +23,11 @@ type grantChange struct {
 	Fingerprint string
 	// EditURL opens the key's grant editor while the key is approved.
 	EditURL string
-	Rows    []grantChangeRow
+	// Complete is whether every event of the edit is in the history. Rows is
+	// empty when it is not, since the entries that are left do not say what
+	// the grant was.
+	Complete bool
+	Rows     []grantChangeRow
 }
 
 type grantChangeRow struct {
@@ -33,16 +37,26 @@ type grantChangeRow struct {
 	Changed bool
 }
 
-// grantEdit gathers the events of one edit. Each event holds one entry of the
-// grant before the edit, after it, or both.
+// grantEdit gathers the events of one edit. The edit's first and last events
+// name no entry, and each event between them holds one entry of the grant
+// before the edit, after it, or both.
 type grantEdit struct {
 	row              int
 	fingerprint      string
 	agents, policies [2][]string
 	actions          [2][]string
+	// bounds counts the events that name no entry. An edit is whole when both
+	// are in the history: retention drops the oldest events, and an edit cut
+	// short leaves out the newest.
+	bounds int
 }
 
 func (edit *grantEdit) add(event events.Event) {
+	if event.Agent == "" && event.NewAgent == "" && event.Policy == "" && event.NewPolicy == "" &&
+		event.Action == events.ActionNone && event.NewAction == events.ActionNone {
+		edit.bounds++
+		return
+	}
 	gather := func(list *[2][]string, before, after string) {
 		if before != "" {
 			list[0] = append(list[0], before)
@@ -57,11 +71,14 @@ func (edit *grantEdit) add(event events.Event) {
 }
 
 func (edit *grantEdit) change(keys []store.OperatorKey) *grantChange {
-	change := &grantChange{Fingerprint: edit.fingerprint}
+	change := &grantChange{Fingerprint: edit.fingerprint, Complete: edit.bounds >= 2}
 	for _, key := range keys {
 		if key.Fingerprint == edit.fingerprint && key.State == store.OperatorKeyApproved {
 			change.EditURL = "/operator-keys/grant?" + url.Values{"fingerprint": {key.Fingerprint}}.Encode()
 		}
+	}
+	if !change.Complete {
+		return change
 	}
 	names := func(list []string) string {
 		list = slices.Compact(slices.Sorted(slices.Values(list)))

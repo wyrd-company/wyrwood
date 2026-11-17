@@ -431,6 +431,10 @@ proposed-design:
     fields the operational-event schema allows. The events of one grant edit,
     which share a time, a key, and an operator, are one row that names the key
     as `key:<label>` and opens the old and new agents, policies, and actions.
+    An edit with a row gathers its events from the whole retained history, also
+    past the row limit. An edit without both of its bounding events, as when
+    retention dropped its oldest, says that part of it is no longer in the
+    history and shows no grant.
   accessibility: >-
     Every page works at phone width: below 792 pixels the navigation
     collapses into the Menu control, and wide tables scroll inside their own
