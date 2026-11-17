@@ -212,24 +212,24 @@ func (server *Server) handleChangeOperatorKeyGrant(writer http.ResponseWriter, r
 	var previous operatorclient.Grant
 	decoder := json.NewDecoder(strings.NewReader(request.PostFormValue("previous")))
 	decoder.DisallowUnknownFields()
-	err := decoder.Decode(&previous)
-	if err == nil {
-		err = server.controller.ChangeOperatorKeyGrant(request.Context(), fingerprint, previous, grant, operatorSubject(request))
+	problem := "The form does not say which grant it started from. Check the grant and save again."
+	if decoder.Decode(&previous) == nil {
+		err := server.controller.ChangeOperatorKeyGrant(request.Context(), fingerprint, previous, grant, operatorSubject(request))
 		if err == nil {
 			http.Redirect(writer, request, "/operator-keys/grant?"+url.Values{"fingerprint": {fingerprint}, "notice": {"grant-saved"}}.Encode(), http.StatusSeeOther)
 			return
 		}
+		problem = problemMessage(err)
 	} else {
-		// A form that holds no readable grant to start from edits the grant the
-		// key holds now, which the page then shows as the one to start from.
+		// The page then starts the edit from the grant the key holds now.
 		previous = key.Grant
 	}
-	page, readErr := server.operatorKeyGrantPage(request, key, grant, previous)
-	if readErr != nil {
+	page, err := server.operatorKeyGrantPage(request, key, grant, previous)
+	if err != nil {
 		http.Error(writer, "Operator keys could not be read.", http.StatusInternalServerError)
 		return
 	}
-	page.Problem = problemMessage(err)
+	page.Problem = problem
 	server.renderStatus(writer, request, http.StatusUnprocessableEntity, "operator-key-grant", page)
 }
 

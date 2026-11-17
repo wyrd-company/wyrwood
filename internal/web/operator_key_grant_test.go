@@ -187,6 +187,16 @@ func TestAStaleGrantEditIsRefused(t *testing.T) {
 	if forged.status != http.StatusForbidden {
 		t.Fatalf("a save with no CSRF token = %d", forged.status)
 	}
+	unreadable := post(t, browserClient, harness.site.URL+"/operator-keys/grant", url.Values{
+		"csrf": {csrf(t, editor.body)}, "fingerprint": {fingerprint}, "previous": {`{"agents":`},
+		"agents": {"*"}, "policies": {"*"}, "actions": {"read"},
+	})
+	if unreadable.status != http.StatusUnprocessableEntity || !strings.Contains(unreadable.body, "does not say which grant it started from") {
+		t.Fatalf("save with no readable previous grant = %d %s", unreadable.status, unreadable.body)
+	}
+	if stored, err := harness.controller.Store().OperatorKey(ctx, fingerprint); err != nil || !store.SameGrant(stored.Grant, other) {
+		t.Fatalf("a save with no readable previous grant changed the grant: %+v, %v", stored, err)
+	}
 	if missing := get(t, browserClient, harness.site.URL+"/operator-keys/grant?fingerprint=SHA256%3Aunknown"); !strings.Contains(missing.body, "No approved key has this fingerprint") {
 		t.Fatalf("editor of an unknown key = %s", missing.body)
 	}
@@ -271,6 +281,25 @@ func TestAPolicyChoosesItsOperatorKeys(t *testing.T) {
 		t.Fatalf("a key the form did not list lost the policy: %+v", got)
 	}
 
+	// A key's grant editor gives it the policy after the policy's screen opened
+	// with the key's box clear. Saving that screen with the box still clear
+	// leaves the key as the other edit made it.
+	readerGrant := grantOf(readerPrint)
+	gained := readerGrant
+	gained.Policies = []string{"amber"}
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, readerPrint, readerGrant, gained, "other-operator"); err != nil {
+		t.Fatal(err)
+	}
+	if unchanged := save(url.Values{"operator-keys-listed": {readerPrint}}); !strings.Contains(unchanged.body, "Policy saved") {
+		t.Fatalf("save = %s", unchanged.body)
+	}
+	if got := grantOf(readerPrint); !slices.Equal(got.Policies, []string{"amber"}) {
+		t.Fatalf("a box that did not change took the policy away: %+v", got)
+	}
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, readerPrint, gained, readerGrant, "other-operator"); err != nil {
+		t.Fatal(err)
+	}
+
 	forged := save(url.Values{"operator-keys-listed": {adminPrint, readerPrint}, "operator-keys-held": {adminPrint}, "operator-keys": {readerPrint}})
 	if forged.status != http.StatusUnprocessableEntity || !strings.Contains(forged.body, "Policy saved. Its operator keys did not change: operator key fleet-admin holds all policies") {
 		t.Fatalf("taking the policy from a key with all policies = %d %s", forged.status, forged.body)
@@ -305,11 +334,17 @@ func TestAGrantEditIsOneEventRow(t *testing.T) {
 	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, before, after, "editor-subject"); err != nil {
 		t.Fatal(err)
 	}
-	// Move one event of the edit behind an unrelated event, as a concurrent
-	// writer could.
+	// A second edit of the same key is a row of its own.
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, after, before, "editor-subject"); err != nil {
+		t.Fatal(err)
+	}
+	// Move one event of the second edit behind an unrelated event, as a
+	// concurrent writer could.
 	var edit []events.Event
-	for _, event := range harness.controller.Events().Recent(1000) {
-		if event.Operation == events.OperationOperatorKeyGrantChanged {
+	recent := harness.controller.Events().Recent(1000)
+	for index := len(recent) - 1; index >= 0; index-- {
+		event := recent[index]
+		if event.Operation == events.OperationOperatorKeyGrantChanged && (len(edit) == 0 || event.Time.Equal(edit[0].Time)) {
 			edit = append(edit, event)
 		}
 	}
@@ -343,10 +378,13 @@ func TestAGrantEditIsOneEventRow(t *testing.T) {
 			rows = append(rows, row)
 		}
 	}
-	if len(rows) != 1 || rows[0].Grant == nil {
-		t.Fatalf("grant edit rows = %+v; want one row", rows)
+	if len(rows) != 2 || rows[0].Grant == nil || rows[1].Grant == nil {
+		t.Fatalf("grant edit rows = %+v; want one row for each edit", rows)
 	}
-	row := rows[0]
+	if !rows[0].Time.After(rows[1].Time) || rows[0].Grant.Rows[0] != (grantChangeRow{Name: "Agents", Before: "All", After: "sample-host", Changed: true}) {
+		t.Fatalf("the second edit is not the newest row: %+v", rows)
+	}
+	row := rows[1]
 	editURL := "/operator-keys/grant?" + url.Values{"fingerprint": {fingerprint}}.Encode()
 	if row.Subject != "key:menagerie" || row.Operator != "editor-subject" || row.Grant.Fingerprint != fingerprint || row.Grant.EditURL != editURL {
 		t.Fatalf("row = %+v, change = %+v", row, row.Grant)
