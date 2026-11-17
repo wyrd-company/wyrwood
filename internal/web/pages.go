@@ -902,16 +902,46 @@ type eventRow struct {
 	Subject   string
 	Operator  string
 	Latency   string
+	// Grant is the old and new grant of an operator key grant edit. One row
+	// stands for all the events of the edit.
+	Grant *grantChange
 }
+
+const maximumEventRows = 500
+
+var outcomeClass = map[string]string{"ok": "good", "denied": "bad", "failed": "warn", "timeout": "warn"}
 
 func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Request) {
 	page := eventsPage{layout: server.layout(request, "Events", "events"), Outcome: request.URL.Query().Get("outcome"),
 		Outcomes: []string{"ok", "denied", "failed", "timeout"}}
 	operators, _ := server.controller.Store().Operators(request.Context())
+	keys, _ := server.controller.Store().OperatorKeys(request.Context())
+	edits := map[string]*grantEdit{}
 	recent := server.controller.Events().Recent(10_000)
-	for index := len(recent) - 1; index >= 0 && len(page.Events) < 500; index-- {
+	for index := len(recent) - 1; index >= 0; index-- {
 		event := recent[index]
 		if page.Outcome != "" && string(event.Outcome) != page.Outcome {
+			continue
+		}
+		// The events of one grant edit share their time, key, and operator.
+		edit := ""
+		if event.Operation == events.OperationOperatorKeyGrantChanged {
+			edit = event.Time.Format(time.RFC3339Nano) + " " + event.Fingerprint + " " + event.Operator
+			if gathered, ok := edits[edit]; ok {
+				gathered.add(event)
+				continue
+			}
+		}
+		if len(page.Events) == maximumEventRows {
+			break
+		}
+		if edit != "" {
+			gathered := &grantEdit{row: len(page.Events), fingerprint: event.Fingerprint}
+			gathered.add(event)
+			edits[edit] = gathered
+			page.Events = append(page.Events, eventRow{Time: event.Time, Operation: string(event.Operation), Outcome: string(event.Outcome),
+				Class: outcomeClass[string(event.Outcome)], Subject: keySubject(keys, event.Fingerprint), Operator: operatorName(operators, event.Operator),
+				Latency: event.Latency.Round(time.Millisecond).String()})
 			continue
 		}
 		var subject []string
@@ -929,8 +959,11 @@ func (server *Server) handleEvents(writer http.ResponseWriter, request *http.Req
 		if event.Operator != "" {
 			row.Operator = operatorName(operators, event.Operator)
 		}
-		row.Class = map[string]string{"ok": "good", "denied": "bad", "failed": "warn", "timeout": "warn"}[row.Outcome]
+		row.Class = outcomeClass[row.Outcome]
 		page.Events = append(page.Events, row)
+	}
+	for _, edit := range edits {
+		page.Events[edit.row].Grant = edit.change(keys)
 	}
 	server.render(writer, request, "events", page)
 }

@@ -304,6 +304,11 @@ export interface KeysData extends Layout {
       }[]
     | null;
 }
+export interface GrantChange {
+  Fingerprint: string;
+  EditURL: string;
+  Rows: { Name: string; Before: string; After: string; Changed: boolean }[];
+}
 export interface EventsData extends Layout {
   Outcome: string;
   Outcomes: string[];
@@ -317,6 +322,7 @@ export interface EventsData extends Layout {
         Subject: string;
         Operator: string;
         Latency: string;
+        Grant?: GrantChange | null;
       }[]
     | null;
 }

@@ -9,9 +9,12 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -289,5 +292,79 @@ func TestAPolicyChoosesItsOperatorKeys(t *testing.T) {
 	}
 	if got := grantOf(binderPrint); slices.Contains(got.Policies, "cyan") {
 		t.Fatalf("an unchecked key was given the new policy: %+v", got)
+	}
+}
+
+// The Events screen shows one grant edit as one row with the old and the new
+// grant, also when other events came between the edit's events.
+func TestAGrantEditIsOneEventRow(t *testing.T) {
+	ctx := context.Background()
+	before := operatorclient.Grant{Agents: []string{"sample-host"}, Policies: []string{"teal", "amber"}, Actions: []operatorclient.Action{operatorclient.ActionRead}}
+	harness, browserClient, _, fingerprint := grantEditFixture(t, before)
+	after := operatorclient.Grant{Agents: []string{"*"}, Policies: []string{"teal", "cyan"}, Actions: []operatorclient.Action{operatorclient.ActionRead, operatorclient.ActionPolicyWrite}}
+	if err := harness.controller.ChangeOperatorKeyGrant(ctx, fingerprint, before, after, "editor-subject"); err != nil {
+		t.Fatal(err)
+	}
+	// Move one event of the edit behind an unrelated event, as a concurrent
+	// writer could.
+	var edit []events.Event
+	for _, event := range harness.controller.Events().Recent(1000) {
+		if event.Operation == events.OperationOperatorKeyGrantChanged {
+			edit = append(edit, event)
+		}
+	}
+	if len(edit) < 2 {
+		t.Fatalf("the edit recorded %d events", len(edit))
+	}
+	if err := harness.controller.Events().Append(events.Event{Time: edit[0].Time, Operation: events.OperationPolicySaved, Outcome: events.OutcomeOK, Policy: "teal", Operator: "editor-subject"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := harness.controller.Events().Append(edit[0]); err != nil {
+		t.Fatal(err)
+	}
+
+	response, err := browserClient.Get(harness.site.URL + "/events")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	body, _ := io.ReadAll(response.Body)
+	match := pageDataPattern.FindSubmatch(body)
+	if match == nil {
+		t.Fatalf("no page data in %s", body)
+	}
+	var payload struct{ Data eventsPage }
+	if err := json.Unmarshal(match[1], &payload); err != nil {
+		t.Fatal(err)
+	}
+	var rows []eventRow
+	for _, row := range payload.Data.Events {
+		if row.Operation == string(events.OperationOperatorKeyGrantChanged) {
+			rows = append(rows, row)
+		}
+	}
+	if len(rows) != 1 || rows[0].Grant == nil {
+		t.Fatalf("grant edit rows = %+v; want one row", rows)
+	}
+	row := rows[0]
+	editURL := "/operator-keys/grant?" + url.Values{"fingerprint": {fingerprint}}.Encode()
+	if row.Subject != "key:menagerie" || row.Operator != "editor-subject" || row.Grant.Fingerprint != fingerprint || row.Grant.EditURL != editURL {
+		t.Fatalf("row = %+v, change = %+v", row, row.Grant)
+	}
+	want := []grantChangeRow{
+		{Name: "Agents", Before: "sample-host", After: "All", Changed: true},
+		{Name: "Policies", Before: "amber, teal", After: "cyan, teal", Changed: true},
+		{Name: "Read", Before: "Allowed", After: "Allowed"},
+		{Name: "Bind", Before: "Denied", After: "Denied"},
+		{Name: "Policy write", Before: "Denied", After: "Allowed", Changed: true},
+	}
+	if !reflect.DeepEqual(row.Grant.Rows, want) {
+		t.Fatalf("rows = %+v; want %+v", row.Grant.Rows, want)
+	}
+	page := renderedPage(t, body)
+	for _, want := range []string{"Old and new grant", "<th scope=\"row\">Policies</th><td>amber, teal</td><td class=\"changed\">cyan, teal<strong> · Changed</strong>", "View current key grant"} {
+		if !strings.Contains(page, want) {
+			t.Fatalf("the Events screen has no %s: %s", want, page)
+		}
 	}
 }

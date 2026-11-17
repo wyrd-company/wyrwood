@@ -767,6 +767,25 @@ ul.plain li {
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 8px 20px;
 }
+.grant-change {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+}
+.grant-change summary {
+  cursor: pointer;
+}
+.grant-diff th,
+.grant-diff td {
+  padding: 6px 10px;
+  text-align: left;
+}
+.grant-diff td.changed {
+  background: var(--good-bg);
+}
 .key-identity {
   display: flex;
   flex-direction: column;

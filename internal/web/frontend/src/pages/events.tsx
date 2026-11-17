@@ -4,7 +4,48 @@
 // ---
 import { Status, Table } from "@/components/shared";
 import { stamp } from "@/lib/time";
-import type { EventsData } from "@/types";
+import type { EventsData, GrantChange } from "@/types";
+
+// GrantChangeDetails shows the old and new grant of an operator key grant edit.
+function GrantChangeDetails({
+  subject,
+  change,
+}: {
+  subject: string;
+  change: GrantChange;
+}) {
+  return (
+    <details className="grant-change">
+      <summary>Old and new grant</summary>
+      <code className="break-all hint">{change.Fingerprint}</code>
+      <table className="grant-diff">
+        <caption className="visually-hidden">
+          Old and new grant of {subject}
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Grant</th>
+            <th scope="col">Before</th>
+            <th scope="col">After</th>
+          </tr>
+        </thead>
+        <tbody>
+          {change.Rows.map((row) => (
+            <tr key={row.Name}>
+              <th scope="row">{row.Name}</th>
+              <td>{row.Before}</td>
+              <td className={row.Changed ? "changed" : undefined}>
+                {row.After}
+                {row.Changed && <strong> · Changed</strong>}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {change.EditURL && <a href={change.EditURL}>View current key grant</a>}
+    </details>
+  );
+}
 export function Events({ data: d }: { data: EventsData }) {
   return (
     <main>
@@ -50,7 +91,15 @@ export function Events({ data: d }: { data: EventsData }) {
                   <span className="hint mono"> {event.Error}</span>
                 )}
               </td>
-              <td className="mono text-xs">{event.Subject}</td>
+              <td className="mono text-xs">
+                {event.Subject}
+                {event.Grant && (
+                  <GrantChangeDetails
+                    subject={event.Subject}
+                    change={event.Grant}
+                  />
+                )}
+              </td>
               <td>{event.Operator}</td>
               <td className="mono text-xs">{event.Latency}</td>
             </tr>
